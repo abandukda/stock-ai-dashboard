@@ -15,8 +15,6 @@ permissions:
 env:
   PYTHONPATH: "."
   ATLAS_FINNHUB_LICENSE_CLASS: PAID_CORE_CERTIFICATION
-  ATLAS_SOURCE_SHA: ${{ github.sha }}
-  ATLAS_EVIDENCE_SNAPSHOT_AT: ${{ github.event.head_commit.timestamp }}
   SHARD_SIZE: "150"
 
 jobs:
@@ -26,6 +24,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+      - name: Resolve immutable run identity from checkout
+        run: python3 scripts/resolve_finnhub_run_identity.py --expected-sha "$GITHUB_SHA" --github-env "$GITHUB_ENV"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -44,6 +44,7 @@ jobs:
           test -z "${FMP_API_KEY:-}"
       - run: >-
           pytest -q tests/test_finnhub_full_universe_executor.py
+          tests/test_finnhub_run_identity.py
           tests/test_full_universe_brain_certification.py
           tests/test_finnhub_canonical_authority.py
           tests/test_finnhub_p_fcf_peer_certification.py
@@ -56,6 +57,8 @@ jobs:
       FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
     steps:
       - uses: actions/checkout@v4
+      - name: Resolve immutable run identity from checkout
+        run: python3 scripts/resolve_finnhub_run_identity.py --expected-sha "$GITHUB_SHA" --github-env "$GITHUB_ENV"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -84,6 +87,8 @@ jobs:
       FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
     steps:
       - uses: actions/checkout@v4
+      - name: Resolve immutable run identity from checkout
+        run: python3 scripts/resolve_finnhub_run_identity.py --expected-sha "$GITHUB_SHA" --github-env "$GITHUB_ENV"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -113,6 +118,8 @@ jobs:
       matrix: ${{ steps.matrix.outputs.value }}
     steps:
       - uses: actions/checkout@v4
+      - name: Resolve immutable run identity from checkout
+        run: python3 scripts/resolve_finnhub_run_identity.py --expected-sha "$GITHUB_SHA" --github-env "$GITHUB_ENV"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -143,6 +150,8 @@ jobs:
       FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
     steps:
       - uses: actions/checkout@v4
+      - name: Resolve immutable run identity from checkout
+        run: python3 scripts/resolve_finnhub_run_identity.py --expected-sha "$GITHUB_SHA" --github-env "$GITHUB_ENV"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -171,6 +180,8 @@ jobs:
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
+      - name: Resolve immutable run identity from checkout
+        run: python3 scripts/resolve_finnhub_run_identity.py --expected-sha "$GITHUB_SHA" --github-env "$GITHUB_ENV"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
