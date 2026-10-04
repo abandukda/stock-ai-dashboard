@@ -1,6 +1,12 @@
 name: ATLAS Finnhub Full-Universe Certification
 
 on:
+  schedule:
+    - cron: "15 4 * * 1-5"
+    - cron: "00 11 * * 1-5"
+    - cron: "00 16 * * 1-5"
+    - cron: "00 19 * * 1-5"
+    - cron: "00 23 * * 1-5"
   workflow_dispatch:
 
 permissions:
@@ -15,7 +21,7 @@ env:
 
 jobs:
   contract-tests:
-    if: ${{ github.ref == 'refs/heads/codex/full-universe-closure-temp' }}
+    if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/codex/full-universe-closure-temp' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -28,7 +34,10 @@ jobs:
         env:
           FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
         run: |
-          test "$GITHUB_REF" = "refs/heads/codex/full-universe-closure-temp"
+          case "$GITHUB_REF" in
+            refs/heads/main|refs/heads/codex/full-universe-closure-temp) ;;
+            *) echo "::error::Unsupported full-universe certification ref: $GITHUB_REF"; exit 1 ;;
+          esac
           test "$ATLAS_FINNHUB_LICENSE_CLASS" = "PAID_CORE_CERTIFICATION"
           test -n "$FINNHUB_API_KEY"
           test -z "${TWELVE_DATA_API_KEY:-}"
