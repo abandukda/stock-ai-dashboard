@@ -383,7 +383,11 @@ class AtlasVisualCrawler:
     async def _require_submission_boundary(
         self, page: Page, ticker: str, *, sent_before: int, rerun_before: int,
     ) -> dict[str, Any]:
-        deadline = time.monotonic() + 8.0
+        # Production intentionally omits the exact-candidate QA-only submit
+        # marker. Keep the strict marker-based transport proof intact, while
+        # allowing the stronger exact-ticker terminal Research contract to
+        # become authoritative within the existing bounded Research budget.
+        deadline = time.monotonic() + RESEARCH_COMPLETION_TIMEOUT_SECONDS
         evidence: dict[str, Any] = {}
         while time.monotonic() < deadline:
             sent_after = len(self._streamlit_frames_sent)
@@ -1830,43 +1834,78 @@ class AtlasVisualCrawler:
 
     async def _home_guidance_vnext_contract(self, page: Page) -> dict[str, Any]:
         result: dict[str, Any] = {
-            "vnext": False, "preview": False, "first_ticker": "", "production_rank": "",
-            "guidance": "", "actionability": "", "separate_metrics": False,
-            "atlas_vs_wall_street": False, "technical": False, "recovery": False,
-            "what_changed": False, "horizontal_overflow": False, "exception": False,
+            "vnext": False, "preview": False, "market_context": False,
+            "market_read": False, "action_summary": False,
+            "strongest_opportunities": False, "worth_watching": False,
+            "actionable_card_count": 0, "actionable_cards_certified": False,
+            "decision_fields_visible": False, "governed_zero_state": False,
+            "horizontal_overflow": False, "exception": False,
         }
         text = await _visible_text(page)
+        required_sections: set[str] = set()
+        evidence_states: list[str] = []
         for scope in _scopes(page):
             marker = scope.locator('[data-atlas-qa="home-guidance-vnext"]')
             if await marker.count():
                 result["vnext"] = True
                 result["preview"] = (await marker.first.get_attribute("data-atlas-mode") or "") == "PREVIEW"
-            cards = scope.locator('[data-atlas-qa="home-guidance-card"]')
-            if await cards.count():
-                first = cards.first
-                result["first_ticker"] = await first.get_attribute("data-atlas-ticker") or ""
-                result["production_rank"] = await first.get_attribute("data-atlas-production-rank") or ""
-                result["guidance"] = await first.get_attribute("data-atlas-guidance") or ""
-                result["actionability"] = await first.get_attribute("data-atlas-actionability") or ""
-                result["separate_metrics"] = all(
-                    await first.get_attribute(name) is not None for name in (
-                        "data-atlas-opportunity", "data-atlas-decision-confidence", "data-atlas-scan-conviction",
-                    )
+            result["market_context"] = result["market_context"] or bool(await scope.locator(
+                '[data-atlas-qa="market-today"][data-atlas-non-scoring="true"]'
+            ).count())
+            result["market_read"] = result["market_read"] or bool(await scope.locator(
+                '[data-atlas-qa="atlas-market-read"][data-atlas-non-scoring="true"]'
+            ).count())
+            sections = scope.locator('[data-atlas-qa="home-guidance-section"][data-atlas-section]')
+            for index in range(await sections.count()):
+                value = await sections.nth(index).get_attribute("data-atlas-section")
+                if value:
+                    required_sections.add(value)
+            cards = scope.locator('[data-atlas-qa="home-actionable-card"][data-atlas-ticker]')
+            result["actionable_card_count"] += await cards.count()
+            for index in range(await cards.count()):
+                evidence_states.append(
+                    await cards.nth(index).get_attribute("data-atlas-evidence-status") or ""
                 )
-        result["atlas_vs_wall_street"] = "ATLAS vs Wall Street" in text
-        result["technical"] = "Technical Opportunities" in text
-        result["recovery"] = "Recovery Opportunities" in text
-        result["what_changed"] = "What Changed is not yet available for this evaluation snapshot" in text
+        result["action_summary"] = (
+            "atlas_action_summary" in required_sections and "ATLAS Action Summary" in text
+        )
+        result["strongest_opportunities"] = (
+            "best_opportunities" in required_sections and "Strongest Opportunities" in text
+        )
+        result["worth_watching"] = (
+            "worth_watching" in required_sections and "Worth Watching" in text
+        )
+        result["actionable_cards_certified"] = bool(
+            evidence_states and all(state == "Evidence Complete" for state in evidence_states)
+        )
+        result["decision_fields_visible"] = bool(
+            result["actionable_card_count"]
+            and "ATLAS Fair Value" in text
+            and "Potential" in text
+            and "Decision Confidence" in text
+        )
+        result["governed_zero_state"] = bool(
+            result["actionable_card_count"] == 0
+            and "ATLAS found no stocks meeting the strongest certified opportunity threshold" in text
+        )
         try:
             result["horizontal_overflow"] = bool(await page.evaluate("document.documentElement.scrollWidth > window.innerWidth"))
         except Exception:
             result["horizontal_overflow"] = False
         result["exception"] = await _has_rendered_exception(page)
         result["passed"] = bool(
-            result["vnext"] and result["first_ticker"] and result["production_rank"] == "1"
-            and result["guidance"] and result["actionability"] and result["separate_metrics"]
-            and result["atlas_vs_wall_street"] and result["technical"] and result["recovery"]
-            and result["what_changed"] and not result["horizontal_overflow"] and not result["exception"]
+            result["vnext"] and result["market_context"] and result["market_read"]
+            and result["action_summary"] and result["strongest_opportunities"]
+            and result["worth_watching"]
+            and (
+                (
+                    result["actionable_card_count"] > 0
+                    and result["actionable_cards_certified"]
+                    and result["decision_fields_visible"]
+                )
+                or result["governed_zero_state"]
+            )
+            and not result["horizontal_overflow"] and not result["exception"]
         )
         return result
 

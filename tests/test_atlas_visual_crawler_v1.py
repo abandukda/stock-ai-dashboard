@@ -21,6 +21,7 @@ from agents.atlas_visual_crawler_v1 import (
     RESEARCH_COMPLETION_TIMEOUT_SECONDS,
     _research_declared_architecture,
     classify_research_terminal_state,
+    research_submission_proven,
     VisualResult,
 )
 from services.vnext_presentation_contract import RESEARCH_VNEXT_VERSION
@@ -278,19 +279,55 @@ def test_home_crawler_certifies_guidance_vnext_authority_and_layout_contract():
     source = SOURCE.read_text(encoding="utf-8")
     assert "_home_guidance_vnext_contract" in source
     for marker in (
-        'home-guidance-vnext', 'home-guidance-card', 'data-atlas-production-rank',
-        'data-atlas-guidance', 'data-atlas-actionability', 'data-atlas-opportunity',
-        'data-atlas-decision-confidence', 'data-atlas-scan-conviction',
+        'home-guidance-vnext', 'market-today', 'atlas-market-read',
+        'atlas_action_summary', 'best_opportunities', 'worth_watching',
+        'home-actionable-card', 'data-atlas-evidence-status',
     ):
         assert marker in source
-    assert "ATLAS vs Wall Street" in source
-    assert "Technical Opportunities" in source
-    assert "Recovery Opportunities" in source
-    assert "What Changed is not yet available for this evaluation snapshot" in source
+    assert "ATLAS Action Summary" in source
+    assert "Strongest Opportunities" in source
+    assert "Worth Watching" in source
+    assert "ATLAS found no stocks meeting the strongest certified opportunity threshold" in source
+    assert "ATLAS Fair Value" in source
+    assert "Decision Confidence" in source
     assert "document.documentElement.scrollWidth > window.innerWidth" in source
     method = source.split("async def _home_cards", 1)[1].split("async def _open_buy_now_expander", 1)[0]
     assert "except Exception as exc" in method
     assert 'await self._page_visit(page, "Home", viewport=viewport)' in method
+
+
+def test_production_research_submission_waits_for_stronger_terminal_contract():
+    proven, mode = research_submission_proven(
+        streamlit_event_frames=1,
+        rerun_before=1,
+        rerun_after=2,
+        submission_marker=False,
+        completed_research={},
+    )
+    assert proven is False
+    assert mode == "UNPROVEN"
+
+    proven, mode = research_submission_proven(
+        streamlit_event_frames=1,
+        rerun_before=1,
+        rerun_after=2,
+        submission_marker=False,
+        completed_research={
+            "ticker": True,
+            "lifecycle_complete": True,
+            "vnext": True,
+            "complete": True,
+        },
+    )
+    assert proven is True
+    assert mode == "CERTIFIED_RESEARCH_COMPLETION"
+
+    source = SOURCE.read_text(encoding="utf-8")
+    boundary = source.split("async def _require_submission_boundary", 1)[1].split(
+        "def _monitor_research_ticker", 1
+    )[0]
+    assert "RESEARCH_COMPLETION_TIMEOUT_SECONDS" in boundary
+    assert "and submission_marker" in source
 
 
 def test_crawler_tracks_ux3b_decision_story_without_restoring_legacy_tabs():
