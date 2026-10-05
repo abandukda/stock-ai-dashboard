@@ -21,7 +21,7 @@ from pathlib import Path
 import re
 import time
 import traceback
-from typing import Any, Iterable
+from typing import Any, Iterable, Mapping
 from urllib.parse import urlsplit, urlunsplit
 
 from playwright.async_api import BrowserContext, Frame, Locator, Page, async_playwright
@@ -56,6 +56,7 @@ LOGIN_TIMEOUT_SECONDS = 240
 DEPLOYED_READINESS_TIMEOUT_SECONDS = int(os.getenv("ATLAS_QA_READINESS_TIMEOUT_SECONDS", "180"))
 DEPLOYED_READINESS_STABILITY_SECONDS = 2
 TOTAL_TIMEOUT_SECONDS = 1_500
+_RUNTIME_EXPECTATIONS_PATH = Path(__file__).resolve().parents[1] / "certification" / "runtime_projection_expectations_64c0a00a.json"
 
 DEPLOYED_HEALTH_STATES = {
     "APP_READY", "LOGIN_READY", "DEPLOYMENT_UPDATING",
@@ -1071,11 +1072,79 @@ async def _visual_layout_issues(page: Page, page_name: str) -> list[QAIssue]:
     return issues
 
 
+async def _marker_attributes(page: Page, selector: str, names: Iterable[str]) -> dict[str, str]:
+    for scope in _all_scopes(page):
+        try:
+            marker = scope.locator(selector).last
+            if await _safe_count(marker):
+                return {name: (await marker.get_attribute(f"data-atlas-{name.replace('_', '-')}") or "") for name in names}
+        except Exception:
+            continue
+    return {}
+
+
+def home_runtime_authority_failures(
+    authority: Mapping[str, str], inventory: Mapping[str, str], expectations: Mapping[str, Any],
+) -> list[str]:
+    identity = dict(expectations.get("identity") or {})
+    expected_inventory = dict(expectations.get("source_inventory") or {})
+    failures = []
+    for actual_key, expected_key in (
+        ("candidate_digest", "candidate_digest"), ("publication_digest", "publication_digest"),
+        ("source_sha", "source_sha"), ("evidence_snapshot", "evidence_snapshot_at"),
+    ):
+        if authority.get(actual_key) != str(identity.get(expected_key) or ""):
+            failures.append(f"HOME_{actual_key.upper()}_MISMATCH")
+    for key, expected_key in (
+        ("canonical_count", "canonical_buy_now_count"),
+        ("publishable_count", "publishable_buy_now_count"),
+        ("withheld_count", "withheld_buy_now_count"),
+    ):
+        if inventory.get(key) != str(expected_inventory.get(expected_key)):
+            failures.append(f"HOME_{key.upper()}_MISMATCH")
+    for key, expected_key in (
+        ("canonical_tickers", "canonical_buy_now"),
+        ("publishable_tickers", "publishable_buy_now"),
+        ("withheld_tickers", "withheld_buy_now"),
+    ):
+        if sorted(filter(None, inventory.get(key, "").split(","))) != sorted(expected_inventory.get(expected_key) or ()):
+            failures.append(f"HOME_{key.upper()}_MISMATCH")
+    return failures
+
+
+async def _home_runtime_authority_issues(page: Page) -> list[QAIssue]:
+    try:
+        expectations = json.loads(_RUNTIME_EXPECTATIONS_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError, TypeError):
+        expectations = {}
+    authority = await _marker_attributes(page, '[data-atlas-qa="production-authority"]', (
+        "candidate_digest", "publication_digest", "source_sha", "evidence_snapshot",
+        "projection_digest", "deployed_sha",
+    ))
+    inventory = await _marker_attributes(page, '[data-atlas-qa="home-inventory-authority"]', (
+        "canonical_count", "publishable_count", "withheld_count", "canonical_tickers",
+        "publishable_tickers", "withheld_tickers",
+    ))
+    failures = home_runtime_authority_failures(authority, inventory, expectations)
+    if not failures:
+        return []
+    return [QAIssue(
+        severity="CRITICAL", category="Certified Runtime Authority", page="Home",
+        element="Structured production identity and inventory markers",
+        expected="Exact certified candidate/publication/source/snapshot and 21/11/10 inventory.",
+        actual=", ".join(failures),
+        recommendation="Restore the certified runtime projection and rerun the governed promotion contract.",
+        likely_files=["publication_manifest.json", "services/runtime_projection_contract.py"],
+    )]
+
+
 async def _inventory(page: Page, page_name: str, output_dir: Path | None = None) -> PageResult:
     started = time.monotonic()
     text = await _combined_visible_text(page)
     issues = _page_issues(page_name, text)
     issues.extend(await _visual_layout_issues(page, page_name))
+    if page_name == "Home":
+        issues.extend(await _home_runtime_authority_issues(page))
 
     metrics = tables = charts = buttons = tabs = expanders = 0
     for scope in _all_scopes(page):
