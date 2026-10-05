@@ -19,12 +19,12 @@ def test_dispatch_exposes_three_isolated_modes_and_schedule_stays_full():
     assert "github.event_name == 'workflow_dispatch' && inputs.mode || 'full'" in SOURCE
 
 
-def test_runtime_target_comes_from_explicit_dispatch_or_repository_variable():
+def test_runtime_target_comes_from_dispatch_variable_or_governed_default():
     assert "deployed_url:" in SOURCE
-    assert "ATLAS_PRODUCTION_URL: ${{ inputs.deployed_url || vars.ATLAS_PRODUCTION_URL }}" in SOURCE
+    assert "inputs.deployed_url || vars.ATLAS_PRODUCTION_URL || 'https://stock-ai-dashboard.streamlit.app/'" in SOURCE
     assert SOURCE.count('--url "$ATLAS_PRODUCTION_URL"') == 2
     assert "Validate exact deployed ATLAS target" in SOURCE
-    assert "https://stock-ai-dashboard.streamlit.app" not in SOURCE
+    assert "from agents.deployment_target import canonical_production_url" in SOURCE
     assert "https://share.streamlit.io/app/" not in SOURCE
 
 

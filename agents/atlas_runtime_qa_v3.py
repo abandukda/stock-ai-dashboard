@@ -43,10 +43,13 @@ from agents.product_hardening_certification import (
     MOBILE_CRITICAL_JOURNEYS, screenshot_manifest_entry,
     visual_certification_completeness,
 )
+from agents.deployment_target import (
+    DeploymentTargetValidationError,
+    canonical_production_url,
+)
 
 
 DEFAULT_URL = os.getenv("ATLAS_PRODUCTION_URL", "").strip()
-RETIRED_DEPLOYMENT_TARGETS = {"https://stock-ai-dashboard.streamlit.app/"}
 PAGE_TIMEOUT_MS = 35_000
 ACTION_TIMEOUT_MS = 6_000
 LOGIN_TIMEOUT_SECONDS = 240
@@ -293,8 +296,11 @@ def _canonical_streamlit_url(url: str, *, allow_local_exact_candidate: bool = Fa
         invalid_reason = "GENERIC_STREAMLIT_SHARE_SHELL"
     elif not host.endswith(".streamlit.app") and not local_exact_candidate:
         invalid_reason = "NON_STREAMLIT_APP_ORIGIN"
-    elif target in RETIRED_DEPLOYMENT_TARGETS:
-        invalid_reason = "RETIRED_ATLAS_DEPLOYMENT_TARGET"
+    elif not local_exact_candidate:
+        try:
+            return canonical_production_url(raw)
+        except DeploymentTargetValidationError as exc:
+            invalid_reason = exc.reason
     if invalid_reason:
         raise DeploymentTargetError({"reason": invalid_reason, "resolved_target_url": target})
     return target

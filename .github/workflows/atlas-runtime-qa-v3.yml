@@ -26,7 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      ATLAS_PRODUCTION_URL: ${{ inputs.deployed_url || vars.ATLAS_PRODUCTION_URL }}
+      ATLAS_PRODUCTION_URL: ${{ inputs.deployed_url || vars.ATLAS_PRODUCTION_URL || 'https://stock-ai-dashboard.streamlit.app/' }}
 
     steps:
       - name: Checkout repository
@@ -53,8 +53,8 @@ jobs:
         run: |
           python - <<'PY'
           import os
-          from agents.atlas_runtime_qa_v3 import _canonical_streamlit_url
-          print("ATLAS runtime target:", _canonical_streamlit_url(os.environ.get("ATLAS_PRODUCTION_URL", "")))
+          from agents.deployment_target import canonical_production_url
+          print("ATLAS runtime target:", canonical_production_url(os.environ.get("ATLAS_PRODUCTION_URL", "")))
           PY
 
       - name: Record source and verify architecture
