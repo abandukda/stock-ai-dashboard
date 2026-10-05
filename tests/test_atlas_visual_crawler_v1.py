@@ -21,6 +21,8 @@ from agents.atlas_visual_crawler_v1 import (
     RESEARCH_COMPLETION_TIMEOUT_SECONDS,
     _research_declared_architecture,
     classify_research_terminal_state,
+    certified_research_fields_reconciled,
+    normalize_research_action,
     research_submission_failure,
     research_submission_proven,
     VisualResult,
@@ -31,6 +33,66 @@ from agents.product_hardening_certification import ACTIVE_PAGES
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "agents" / "atlas_visual_crawler_v1.py"
+
+
+def test_research_field_reconciliation_accepts_current_customer_labels_and_values():
+    assert certified_research_fields_reconciled({
+        "action": "BUY NOW",
+        "atlas_fair_value": "$338.82",
+        "opportunity": "86.68",
+        "decision_confidence": "88.54%",
+    }) is True
+
+
+def test_research_action_normalization_is_presentation_equivalent_only():
+    assert normalize_research_action("BUY_NOW") == "BUY_NOW"
+    assert normalize_research_action("BUY NOW") == "BUY_NOW"
+    assert normalize_research_action("WAIT FOR CONFIRMATION") == "WAIT_FOR_CONFIRMATION"
+
+
+def test_research_field_reconciliation_accepts_fair_value_display_formats():
+    for value in ("$123.40", "$123", "123.4"):
+        assert certified_research_fields_reconciled({
+            "action": "BUY_NOW", "atlas_fair_value": value,
+            "opportunity": "86.68", "decision_confidence": "88.54%",
+        }) is True
+
+
+def test_research_field_reconciliation_rejects_missing_or_unavailable_fields():
+    complete = {
+        "action": "BUY_NOW", "atlas_fair_value": "$338.82",
+        "opportunity": "86.68", "decision_confidence": "88.54%",
+    }
+    for key in complete:
+        missing = dict(complete)
+        missing.pop(key)
+        assert certified_research_fields_reconciled(missing) is False
+    for key in ("atlas_fair_value", "opportunity", "decision_confidence"):
+        unavailable = dict(complete)
+        unavailable[key] = "Unavailable"
+        assert certified_research_fields_reconciled(unavailable) is False
+
+
+def test_research_field_reconciliation_rejects_unrelated_action_text():
+    assert certified_research_fields_reconciled({
+        "action": "BUY NOW appears elsewhere on page",
+        "atlas_fair_value": "$338.82", "opportunity": "86.68",
+        "decision_confidence": "88.54%",
+    }) is False
+
+
+def test_research_field_extractor_uses_ticker_scoped_action_and_metric_nodes():
+    source = SOURCE.read_text(encoding="utf-8")
+    block = source.split("async def _research_certified_fields", 1)[1].split(
+        "def _source_sha", 1
+    )[0]
+    assert 'st-key-vnext_decision_action_{ticker}' in block
+    assert 'data-testid="stMetric"' in block
+    assert 'data-testid="stMetricLabel"' in block
+    assert 'data-testid="stMetricValue"' in block
+    assert '"ATLAS FAIR VALUE": "atlas_fair_value"' in block
+    assert '"OPPORTUNITY": "opportunity"' in block
+    assert '"DECISION CONFIDENCE": "decision_confidence"' in block
 
 
 def test_visual_crawler_has_complete_non_blocking_product_scope():

@@ -279,6 +279,28 @@ def research_submission_failure(
     return "RESEARCH_SUBMISSION_PROOF_UNAVAILABLE"
 
 
+def normalize_research_action(value: str) -> str:
+    """Normalize only presentation-equivalent customer Action spelling."""
+    return re.sub(r"[^A-Z0-9]+", "_", str(value or "").strip().upper()).strip("_")
+
+
+def certified_research_fields_reconciled(fields: dict[str, Any]) -> bool:
+    """Require all four governed fields from their production DOM components."""
+    action = normalize_research_action(str(fields.get("action") or ""))
+    fair_value = str(fields.get("atlas_fair_value") or "").strip()
+    opportunity = str(fields.get("opportunity") or "").strip()
+    confidence = str(fields.get("decision_confidence") or "").strip()
+    return bool(
+        action in {
+            "BUY_NOW", "BUILD_A_POSITION", "WAIT_FOR_A_BETTER_ENTRY",
+            "WAIT_FOR_CONFIRMATION", "WATCH", "AVOID",
+        }
+        and fair_value and fair_value.upper() != "UNAVAILABLE"
+        and opportunity and opportunity.upper() != "UNAVAILABLE"
+        and confidence and confidence.upper() != "UNAVAILABLE"
+    )
+
+
 class AtlasVisualCrawler:
     """Continue-through-failure visual inspection in one authenticated session."""
 
@@ -455,6 +477,7 @@ class AtlasVisualCrawler:
                 "certified_fields_reconciled": bool(
                     completed_research.get("certified_fields_reconciled")
                 ),
+                "certified_fields": completed_research.get("certified_fields") or {},
                 "provider_calls": completed_research.get("provider_calls"),
                 "provider_boundary_zero": bool(
                     completed_research.get("provider_boundary_zero")
@@ -571,6 +594,7 @@ class AtlasVisualCrawler:
             "terminal_status": "", "rendered_exception": False,
             "rendered_tickers": [], "no_stale_ticker": False,
             "certified_fields_reconciled": False,
+            "certified_fields": {},
             "provider_calls": None, "provider_boundary_zero": False,
         }
         architecture = await self._research_vnext_contract(page, expected)
@@ -639,11 +663,11 @@ class AtlasVisualCrawler:
             ))
         )
         result["published_decision_evidence"] = published_decision_evidence
+        certified_fields = await self._research_certified_fields(page, expected)
+        result["certified_fields"] = certified_fields
         result["certified_fields_reconciled"] = bool(
             published_decision_evidence
-            and re.search(r"ATLAS FAIR VALUE\s+(?!UNAVAILABLE\b)\S+", normalized_text)
-            and re.search(r"OPPORTUNITY\s+(?!UNAVAILABLE\b)\S+", normalized_text)
-            and re.search(r"DECISION CONFIDENCE\s+(?!UNAVAILABLE\b)\S+", normalized_text)
+            and certified_research_fields_reconciled(certified_fields)
         )
         result["research_terminal_state"] = classify_research_terminal_state(
             ticker_present=result["ticker"], lifecycle_complete=result["lifecycle_complete"],
@@ -657,6 +681,50 @@ class AtlasVisualCrawler:
             "PUBLISHED_RESEARCH_COMPLETE", "RATING_NOT_PUBLISHED_COMPLETE",
         }
         return result
+
+    async def _research_certified_fields(self, page: Page, ticker: str) -> dict[str, str]:
+        """Read the real production decision components for the active ticker.
+
+        Streamlit renders metric labels and values as sibling DOM nodes, so a
+        flattened page-text regex is not a reliable field contract. This keeps
+        label/value ownership within each metric and scopes Action to the
+        production ticker-specific decision container.
+        """
+        fields: dict[str, str] = {}
+        expected_labels = {
+            "ATLAS FAIR VALUE": "atlas_fair_value",
+            "OPPORTUNITY": "opportunity",
+            "DECISION CONFIDENCE": "decision_confidence",
+        }
+        for scope in _scopes(page):
+            try:
+                action = scope.locator(f'[class*="st-key-vnext_decision_action_{ticker}"]')
+                for index in range(await action.count()):
+                    node = action.nth(index)
+                    if not await node.is_visible():
+                        continue
+                    text = re.sub(r"\s+", " ", await node.inner_text()).strip()
+                    normalized = normalize_research_action(text.split("—", 1)[0])
+                    if normalized:
+                        fields["action"] = normalized
+                metrics = scope.locator('[data-testid="stMetric"]')
+                for index in range(await metrics.count()):
+                    metric = metrics.nth(index)
+                    if not await metric.is_visible():
+                        continue
+                    label_node = metric.locator('[data-testid="stMetricLabel"]')
+                    value_node = metric.locator('[data-testid="stMetricValue"]')
+                    if not await label_node.count() or not await value_node.count():
+                        continue
+                    label = re.sub(r"\s+", " ", await label_node.first.inner_text()).strip().upper()
+                    key = expected_labels.get(label)
+                    if key:
+                        fields[key] = re.sub(
+                            r"\s+", " ", await value_node.first.inner_text()
+                        ).strip()
+            except Exception:
+                continue
+        return fields
 
     def _source_sha(self) -> str:
         return subprocess.check_output(
