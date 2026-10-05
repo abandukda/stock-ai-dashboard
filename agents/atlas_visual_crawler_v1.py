@@ -170,6 +170,11 @@ MOBILE_PAGES = (
     "Home", "Research Any Ticker", "Today's Opportunities", "Ask AI",
     "Political Intelligence", "Earnings Intelligence", "Full Ranked Scan", "Recovery",
 )
+REQUIRED_RESEARCH_TICKERS = ("NVDA", "MSFT", "AVT")
+REQUIRED_PAGE_VIEWPORTS = frozenset({
+    ("Home", "desktop"), ("Home", "mobile"),
+    ("Research Any Ticker", "desktop"), ("Research Any Ticker", "mobile"),
+})
 PRIMARY_VISIBLE_SIGNALS = {
     "Home": ("Atlas Morning Decision", "Home"),
     "Today's Opportunities": ("Today's Opportunities", "Opportunity"),
@@ -202,6 +207,7 @@ class VisualResult:
     viewport: str = "desktop"
     screenshots: list[str] = field(default_factory=list)
     exception: dict[str, str] = field(default_factory=dict)
+    required: bool = False
 
 
 class GlobalCrawlFailure(RuntimeError):
@@ -759,9 +765,14 @@ class AtlasVisualCrawler:
         observed: str, passed: bool, elapsed: float, ticker: str = "",
         viewport: str = "desktop", screenshots: Iterable[str] = (),
         exception: dict[str, str] | None = None, severity: str | None = None,
-        status_override: str | None = None,
+        status_override: str | None = None, required: bool | None = None,
     ) -> VisualResult:
         status = status_override if status_override in {"PASS", "FAIL", "NEEDS_REVIEW"} else ("PASS" if passed else "FAIL")
+        if required is None:
+            required = self._required_result(
+                category=category, page_name=page_name, ticker=ticker,
+                viewport=viewport,
+            )
         result = VisualResult(
             category=category, page=page_name, interaction=interaction,
             expected=expected, observed=observed,
@@ -770,10 +781,55 @@ class AtlasVisualCrawler:
             elapsed_seconds=round(elapsed, 3), ticker_context=ticker,
             viewport=viewport, screenshots=[item for item in screenshots if item],
             exception=exception or {},
+            required=required,
         )
         self.results.append(result)
         self._write_artifacts(final=False)
         return result
+
+    @staticmethod
+    def _required_result(
+        *, category: str, page_name: str, ticker: str, viewport: str,
+    ) -> bool:
+        """Return the governed launch-critical status of a crawler finding."""
+        if category == "GLOBAL":
+            return True
+        if category == "PAGE":
+            return (page_name, viewport) in REQUIRED_PAGE_VIEWPORTS
+        if page_name == "Home":
+            return viewport in {"desktop", "mobile"}
+        if page_name != "Research Any Ticker":
+            return False
+        normalized = ticker.upper()
+        if viewport == "desktop":
+            return normalized in REQUIRED_RESEARCH_TICKERS
+        return viewport == "mobile" and normalized == "NVDA"
+
+    def _required_completeness(self) -> dict[str, Any]:
+        required_results = [item for item in self.results if item.required]
+        page_keys = {
+            (item.page, item.viewport) for item in required_results
+            if item.category == "PAGE" and item.status == "PASS"
+        }
+        research_keys = {
+            (item.ticker_context.upper(), item.viewport) for item in required_results
+            if item.category == "RESEARCH" and item.status == "PASS"
+        }
+        expected_research = {
+            *((ticker, "desktop") for ticker in REQUIRED_RESEARCH_TICKERS),
+            ("NVDA", "mobile"),
+        }
+        missing_pages = sorted(REQUIRED_PAGE_VIEWPORTS - page_keys)
+        missing_research = sorted(expected_research - research_keys)
+        failures = [asdict(item) for item in required_results if item.status == "FAIL"]
+        return {
+            "status": "PASS" if not missing_pages and not missing_research and not failures else "FAIL",
+            "required_page_viewports": sorted(REQUIRED_PAGE_VIEWPORTS),
+            "required_research_tickers": sorted(expected_research),
+            "missing_page_viewports": missing_pages,
+            "missing_research_tickers": missing_research,
+            "failure_count": len(failures),
+        }
 
     async def _visible_primary(self, page: Page, page_name: str) -> tuple[bool, str]:
         text = await _visible_text(page)
@@ -2007,9 +2063,30 @@ class AtlasVisualCrawler:
                 viewport=viewport, screenshots=(before,), severity="P1",
             )
 
-    async def _desktop(self, page: Page) -> None:
+    async def _required_desktop(self, page: Page) -> None:
         await page.set_viewport_size(DESKTOP)
-        for page_name in ACTIVE_PAGES:
+        await self._page_visit(page, "Home")
+        await self._home_cards(page)
+        await self._page_visit(page, "Research Any Ticker")
+        for ticker in REQUIRED_RESEARCH_TICKERS:
+            await self._submit_research(page, ticker, tabs=True)
+
+    async def _supplementary_desktop(self, page: Page) -> None:
+        await page.set_viewport_size(DESKTOP)
+        for page_name in (name for name in ACTIVE_PAGES if name not in {"Home", "Research Any Ticker"}):
+            try:
+                await self._supplementary_desktop_page(page, page_name)
+            except GlobalCrawlFailure:
+                raise
+            except Exception as exc:
+                await self._record(
+                    category="SUPPLEMENTARY_EXECUTION", page_name=page_name,
+                    interaction="desktop-journey", expected="Supplementary journey completes without an uncaught exception",
+                    observed=type(exc).__name__, passed=False,
+                    elapsed=0.0, severity="P2", required=False,
+                )
+
+    async def _supplementary_desktop_page(self, page: Page, page_name: str) -> None:
             await self._page_visit(page, page_name)
             if page_name == "Earnings Intelligence":
                 await self._earnings_vnext_contract(page, viewport="desktop")
@@ -2022,25 +2099,34 @@ class AtlasVisualCrawler:
             if page_name in {"Earnings Intelligence", "Political Intelligence"}:
                 await self._click_expanders(page, page_name=page_name)
                 await self._supporting_evidence(page, page_name=page_name)
-        await self._home_cards(page)
-        roles = self.ticker_matrix.get("role_tickers", {})
-        minimum = ["NVDA", roles.get("top_idea"), roles.get("home_first"), roles.get("home_middle"), roles.get("home_last"), self.monitor_ticker, roles.get("etf") or "SPY", roles.get("missing_production"), "INVALID123"]
-        tickers = list(dict.fromkeys(ticker for ticker in [*minimum, *self.ticker_matrix.get("top15", [])] if ticker))
-        deep = set(ticker for ticker in minimum if ticker and ticker != "INVALID123")
-        for ticker in tickers:
-            await self._submit_research(page, ticker, tabs=ticker in deep)
-        await self._ask(page)
+            if page_name == "Ask AI":
+                await self._ask(page)
 
-    async def _mobile(self, page: Page) -> None:
+    async def _required_mobile(self, page: Page) -> None:
         await page.set_viewport_size(MOBILE)
-        for page_name in MOBILE_PAGES:
+        await self._page_visit(page, "Home", viewport="mobile")
+        await self._home_cards(page, viewport="mobile")
+        await self._page_visit(page, "Research Any Ticker", viewport="mobile")
+        await self._submit_research(page, "NVDA", tabs=True, viewport="mobile")
+
+    async def _supplementary_mobile(self, page: Page) -> None:
+        await page.set_viewport_size(MOBILE)
+        for page_name in (name for name in MOBILE_PAGES if name not in {"Home", "Research Any Ticker"}):
+            try:
+                await self._supplementary_mobile_page(page, page_name)
+            except GlobalCrawlFailure:
+                raise
+            except Exception as exc:
+                await self._record(
+                    category="SUPPLEMENTARY_EXECUTION", page_name=page_name,
+                    interaction="mobile-journey", expected="Supplementary mobile journey completes without an uncaught exception",
+                    observed=type(exc).__name__, passed=False, elapsed=0.0,
+                    viewport="mobile", severity="P2", required=False,
+                )
+
+    async def _supplementary_mobile_page(self, page: Page, page_name: str) -> None:
             await self._page_visit(page, page_name, viewport="mobile")
-            if page_name == "Home":
-                await self._home_cards(page, viewport="mobile")
-            elif page_name == "Research Any Ticker":
-                await self._submit_research(page, "NVDA", tabs=True, viewport="mobile")
-                await self._submit_research(page, self.monitor_ticker, tabs=True, viewport="mobile")
-            elif page_name == "Ask AI":
+            if page_name == "Ask AI":
                 await self._ask(page, viewport="mobile")
             elif page_name == "Political Intelligence":
                 await self._click_expanders(page, page_name=page_name, viewport="mobile")
@@ -2077,8 +2163,13 @@ class AtlasVisualCrawler:
                         screenshots=(shot,), severity="P1",
                     )
                     raise GlobalCrawlFailure(category) from exc
-                await self._desktop(page)
-                await self._mobile(page)
+                # Launch-critical coverage runs first and remains fail-closed.
+                # Supplementary/legacy journeys are retained, but cannot prevent
+                # Research or mobile certification from being attempted.
+                await self._required_desktop(page)
+                await self._required_mobile(page)
+                await self._supplementary_desktop(page)
+                await self._supplementary_mobile(page)
             finally:
                 await context.close()
                 await browser.close()
@@ -2089,6 +2180,8 @@ class AtlasVisualCrawler:
             rows = [row for row in self.results if row.category == category]
             return {"attempted": len(rows), "passed": sum(row.status == "PASS" for row in rows), "failed": sum(row.status == "FAIL" for row in rows)}
         all_counts = {"attempted": len(self.results), "passed": sum(row.status == "PASS" for row in self.results), "failed": sum(row.status == "FAIL" for row in self.results)}
+        required = [row for row in self.results if row.required]
+        supplementary = [row for row in self.results if not row.required]
         expected_shots = len(self.manifest)
         generated_shots = sum(bool(item.get("generated")) for item in self.manifest)
         return {
@@ -2096,6 +2189,7 @@ class AtlasVisualCrawler:
             "started_at": self.started_at, "finished": final,
             "duration_seconds": round(time.monotonic() - self.started, 3),
             "authentication_success": bool(self.authentication),
+            "required_completeness": self._required_completeness(),
             "capture_efficiency": {
                 "deduplicated_screenshot_count": self.screenshot_calls_avoided,
                 "screenshot_retries": self.screenshot_retries,
@@ -2110,6 +2204,8 @@ class AtlasVisualCrawler:
                 },
                 "research_tickers": counts("RESEARCH"), "tabs": counts("TAB"),
                 "screenshots": {"expected": expected_shots, "generated": generated_shots, "missing": expected_shots - generated_shots},
+                "required": {"attempted": len(required), "passed": sum(row.status == "PASS" for row in required), "failed": sum(row.status == "FAIL" for row in required)},
+                "supplementary": {"attempted": len(supplementary), "passed": sum(row.status == "PASS" for row in supplementary), "failed": sum(row.status == "FAIL" for row in supplementary)},
             },
             "ticker_matrix": self.ticker_matrix,
             "defects": [asdict(row) for row in self.results if row.status == "FAIL"],
@@ -2123,7 +2219,7 @@ class AtlasVisualCrawler:
         (self.output_dir / "atlas_visual_qa_summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
         (self.output_dir / "screenshot_manifest.json").write_text(json.dumps(self.manifest, indent=2), encoding="utf-8")
         csv_path = self.output_dir / "atlas_visual_qa_matrix.csv"
-        columns = ["category", "page", "ticker_context", "interaction", "expected", "observed", "status", "severity", "elapsed_seconds", "viewport", "screenshots", "exception"]
+        columns = ["category", "page", "ticker_context", "interaction", "expected", "observed", "status", "severity", "elapsed_seconds", "viewport", "screenshots", "exception", "required"]
         with csv_path.open("w", encoding="utf-8", newline="") as handle:
             writer = csv.DictWriter(handle, fieldnames=columns); writer.writeheader()
             for result in self.results:
@@ -2148,9 +2244,14 @@ async def _async_main(args: argparse.Namespace) -> int:
         crawler._write_artifacts(final=True)
         print(json.dumps({"status": exc.category, "artifact": str(Path(args.output) / "atlas_visual_qa_summary.json")}, sort_keys=True))
         return 3
-    failed = int(summary["counts"]["all"]["failed"])
-    print(json.dumps({"status": "PASS" if not failed else "COMPLETE_WITH_DEFECTS", "failures": failed, "artifact": str(Path(args.output) / "atlas_visual_qa_summary.json")}, sort_keys=True))
-    return 0 if not failed else 2
+    required_complete = summary["required_completeness"]["status"] == "PASS"
+    supplementary_failures = int(summary["counts"]["supplementary"]["failed"])
+    print(json.dumps({
+        "status": "PASS" if required_complete else "REQUIRED_COVERAGE_FAILED",
+        "supplementary_failures": supplementary_failures,
+        "artifact": str(Path(args.output) / "atlas_visual_qa_summary.json"),
+    }, sort_keys=True))
+    return 0 if required_complete else 2
 
 
 def main() -> int:

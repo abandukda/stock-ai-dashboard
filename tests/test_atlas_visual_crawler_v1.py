@@ -9,6 +9,8 @@ from agents.atlas_visual_crawler_v1 import (
     AtlasVisualCrawler,
     GLOBAL_FATALS,
     MOBILE_PAGES,
+    REQUIRED_PAGE_VIEWPORTS,
+    REQUIRED_RESEARCH_TICKERS,
     EARNINGS_VNEXT_SECTION_LABELS,
     RECOVERY_VNEXT_SECTION_LABELS,
     recovery_candidate_archetypes,
@@ -81,13 +83,109 @@ def test_artifacts_are_complete_and_sanitized(tmp_path, monkeypatch):
 def test_every_interaction_is_independently_recorded_and_no_stop_first_failure():
     tree = ast.parse(SOURCE.read_text(encoding="utf-8"))
     source = SOURCE.read_text(encoding="utf-8")
-    assert "for page_name in ACTIVE_PAGES" in source
-    assert "for ticker in tickers" in source
+    assert "name for name in ACTIVE_PAGES" in source
+    assert "for ticker in REQUIRED_RESEARCH_TICKERS" in source
     assert "for name in tabs" in source
     assert "for name, node in candidates" in source
     assert "break" not in ast.get_source_segment(source, next(
-        node for node in ast.walk(tree) if isinstance(node, ast.AsyncFunctionDef) and node.name == "_desktop"
+        node for node in ast.walk(tree) if isinstance(node, ast.AsyncFunctionDef) and node.name == "_required_desktop"
     ))
+
+
+def _contract_crawler(tmp_path, monkeypatch):
+    monkeypatch.setattr(AtlasVisualCrawler, "_source_sha", lambda _self: "a" * 40)
+    monkeypatch.setattr(
+        "agents.atlas_visual_crawler_v1.full_certification_ticker_matrix",
+        lambda _root: {"top15": [], "role_tickers": {}},
+    )
+    return AtlasVisualCrawler(url="http://example.invalid", output_dir=tmp_path, root=ROOT)
+
+
+def _result(*, category, page, viewport="desktop", ticker="", status="PASS", required=True):
+    return VisualResult(
+        category=category, page=page, interaction="contract", expected="pass",
+        observed=status, status=status, severity="NONE" if status == "PASS" else "P1",
+        elapsed_seconds=0.1, ticker_context=ticker, viewport=viewport,
+        required=required,
+    )
+
+
+def _passing_required_results():
+    rows = [
+        _result(category="PAGE", page=page, viewport=viewport)
+        for page, viewport in REQUIRED_PAGE_VIEWPORTS
+    ]
+    rows.extend(
+        _result(category="RESEARCH", page="Research Any Ticker", ticker=ticker)
+        for ticker in REQUIRED_RESEARCH_TICKERS
+    )
+    rows.append(_result(
+        category="RESEARCH", page="Research Any Ticker", ticker="NVDA",
+        viewport="mobile",
+    ))
+    return rows
+
+
+def test_required_home_research_mobile_and_ticker_failures_block(tmp_path, monkeypatch):
+    crawler = _contract_crawler(tmp_path, monkeypatch)
+    for target in (
+        ("PAGE", "Home", "desktop", ""),
+        ("PAGE", "Research Any Ticker", "desktop", ""),
+        ("PAGE", "Home", "mobile", ""),
+        ("RESEARCH", "Research Any Ticker", "desktop", "MSFT"),
+    ):
+        crawler.results = _passing_required_results()
+        category, page, viewport, ticker = target
+        for row in crawler.results:
+            if (row.category, row.page, row.viewport, row.ticker_context) == target:
+                row.status = "FAIL"
+                break
+        assert crawler._required_completeness()["status"] == "FAIL"
+
+
+def test_optional_legacy_defects_are_recorded_without_blocking_required_coverage(tmp_path, monkeypatch):
+    crawler = _contract_crawler(tmp_path, monkeypatch)
+    crawler.results = _passing_required_results()
+    crawler.results.extend([
+        _result(category="FULL_SCAN", page="Full Ranked Scan", status="FAIL", required=False),
+        _result(category="FULL_SCAN_CANDIDATE", page="Full Ranked Scan", status="FAIL", required=False),
+    ])
+    summary = crawler._summary(final=True)
+    assert summary["required_completeness"]["status"] == "PASS"
+    assert summary["counts"]["supplementary"]["failed"] == 2
+    assert len(summary["defects"]) == 2
+
+
+def test_required_coverage_never_passes_with_zero_research_or_incomplete_mobile(tmp_path, monkeypatch):
+    crawler = _contract_crawler(tmp_path, monkeypatch)
+    crawler.results = [
+        _result(category="PAGE", page=page, viewport=viewport)
+        for page, viewport in REQUIRED_PAGE_VIEWPORTS
+    ]
+    assert crawler._required_completeness()["status"] == "FAIL"
+    crawler.results = [
+        row for row in _passing_required_results()
+        if not (row.category == "PAGE" and row.viewport == "mobile")
+    ]
+    assert crawler._required_completeness()["status"] == "FAIL"
+
+
+def test_required_journeys_run_before_supplementary_desktop_and_mobile():
+    source = SOURCE.read_text(encoding="utf-8")
+    run = source.split("async def run", 1)[1].split("def _summary", 1)[0]
+    assert run.index("_required_desktop") < run.index("_required_mobile")
+    assert run.index("_required_mobile") < run.index("_supplementary_desktop")
+    assert run.index("_supplementary_desktop") < run.index("_supplementary_mobile")
+    assert "except Exception as exc" in source.split("async def _supplementary_desktop", 1)[1]
+
+
+def test_authentication_and_source_identity_remain_fail_closed():
+    workflow = (ROOT / ".github/workflows/atlas-runtime-qa-v3.yml").read_text()
+    source = SOURCE.read_text(encoding="utf-8")
+    assert "AUTHENTICATION_FAILED" in source
+    assert "expected_sha=self.expected_deployed_source_sha" in source
+    assert "required_failures" in workflow
+    assert "required_completeness" in workflow
 
 
 def test_visible_customer_evidence_is_primary_and_markers_are_supplemental():
@@ -254,8 +352,10 @@ def test_route_generation_recovery_requires_current_visible_healthy_page():
 def test_browser_session_is_shared_between_desktop_and_mobile():
     source = SOURCE.read_text(encoding="utf-8")
     assert source.count("await browser.new_context") == 1
-    assert "await self._desktop(page)" in source
-    assert "await self._mobile(page)" in source
+    assert "await self._required_desktop(page)" in source
+    assert "await self._required_mobile(page)" in source
+    assert "await self._supplementary_desktop(page)" in source
+    assert "await self._supplementary_mobile(page)" in source
     assert "await page.set_viewport_size(MOBILE)" in source
 
 
