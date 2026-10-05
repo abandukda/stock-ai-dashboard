@@ -28,6 +28,12 @@ def test_runtime_target_comes_from_dispatch_variable_or_governed_default():
     assert "https://share.streamlit.io/app/" not in SOURCE
 
 
+def test_deployed_identity_is_explicit_and_defaults_to_checkout_sha():
+    assert "deployed_source_sha:" in SOURCE
+    assert "inputs.deployed_source_sha || github.sha" in SOURCE
+    assert "ATLAS_EXPECTED_DEPLOYED_SOURCE_SHA:" in SOURCE
+
+
 def test_visual_mode_reuses_existing_secret_and_has_no_new_credential_path():
     visual = SOURCE.split("Run non-blocking Atlas Visual Crawler", 1)[1].split(
         "Summarize Visual Crawler certification", 1

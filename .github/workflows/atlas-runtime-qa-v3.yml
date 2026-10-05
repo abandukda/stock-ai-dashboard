@@ -16,6 +16,10 @@ on:
         description: "Exact production ATLAS *.streamlit.app URL"
         required: false
         type: string
+      deployed_source_sha:
+        description: "Exact 40-character source SHA currently deployed (defaults to QA checkout SHA)"
+        required: false
+        type: string
 
   schedule:
     - cron: "30 11 * * 1-5"
@@ -27,6 +31,7 @@ jobs:
     timeout-minutes: 20
     env:
       ATLAS_PRODUCTION_URL: ${{ inputs.deployed_url || vars.ATLAS_PRODUCTION_URL || 'https://stock-ai-dashboard.streamlit.app/' }}
+      ATLAS_EXPECTED_DEPLOYED_SOURCE_SHA: ${{ inputs.deployed_source_sha || github.sha }}
 
     steps:
       - name: Checkout repository

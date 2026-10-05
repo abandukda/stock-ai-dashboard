@@ -78,6 +78,20 @@ class DeploymentTargetError(DeploymentReadinessError):
     def __init__(self, diagnostics: dict[str, Any]):
         super().__init__("DEPLOYMENT_TARGET_INVALID", diagnostics)
 
+
+def expected_deployed_source_sha(checkout_sha: str) -> str:
+    """Return the governed deployed identity, defaulting to this checkout."""
+    expected = os.getenv("ATLAS_EXPECTED_DEPLOYED_SOURCE_SHA", "").strip().lower()
+    if not expected:
+        return checkout_sha
+    if not re.fullmatch(r"[0-9a-f]{40}", expected):
+        raise DeploymentTargetError({
+            "reason": "EXPECTED_DEPLOYED_SOURCE_SHA_INVALID",
+            "expected_deployed_source_sha": "INVALID",
+        })
+    return expected
+
+
 KNOWN_NAV_LABELS = (
     "Home",
     "Today's Opportunities",
@@ -1283,6 +1297,7 @@ async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
     started = time.monotonic()
     architecture = architecture_preflight(".")
     versions = architecture_versions(".")
+    deployed_source_sha = expected_deployed_source_sha(versions["source_commit"])
     if architecture.get("status") != "PASS":
         early = {
             "version": RUNTIME_QA_FRAMEWORK_VERSION,
@@ -1358,7 +1373,7 @@ async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
         try:
             authentication = await asyncio.wait_for(
                 _open_and_authenticate(
-                    page, url, output_dir, expected_sha=versions["source_commit"],
+                    page, url, output_dir, expected_sha=deployed_source_sha,
                 ),
                 timeout=300,
             )
@@ -1779,6 +1794,7 @@ async def run_targeted_preflight_v3(*, url: str, output_dir: Path) -> dict[str, 
     started = time.monotonic()
     architecture = architecture_preflight(".")
     versions = architecture_versions(".")
+    deployed_source_sha = expected_deployed_source_sha(versions["source_commit"])
     artifact_path = output_dir / "atlas_targeted_preflight.json"
     base = {
         "version": "QA4_TARGETED_PREFLIGHT_V1",
@@ -1801,7 +1817,7 @@ async def run_targeted_preflight_v3(*, url: str, output_dir: Path) -> dict[str, 
         try:
             authentication = await asyncio.wait_for(
                 _open_and_authenticate(
-                    page, url, output_dir, expected_sha=versions["source_commit"],
+                    page, url, output_dir, expected_sha=deployed_source_sha,
                 ),
                 timeout=300,
             )

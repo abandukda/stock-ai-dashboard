@@ -21,7 +21,7 @@ from typing import Any, Awaitable, Callable, Iterable
 from playwright.async_api import Browser, BrowserContext, Page, async_playwright
 from PIL import Image
 
-from agents.atlas_runtime_qa_v3 import _open_and_authenticate
+from agents.atlas_runtime_qa_v3 import _open_and_authenticate, expected_deployed_source_sha
 from agents.product_hardening_certification import ACTIVE_PAGES
 from agents.runtime_qa_architecture import full_certification_ticker_matrix
 from agents.runtime_qa_architecture import decode_context_summary, stable_digest
@@ -260,6 +260,7 @@ class AtlasVisualCrawler:
         self.started = time.monotonic()
         self.started_at = datetime.now(timezone.utc).isoformat()
         self.source_sha = self._source_sha()
+        self.expected_deployed_source_sha = expected_deployed_source_sha(self.source_sha)
         self.authentication: dict[str, Any] = {}
         self.ticker_matrix = full_certification_ticker_matrix(root)
         self._shot_number = 0
@@ -2063,7 +2064,8 @@ class AtlasVisualCrawler:
             try:
                 try:
                     self.authentication = await _open_and_authenticate(
-                        page, self.url, self.output_dir, expected_sha=self.source_sha,
+                        page, self.url, self.output_dir,
+                        expected_sha=self.expected_deployed_source_sha,
                     )
                 except Exception as exc:
                     shot = await self._shot(page, page_name="GLOBAL", interaction="authentication", state="failure")

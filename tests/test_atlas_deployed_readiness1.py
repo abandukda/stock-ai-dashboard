@@ -221,7 +221,7 @@ def test_fatal_exception_fails_before_stability_or_login_timeout(monkeypatch, tm
 
 def test_targeted_and_full_paths_supply_checkout_sha_and_preserve_login_timeout():
     source = (ROOT / "agents/atlas_runtime_qa_v3.py").read_text(encoding="utf-8")
-    assert source.count('expected_sha=versions["source_commit"]') == 2
+    assert source.count("expected_sha=deployed_source_sha") == 2
     assert "LOGIN_TIMEOUT_SECONDS = 240" in source
     assert 'DEPLOYED_READINESS_TIMEOUT_SECONDS = int(os.getenv("ATLAS_QA_READINESS_TIMEOUT_SECONDS", "180"))' in source
     assert 'except DeploymentReadinessError as exc:' in source
@@ -230,6 +230,28 @@ def test_targeted_and_full_paths_supply_checkout_sha_and_preserve_login_timeout(
     assert "_rendered_streamlit_exception(page)" in auth_source
     assert 'DeploymentReadinessError("DEPLOYMENT_DEFECT"' in auth_source
     assert "traceback.format_exc" not in auth_source
+
+
+def test_expected_deployed_source_defaults_to_checkout(monkeypatch):
+    monkeypatch.delenv("ATLAS_EXPECTED_DEPLOYED_SOURCE_SHA", raising=False)
+    assert qa.expected_deployed_source_sha(EXPECTED_SHA) == EXPECTED_SHA
+
+
+def test_expected_deployed_source_accepts_explicit_exact_sha(monkeypatch):
+    deployed = "a" * 40
+    monkeypatch.setenv("ATLAS_EXPECTED_DEPLOYED_SOURCE_SHA", deployed.upper())
+    assert qa.expected_deployed_source_sha(EXPECTED_SHA) == deployed
+
+
+@pytest.mark.parametrize("value", ["", "abc", "g" * 40, "a" * 39, "a" * 41])
+def test_invalid_explicit_deployed_source_fails_closed(monkeypatch, value):
+    monkeypatch.setenv("ATLAS_EXPECTED_DEPLOYED_SOURCE_SHA", value or " ")
+    if not value:
+        assert qa.expected_deployed_source_sha(EXPECTED_SHA) == EXPECTED_SHA
+    else:
+        with pytest.raises(qa.DeploymentTargetError) as captured:
+            qa.expected_deployed_source_sha(EXPECTED_SHA)
+        assert captured.value.diagnostics["reason"] == "EXPECTED_DEPLOYED_SOURCE_SHA_INVALID"
 
 
 def test_public_streamlit_url_is_normalized_without_inventing_host_route():
