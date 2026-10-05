@@ -116,7 +116,30 @@ def build_visual(args: argparse.Namespace) -> dict:
     }
     if payload["provider_calls"] != 0 or payload["reacquisition"] != "none":
         raise RuntimeError("VISUAL_PROVIDER_BOUNDARY_FAILED")
-    if payload["same_snapshot_parity"] != "PASS":
+    # Legacy bundles carry an already-certified scalar. Fresh full-universe
+    # bundles intentionally leave it null: browser QA must produce the proof.
+    if payload["same_snapshot_parity"] is None:
+        parity = dict(summary.get("same_snapshot_parity") or {})
+        expected = {
+            "candidate_digest": visual_identity["candidate_digest"],
+            "publication_digest": visual_identity["publication_digest"],
+            "source_sha": visual_identity["source_sha"],
+            "candidate_run_id": str(backend.get("candidate_run_id")),
+        }
+        observed = {**{key: parity.get(key) for key in expected},
+                    "candidate_run_id": str(parity.get("candidate_run_id") or "")}
+        if parity.get("status") != "PASS":
+            raise RuntimeError("VISUAL_SNAPSHOT_PARITY_FAILED")
+        if observed != expected:
+            raise RuntimeError("VISUAL_SNAPSHOT_PARITY_IDENTITY_MISMATCH")
+        required = ("action_parity", "fair_value_parity", "opportunity_parity",
+                    "confidence_parity", "evaluation_snapshot_identity_parity")
+        if any(parity.get(field) != "PASS" for field in required):
+            raise RuntimeError("VISUAL_SNAPSHOT_PARITY_FIELD_FAILED")
+        if parity.get("withheld_publication_leakage") != 0:
+            raise RuntimeError("VISUAL_WITHHELD_PUBLICATION_LEAKAGE")
+        payload["same_snapshot_parity"] = parity
+    elif payload["same_snapshot_parity"] != "PASS":
         raise RuntimeError("VISUAL_SNAPSHOT_PARITY_FAILED")
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")

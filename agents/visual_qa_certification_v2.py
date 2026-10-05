@@ -57,6 +57,8 @@ def candidate_identity(candidate_dir: Path, *, code_sha: str | None = None, run_
         "code_sha": code_sha or os.environ.get("GITHUB_SHA") or source_sha,
         "certification_digest": dict(manifest.get("qa_certification") or {}).get("report_digest") or expected,
         "generated_at": manifest.get("generated_at"),
+        "candidate_digest": os.environ.get("EXPECTED_CANDIDATE_DIGEST") or dict(manifest.get("executor_candidate_identity") or {}).get("candidate_digest"),
+        "publication_digest": os.environ.get("EXPECTED_PUBLICATION_DIGEST"),
     }
     failures = []
     if not scan.exists(): failures.append("CANDIDATE_MARKET_SCAN_MISSING")
@@ -100,6 +102,87 @@ def expected_facts(row: Mapping[str, Any]) -> dict[str, Any]:
         "expected_market_session": market.get("market_session"),
         "expected_publication_status": certified.get("customer_publication_allowed"),
         "evaluation_snapshot_id": dict(certified.get("digests") or {}).get("evaluation_snapshot_id"),
+    }
+
+
+def _number_visible(text: str, value: Any) -> bool:
+    if value is None:
+        return False
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return str(value).upper() in str(text).upper()
+    variants = {f"{number:g}", f"{number:.1f}", f"{number:.2f}", f"{number:,.1f}",
+                f"{number:,.2f}", f"${number:,.2f}", f"{number:.1f}%", f"{number:.2f}%"}
+    normalized = re.sub(r"\s+", " ", str(text or "")).upper()
+    return any(item.upper() in normalized for item in variants)
+
+
+def visual_same_snapshot_parity(
+    *, rows: Sequence[Mapping[str, Any]], home_evidence: Mapping[str, Any],
+    research_evidence: Mapping[str, Mapping[str, Any]], identity: Mapping[str, Any],
+    candidate_run_id: str | None,
+) -> dict[str, Any]:
+    """Prove Home/Research parity from exact-runtime records and structured DOM."""
+    by_ticker = {str(row.get("ticker") or row.get("symbol") or "").upper(): row for row in rows}
+    preferred = [ticker for ticker in ("NVDA", "MSFT", "AVT", "BKTI", "CODA", "CTS", "DIOD", "EXTR", "GNE", "SBC") if ticker in by_ticker]
+    tickers = preferred[:3]
+    home_cards = {str(item.get("ticker") or "").upper(): item for item in home_evidence.get("cards", []) if isinstance(item, Mapping)}
+    withheld = {ticker for ticker, row in by_ticker.items()
+                if (dict(row.get("publication_certification") or {}).get("customer_publication_allowed") is False
+                    or dict(row.get("certified_customer_evaluation") or {}).get("customer_publication_allowed") is False)}
+    published_buy_now_home = {
+        ticker for ticker, card in home_cards.items()
+        if str(card.get("action") or "").upper() == "BUY_NOW"
+    }
+    leakage = sorted(withheld & published_buy_now_home)
+    failures = ["WITHHELD_PUBLICATION_LEAKAGE"] if leakage else []
+    details = []
+    for ticker in tickers:
+        facts = expected_facts(by_ticker[ticker])
+        home, research = dict(home_cards.get(ticker) or {}), dict(research_evidence.get(ticker) or {})
+        home_text, research_text = str(home.get("text") or ""), str(research.get("text") or "")
+        expected_action = str(facts.get("expected_action") or "")
+        action_label = ACTION_LABELS.get(expected_action, expected_action.replace("_", " "))
+        home_action_text = str(home.get("action") or "").replace("_", " ").upper() + " " + home_text.upper()
+        home_action = bool(home and action_label.upper() in home_action_text)
+        research_action = bool(research and action_label.upper() in research_text.upper())
+        fair_value = (_number_visible(home_text, facts.get("expected_atlas_fv")),
+                      _number_visible(research_text, facts.get("expected_atlas_fv")))
+        opportunity_displayed = "OPPORTUNITY" in home_text.upper() or home.get("opportunity") not in {None, "", "UNAVAILABLE"}
+        opportunity = ((not opportunity_displayed) or _number_visible(home_text + " " + str(home.get("opportunity") or ""), facts.get("expected_opportunity")),
+                       _number_visible(research_text, facts.get("expected_opportunity")))
+        confidence_displayed = "CONFIDENCE" in home_text.upper() or home.get("confidence") not in {None, "", "UNAVAILABLE"}
+        confidence = ((not confidence_displayed) or _number_visible(home_text + " " + str(home.get("confidence") or ""), facts.get("expected_confidence")),
+                      _number_visible(research_text, facts.get("expected_confidence")))
+        snapshot_ok = bool(facts.get("evaluation_snapshot_id") and home and research and identity.get("valid") is True)
+        passed = all((home_action, research_action, *fair_value, *opportunity, *confidence, snapshot_ok))
+        if not passed:
+            failures.append(f"TICKER_PARITY_FAILED:{ticker}")
+        details.append({
+            "ticker": ticker, "status": "PASS" if passed else "FAIL",
+            "evaluation_snapshot_id": facts.get("evaluation_snapshot_id"),
+            "action": {"expected": expected_action, "home": home_action, "research": research_action},
+            "atlas_fair_value": {"expected": facts.get("expected_atlas_fv"), "home": fair_value[0], "research": fair_value[1]},
+            "opportunity": {"expected": facts.get("expected_opportunity"), "home": opportunity[0], "home_displayed": opportunity_displayed, "research": opportunity[1]},
+            "decision_confidence": {"expected": facts.get("expected_confidence"), "home": confidence[0], "home_displayed": confidence_displayed, "research": confidence[1]},
+            "candidate_binding": snapshot_ok,
+        })
+    if len(tickers) < 3:
+        failures.append("REPRESENTATIVE_TICKER_COVERAGE_INCOMPLETE")
+    field_pass = lambda field: bool(details) and all(item[field]["home"] and item[field]["research"] for item in details)
+    return {
+        "status": "PASS" if not failures else "FAIL",
+        "candidate_digest": identity.get("candidate_digest"), "publication_digest": identity.get("publication_digest"),
+        "source_sha": identity.get("candidate_source_sha"), "candidate_run_id": candidate_run_id,
+        "tickers_checked": tickers,
+        "action_parity": "PASS" if field_pass("action") else "FAIL",
+        "fair_value_parity": "PASS" if field_pass("atlas_fair_value") else "FAIL",
+        "opportunity_parity": "PASS" if field_pass("opportunity") else "FAIL",
+        "confidence_parity": "PASS" if field_pass("decision_confidence") else "FAIL",
+        "evaluation_snapshot_identity_parity": "PASS" if details and all(item["candidate_binding"] for item in details) else "FAIL",
+        "withheld_publication_leakage": len(leakage), "ticker_results": details,
+        "failure_reasons": failures,
     }
 
 
