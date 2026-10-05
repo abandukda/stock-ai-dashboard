@@ -14,7 +14,7 @@ import resource
 import shutil
 import time
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Mapping
 
 import ijson
 
@@ -42,6 +42,67 @@ def _sha256(path: Path) -> str:
         for block in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(block)
     return digest.hexdigest()
+
+
+def _semantic_json_sha256(path: Path) -> str:
+    """Reproduce publication_governance._hash_payload without loading arrays."""
+    with path.open("rb") as handle:
+        first = b""
+        while True:
+            byte = handle.read(1)
+            if not byte or not byte.isspace():
+                first = byte
+                break
+    digest = hashlib.sha256()
+    encoder = json.JSONEncoder(sort_keys=True, separators=(",", ":"), default=str)
+    if first == b"[":
+        digest.update(b"[")
+        with path.open("rb") as handle:
+            for index, item in enumerate(ijson.items(handle, "item", use_float=True)):
+                if index:
+                    digest.update(b",")
+                for chunk in encoder.iterencode(item):
+                    digest.update(chunk.encode("utf-8"))
+        digest.update(b"]")
+        return digest.hexdigest()
+    # Governed non-array publication artifacts are small metadata objects.
+    with path.open("r", encoding="utf-8") as handle:
+        payload = json.load(handle)
+    for chunk in encoder.iterencode(payload):
+        digest.update(chunk.encode("utf-8"))
+    return digest.hexdigest()
+
+
+def _verify_publication_artifact_hashes(
+    bundle: Path, manifest: Mapping[str, Any], *, semantic_contract: bool,
+) -> tuple[dict[str, str], dict[str, dict[str, Any]]]:
+    expected_hashes = dict(manifest.get("artifact_hashes") or {})
+    lineage = dict(manifest.get("artifact_lineage") or {})
+    verified: dict[str, str] = {}
+    diagnostics: dict[str, dict[str, Any]] = {}
+    for name in PUBLICATION_FILES:
+        path = bundle / name
+        expected = expected_hashes.get(name)
+        raw = _sha256(path)
+        if semantic_contract:
+            lineage_digest = dict(lineage.get(name) or {}).get("semantic_sha256")
+            if lineage_digest != expected:
+                raise ValueError(f"PUBLICATION_MANIFEST_LINEAGE_DIGEST_MISMATCH:{name}")
+            governed = _semantic_json_sha256(path)
+            digest_contract = "CANONICAL_JSON_SEMANTIC_SHA256"
+        else:
+            governed = raw
+            digest_contract = "LEGACY_RAW_FILE_SHA256"
+        if governed != expected:
+            raise ValueError(f"PUBLICATION_ARTIFACT_DIGEST_MISMATCH:{name}")
+        verified[name] = governed
+        diagnostics[name] = {
+            "manifest_semantic_digest": expected,
+            "raw_storage_digest": raw,
+            "digest_contract": digest_contract,
+            "semantic_digest_verified": governed == expected,
+        }
+    return verified, diagnostics
 
 
 def _load(path: Path) -> Any:
@@ -277,13 +338,9 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         raise ValueError("REPORT_CARD_MUST_REMAIN_OFF")
 
     expected_hashes = manifest.get("artifact_hashes") or {}
-    verified_hashes: dict[str, str] = {}
-    for name in PUBLICATION_FILES:
-        actual = _sha256(bundle / name)
-        expected = expected_hashes.get(name)
-        if actual != expected:
-            raise ValueError(f"PUBLICATION_ARTIFACT_DIGEST_MISMATCH:{name}")
-        verified_hashes[name] = actual
+    verified_hashes, digest_verification = _verify_publication_artifact_hashes(
+        bundle, manifest, semantic_contract=not legacy_contract,
+    )
     publication_digest = _canonical_digest({
         "artifact_hashes": expected_hashes,
         "candidate_digest": candidate_digest,
@@ -310,6 +367,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "candidate_source_sha": source_sha,
         "publication_bundle_digest": publication_digest,
         "artifact_hashes_verified": verified_hashes,
+        "artifact_digest_verification": digest_verification,
         "record_count": record_count,
         "action_distribution": actions,
         "canonical_buy_now_count": actions.get("BUY_NOW", 0),

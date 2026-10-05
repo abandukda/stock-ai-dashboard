@@ -7,6 +7,8 @@ from agents.visual_qa_certification_v2 import candidate_identity
 from scripts.run_bounded_release_smoke import (
     PUBLICATION_FILES,
     _canonical_digest,
+    _semantic_json_sha256,
+    _verify_publication_artifact_hashes,
     _verify_fresh_artifact_contract,
     _verify_fresh_backend_handoff,
     _stream_customer_rows,
@@ -157,6 +159,101 @@ def test_publication_file_contract_is_exact():
         "total_market_universe.json", "market_scan_state.json", "discovery_candidate_pool.json",
         "full_evaluation_pool.json",
     }
+
+
+def _semantic_manifest(bundle: Path, payloads: dict[str, object]) -> dict:
+    hashes = {}
+    lineage = {}
+    for name in PUBLICATION_FILES:
+        _write(bundle / name, payloads[name])
+        digest = _canonical_digest(payloads[name])
+        hashes[name] = digest
+        lineage[name] = {"semantic_sha256": digest}
+    return {"artifact_hashes": hashes, "artifact_lineage": lineage}
+
+
+def test_fresh_semantic_manifest_accepts_representation_only_byte_differences(tmp_path):
+    bundle = tmp_path / "bundle"
+    rows = [{"ticker": "NVDA", "nested": {"value": 88.54}}]
+    payloads = {name: [] for name in PUBLICATION_FILES}
+    payloads.update({
+        "market_full_scan.json": rows,
+        "market_scan_state.json": {"status": "PASS", "count": 1},
+        "total_market_universe.json": {"symbols": ["NVDA"]},
+    })
+    manifest = _semantic_manifest(bundle, payloads)
+    # Change storage whitespace only; governed canonical meaning is unchanged.
+    (bundle / "market_full_scan.json").write_text(
+        json.dumps(rows, indent=2), encoding="utf-8"
+    )
+
+    verified, diagnostics = _verify_publication_artifact_hashes(
+        bundle, manifest, semantic_contract=True,
+    )
+
+    assert verified["market_full_scan.json"] == manifest["artifact_hashes"]["market_full_scan.json"]
+    detail = diagnostics["market_full_scan.json"]
+    assert detail["digest_contract"] == "CANONICAL_JSON_SEMANTIC_SHA256"
+    assert detail["semantic_digest_verified"] is True
+    assert detail["raw_storage_digest"] != detail["manifest_semantic_digest"]
+
+
+def test_fresh_semantic_manifest_rejects_lineage_digest_divergence(tmp_path):
+    bundle = tmp_path / "bundle"
+    payloads = {name: [] for name in PUBLICATION_FILES}
+    manifest = _semantic_manifest(bundle, payloads)
+    manifest["artifact_lineage"]["market_full_scan.json"]["semantic_sha256"] = "0" * 64
+
+    try:
+        _verify_publication_artifact_hashes(bundle, manifest, semantic_contract=True)
+    except ValueError as error:
+        assert str(error) == (
+            "PUBLICATION_MANIFEST_LINEAGE_DIGEST_MISMATCH:market_full_scan.json"
+        )
+    else:
+        raise AssertionError("fresh semantic lineage divergence must fail closed")
+
+
+def test_legacy_publication_hash_contract_remains_raw_bytes(tmp_path):
+    bundle = tmp_path / "bundle"
+    payloads = {name: [] for name in PUBLICATION_FILES}
+    manifest = _semantic_manifest(bundle, payloads)
+    (bundle / "market_full_scan.json").write_text("[ ]\n", encoding="utf-8")
+    try:
+        _verify_publication_artifact_hashes(bundle, manifest, semantic_contract=False)
+    except ValueError as error:
+        assert str(error) == "PUBLICATION_ARTIFACT_DIGEST_MISMATCH:market_full_scan.json"
+    else:
+        raise AssertionError("legacy raw-byte verification must remain unchanged")
+
+
+def test_fresh_semantic_hash_rejects_logical_corruption(tmp_path):
+    original = [{"ticker": "NVDA", "nested": {"value": 88.54}}]
+    corruptions = (
+        [],
+        original + [{"ticker": "MSFT", "nested": {"value": 80.0}}],
+        [{"ticker": "MSFT", "nested": {"value": 88.54}}],
+        [{"ticker": "NVDA", "nested": {"value": 1.0}}],
+    )
+    for index, corrupted in enumerate(corruptions):
+        bundle = tmp_path / str(index)
+        payloads = {name: [] for name in PUBLICATION_FILES}
+        payloads["market_full_scan.json"] = original
+        manifest = _semantic_manifest(bundle, payloads)
+        _write(bundle / "market_full_scan.json", corrupted)
+        try:
+            _verify_publication_artifact_hashes(bundle, manifest, semantic_contract=True)
+        except ValueError as error:
+            assert str(error) == "PUBLICATION_ARTIFACT_DIGEST_MISMATCH:market_full_scan.json"
+        else:
+            raise AssertionError("logical publication corruption must fail closed")
+
+
+def test_semantic_array_hash_streams_large_top_level_array(tmp_path):
+    path = tmp_path / "large.json"
+    rows = [{"ticker": f"T{index}", "value": index} for index in range(20_000)]
+    path.write_text(json.dumps(rows, indent=1), encoding="utf-8")
+    assert _semantic_json_sha256(path) == _canonical_digest(rows)
 
 
 def test_customer_publication_pool_is_streamed_to_bounded_rows(tmp_path):
