@@ -21,7 +21,7 @@ from agents.atlas_visual_crawler_v1 import AtlasVisualCrawler, DESKTOP, MOBILE, 
 from agents.runtime_qa_user_journeys_v40 import _visible_text
 from agents.visual_qa_certification_v2 import (
     analyze_capture, candidate_identity, dom_fact_findings, enrich_manifest, expected_facts,
-    repair_decision, validate_runtime_target, visual_summary,
+    repair_decision, validate_runtime_target, visual_same_snapshot_parity, visual_summary,
 )
 
 
@@ -60,6 +60,24 @@ async def open_authenticated_research_page(
         allow_local_exact_candidate=True,
     )
     return page
+
+
+async def _home_card_evidence(page: Page) -> dict[str, Any]:
+    """Read governed Home card facts from their production DOM surfaces."""
+    cards = await page.evaluate(r"""() => [...document.querySelectorAll(
+      '[data-atlas-qa="home-actionable-card"], [data-atlas-qa="home-guidance-card"]'
+    )].map(node => {
+      const container = node.matches('article') ? node :
+        (node.closest('[data-testid="stVerticalBlock"]') || node.parentElement);
+      return {
+        ticker: node.getAttribute('data-atlas-ticker'),
+        action: node.getAttribute('data-atlas-guidance') || node.getAttribute('data-atlas-actionability'),
+        opportunity: node.getAttribute('data-atlas-opportunity'),
+        confidence: node.getAttribute('data-atlas-decision-confidence'),
+        text: (container?.innerText || node.innerText || node.textContent || '').replace(/\s+/g, ' ').trim(),
+      };
+    })""")
+    return {"cards": cards}
 REQUIRED_PAGES = ("Home", "Research Any Ticker", "Full Ranked Scan", "Volume Intelligence", "Developer Center")
 CUSTOMER_ACTION_LABELS = {
     "BUY_NOW": "BUY NOW",
@@ -1144,6 +1162,8 @@ async def run(args: argparse.Namespace) -> int:
             by_ticker.setdefault(str(row.get("ticker") or row.get("symbol") or "").upper(), row)
     defects: list[dict[str, Any]] = []
     checks: list[dict[str, Any]] = []
+    home_evidence: dict[str, Any] = {"cards": []}
+    research_evidence: dict[str, dict[str, Any]] = {}
     dom_dir = output / "dom_snapshots"
     dom_dir.mkdir(parents=True, exist_ok=True)
     async with async_playwright() as pw:
@@ -1174,6 +1194,8 @@ async def run(args: argparse.Namespace) -> int:
                     passed = bool(ok and not layout["horizontal_overflow"] and layout["body_text_length"] > 100)
                     check = {"page": name, "viewport": viewport, "status": "PASS" if passed else "FAIL", "layout": layout, "screenshot": shot}
                     checks.append(check)
+                    if name == "Home" and viewport == "desktop" and passed:
+                        home_evidence = await _home_card_evidence(page)
                     if not passed:
                         defects.append({"severity": "P1", "page": name, "viewport": viewport,
                                         "observed": json.dumps(layout, sort_keys=True), "ticker_context": ""})
@@ -1194,6 +1216,8 @@ async def run(args: argparse.Namespace) -> int:
                         "qa_attributes": await page.evaluate("""() => [...document.querySelectorAll('[data-atlas-qa]')].map(e => Object.fromEntries([...e.attributes].filter(a => a.name.startsWith('data-atlas-')).map(a => [a.name,a.value])))"""),
                     }, indent=2), encoding="utf-8")
             visual_tickers = certification_tickers(root)
+            parity_tickers = [ticker for ticker in ("NVDA", "MSFT", "AVT", "BKTI", "CODA", "CTS", "DIOD", "EXTR", "GNE", "SBC") if ticker in by_ticker][:3]
+            visual_tickers = parity_tickers + [ticker for ticker in visual_tickers if ticker not in parity_tickers]
             if mode in {"FAST_PREVIEW", "RELEASE_SMOKE"}:
                 visual_tickers = visual_tickers[:2]
             research_page = await open_authenticated_research_page(
@@ -1249,6 +1273,10 @@ async def run(args: argparse.Namespace) -> int:
                         "page": "Research Any Ticker", "ticker": ticker, "text": await _visible_text(research_page),
                         "expected_action": expected_action, "publication_allowed": publication_allowed,
                     }, indent=2), encoding="utf-8")
+                    research_evidence[ticker] = {
+                        "text": await _visible_text(research_page),
+                        "qa_attributes": await research_page.evaluate("""() => [...document.querySelectorAll('[data-atlas-qa]')].map(e => Object.fromEntries([...e.attributes].filter(a => a.name.startsWith('data-atlas-')).map(a => [a.name,a.value])))"""),
+                    }
                     if not passed or not action_match or layout["horizontal_overflow"]:
                         defects.append({"severity": "P1", "page": "Research Any Ticker", "viewport": "desktop",
                                         "observed": f"ticker={ticker}; action_match={action_match}; layout={json.dumps(layout, sort_keys=True)}", "ticker_context": ticker})
@@ -1322,6 +1350,10 @@ async def run(args: argparse.Namespace) -> int:
                "candidate_identity": identity, **final}
     summary["mode"] = mode
     summary["completion_contract"] = completion
+    summary["same_snapshot_parity"] = visual_same_snapshot_parity(
+        rows=source_rows, home_evidence=home_evidence, research_evidence=research_evidence,
+        identity=identity, candidate_run_id=str(args.candidate_run_id),
+    )
     summary["screenshot_budget_usage"] = {
         page: {viewport: len({item.get("file_path") or item.get("path") for item in manifest
                              if item.get("page") == page and item.get("viewport") == viewport and (item.get("file_path") or item.get("path"))})
