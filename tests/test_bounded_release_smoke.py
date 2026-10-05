@@ -4,7 +4,12 @@ from argparse import Namespace
 from pathlib import Path
 
 from agents.visual_qa_certification_v2 import candidate_identity
-from scripts.run_bounded_release_smoke import PUBLICATION_FILES, _canonical_digest, run
+from scripts.run_bounded_release_smoke import (
+    PUBLICATION_FILES,
+    _canonical_digest,
+    _stream_customer_rows,
+    run,
+)
 
 
 SOURCE_SHA = "d5526664b1b4450e67b63a67b01d936f6da5a2a4"
@@ -149,6 +154,24 @@ def test_publication_file_contract_is_exact():
         "total_market_universe.json", "market_scan_state.json", "discovery_candidate_pool.json",
         "full_evaluation_pool.json",
     }
+
+
+def test_customer_publication_pool_is_streamed_to_bounded_rows(tmp_path):
+    allowed = {"publication_certification": {"customer_publication_allowed": True}}
+    denied = {"publication_certification": {"customer_publication_allowed": False}}
+    rows = [
+        {"ticker": "NVDA", "canonical_investment_evaluation": {"guidance": {"state": "BUY_NOW"}}, **allowed},
+        {"ticker": "REGN", "canonical_investment_evaluation": {"guidance": {"state": "WAIT_FOR_CONFIRMATION"}}, **allowed},
+        {"ticker": "WITHHELD", "canonical_investment_evaluation": {"guidance": {"state": "BUY_NOW"}}, **denied},
+        {"ticker": "OTHER", "canonical_investment_evaluation": {"guidance": {"state": "WAIT_FOR_BETTER_ENTRY"}}, **allowed},
+    ]
+    pool = tmp_path / "market_full_scan.json"
+    _write(pool, rows)
+
+    selected, published = _stream_customer_rows(pool)
+
+    assert published == ["NVDA"]
+    assert {row["ticker"] for row in selected} == {"NVDA", "REGN"}
 
 
 def test_browser_startup_is_explicit_and_fails_with_streamlit_diagnostics():

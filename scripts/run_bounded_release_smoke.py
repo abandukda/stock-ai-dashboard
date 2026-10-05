@@ -79,6 +79,21 @@ def _stream_pool(path: Path) -> tuple[dict[str, int], list[dict[str, Any]], list
 RESEARCH_SMOKE_TICKERS = ("NVDA", "REGN")
 
 
+def _stream_customer_rows(path: Path) -> tuple[list[dict[str, Any]], list[str]]:
+    """Collect only published BUY_NOW and bounded Research rows from the UI pool."""
+    selected: dict[str, dict[str, Any]] = {}
+    published_buy: list[str] = []
+    with path.open("rb") as handle:
+        for row in ijson.items(handle, "item", use_float=True):
+            ticker = str(row.get("ticker") or row.get("symbol") or "").upper()
+            if _action(row) == "BUY_NOW" and _allowed(row):
+                published_buy.append(ticker)
+                selected[ticker] = row
+            elif ticker in RESEARCH_SMOKE_TICKERS:
+                selected[ticker] = row
+    return list(selected.values()), sorted(published_buy)
+
+
 def _write_canonical(path: Path, value: Any) -> None:
     path.write_text(
         json.dumps(value, sort_keys=True, separators=(",", ":"), default=str),
@@ -170,9 +185,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         raise ValueError("CERTIFIED_PUBLICATION_DIGEST_MISMATCH")
 
     actions, selected, withheld, record_count = _stream_pool(bundle / "full_evaluation_pool.json")
-    customer_rows = _load(bundle / "market_full_scan.json")
-    published_buy = sorted(str(row.get("ticker") or "") for row in customer_rows
-                           if _action(row) == "BUY_NOW" and _allowed(row))
+    customer_rows, published_buy = _stream_customer_rows(bundle / "market_full_scan.json")
     leaked = sorted(set(withheld) & set(published_buy))
     if record_count != 6033 or actions.get("BUY_NOW") != 28 or len(published_buy) != 22:
         raise ValueError("CERTIFIED_PUBLICATION_COUNTS_MISMATCH")
