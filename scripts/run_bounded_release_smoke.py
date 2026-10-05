@@ -12,11 +12,14 @@ import hashlib
 import json
 import resource
 import shutil
+import sys
 import time
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
 import ijson
+
+from services.finnhub_full_universe_executor import ACTION_ALIASES
 
 
 PUBLICATION_FILES = (
@@ -42,6 +45,13 @@ def _sha256(path: Path) -> str:
         for block in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(block)
     return digest.hexdigest()
+
+
+def _peak_rss_mib() -> float:
+    """Normalize getrusage RSS units (bytes on macOS, KiB on Linux)."""
+    value = float(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
+    divisor = 1024.0 * 1024.0 if sys.platform == "darwin" else 1024.0
+    return value / divisor
 
 
 def _semantic_json_sha256(path: Path) -> str:
@@ -179,48 +189,189 @@ def _stream_top_level_scalars(path: Path, keys: Iterable[str]) -> dict[str, Any]
 
 def _action(row: dict[str, Any]) -> str:
     evaluation = row.get("canonical_investment_evaluation") or {}
-    return str(((evaluation.get("guidance") or {}).get("state") or "RATING_NOT_PUBLISHED"))
+    engine_state = str(
+        (evaluation.get("guidance") or {}).get("state") or "RATING_NOT_PUBLISHED"
+    )
+    return ACTION_ALIASES.get(engine_state, engine_state)
 
 
 def _allowed(row: dict[str, Any]) -> bool:
     return (row.get("publication_certification") or {}).get("customer_publication_allowed") is True
 
 
-def _stream_pool(path: Path) -> tuple[dict[str, int], list[dict[str, Any]], list[str], int]:
+def _stream_pool(path: Path) -> tuple[
+    dict[str, int], list[dict[str, Any]], list[str], int, dict[str, Any],
+]:
     actions: dict[str, int] = {}
     selected: list[dict[str, Any]] = []
     withheld: list[str] = []
+    canonical_buy: list[str] = []
+    publishable_buy: list[str] = []
+    seen: set[str] = set()
+    duplicates: set[str] = set()
     count = 0
     with path.open("rb") as handle:
         for row in ijson.items(handle, "item", use_float=True):
             count += 1
+            ticker = str(row.get("ticker") or row.get("symbol") or "").upper()
+            if ticker in seen:
+                duplicates.add(ticker)
+            seen.add(ticker)
             action = _action(row)
             actions[action] = actions.get(action, 0) + 1
-            if action == "BUY_NOW" and not _allowed(row):
-                withheld.append(str(row.get("ticker") or row.get("symbol") or ""))
+            if action == "BUY_NOW":
+                canonical_buy.append(ticker)
+                if _allowed(row):
+                    publishable_buy.append(ticker)
+                else:
+                    withheld.append(ticker)
             # Browser smoke needs only customer-visible records plus a bounded
             # representative set for Research state coverage.
             if (action == "BUY_NOW" and _allowed(row)) or len(selected) < 24:
                 selected.append(row)
-    return actions, selected, sorted(withheld), count
+    return actions, selected, sorted(withheld), count, {
+        "canonical_buy_now": sorted(canonical_buy),
+        "publishable_buy_now": sorted(publishable_buy),
+        "withheld_buy_now": sorted(withheld),
+        "duplicate_tickers": sorted(duplicates),
+    }
 
 
-RESEARCH_SMOKE_TICKERS = ("NVDA", "REGN")
+LEGACY_RESEARCH_SMOKE_TICKERS = ("NVDA", "REGN")
+FRESH_RESEARCH_ANCHOR_TICKERS = ("NVDA", "MSFT")
 
 
-def _stream_customer_rows(path: Path) -> tuple[list[dict[str, Any]], list[str]]:
+def _stream_customer_rows(
+    path: Path, research_tickers: Iterable[str] = LEGACY_RESEARCH_SMOKE_TICKERS,
+) -> tuple[list[dict[str, Any]], list[str], list[str]]:
     """Collect only published BUY_NOW and bounded Research rows from the UI pool."""
     selected: dict[str, dict[str, Any]] = {}
     published_buy: list[str] = []
+    seen: set[str] = set()
+    duplicates: set[str] = set()
+    research_tickers = {str(value).upper() for value in research_tickers}
     with path.open("rb") as handle:
         for row in ijson.items(handle, "item", use_float=True):
             ticker = str(row.get("ticker") or row.get("symbol") or "").upper()
+            if ticker in seen:
+                duplicates.add(ticker)
+            seen.add(ticker)
             if _action(row) == "BUY_NOW" and _allowed(row):
                 published_buy.append(ticker)
                 selected[ticker] = row
-            elif ticker in RESEARCH_SMOKE_TICKERS:
+            elif ticker in research_tickers:
                 selected[ticker] = row
-    return list(selected.values()), sorted(published_buy)
+    return list(selected.values()), sorted(published_buy), sorted(duplicates)
+
+
+def _verify_fresh_inventory(
+    *, action_distribution: Mapping[str, Any], checkpoint: Mapping[str, Any],
+    provenance: Mapping[str, Any], observed_actions: Mapping[str, int],
+    pool_inventory: Mapping[str, Any], market_publishable: Iterable[str],
+    market_duplicates: Iterable[str], universe_sha256: str,
+    authorization: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Cross-check the governed fresh BUY_NOW inventory without fixed counts."""
+    action_distribution = {str(key): int(value) for key, value in action_distribution.items()}
+    observed_actions = {str(key): int(value) for key, value in observed_actions.items()}
+    if action_distribution != observed_actions:
+        raise ValueError("FRESH_INVENTORY_ACTION_DISTRIBUTION_MISMATCH")
+    if dict(checkpoint.get("action_counts") or {}) != action_distribution:
+        raise ValueError("FRESH_INVENTORY_CHECKPOINT_ACTION_DISTRIBUTION_MISMATCH")
+
+    canonical = list(pool_inventory.get("canonical_buy_now") or ())
+    pool_publishable = list(pool_inventory.get("publishable_buy_now") or ())
+    pool_withheld = list(pool_inventory.get("withheld_buy_now") or ())
+    market_publishable = [str(value).upper() for value in market_publishable]
+    records = list(provenance.get("records") or ())
+    provenance_tickers = [str(row.get("ticker") or "").upper() for row in records]
+    provenance_publishable = sorted(
+        str(row.get("ticker") or "").upper()
+        for row in records if row.get("publication_eligible") is True
+    )
+    provenance_withheld = sorted(
+        str(row.get("ticker") or "").upper()
+        for row in records if row.get("publication_eligible") is not True
+    )
+    duplicate_sources = {
+        "full_evaluation_pool": list(pool_inventory.get("duplicate_tickers") or ()),
+        "market_full_scan": list(market_duplicates),
+        "buy_now_provenance": sorted({ticker for ticker in provenance_tickers
+                                      if provenance_tickers.count(ticker) > 1}),
+    }
+    if any(duplicate_sources.values()):
+        raise ValueError("FRESH_INVENTORY_DUPLICATE_TICKER")
+
+    canonical_set = set(canonical)
+    provenance_set = set(provenance_tickers)
+    publishable_set = set(provenance_publishable)
+    withheld_set = set(provenance_withheld)
+    if provenance_set - canonical_set:
+        raise ValueError("FRESH_INVENTORY_UNEXPECTED_BUY_NOW_TICKER")
+    if publishable_set - canonical_set:
+        raise ValueError("FRESH_INVENTORY_PUBLISHABLE_NOT_CANONICAL_BUY_NOW")
+    if withheld_set - canonical_set:
+        raise ValueError("FRESH_INVENTORY_WITHHELD_NOT_CANONICAL_BUY_NOW")
+    if publishable_set & withheld_set:
+        raise ValueError("FRESH_INVENTORY_PARTITION_OVERLAP")
+    if publishable_set | withheld_set != canonical_set:
+        raise ValueError("FRESH_INVENTORY_CANONICAL_PARTITION_INCOMPLETE")
+
+    canonical_count = int(action_distribution.get("BUY_NOW", 0))
+    publishable_count = int(provenance.get("publishable_buy_now_count") or 0)
+    provenance_canonical_count = int(provenance.get("canonical_buy_now_count") or 0)
+    withheld_count = canonical_count - publishable_count
+    if canonical_count != len(canonical_set) or provenance_canonical_count != canonical_count:
+        raise ValueError("FRESH_INVENTORY_CANONICAL_COUNT_MISMATCH")
+    if publishable_count != len(publishable_set):
+        raise ValueError("FRESH_INVENTORY_PUBLISHABLE_COUNT_MISMATCH")
+    if withheld_count != len(withheld_set):
+        raise ValueError("FRESH_INVENTORY_WITHHELD_COUNT_MISMATCH")
+    if set(pool_publishable) != publishable_set or set(pool_withheld) != withheld_set:
+        raise ValueError("FRESH_INVENTORY_FULL_POOL_PARTITION_MISMATCH")
+    if set(market_publishable) != publishable_set:
+        if set(market_publishable) & withheld_set:
+            raise ValueError("FRESH_INVENTORY_WITHHELD_PUBLICATION_LEAK")
+        raise ValueError("FRESH_INVENTORY_CUSTOMER_PROJECTION_MISMATCH")
+    if set(checkpoint.get("buy_now_tickers") or ()) != publishable_set:
+        raise ValueError("FRESH_INVENTORY_CHECKPOINT_PUBLISHABLE_MISMATCH")
+    if set(checkpoint.get("withheld_buy_now_tickers") or ()) != withheld_set:
+        raise ValueError("FRESH_INVENTORY_CHECKPOINT_WITHHELD_MISMATCH")
+    if provenance.get("status") != "PASS":
+        raise ValueError("FRESH_INVENTORY_PROVENANCE_NOT_CERTIFIED")
+    if any(str(row.get("universe_sha256") or "") != universe_sha256 for row in records):
+        raise ValueError("FRESH_INVENTORY_PROVENANCE_UNIVERSE_MISMATCH")
+
+    if authorization:
+        expected_counts = {
+            "canonical_buy_now_count": canonical_count,
+            "publishable_buy_now_count": publishable_count,
+            "withheld_buy_now_count": withheld_count,
+        }
+        for key, actual in expected_counts.items():
+            if key in authorization and int(authorization[key]) != actual:
+                raise ValueError("FRESH_INVENTORY_AUTHORIZATION_COUNT_MISMATCH")
+        for key, actual in (
+            ("publishable_buy_now", publishable_set), ("withheld_buy_now", withheld_set),
+        ):
+            if key in authorization and set(authorization[key]) != actual:
+                raise ValueError("FRESH_INVENTORY_AUTHORIZATION_TICKER_MISMATCH")
+
+    return {
+        "canonical_buy_now_count": canonical_count,
+        "customer_publishable_buy_now_count": publishable_count,
+        "withheld_buy_now_count": withheld_count,
+        "customer_publishable_buy_now": sorted(publishable_set),
+        "withheld_buy_now": sorted(withheld_set),
+        "canonical_buy_now": sorted(canonical_set),
+        "withheld_publication_leaks": [],
+        "authority": {
+            "canonical": ["action_distribution.json", "full_evaluation_pool.json"],
+            "partition": ["buy_now_provenance.json", "checkpoint_summary.json"],
+            "customer_projection": "market_full_scan.json",
+            "identity_and_gate": ["publication_manifest.json", "backend_handoff.json"],
+        },
+    }
 
 
 def _write_canonical(path: Path, value: Any) -> None:
@@ -232,19 +383,20 @@ def _write_canonical(path: Path, value: Any) -> None:
 
 def _copy_small_bundle(
     bundle: Path, runtime: Path, selected: Iterable[dict[str, Any]],
-    customer_rows: Iterable[dict[str, Any]],
+    customer_rows: Iterable[dict[str, Any]], research_tickers: Iterable[str],
 ) -> None:
     runtime.mkdir(parents=True, exist_ok=True)
     rows_by_ticker = {
         str(row.get("ticker") or row.get("symbol") or "").upper(): row
         for row in selected if isinstance(row, dict)
     }
+    research_tickers = tuple(str(value).upper() for value in research_tickers)
     for row in customer_rows:
         ticker = str(row.get("ticker") or row.get("symbol") or "").upper()
-        if ticker in RESEARCH_SMOKE_TICKERS:
+        if ticker in research_tickers:
             rows_by_ticker[ticker] = row
     rows = list(rows_by_ticker.values())
-    missing = sorted(set(RESEARCH_SMOKE_TICKERS) - set(rows_by_ticker))
+    missing = sorted(set(research_tickers) - set(rows_by_ticker))
     if missing:
         raise ValueError(f"BOUNDED_RESEARCH_RECORD_MISSING:{','.join(missing)}")
     for name in ("market_scan_state.json", "total_market_universe.json",
@@ -259,7 +411,7 @@ def _copy_small_bundle(
     manifest["runtime_projection"] = {
         "mode": "RELEASE_SMOKE_BOUNDED_UI",
         "source_artifact_hashes": source_hashes,
-        "research_tickers": list(RESEARCH_SMOKE_TICKERS),
+        "research_tickers": list(research_tickers),
         "record_count": len(rows),
         "provider_calls": 0,
         "analytical_recomputation": False,
@@ -348,19 +500,58 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     if publication_digest != args.expected_publication_digest:
         raise ValueError("CERTIFIED_PUBLICATION_DIGEST_MISMATCH")
 
-    actions, selected, withheld, record_count = _stream_pool(bundle / "full_evaluation_pool.json")
-    customer_rows, published_buy = _stream_customer_rows(bundle / "market_full_scan.json")
+    actions, selected, withheld, record_count, pool_inventory = _stream_pool(
+        bundle / "full_evaluation_pool.json"
+    )
+    research_anchors = (
+        LEGACY_RESEARCH_SMOKE_TICKERS if legacy_contract else FRESH_RESEARCH_ANCHOR_TICKERS
+    )
+    customer_rows, published_buy, market_duplicates = _stream_customer_rows(
+        bundle / "market_full_scan.json", research_anchors,
+    )
     leaked = sorted(set(withheld) & set(published_buy))
-    if record_count != 6033 or actions.get("BUY_NOW") != 28 or len(published_buy) != 22:
+    if record_count != 6033:
         raise ValueError("CERTIFIED_PUBLICATION_COUNTS_MISMATCH")
-    if len(withheld) != 6 or leaked:
-        raise ValueError("WITHHELD_BUY_NOW_PUBLICATION_LEAK")
+    if legacy_contract:
+        if actions.get("BUY_NOW") != 28 or len(published_buy) != 22:
+            raise ValueError("CERTIFIED_PUBLICATION_COUNTS_MISMATCH")
+        if len(withheld) != 6 or leaked:
+            raise ValueError("WITHHELD_BUY_NOW_PUBLICATION_LEAK")
+        inventory = {
+            "canonical_buy_now_count": actions.get("BUY_NOW", 0),
+            "customer_publishable_buy_now_count": len(published_buy),
+            "withheld_buy_now_count": len(withheld),
+            "customer_publishable_buy_now": published_buy,
+            "withheld_buy_now": withheld,
+            "withheld_publication_leaks": leaked,
+            "authority": {"contract": "LEGACY_RECOVERY_FIXED_CERTIFIED_INVENTORY"},
+        }
+    else:
+        inventory = _verify_fresh_inventory(
+            action_distribution=_load(report_root / "action_distribution.json"),
+            checkpoint=checkpoint,
+            provenance=_load(report_root / "buy_now_provenance.json"),
+            observed_actions=actions,
+            pool_inventory=pool_inventory,
+            market_publishable=published_buy,
+            market_duplicates=market_duplicates,
+            universe_sha256=universe_sha256,
+        )
     if manifest.get("provider_status", {}).get("provider_calls") != 0:
         raise ValueError("PUBLICATION_PROVIDER_CALL_COUNT_NONZERO")
 
-    _copy_small_bundle(bundle, args.runtime_dir.resolve(), selected, customer_rows)
-    peak_rss_raw = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-    peak_rss_mib = peak_rss_raw / 1024.0 if peak_rss_raw > 1024 * 1024 else peak_rss_raw
+    research_tickers = tuple(research_anchors)
+    if not legacy_contract:
+        smaller_cap_representatives = sorted(
+            set(inventory["customer_publishable_buy_now"]) - set(research_anchors)
+        )
+        if not smaller_cap_representatives:
+            raise ValueError("FRESH_RESEARCH_REPRESENTATIVE_MISSING")
+        research_tickers = (*research_tickers, smaller_cap_representatives[0])
+    _copy_small_bundle(
+        bundle, args.runtime_dir.resolve(), selected, customer_rows, research_tickers,
+    )
+    peak_rss_mib = _peak_rss_mib()
     result = {
         "status": "PASS",
         "candidate_digest": candidate_digest,
@@ -370,12 +561,13 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "artifact_digest_verification": digest_verification,
         "record_count": record_count,
         "action_distribution": actions,
-        "canonical_buy_now_count": actions.get("BUY_NOW", 0),
-        "customer_publishable_buy_now_count": len(published_buy),
-        "customer_publishable_buy_now": published_buy,
-        "withheld_buy_now_count": len(withheld),
-        "withheld_buy_now": withheld,
-        "withheld_publication_leaks": leaked,
+        "canonical_buy_now_count": inventory["canonical_buy_now_count"],
+        "customer_publishable_buy_now_count": inventory["customer_publishable_buy_now_count"],
+        "customer_publishable_buy_now": inventory["customer_publishable_buy_now"],
+        "withheld_buy_now_count": inventory["withheld_buy_now_count"],
+        "withheld_buy_now": inventory["withheld_buy_now"],
+        "withheld_publication_leaks": inventory["withheld_publication_leaks"],
+        "inventory_authority": inventory["authority"],
         "evidence_inspector": inspector.get("status"),
         "same_snapshot_parity": gate.get("same_snapshot_parity"),
         "certification_contract_type": contract_type,

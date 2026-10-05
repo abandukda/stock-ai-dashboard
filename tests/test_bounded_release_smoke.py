@@ -6,11 +6,13 @@ from pathlib import Path
 from agents.visual_qa_certification_v2 import candidate_identity
 from scripts.run_bounded_release_smoke import (
     PUBLICATION_FILES,
+    _action,
     _canonical_digest,
     _semantic_json_sha256,
     _verify_publication_artifact_hashes,
     _verify_fresh_artifact_contract,
     _verify_fresh_backend_handoff,
+    _verify_fresh_inventory,
     _stream_customer_rows,
     _stream_top_level_scalars,
     run,
@@ -161,6 +163,16 @@ def test_publication_file_contract_is_exact():
     }
 
 
+def test_pool_engine_actions_use_governed_executor_aliases():
+    def row(state):
+        return {"canonical_investment_evaluation": {"guidance": {"state": state}}}
+
+    assert _action(row("ACCUMULATE")) == "BUILD_A_POSITION"
+    assert _action(row("WAIT_FOR_ENTRY")) == "WAIT_FOR_BETTER_ENTRY"
+    assert _action(row("DATA_LIMITED")) == "RATING_NOT_PUBLISHED"
+    assert _action(row("BUY_NOW")) == "BUY_NOW"
+
+
 def _semantic_manifest(bundle: Path, payloads: dict[str, object]) -> dict:
     hashes = {}
     lineage = {}
@@ -268,10 +280,117 @@ def test_customer_publication_pool_is_streamed_to_bounded_rows(tmp_path):
     pool = tmp_path / "market_full_scan.json"
     _write(pool, rows)
 
-    selected, published = _stream_customer_rows(pool)
+    selected, published, duplicates = _stream_customer_rows(pool)
 
     assert published == ["NVDA"]
     assert {row["ticker"] for row in selected} == {"NVDA", "REGN"}
+    assert duplicates == []
+
+
+def _fresh_inventory_inputs(
+    canonical=("A", "B", "C"), publishable=("A", "B"), withheld=("C",),
+):
+    distribution = {"BUY_NOW": len(canonical), "WAIT_FOR_CONFIRMATION": 2}
+    records = [
+        {
+            "ticker": ticker,
+            "publication_eligible": ticker in publishable,
+            "universe_sha256": "universe",
+        }
+        for ticker in (*publishable, *withheld)
+    ]
+    return {
+        "action_distribution": distribution,
+        "checkpoint": {
+            "action_counts": distribution,
+            "buy_now_tickers": list(publishable),
+            "withheld_buy_now_tickers": list(withheld),
+        },
+        "provenance": {
+            "status": "PASS",
+            "canonical_buy_now_count": len(canonical),
+            "publishable_buy_now_count": len(publishable),
+            "records": records,
+        },
+        "observed_actions": distribution,
+        "pool_inventory": {
+            "canonical_buy_now": list(canonical),
+            "publishable_buy_now": list(publishable),
+            "withheld_buy_now": list(withheld),
+            "duplicate_tickers": [],
+        },
+        "market_publishable": list(publishable),
+        "market_duplicates": [],
+        "universe_sha256": "universe",
+    }
+
+
+def _inventory_error(inputs, expected):
+    try:
+        _verify_fresh_inventory(**inputs)
+    except ValueError as error:
+        assert str(error) == expected
+    else:
+        raise AssertionError(f"expected {expected}")
+
+
+def test_fresh_inventory_validates_dynamic_and_future_counts():
+    current = _verify_fresh_inventory(**_fresh_inventory_inputs(
+        canonical=tuple(f"T{i}" for i in range(21)),
+        publishable=tuple(f"T{i}" for i in range(11)),
+        withheld=tuple(f"T{i}" for i in range(11, 21)),
+    ))
+    assert (current["canonical_buy_now_count"],
+            current["customer_publishable_buy_now_count"],
+            current["withheld_buy_now_count"]) == (21, 11, 10)
+    future = _verify_fresh_inventory(**_fresh_inventory_inputs(
+        canonical=("N1", "N2", "N3", "N4"),
+        publishable=("N1",), withheld=("N2", "N3", "N4"),
+    ))
+    assert (future["canonical_buy_now_count"],
+            future["customer_publishable_buy_now_count"],
+            future["withheld_buy_now_count"]) == (4, 1, 3)
+
+
+def test_fresh_inventory_rejects_count_mismatches():
+    canonical = _fresh_inventory_inputs()
+    canonical["provenance"]["canonical_buy_now_count"] = 4
+    _inventory_error(canonical, "FRESH_INVENTORY_CANONICAL_COUNT_MISMATCH")
+
+    publishable = _fresh_inventory_inputs()
+    publishable["provenance"]["publishable_buy_now_count"] = 1
+    _inventory_error(publishable, "FRESH_INVENTORY_PUBLISHABLE_COUNT_MISMATCH")
+
+    withheld = _fresh_inventory_inputs()
+    withheld["provenance"]["publishable_buy_now_count"] = 3
+    _inventory_error(withheld, "FRESH_INVENTORY_PUBLISHABLE_COUNT_MISMATCH")
+
+
+def test_fresh_inventory_rejects_partition_and_projection_defects():
+    leaked = _fresh_inventory_inputs()
+    leaked["market_publishable"].append("C")
+    _inventory_error(leaked, "FRESH_INVENTORY_WITHHELD_PUBLICATION_LEAK")
+
+    noncanonical = _fresh_inventory_inputs()
+    noncanonical["provenance"]["records"][0]["ticker"] = "X"
+    _inventory_error(noncanonical, "FRESH_INVENTORY_UNEXPECTED_BUY_NOW_TICKER")
+
+    missing = _fresh_inventory_inputs()
+    missing["provenance"]["records"] = missing["provenance"]["records"][:-1]
+    _inventory_error(missing, "FRESH_INVENTORY_CANONICAL_PARTITION_INCOMPLETE")
+
+    duplicate = _fresh_inventory_inputs()
+    duplicate["market_duplicates"] = ["A"]
+    _inventory_error(duplicate, "FRESH_INVENTORY_DUPLICATE_TICKER")
+
+
+def test_fresh_inventory_rejects_authorization_mismatches():
+    inputs = _fresh_inventory_inputs()
+    inputs["authorization"] = {"canonical_buy_now_count": 99}
+    _inventory_error(inputs, "FRESH_INVENTORY_AUTHORIZATION_COUNT_MISMATCH")
+    inputs = _fresh_inventory_inputs()
+    inputs["authorization"] = {"publishable_buy_now": ["A", "X"]}
+    _inventory_error(inputs, "FRESH_INVENTORY_AUTHORIZATION_TICKER_MISMATCH")
 
 
 def test_large_gate_reads_only_required_root_scalars(tmp_path):
