@@ -387,6 +387,8 @@ jobs:
           verification = {"status": "PASS", "candidate_run_id": manifest.get("run_id"),
                           "candidate_source_sha": required, "source_sha": result["source_sha"],
                           "candidate_generated_at": manifest.get("generated_at"),
+                          "evidence_snapshot_at": (manifest.get("executor_candidate_identity") or {}).get("evidence_snapshot_at") or manifest.get("generated_at"),
+                          "universe_sha256": (manifest.get("executor_candidate_identity") or {}).get("universe_sha256"),
                           "candidate_digest": result["candidate_digest"],
                           "publication_digest": result["publication_digest"],
                           "peak_rss_mib": result["peak_rss_mib"]}
@@ -562,6 +564,7 @@ jobs:
               --report-root "${{ steps.bundle.outputs.report_root }}" \
               --runtime-dir audit_results/full_qa/runtime \
               --output audit_results/full_qa/visual/candidate_verification.json \
+              --backend-handoff audit_results/full_qa/backend/backend_handoff.json \
               --expected-candidate-digest "$EXPECTED_CANDIDATE_DIGEST" \
               --expected-publication-digest "$EXPECTED_PUBLICATION_DIGEST" \
               --expected-source-sha "$EXPECTED_ANALYTICAL_SOURCE_SHA"

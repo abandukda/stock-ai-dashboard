@@ -48,6 +48,61 @@ def _load(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def _verify_fresh_backend_handoff(
+    path: Path, *, candidate_digest: str, publication_digest: str,
+    source_sha: str, evidence_snapshot_at: str, universe_sha256: str,
+) -> dict[str, Any]:
+    handoff = _load(path)
+    expected = {
+        "schema": "ATLAS_RELEASE_FULL_BACKEND_HANDOFF_V1",
+        "status": "PASS",
+        "candidate_digest": candidate_digest,
+        "publication_digest": publication_digest,
+        "source_sha": source_sha,
+        "evidence_snapshot_at": evidence_snapshot_at,
+        "universe_sha256": universe_sha256,
+        "provider_calls": 0,
+        "reacquisition": "none",
+        "dataset_gate": "PASS",
+        "dataset_certification_status": "PASS",
+        "publication_gate_status": "PASS",
+    }
+    mismatches = [key for key, value in expected.items() if handoff.get(key) != value]
+    if mismatches:
+        raise ValueError("FRESH_BACKEND_HANDOFF_MISMATCH:" + ",".join(mismatches))
+    return handoff
+
+
+def _verify_fresh_artifact_contract(
+    *, manifest: dict[str, Any], checkpoint: dict[str, Any],
+    determinism: dict[str, Any], candidate_digest: str,
+    evidence_snapshot_at: str, universe_sha256: str,
+) -> None:
+    checks = {
+        "publication_gate": manifest.get("publication_gate_status") == "PASS",
+        "candidate_verified": manifest.get("executor_candidate_digest_verified") is True,
+        "customer_publication": int(manifest.get("customer_publication_count") or 0) > 0,
+        "report_card_off": manifest.get("report_card_prospective_active") is False,
+        "snapshot_identity": str(manifest.get("generated_at") or "") == evidence_snapshot_at,
+        "universe_identity": bool(universe_sha256),
+        "completeness": checkpoint.get("state") == "FULL_UNIVERSE_CERTIFIED",
+        "symbol_count": checkpoint.get("terminal_record_count") == 6033
+            and checkpoint.get("expected_supported_symbol_count") == 6033,
+        "missing_symbols": not checkpoint.get("missing_symbols"),
+        "duplicate_symbols": not checkpoint.get("duplicate_symbols"),
+        "unexpected_symbols": not checkpoint.get("unexpected_symbols"),
+        "customer_publishable": checkpoint.get("customer_publishable") is True,
+        "determinism": determinism.get("status") == "PASS",
+        "first_digest": determinism.get("first_digest") == candidate_digest,
+        "second_digest": determinism.get("second_digest") == candidate_digest,
+        "zero_mismatches": (determinism.get("structural_diff") or {}).get(
+            "analytical_mismatch_count") == 0,
+    }
+    failures = [name for name, passed in checks.items() if not passed]
+    if failures:
+        raise ValueError("FRESH_ARTIFACT_CONTRACT_FAILED:" + ",".join(failures))
+
+
 def _stream_top_level_scalars(path: Path, keys: Iterable[str]) -> dict[str, Any]:
     """Read selected root scalar fields without materializing embedded records."""
     wanted = set(keys)
@@ -169,6 +224,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     candidate_digest = identity.get("candidate_digest")
     if candidate_digest != args.expected_candidate_digest:
         raise ValueError("CERTIFIED_CANDIDATE_DIGEST_MISMATCH")
+    evidence_snapshot_at = str(identity.get("evidence_snapshot_at") or manifest.get("generated_at") or "")
+    universe_sha256 = str(identity.get("universe_sha256") or "")
     gate = _stream_top_level_scalars(
         report_root / "full_universe_gate_report.json",
         ("provider_calls_during_aggregation", "same_snapshot_parity", "report_card_prospective_active"),
@@ -178,10 +235,44 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     if determinism.get("status") != "PASS" or (determinism.get("structural_diff") or {}).get(
             "analytical_mismatch_count") != 0:
         raise ValueError("CANDIDATE_DETERMINISM_NOT_CERTIFIED")
-    if gate.get("provider_calls_during_aggregation") != 0:
-        raise ValueError("PROVIDER_CALLS_PRESENT_IN_CERTIFIED_REPORT")
-    if inspector.get("status") != "PASS" or gate.get("same_snapshot_parity") != "PASS":
-        raise ValueError("CERTIFIED_EVIDENCE_OR_SNAPSHOT_GATE_FAILED")
+    legacy_contract = (
+        gate.get("provider_calls_during_aggregation") is not None
+        or gate.get("same_snapshot_parity") is not None
+    )
+    if legacy_contract:
+        if gate.get("provider_calls_during_aggregation") != 0:
+            raise ValueError("PROVIDER_CALLS_PRESENT_IN_CERTIFIED_REPORT")
+        if gate.get("same_snapshot_parity") != "PASS":
+            raise ValueError("CERTIFIED_SNAPSHOT_GATE_FAILED")
+        contract_type = "LEGACY_RECOVERY"
+        provider_call_proof_source = "CERTIFIED_REPORT"
+        snapshot_identity_proof_source = "CERTIFIED_REPORT"
+        backend_handoff_identity_match = None
+        visual_same_snapshot_required = False
+    else:
+        if not evidence_snapshot_at or not universe_sha256:
+            raise ValueError("CERTIFIED_CANDIDATE_SNAPSHOT_OR_UNIVERSE_MISSING")
+        checkpoint = _load(report_root / "checkpoint_summary.json")
+        _verify_fresh_artifact_contract(
+            manifest=manifest, checkpoint=checkpoint, determinism=determinism,
+            candidate_digest=candidate_digest, evidence_snapshot_at=evidence_snapshot_at,
+            universe_sha256=universe_sha256,
+        )
+        handoff_path = getattr(args, "backend_handoff", None)
+        if handoff_path is None:
+            raise ValueError("FRESH_BACKEND_HANDOFF_REQUIRED")
+        _verify_fresh_backend_handoff(
+            handoff_path.resolve(), candidate_digest=candidate_digest,
+            publication_digest=args.expected_publication_digest, source_sha=source_sha,
+            evidence_snapshot_at=evidence_snapshot_at, universe_sha256=universe_sha256,
+        )
+        contract_type = "FRESH_FULL_UNIVERSE_PLUS_BACKEND_HANDOFF"
+        provider_call_proof_source = "GOVERNED_BACKEND_HANDOFF"
+        snapshot_identity_proof_source = "FRESH_ARTIFACT_PLUS_GOVERNED_BACKEND_HANDOFF"
+        backend_handoff_identity_match = True
+        visual_same_snapshot_required = True
+    if inspector.get("status") != "PASS" or inspector.get("failures"):
+        raise ValueError("CERTIFIED_EVIDENCE_GATE_FAILED")
     if gate.get("report_card_prospective_active") is not False:
         raise ValueError("REPORT_CARD_MUST_REMAIN_OFF")
 
@@ -229,6 +320,14 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "withheld_publication_leaks": leaked,
         "evidence_inspector": inspector.get("status"),
         "same_snapshot_parity": gate.get("same_snapshot_parity"),
+        "certification_contract_type": contract_type,
+        "provider_call_proof_source": provider_call_proof_source,
+        "snapshot_identity_proof_source": snapshot_identity_proof_source,
+        "backend_handoff_identity_match": backend_handoff_identity_match,
+        "visual_same_snapshot_required": visual_same_snapshot_required,
+        "visual_same_snapshot_result": None if visual_same_snapshot_required else "PASS",
+        "evidence_snapshot_at": evidence_snapshot_at,
+        "universe_sha256": universe_sha256,
         "provider_calls": 0,
         "reacquisition": "none",
         "report_card_prospective_active": False,
@@ -251,6 +350,7 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--expected-candidate-digest", required=True)
     result.add_argument("--expected-publication-digest", required=True)
     result.add_argument("--expected-source-sha", required=True)
+    result.add_argument("--backend-handoff", type=Path)
     return result
 
 

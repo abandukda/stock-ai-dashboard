@@ -56,6 +56,8 @@ def build_backend(args: argparse.Namespace) -> dict:
         "candidate_digest": verification.get("candidate_digest"),
         "publication_digest": verification.get("publication_digest"),
         "source_sha": verification.get("source_sha"),
+        "evidence_snapshot_at": verification.get("evidence_snapshot_at"),
+        "universe_sha256": verification.get("universe_sha256"),
         "release_sha": args.release_sha,
         "provider_calls": 0,
         "reacquisition": "none",

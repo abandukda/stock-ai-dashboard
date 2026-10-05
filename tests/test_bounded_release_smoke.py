@@ -7,6 +7,8 @@ from agents.visual_qa_certification_v2 import candidate_identity
 from scripts.run_bounded_release_smoke import (
     PUBLICATION_FILES,
     _canonical_digest,
+    _verify_fresh_artifact_contract,
+    _verify_fresh_backend_handoff,
     _stream_customer_rows,
     _stream_top_level_scalars,
     run,
@@ -191,6 +193,77 @@ def test_large_gate_reads_only_required_root_scalars(tmp_path):
         "same_snapshot_parity": "PASS",
         "report_card_prospective_active": False,
     }
+
+
+def test_fresh_backend_handoff_requires_exact_identity_and_governance(tmp_path):
+    path = tmp_path / "backend_handoff.json"
+    handoff = {
+        "schema": "ATLAS_RELEASE_FULL_BACKEND_HANDOFF_V1", "status": "PASS",
+        "candidate_digest": "candidate", "publication_digest": "publication",
+        "source_sha": SOURCE_SHA, "evidence_snapshot_at": "2026-10-04T00:00:00Z",
+        "universe_sha256": "universe", "provider_calls": 0, "reacquisition": "none",
+        "dataset_gate": "PASS", "dataset_certification_status": "PASS",
+        "publication_gate_status": "PASS",
+    }
+    _write(path, handoff)
+    assert _verify_fresh_backend_handoff(
+        path, candidate_digest="candidate", publication_digest="publication",
+        source_sha=SOURCE_SHA, evidence_snapshot_at="2026-10-04T00:00:00Z",
+        universe_sha256="universe",
+    ) == handoff
+
+    for key, bad in (
+        ("candidate_digest", "wrong"), ("publication_digest", "wrong"),
+        ("source_sha", "wrong"), ("evidence_snapshot_at", "wrong"),
+        ("universe_sha256", "wrong"), ("provider_calls", 1),
+        ("reacquisition", "performed"), ("dataset_gate", "FAIL"),
+        ("publication_gate_status", "FAIL"),
+    ):
+        broken = {**handoff, key: bad}
+        _write(path, broken)
+        try:
+            _verify_fresh_backend_handoff(
+                path, candidate_digest="candidate", publication_digest="publication",
+                source_sha=SOURCE_SHA, evidence_snapshot_at="2026-10-04T00:00:00Z",
+                universe_sha256="universe",
+            )
+        except ValueError as error:
+            assert key in str(error)
+        else:
+            raise AssertionError(f"{key} mismatch must fail closed")
+
+
+def test_fresh_artifact_contract_requires_completeness_determinism_and_identity():
+    manifest = {
+        "publication_gate_status": "PASS", "executor_candidate_digest_verified": True,
+        "customer_publication_count": 11, "report_card_prospective_active": False,
+        "generated_at": "2026-10-04T00:00:00Z",
+    }
+    checkpoint = {
+        "state": "FULL_UNIVERSE_CERTIFIED", "terminal_record_count": 6033,
+        "expected_supported_symbol_count": 6033, "missing_symbols": [],
+        "duplicate_symbols": [], "unexpected_symbols": [], "customer_publishable": True,
+    }
+    determinism = {
+        "status": "PASS", "first_digest": "candidate", "second_digest": "candidate",
+        "structural_diff": {"analytical_mismatch_count": 0},
+    }
+    _verify_fresh_artifact_contract(
+        manifest=manifest, checkpoint=checkpoint, determinism=determinism,
+        candidate_digest="candidate", evidence_snapshot_at="2026-10-04T00:00:00Z",
+        universe_sha256="universe",
+    )
+    broken = {**determinism, "status": "FAIL"}
+    try:
+        _verify_fresh_artifact_contract(
+            manifest=manifest, checkpoint=checkpoint, determinism=broken,
+            candidate_digest="candidate", evidence_snapshot_at="2026-10-04T00:00:00Z",
+            universe_sha256="universe",
+        )
+    except ValueError as error:
+        assert "determinism" in str(error)
+    else:
+        raise AssertionError("determinism failure must fail closed")
 
 
 def test_browser_startup_is_explicit_and_fails_with_streamlit_diagnostics():
