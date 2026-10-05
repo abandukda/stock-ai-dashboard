@@ -233,23 +233,50 @@ def research_submission_proven(
     submission_marker: bool,
     completed_research: dict[str, Any],
 ) -> tuple[bool, str]:
-    """Accept either transport telemetry or the stronger rendered app contract."""
-    low_level = bool(
+    """Require transport plus exact-ticker certified terminal ownership.
+
+    The production Research route no longer emits the historical
+    ``research-submission-observed`` marker.  That marker remains useful
+    supplementary telemetry, but it cannot veto stronger end-to-end proof.
+    """
+    end_to_end = bool(
         streamlit_event_frames > 0
         and rerun_after > rerun_before
-        and submission_marker
-    )
-    end_to_end = bool(
-        completed_research.get("ticker")
+        and completed_research.get("ticker")
+        and completed_research.get("no_stale_ticker")
         and completed_research.get("lifecycle_complete")
         and completed_research.get("vnext")
-        and completed_research.get("complete")
+        and completed_research.get("certified_fields_reconciled")
+        and completed_research.get("provider_boundary_zero")
     )
     if end_to_end:
-        return True, "CERTIFIED_RESEARCH_COMPLETION"
-    if low_level:
-        return True, "STREAMLIT_TRANSPORT"
+        return True, (
+            "LEGACY_MARKER_AND_CERTIFIED_COMPLETION"
+            if submission_marker else "CERTIFIED_END_TO_END_SUBMISSION"
+        )
     return False, "UNPROVEN"
+
+
+def research_submission_failure(
+    *, streamlit_event_frames: int, rerun_before: int, rerun_after: int,
+    completed_research: dict[str, Any],
+) -> str:
+    """Return the first deterministic fail-closed submission boundary."""
+    if streamlit_event_frames <= 0:
+        return "RESEARCH_SUBMISSION_EVENT_NOT_OBSERVED"
+    if rerun_after <= rerun_before:
+        return "RESEARCH_RERUN_NOT_OBSERVED"
+    if not completed_research.get("ticker") or not completed_research.get("no_stale_ticker"):
+        return "RESEARCH_TICKER_OWNERSHIP_MISMATCH"
+    if not completed_research.get("lifecycle_complete"):
+        return "RESEARCH_TERMINAL_LIFECYCLE_NOT_REACHED"
+    if not completed_research.get("vnext"):
+        return "RESEARCH_CERTIFIED_SURFACE_NOT_RENDERED"
+    if not completed_research.get("certified_fields_reconciled"):
+        return "RESEARCH_CERTIFIED_FIELDS_NOT_RECONCILED"
+    if not completed_research.get("provider_boundary_zero"):
+        return "RESEARCH_PROVIDER_BOUNDARY_NOT_ZERO"
+    return "RESEARCH_SUBMISSION_PROOF_UNAVAILABLE"
 
 
 class AtlasVisualCrawler:
@@ -424,15 +451,24 @@ class AtlasVisualCrawler:
                 "certified_vnext_decision_visible": bool(
                     completed_research.get("vnext")
                 ),
+                "no_stale_ticker": bool(completed_research.get("no_stale_ticker")),
+                "certified_fields_reconciled": bool(
+                    completed_research.get("certified_fields_reconciled")
+                ),
+                "provider_calls": completed_research.get("provider_calls"),
+                "provider_boundary_zero": bool(
+                    completed_research.get("provider_boundary_zero")
+                ),
                 "proof_mode": proof_mode,
             }
             if proven:
                 return evidence
             await page.wait_for_timeout(100)
-        category = (
-            "STREAMLIT_EVENT_NOT_EMITTED"
-            if evidence.get("streamlit_event_frames", 0) <= 0
-            else "STREAMLIT_RERUN_NOT_OBSERVED"
+        category = research_submission_failure(
+            streamlit_event_frames=int(evidence.get("streamlit_event_frames", 0)),
+            rerun_before=int(evidence.get("rerun_before", 0)),
+            rerun_after=int(evidence.get("rerun_after", 0)),
+            completed_research=completed_research,
         )
         raise ResearchSubmissionBoundaryError(category, evidence)
 
@@ -533,6 +569,9 @@ class AtlasVisualCrawler:
             "ticker": False, "lifecycle_complete": False, "vnext": False,
             "five_sections": False, "loading": False, "ask_cta": False,
             "terminal_status": "", "rendered_exception": False,
+            "rendered_tickers": [], "no_stale_ticker": False,
+            "certified_fields_reconciled": False,
+            "provider_calls": None, "provider_boundary_zero": False,
         }
         architecture = await self._research_vnext_contract(page, expected)
         result.update({
@@ -543,6 +582,8 @@ class AtlasVisualCrawler:
             "withheld_terminal": bool(architecture.get("withheld_terminal")),
             "publication_allowed": architecture.get("publication_allowed"),
         })
+        rendered_tickers: set[str] = set()
+        provider_calls: list[int] = []
         for scope in _scopes(page):
             try:
                 lifecycle = scope.locator(
@@ -559,8 +600,30 @@ class AtlasVisualCrawler:
                 result["ticker"] = result["ticker"] or bool(await scope.locator(
                     f'[data-atlas-qa="research-context-v1"][data-atlas-ticker="{expected}"]'
                 ).count())
+                for selector in (
+                    '[data-atlas-qa="research-context-v1"][data-atlas-ticker]',
+                    '[data-atlas-qa="research-container"][data-atlas-ticker]',
+                ):
+                    nodes = scope.locator(selector)
+                    for index in range(await nodes.count()):
+                        value = (
+                            await nodes.nth(index).get_attribute("data-atlas-ticker") or ""
+                        ).strip().upper()
+                        if value:
+                            rendered_tickers.add(value)
+                performance = scope.locator(
+                    f'[data-atlas-qa="research-performance"][data-atlas-ticker="{expected}"]'
+                )
+                for index in range(await performance.count()):
+                    provider_calls.append(int(
+                        await performance.nth(index).get_attribute("data-atlas-provider-calls") or 0
+                    ))
             except Exception:
                 continue
+        result["rendered_tickers"] = sorted(rendered_tickers)
+        result["no_stale_ticker"] = bool(rendered_tickers == {expected})
+        result["provider_calls"] = max(provider_calls) if provider_calls else None
+        result["provider_boundary_zero"] = bool(provider_calls and max(provider_calls) == 0)
         result["lifecycle_complete"] = result["terminal_status"] == "complete"
         result["loading"] = result["terminal_status"] == "loading"
         result["rendered_exception"] = await _has_rendered_exception(page)
@@ -576,6 +639,12 @@ class AtlasVisualCrawler:
             ))
         )
         result["published_decision_evidence"] = published_decision_evidence
+        result["certified_fields_reconciled"] = bool(
+            published_decision_evidence
+            and re.search(r"ATLAS FAIR VALUE\s+(?!UNAVAILABLE\b)\S+", normalized_text)
+            and re.search(r"OPPORTUNITY\s+(?!UNAVAILABLE\b)\S+", normalized_text)
+            and re.search(r"DECISION CONFIDENCE\s+(?!UNAVAILABLE\b)\S+", normalized_text)
+        )
         result["research_terminal_state"] = classify_research_terminal_state(
             ticker_present=result["ticker"], lifecycle_complete=result["lifecycle_complete"],
             authoritative_version=result["vnext"], five_sections=result["five_sections"],

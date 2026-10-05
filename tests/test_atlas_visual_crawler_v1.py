@@ -21,6 +21,7 @@ from agents.atlas_visual_crawler_v1 import (
     RESEARCH_COMPLETION_TIMEOUT_SECONDS,
     _research_declared_architecture,
     classify_research_terminal_state,
+    research_submission_failure,
     research_submission_proven,
     VisualResult,
 )
@@ -314,20 +315,115 @@ def test_production_research_submission_waits_for_stronger_terminal_contract():
         submission_marker=False,
         completed_research={
             "ticker": True,
+            "no_stale_ticker": True,
             "lifecycle_complete": True,
             "vnext": True,
-            "complete": True,
+            "certified_fields_reconciled": True,
+            "provider_boundary_zero": True,
         },
     )
     assert proven is True
-    assert mode == "CERTIFIED_RESEARCH_COMPLETION"
+    assert mode == "CERTIFIED_END_TO_END_SUBMISSION"
+
+    proven, mode = research_submission_proven(
+        streamlit_event_frames=1,
+        rerun_before=1,
+        rerun_after=2,
+        submission_marker=True,
+        completed_research={
+            "ticker": True,
+            "no_stale_ticker": True,
+            "lifecycle_complete": True,
+            "vnext": True,
+            "certified_fields_reconciled": True,
+            "provider_boundary_zero": True,
+        },
+    )
+    assert proven is True
+    assert mode == "LEGACY_MARKER_AND_CERTIFIED_COMPLETION"
 
     source = SOURCE.read_text(encoding="utf-8")
     boundary = source.split("async def _require_submission_boundary", 1)[1].split(
         "def _monitor_research_ticker", 1
     )[0]
     assert "RESEARCH_COMPLETION_TIMEOUT_SECONDS" in boundary
-    assert "and submission_marker" in source
+    assert "and submission_marker" not in boundary
+
+
+def _submission_surface(**overrides):
+    surface = {
+        "ticker": True,
+        "no_stale_ticker": True,
+        "lifecycle_complete": True,
+        "vnext": True,
+        "certified_fields_reconciled": True,
+        "provider_boundary_zero": True,
+    }
+    surface.update(overrides)
+    return surface
+
+
+def test_marker_absent_requires_event_rerun_exact_owner_terminal_and_fields():
+    for overrides in (
+        {"streamlit_event_frames": 0},
+        {"rerun_after": 1},
+    ):
+        arguments = {
+            "streamlit_event_frames": 1,
+            "rerun_before": 1,
+            "rerun_after": 2,
+            "submission_marker": False,
+            "completed_research": _submission_surface(),
+            **overrides,
+        }
+        assert research_submission_proven(**arguments) == (False, "UNPROVEN")
+
+    for surface_overrides in (
+        {"ticker": False},
+        {"no_stale_ticker": False},
+        {"lifecycle_complete": False},
+        {"vnext": False},
+        {"certified_fields_reconciled": False},
+        {"provider_boundary_zero": False},
+    ):
+        assert research_submission_proven(
+            streamlit_event_frames=1,
+            rerun_before=1,
+            rerun_after=2,
+            submission_marker=False,
+            completed_research=_submission_surface(**surface_overrides),
+        ) == (False, "UNPROVEN")
+
+
+def test_submission_failure_classification_does_not_mislabel_observed_rerun():
+    assert research_submission_failure(
+        streamlit_event_frames=1,
+        rerun_before=1,
+        rerun_after=2,
+        completed_research=_submission_surface(ticker=False),
+    ) == "RESEARCH_TICKER_OWNERSHIP_MISMATCH"
+    assert research_submission_failure(
+        streamlit_event_frames=1,
+        rerun_before=1,
+        rerun_after=1,
+        completed_research=_submission_surface(),
+    ) == "RESEARCH_RERUN_NOT_OBSERVED"
+    assert research_submission_failure(
+        streamlit_event_frames=0,
+        rerun_before=1,
+        rerun_after=2,
+        completed_research=_submission_surface(),
+    ) == "RESEARCH_SUBMISSION_EVENT_NOT_OBSERVED"
+
+
+def test_required_research_matrix_covers_current_production_contract():
+    assert REQUIRED_RESEARCH_TICKERS == ("NVDA", "MSFT", "AVT")
+    assert ("Research Any Ticker", "desktop") in REQUIRED_PAGE_VIEWPORTS
+    assert ("Research Any Ticker", "mobile") in REQUIRED_PAGE_VIEWPORTS
+    source = SOURCE.read_text(encoding="utf-8")
+    assert '"certified_fields_reconciled"' in source
+    assert '"no_stale_ticker"' in source
+    assert 'data-atlas-provider-calls' in (ROOT / "app.py").read_text(encoding="utf-8")
 
 
 def test_crawler_tracks_ux3b_decision_story_without_restoring_legacy_tabs():
