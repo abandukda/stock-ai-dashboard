@@ -48,6 +48,19 @@ def _load(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def _stream_top_level_scalars(path: Path, keys: Iterable[str]) -> dict[str, Any]:
+    """Read selected root scalar fields without materializing embedded records."""
+    wanted = set(keys)
+    values: dict[str, Any] = {}
+    with path.open("rb") as handle:
+        for prefix, event, value in ijson.parse(handle, use_float=True):
+            if prefix in wanted and event in {"string", "number", "boolean", "null"}:
+                values[prefix] = value
+                if values.keys() == wanted:
+                    break
+    return values
+
+
 def _action(row: dict[str, Any]) -> str:
     evaluation = row.get("canonical_investment_evaluation") or {}
     return str(((evaluation.get("guidance") or {}).get("state") or "RATING_NOT_PUBLISHED"))
@@ -156,7 +169,10 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     candidate_digest = identity.get("candidate_digest")
     if candidate_digest != args.expected_candidate_digest:
         raise ValueError("CERTIFIED_CANDIDATE_DIGEST_MISMATCH")
-    gate = _load(report_root / "full_universe_gate_report.json")
+    gate = _stream_top_level_scalars(
+        report_root / "full_universe_gate_report.json",
+        ("provider_calls_during_aggregation", "same_snapshot_parity", "report_card_prospective_active"),
+    )
     determinism = _load(report_root / "determinism_report.json")
     inspector = _load(report_root / "evidence_inspector_coverage.json")
     if determinism.get("status") != "PASS" or (determinism.get("structural_diff") or {}).get(

@@ -8,6 +8,7 @@ from scripts.run_bounded_release_smoke import (
     PUBLICATION_FILES,
     _canonical_digest,
     _stream_customer_rows,
+    _stream_top_level_scalars,
     run,
 )
 
@@ -172,6 +173,24 @@ def test_customer_publication_pool_is_streamed_to_bounded_rows(tmp_path):
 
     assert published == ["NVDA"]
     assert {row["ticker"] for row in selected} == {"NVDA", "REGN"}
+
+
+def test_large_gate_reads_only_required_root_scalars(tmp_path):
+    gate = tmp_path / "full_universe_gate_report.json"
+    _write(gate, {
+        "provider_calls_during_aggregation": 0,
+        "embedded_records": [{"payload": "x" * 1000} for _ in range(50)],
+        "same_snapshot_parity": "PASS",
+        "report_card_prospective_active": False,
+    })
+
+    assert _stream_top_level_scalars(gate, (
+        "provider_calls_during_aggregation", "same_snapshot_parity", "report_card_prospective_active",
+    )) == {
+        "provider_calls_during_aggregation": 0,
+        "same_snapshot_parity": "PASS",
+        "report_card_prospective_active": False,
+    }
 
 
 def test_browser_startup_is_explicit_and_fails_with_streamlit_diagnostics():
