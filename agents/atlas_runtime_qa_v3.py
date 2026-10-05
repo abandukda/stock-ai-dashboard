@@ -188,6 +188,7 @@ def _mobile_result_index(user_journeys: dict[str, Any]) -> dict[str, dict[str, s
         for step in user_journeys.get("steps") or []
         if step.get("journey") == "Core mobile certification"
     }
+    return result
 VALID_TICKER_RE = re.compile(r"^[A-Z][A-Z0-9.-]{0,5}$")
 ERROR_TEXT = re.compile(
     r"traceback|modulenotfounderror|streamlitapiexception|uncaught exception",
