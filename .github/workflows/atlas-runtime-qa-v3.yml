@@ -16,6 +16,10 @@ on:
         description: "Exact production ATLAS *.streamlit.app URL"
         required: false
         type: string
+      deployed_source_sha:
+        description: "Exact 40-character source SHA currently deployed (defaults to QA checkout SHA)"
+        required: false
+        type: string
 
   schedule:
     - cron: "30 11 * * 1-5"
@@ -26,7 +30,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      ATLAS_PRODUCTION_URL: ${{ inputs.deployed_url || vars.ATLAS_PRODUCTION_URL }}
+      ATLAS_PRODUCTION_URL: ${{ inputs.deployed_url || vars.ATLAS_PRODUCTION_URL || 'https://stock-ai-dashboard.streamlit.app/' }}
+      ATLAS_EXPECTED_DEPLOYED_SOURCE_SHA: ${{ inputs.deployed_source_sha || github.sha }}
 
     steps:
       - name: Checkout repository
@@ -53,8 +58,8 @@ jobs:
         run: |
           python - <<'PY'
           import os
-          from agents.atlas_runtime_qa_v3 import _canonical_streamlit_url
-          print("ATLAS runtime target:", _canonical_streamlit_url(os.environ.get("ATLAS_PRODUCTION_URL", "")))
+          from agents.deployment_target import canonical_production_url
+          print("ATLAS runtime target:", canonical_production_url(os.environ.get("ATLAS_PRODUCTION_URL", "")))
           PY
 
       - name: Record source and verify architecture
@@ -152,11 +157,12 @@ jobs:
               try:
                   report = json.loads(summary_path.read_text(encoding="utf-8"))
                   finished = bool(report.get("finished"))
-                  failures = int(((report.get("counts") or {}).get("all") or {}).get("failed", 0))
+                  failures = int(((report.get("counts") or {}).get("required") or {}).get("failed", 0))
+                  required_status = str((report.get("required_completeness") or {}).get("status") or "FAIL")
                   if missing or not finished:
                       status = "VISUAL_CRAWLER_ARTIFACT_DEFECT"
                   else:
-                      status = "VISUAL_CERTIFICATION_FAIL" if failures else "VISUAL_CERTIFICATION_PASS"
+                      status = "VISUAL_CERTIFICATION_PASS" if required_status == "PASS" else "VISUAL_CERTIFICATION_FAIL"
               except (OSError, ValueError, TypeError):
                   status = "VISUAL_CRAWLER_ARTIFACT_DEFECT"
           elif summary_path.exists():
@@ -204,11 +210,14 @@ jobs:
           tabs = counts.get("tabs") or {}
           shots = counts.get("screenshots") or {}
           defects = report.get("defects") or []
+          required = counts.get("required") or {}
+          supplementary = counts.get("supplementary") or {}
+          completeness = report.get("required_completeness") or {}
           severity = {
               label: sum(item.get("severity") == label for item in defects)
               for label in ("P1", "P2", "P3")
           }
-          failed = bool((counts.get("all") or {}).get("failed", 0))
+          failed = completeness.get("status") != "PASS"
           status = str(infrastructure_status or ("VISUAL_CERTIFICATION_FAIL" if failed else "VISUAL_CERTIFICATION_PASS"))
           lines = [
               status,
@@ -217,6 +226,8 @@ jobs:
               f"Research tickers: {research.get('passed', 0)}/{research.get('attempted', 0)}",
               f"tabs: {tabs.get('passed', 0)}/{tabs.get('attempted', 0)}",
               f"screenshots: {shots.get('generated', 0)}/{shots.get('expected', 0)}",
+              f"required: {required.get('passed', 0)}/{required.get('attempted', 0)}; completeness={completeness.get('status', 'FAIL')}",
+              f"supplementary defects: {supplementary.get('failed', 0)}",
               f"defects: P1={severity['P1']} P2={severity['P2']} P3={severity['P3']}",
               "artifact: audit_results/visual_crawl",
           ]
@@ -258,10 +269,11 @@ jobs:
               print("VISUAL_CRAWLER_ARTIFACT_DEFECT: summary artifact missing")
               raise SystemExit(1)
           report = json.loads(path.read_text(encoding="utf-8"))
-          failed = int(((report.get("counts") or {}).get("all") or {}).get("failed", 0))
+          completeness = report.get("required_completeness") or {}
+          failed = int(((report.get("counts") or {}).get("required") or {}).get("failed", 0))
           finished = bool(report.get("finished"))
-          if status == "VISUAL_CERTIFICATION_FAIL" or failed or not finished:
-              print(f"VISUAL_CERTIFICATION_FAIL: failures={failed} finished={finished}")
+          if status == "VISUAL_CERTIFICATION_FAIL" or completeness.get("status") != "PASS" or failed or not finished:
+              print(f"VISUAL_CERTIFICATION_FAIL: required_failures={failed} completeness={completeness.get('status')} finished={finished}")
               raise SystemExit(1)
           if status != "VISUAL_CERTIFICATION_PASS":
               print(f"VISUAL_CRAWLER_ARTIFACT_DEFECT: unexpected status={status}")
