@@ -20,6 +20,25 @@ def build_home_runtime_contract(
     source = dict(projection_contract.get("source_certification") or {})
     projection = dict(projection_contract.get("runtime_projection") or {})
     failures = []
+    required_authority = {
+        "candidate_digest": source.get("candidate_digest"),
+        "publication_digest": source.get("publication_digest"),
+        "source_sha": source.get("analytical_source_sha"),
+        "evidence_snapshot_at": source.get("evidence_snapshot_at"),
+        "projection_digest": projection.get("semantic_digest"),
+        "record_counts": projection.get("record_counts"),
+    }
+    # Legacy publications predate this diagnostic envelope. Preserve their
+    # established Home behavior; once a projection contract is declared, its
+    # authority is mandatory and fail-closed.
+    if projection_contract:
+        failures.extend(
+            f"HOME_RUNTIME_{key.upper()}_MISSING"
+            for key, value in required_authority.items() if not value
+        )
+    leakage = list(projection.get("withheld_customer_leakage") or ())
+    if projection_contract and leakage:
+        failures.append("HOME_RUNTIME_WITHHELD_CUSTOMER_LEAKAGE")
     if not action.get("reconciled"):
         failures.append("HOME_ACTION_RECONCILIATION_FAILED")
     if not action.get("artifact_run_id") or not action.get("artifact_source_sha"):
@@ -61,16 +80,15 @@ def build_home_runtime_contract(
                         "story_count": len(market_today.get("major_market_news") or ()), "runtime_health": news},
         "renderer": {"version": HOME_RENDERER_VERSION}, "per_ticker": per_ticker,
         "production_authority": {
-            "candidate_digest": source.get("candidate_digest"),
-            "publication_digest": source.get("publication_digest"),
-            "source_sha": source.get("analytical_source_sha"),
-            "evidence_snapshot_at": source.get("evidence_snapshot_at"),
-            "projection_digest": projection.get("semantic_digest"),
+            **{key: required_authority[key] for key in (
+                "candidate_digest", "publication_digest", "source_sha",
+                "evidence_snapshot_at", "projection_digest",
+            )},
             "deployed_sha": build["build_sha"],
         },
         "inventory_authority": dict(source.get("inventory") or {}),
-        "runtime_projection": {"record_counts": projection.get("record_counts"),
-                               "withheld_customer_leakage": projection.get("withheld_customer_leakage")},
+        "runtime_projection": {"record_counts": required_authority["record_counts"],
+                               "withheld_customer_leakage": len(leakage)},
         "generated_at": datetime.now(timezone.utc).isoformat(), "runtime_ready": not failures,
         "home_runtime_ready": not failures,
         "failure_reasons": list(dict.fromkeys(failures)), "non_scoring": True,

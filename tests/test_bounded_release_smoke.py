@@ -9,6 +9,7 @@ from scripts.run_bounded_release_smoke import (
     _action,
     _canonical_digest,
     _materialize_runtime_expectations,
+    _materialize_runtime_projection_contract,
     _semantic_json_sha256,
     _verify_publication_artifact_hashes,
     _verify_fresh_artifact_contract,
@@ -34,6 +35,10 @@ def _expectations(candidate="c" * 64, publication="p" * 64, source=SOURCE_SHA):
             "NVDA": {"action": "BUY_NOW", "atlas_fair_value": 346.05},
             "MSFT": {"action": "BUY_NOW", "atlas_fair_value": 704.48},
             "AVT": {"action": "BUY_NOW", "atlas_fair_value": 130.97},
+        },
+        "source_inventory": {
+            "canonical_buy_now": ["NVDA"], "publishable_buy_now": ["NVDA"],
+            "withheld_buy_now": [],
         },
     }
 
@@ -102,6 +107,35 @@ def test_legacy_bounded_runtime_does_not_require_expectations_contract(tmp_path)
     # The legacy run fixture exercises the existing path without supplying a
     # runtime expectations directory; its successful run below is the contract.
     assert not (tmp_path / "certification").exists()
+
+
+def test_bounded_runtime_materializes_current_projection_contract(tmp_path):
+    runtime = tmp_path / "runtime"
+    expectations = tmp_path / "expectations.json"
+    _write(expectations, _expectations())
+    artifacts = {
+        name: ([{"ticker": "NVDA", "certified_customer_evaluation": {
+            "customer_publication_allowed": True, "decision": {"action": "BUY_NOW"},
+        }}] if name in {"market_full_scan.json", "full_evaluation_pool.json"} else [])
+        for name in PUBLICATION_FILES
+    }
+    for name, payload in artifacts.items():
+        _write(runtime / name, payload)
+    _write(runtime / "publication_manifest.json", {
+        "executor_candidate_identity": {"candidate_digest": "c" * 64, "source_sha": SOURCE_SHA},
+        "source_commit_sha": SOURCE_SHA,
+    })
+    _materialize_runtime_projection_contract(
+        runtime=runtime, expectations_path=expectations,
+        candidate_digest="c" * 64, publication_digest="p" * 64,
+        source_sha=SOURCE_SHA, evidence_snapshot_at="2026-09-11T20:00:00Z",
+    )
+    contract = json.loads((runtime / "publication_manifest.json").read_text())["runtime_projection_contract"]
+    assert contract["source_certification"]["candidate_digest"] == "c" * 64
+    assert contract["source_certification"]["publication_digest"] == "p" * 64
+    assert contract["source_certification"]["analytical_source_sha"] == SOURCE_SHA
+    assert contract["runtime_projection"]["withheld_customer_leakage"] == []
+    assert contract["runtime_projection"]["record_counts"]["full_evaluation_pool.json"] == 1
 
 
 def _write(path: Path, value):

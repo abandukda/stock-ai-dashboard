@@ -20,6 +20,7 @@ from typing import Any, Iterable, Mapping
 import ijson
 
 from services.finnhub_full_universe_executor import ACTION_ALIASES
+from services.runtime_projection_contract import build_runtime_projection_contract
 
 
 PUBLICATION_FILES = (
@@ -466,6 +467,39 @@ def _materialize_runtime_expectations(
     return destination
 
 
+def _materialize_runtime_projection_contract(
+    *, runtime: Path, expectations_path: Path, candidate_digest: str,
+    publication_digest: str, source_sha: str, evidence_snapshot_at: str,
+) -> None:
+    """Bind the bounded UI fixture to the already-certified source authority."""
+    manifest_path = runtime / "publication_manifest.json"
+    manifest = _load(manifest_path)
+    expectations = _load(expectations_path)
+    source_inventory = dict(expectations.get("source_inventory") or {})
+    if not source_inventory:
+        raise ValueError("RUNTIME_PROJECTION_SOURCE_INVENTORY_MISSING")
+    artifacts = {name: _load(runtime / name) for name in PUBLICATION_FILES}
+    rows = list(artifacts.get("full_evaluation_pool.json") or ())
+    required_tickers = [
+        str(row.get("ticker") or row.get("symbol") or "").upper()
+        for row in rows if isinstance(row, Mapping)
+    ]
+    manifest["runtime_projection_contract"] = build_runtime_projection_contract(
+        manifest=manifest, artifacts=artifacts,
+        candidate_digest=candidate_digest, publication_digest=publication_digest,
+        source_sha=source_sha, evidence_snapshot_at=evidence_snapshot_at,
+        source_counts={
+            "universe_count": manifest.get("universe_count"),
+            "customer_publication_count": manifest.get("customer_publication_count"),
+            "certified_count": manifest.get("certified_count"),
+            "withheld_count": manifest.get("withheld_count"),
+        },
+        expected_facts=dict(expectations.get("expected_facts") or {}),
+        required_tickers=required_tickers, source_inventory=source_inventory,
+    )
+    _write_canonical(manifest_path, manifest)
+
+
 def run(args: argparse.Namespace) -> dict[str, Any]:
     started = time.monotonic()
     bundle = args.bundle.resolve()
@@ -607,6 +641,11 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             publication_digest=publication_digest,
             source_sha=source_sha,
             research_tickers=research_tickers,
+        )
+        _materialize_runtime_projection_contract(
+            runtime=args.runtime_dir.resolve(), expectations_path=runtime_expectations,
+            candidate_digest=candidate_digest, publication_digest=publication_digest,
+            source_sha=source_sha, evidence_snapshot_at=evidence_snapshot_at,
         )
     peak_rss_mib = _peak_rss_mib()
     result = {

@@ -25,6 +25,7 @@ from agents.atlas_visual_crawler_v1 import (
     normalize_research_action,
     research_submission_failure,
     research_submission_proven,
+    required_research_authority_failures,
     VisualResult,
 )
 from services.vnext_presentation_contract import RESEARCH_VNEXT_VERSION
@@ -79,6 +80,54 @@ def test_research_field_reconciliation_rejects_unrelated_action_text():
         "atlas_fair_value": "$338.82", "opportunity": "86.68",
         "decision_confidence": "88.54%",
     }) is False
+
+
+def _unpublished_completion(**overrides):
+    value = {
+        "ticker": True, "no_stale_ticker": True, "lifecycle_complete": True,
+        "vnext": True, "certified_fields_reconciled": False,
+        "provider_boundary_zero": True, "publication_allowed": False,
+        "withheld_terminal": True,
+        "research_terminal_state": "RATING_NOT_PUBLISHED_COMPLETE",
+    }
+    value.update(overrides)
+    return value
+
+
+def test_submission_proof_accepts_only_explicit_governed_unpublished_terminal():
+    proven, mode = research_submission_proven(
+        streamlit_event_frames=1, rerun_before=1, rerun_after=2,
+        submission_marker=False, completed_research=_unpublished_completion(),
+    )
+    assert (proven, mode) == (True, "CERTIFIED_END_TO_END_SUBMISSION")
+    for mutation in (
+        {"ticker": False}, {"no_stale_ticker": False}, {"lifecycle_complete": False},
+        {"publication_allowed": True}, {"withheld_terminal": False},
+        {"research_terminal_state": "RESEARCH_RENDER_INCOMPLETE"},
+    ):
+        assert research_submission_proven(
+            streamlit_event_frames=1, rerun_before=1, rerun_after=2,
+            submission_marker=False, completed_research=_unpublished_completion(**mutation),
+        )[0] is False
+
+
+def test_unpublished_authority_requires_action_policy_identity_and_terminal():
+    expected = {"action": "RATING_NOT_PUBLISHED", "customer_publication_allowed": False}
+    identity = {"candidate_digest": "c", "publication_digest": "p", "source_sha": "s"}
+    observed = {
+        "action": "RATING NOT PUBLISHED", "publication_allowed": False,
+        "research_terminal_state": "RATING_NOT_PUBLISHED_COMPLETE",
+        "candidate_digest": "c", "publication_digest": "p", "source_sha": "s",
+        "evaluation_snapshot_id": "", "provider_calls": 0,
+    }
+    assert required_research_authority_failures(observed, expected, identity) == []
+    for key, value, failure in (
+        ("action", "BUY NOW", "ACTION_MISMATCH"),
+        ("publication_allowed", True, "PUBLICATION_POLICY_MISMATCH"),
+        ("research_terminal_state", "RESEARCH_RENDER_INCOMPLETE", "TERMINAL_LIFECYCLE_MISSING"),
+    ):
+        changed = dict(observed, **{key: value})
+        assert failure in required_research_authority_failures(changed, expected, identity)
 
 
 def test_research_field_extractor_uses_ticker_scoped_action_and_metric_nodes():

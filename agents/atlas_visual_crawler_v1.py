@@ -249,6 +249,11 @@ def research_submission_proven(
     ``research-submission-observed`` marker.  That marker remains useful
     supplementary telemetry, but it cannot veto stronger end-to-end proof.
     """
+    unpublished_terminal = bool(
+        completed_research.get("research_terminal_state") == "RATING_NOT_PUBLISHED_COMPLETE"
+        and completed_research.get("publication_allowed") is False
+        and completed_research.get("withheld_terminal")
+    )
     end_to_end = bool(
         streamlit_event_frames > 0
         and rerun_after > rerun_before
@@ -256,7 +261,7 @@ def research_submission_proven(
         and completed_research.get("no_stale_ticker")
         and completed_research.get("lifecycle_complete")
         and completed_research.get("vnext")
-        and completed_research.get("certified_fields_reconciled")
+        and (completed_research.get("certified_fields_reconciled") or unpublished_terminal)
         and completed_research.get("provider_boundary_zero")
     )
     if end_to_end:
@@ -282,7 +287,12 @@ def research_submission_failure(
         return "RESEARCH_TERMINAL_LIFECYCLE_NOT_REACHED"
     if not completed_research.get("vnext"):
         return "RESEARCH_CERTIFIED_SURFACE_NOT_RENDERED"
-    if not completed_research.get("certified_fields_reconciled"):
+    unpublished_terminal = bool(
+        completed_research.get("research_terminal_state") == "RATING_NOT_PUBLISHED_COMPLETE"
+        and completed_research.get("publication_allowed") is False
+        and completed_research.get("withheld_terminal")
+    )
+    if not completed_research.get("certified_fields_reconciled") and not unpublished_terminal:
         return "RESEARCH_CERTIFIED_FIELDS_NOT_RECONCILED"
     if not completed_research.get("provider_boundary_zero"):
         return "RESEARCH_PROVIDER_BOUNDARY_NOT_ZERO"
@@ -318,12 +328,16 @@ def required_research_authority_failures(
     failures: list[str] = []
     if normalize_research_action(observed.get("action")) != normalize_research_action(expected_fact.get("action")):
         failures.append("ACTION_MISMATCH")
+    unpublished = bool(
+        expected_fact.get("customer_publication_allowed") is False
+        or normalize_research_action(expected_fact.get("action")) == "RATING_NOT_PUBLISHED"
+    )
     numeric = (
         ("atlas_fair_value", "FAIR_VALUE_MISMATCH"),
         ("opportunity", "OPPORTUNITY_MISMATCH"),
         ("decision_confidence", "CONFIDENCE_MISMATCH"),
     )
-    for key, label in numeric:
+    for key, label in (() if unpublished else numeric):
         try:
             actual = float(re.sub(r"[^0-9.-]", "", str(observed.get(key) or "")))
             expected = float(expected_fact[key])
@@ -344,8 +358,13 @@ def required_research_authority_failures(
             failures.append(label)
     if observed.get("provider_calls") != 0:
         failures.append("PROVIDER_BOUNDARY_NOT_ZERO")
-    if observed.get("research_terminal_state") != "PUBLISHED_RESEARCH_COMPLETE":
+    expected_terminal = (
+        "RATING_NOT_PUBLISHED_COMPLETE" if unpublished else "PUBLISHED_RESEARCH_COMPLETE"
+    )
+    if observed.get("research_terminal_state") != expected_terminal:
         failures.append("TERMINAL_LIFECYCLE_MISSING")
+    if unpublished and observed.get("publication_allowed") is not False:
+        failures.append("PUBLICATION_POLICY_MISMATCH")
     return failures
 
 
