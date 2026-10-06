@@ -422,6 +422,50 @@ def _copy_small_bundle(
     _write_canonical(runtime / "publication_manifest.json", manifest)
 
 
+def _materialize_runtime_expectations(
+    *, source_dir: Path, runtime: Path, candidate_digest: str,
+    publication_digest: str, source_sha: str,
+    research_tickers: Iterable[str],
+) -> Path:
+    """Copy the one governed, candidate-bound visual expectation contract."""
+    matches = sorted(source_dir.glob("runtime_projection_expectations_*.json"))
+    if not matches:
+        raise ValueError("RUNTIME_EXPECTATIONS_SOURCE_MISSING")
+    candidate_matches = []
+    for path in matches:
+        payload = _load(path)
+        if (payload.get("identity") or {}).get("candidate_digest") == candidate_digest:
+            candidate_matches.append((path, payload))
+    if not candidate_matches:
+        raise ValueError("RUNTIME_EXPECTATIONS_CANDIDATE_MISMATCH")
+    if len(candidate_matches) != 1:
+        raise ValueError(f"RUNTIME_EXPECTATIONS_SOURCE_AMBIGUOUS:{len(candidate_matches)}")
+
+    source, payload = candidate_matches[0]
+    identity = payload.get("identity") or {}
+    if identity.get("publication_digest") != publication_digest:
+        raise ValueError("RUNTIME_EXPECTATIONS_PUBLICATION_MISMATCH")
+    if identity.get("source_sha") != source_sha:
+        raise ValueError("RUNTIME_EXPECTATIONS_SOURCE_SHA_MISMATCH")
+    expected_tickers = {
+        str(value).upper() for value in (payload.get("expected_facts") or {})
+    }
+    governed_tickers = {str(value).upper() for value in research_tickers}
+    if expected_tickers != governed_tickers:
+        raise ValueError("RUNTIME_EXPECTATIONS_TICKER_SET_MISMATCH")
+
+    destination_dir = runtime / "certification"
+    destination_dir.mkdir(parents=True, exist_ok=True)
+    destination = destination_dir / source.name
+    shutil.copyfile(source, destination)
+    materialized = sorted(destination_dir.glob("runtime_projection_expectations_*.json"))
+    if len(materialized) != 1:
+        raise ValueError(f"RUNTIME_EXPECTATIONS_AMBIGUOUS:{len(materialized)}")
+    if _load(destination) != payload:
+        raise ValueError("RUNTIME_EXPECTATIONS_MATERIALIZATION_MISMATCH")
+    return destination
+
+
 def run(args: argparse.Namespace) -> dict[str, Any]:
     started = time.monotonic()
     bundle = args.bundle.resolve()
@@ -551,6 +595,19 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     _copy_small_bundle(
         bundle, args.runtime_dir.resolve(), selected, customer_rows, research_tickers,
     )
+    runtime_expectations = None
+    if not legacy_contract:
+        expectations_dir = Path(
+            getattr(args, "runtime_expectations_dir", None) or "certification"
+        ).resolve()
+        runtime_expectations = _materialize_runtime_expectations(
+            source_dir=expectations_dir,
+            runtime=args.runtime_dir.resolve(),
+            candidate_digest=candidate_digest,
+            publication_digest=publication_digest,
+            source_sha=source_sha,
+            research_tickers=research_tickers,
+        )
     peak_rss_mib = _peak_rss_mib()
     result = {
         "status": "PASS",
@@ -583,8 +640,12 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "report_card_prospective_active": False,
         "runtime_seconds": round(time.monotonic() - started, 3),
         "peak_rss_mib": round(peak_rss_mib, 3),
+        "runtime_expectations": str(runtime_expectations) if runtime_expectations else None,
         "bundle_bytes": sum((bundle / name).stat().st_size for name in (*PUBLICATION_FILES, "publication_manifest.json")),
-        "runtime_projection_bytes": sum(path.stat().st_size for path in args.runtime_dir.resolve().iterdir()),
+        "runtime_projection_bytes": sum(
+            path.stat().st_size for path in args.runtime_dir.resolve().rglob("*")
+            if path.is_file()
+        ),
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, indent=2, sort_keys=True), encoding="utf-8")
@@ -601,6 +662,7 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--expected-publication-digest", required=True)
     result.add_argument("--expected-source-sha", required=True)
     result.add_argument("--backend-handoff", type=Path)
+    result.add_argument("--runtime-expectations-dir", type=Path)
     return result
 
 

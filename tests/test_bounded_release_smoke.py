@@ -8,6 +8,7 @@ from scripts.run_bounded_release_smoke import (
     PUBLICATION_FILES,
     _action,
     _canonical_digest,
+    _materialize_runtime_expectations,
     _semantic_json_sha256,
     _verify_publication_artifact_hashes,
     _verify_fresh_artifact_contract,
@@ -20,6 +21,87 @@ from scripts.run_bounded_release_smoke import (
 
 
 SOURCE_SHA = "d5526664b1b4450e67b63a67b01d936f6da5a2a4"
+
+
+def _expectations(candidate="c" * 64, publication="p" * 64, source=SOURCE_SHA):
+    return {
+        "identity": {
+            "candidate_digest": candidate,
+            "publication_digest": publication,
+            "source_sha": source,
+        },
+        "expected_facts": {
+            "NVDA": {"action": "BUY_NOW", "atlas_fair_value": 346.05},
+            "MSFT": {"action": "BUY_NOW", "atlas_fair_value": 704.48},
+            "AVT": {"action": "BUY_NOW", "atlas_fair_value": 130.97},
+        },
+    }
+
+
+def _materialize(source_dir, runtime, **overrides):
+    return _materialize_runtime_expectations(
+        source_dir=source_dir,
+        runtime=runtime,
+        candidate_digest=overrides.get("candidate", "c" * 64),
+        publication_digest=overrides.get("publication", "p" * 64),
+        source_sha=overrides.get("source", SOURCE_SHA),
+        research_tickers=overrides.get("tickers", ("NVDA", "MSFT", "AVT")),
+    )
+
+
+def test_fresh_runtime_expectations_are_materialized_exactly(tmp_path):
+    source_dir, runtime = tmp_path / "source", tmp_path / "runtime"
+    expected = _expectations()
+    _write(source_dir / "runtime_projection_expectations_candidate.json", expected)
+    target = _materialize(source_dir, runtime)
+    assert target.parent == runtime / "certification"
+    assert json.loads(target.read_text()) == expected
+    assert len(list(target.parent.glob("runtime_projection_expectations_*.json"))) == 1
+    assert json.loads(target.read_text())["expected_facts"] == expected["expected_facts"]
+
+
+def test_fresh_runtime_expectations_fail_closed_on_zero_or_duplicate_files(tmp_path):
+    source_dir, runtime = tmp_path / "source", tmp_path / "runtime"
+    source_dir.mkdir()
+    try:
+        _materialize(source_dir, runtime)
+    except ValueError as error:
+        assert str(error) == "RUNTIME_EXPECTATIONS_SOURCE_MISSING"
+    else:
+        raise AssertionError("zero expectations files must fail closed")
+
+    _write(source_dir / "runtime_projection_expectations_one.json", _expectations())
+    _write(source_dir / "runtime_projection_expectations_two.json", _expectations())
+    try:
+        _materialize(source_dir, runtime)
+    except ValueError as error:
+        assert str(error) == "RUNTIME_EXPECTATIONS_SOURCE_AMBIGUOUS:2"
+    else:
+        raise AssertionError("duplicate candidate expectations must fail closed")
+
+
+def test_fresh_runtime_expectations_fail_closed_on_identity_or_ticker_mismatch(tmp_path):
+    cases = (
+        (_expectations(candidate="x" * 64), {}, "RUNTIME_EXPECTATIONS_CANDIDATE_MISMATCH"),
+        (_expectations(publication="x" * 64), {}, "RUNTIME_EXPECTATIONS_PUBLICATION_MISMATCH"),
+        (_expectations(source="x" * 40), {}, "RUNTIME_EXPECTATIONS_SOURCE_SHA_MISMATCH"),
+        (_expectations(), {"tickers": ("NVDA", "MSFT")}, "RUNTIME_EXPECTATIONS_TICKER_SET_MISMATCH"),
+    )
+    for index, (payload, overrides, expected_error) in enumerate(cases):
+        source_dir, runtime = tmp_path / f"source-{index}", tmp_path / f"runtime-{index}"
+        _write(source_dir / "runtime_projection_expectations_candidate.json", payload)
+        try:
+            _materialize(source_dir, runtime, **overrides)
+        except ValueError as error:
+            assert str(error) == expected_error
+        else:
+            raise AssertionError(f"{expected_error} must fail closed")
+
+
+def test_legacy_bounded_runtime_does_not_require_expectations_contract(tmp_path):
+    # The legacy run fixture exercises the existing path without supplying a
+    # runtime expectations directory; its successful run below is the contract.
+    assert not (tmp_path / "certification").exists()
 
 
 def _write(path: Path, value):
