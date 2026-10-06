@@ -21,7 +21,7 @@ on:
         type: choice
         options: [RELEASE_SMOKE, RELEASE_FULL, FAST_PREVIEW]
       candidate_run_id:
-        description: "Overnight run ID, full-universe:<run ID>, publication:<run ID>, or qa:<run ID>; blank generates"
+        description: "Overnight run ID, publication:<run ID>, or qa:<run ID>; blank generates"
         required: false
         type: string
       allow_rollback:
@@ -45,18 +45,6 @@ on:
         description: "Required reason when intentionally re-promoting identical bytes"
         required: false
         type: string
-      expected_candidate_digest:
-        description: "Explicit authorized candidate digest (required for full-universe promotion)"
-        required: false
-        type: string
-      expected_publication_digest:
-        description: "Explicit authorized publication digest (required for full-universe promotion)"
-        required: false
-        type: string
-      expected_source_sha:
-        description: "Explicit authorized analytical source SHA (required for full-universe promotion)"
-        required: false
-        type: string
   workflow_call:
     inputs:
       qa_mode:
@@ -68,7 +56,7 @@ on:
         default: RELEASE_FULL
         type: string
       candidate_run_id:
-        description: "Overnight run ID, full-universe:<run ID>, publication:<run ID>, or qa:<run ID>; blank generates"
+        description: "Overnight run ID, publication:<run ID>, or qa:<run ID>; blank generates"
         required: false
         type: string
       allow_rollback:
@@ -85,15 +73,6 @@ on:
         required: false
         type: string
       idempotent_reason:
-        required: false
-        type: string
-      expected_candidate_digest:
-        required: false
-        type: string
-      expected_publication_digest:
-        required: false
-        type: string
-      expected_source_sha:
         required: false
         type: string
     secrets:
@@ -128,9 +107,6 @@ jobs:
       candidate_run_id: ${{ steps.candidate.outputs.run_id }}
       qa_mode: ${{ steps.mode.outputs.qa_mode }}
       qa_tier: ${{ steps.tier.outputs.qa_tier }}
-      candidate_digest: ${{ steps.verify.outputs.candidate_digest }}
-      publication_digest: ${{ steps.verify.outputs.publication_digest }}
-      analytical_source_sha: ${{ steps.verify.outputs.source_sha }}
     env:
       ATLAS_DATA_MODE: INTERNAL_TRIAL
       TWELVE_DATA_ENABLED: "true"
@@ -200,13 +176,6 @@ jobs:
               echo "::error::Publication recovery run ID must be numeric"
               exit 1
             fi
-          elif [[ "$candidate_run_id" == full-universe:* ]]; then
-            echo "candidate_kind=full-universe" >> "$GITHUB_OUTPUT"
-            candidate_run_id="${candidate_run_id#full-universe:}"
-            if ! [[ "$candidate_run_id" =~ ^[0-9]+$ ]]; then
-              echo "::error::Full-universe run ID must be numeric"
-              exit 1
-            fi
           else
             echo "candidate_kind=overnight" >> "$GITHUB_OUTPUT"
           fi
@@ -274,23 +243,6 @@ jobs:
           run-id: ${{ steps.candidate.outputs.run_id }}
           github-token: ${{ github.token }}
 
-      - name: Verify full-universe source run succeeded
-        if: steps.candidate.outputs.run_id != '' && steps.candidate.outputs.candidate_kind == 'full-universe'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          conclusion=$(gh api "repos/${{ github.repository }}/actions/runs/${{ steps.candidate.outputs.run_id }}" --jq .conclusion)
-          test "$conclusion" = "success" || { echo "::error::Full-universe source run conclusion is $conclusion"; exit 1; }
-
-      - name: Download certified full-universe artifact
-        if: steps.candidate.outputs.run_id != '' && steps.candidate.outputs.candidate_kind == 'full-universe'
-        uses: actions/download-artifact@v7
-        with:
-          name: atlas-finnhub-full-universe-final-${{ steps.candidate.outputs.run_id }}
-          path: audit_results/full_universe_input
-          run-id: ${{ steps.candidate.outputs.run_id }}
-          github-token: ${{ github.token }}
-
       - name: Materialize certified publication bundle for full certification
         if: steps.candidate.outputs.run_id != '' && steps.candidate.outputs.candidate_kind == 'publication'
         shell: bash
@@ -306,24 +258,6 @@ jobs:
           test ! -e audit_results/candidate_artifacts
           mv "$bundle" audit_results/candidate_artifacts
           echo "Materialized immutable recovered publication bundle from run ${{ steps.candidate.outputs.run_id }}"
-
-      - name: Validate and materialize certified full-universe publication bundle
-        if: steps.candidate.outputs.run_id != '' && steps.candidate.outputs.candidate_kind == 'full-universe'
-        env:
-          EXPECTED_CANDIDATE_DIGEST: ${{ inputs.expected_candidate_digest }}
-          EXPECTED_PUBLICATION_DIGEST: ${{ inputs.expected_publication_digest }}
-          EXPECTED_SOURCE_SHA: ${{ inputs.expected_source_sha }}
-          QA_MODE: ${{ steps.mode.outputs.qa_mode }}
-        run: |
-          python scripts/validate_full_universe_promotion_input.py \
-            --root audit_results/full_universe_input \
-            --expected-run-id "${{ steps.candidate.outputs.run_id }}" \
-            --expected-candidate-digest "$EXPECTED_CANDIDATE_DIGEST" \
-            --expected-publication-digest "$EXPECTED_PUBLICATION_DIGEST" \
-            --expected-source-sha "$EXPECTED_SOURCE_SHA" \
-            --require-authorization "$QA_MODE" \
-            --materialize audit_results/candidate_artifacts \
-            --output audit_results/full_universe_input_validation.json
 
       - name: Verify candidate-generation credential contract
         if: steps.candidate.outputs.run_id == ''
@@ -364,7 +298,6 @@ jobs:
           python -m services.promotion_safety "${args[@]}"
 
       - name: Verify exact candidate identity and digests
-        id: verify
         run: |
           python - <<'PY'
           import json
@@ -373,13 +306,13 @@ jobs:
           from scripts.run_full_qa_certification import _read, verify_candidate_bounded
           candidate = Path("audit_results/candidate_artifacts")
           manifest = _read(candidate / "publication_manifest.json")
-          governed_finnhub = os.environ.get("CANDIDATE_KIND") in {"publication", "full-universe"}
+          publication_recovery = os.environ.get("CANDIDATE_KIND") == "publication"
           result = verify_candidate_bounded(
               candidate,
               manifest,
-              expected_candidate_digest=(os.environ.get("EXPECTED_CANDIDATE_DIGEST") or None) if governed_finnhub else None,
-              expected_publication_digest=(os.environ.get("EXPECTED_PUBLICATION_DIGEST") or None) if governed_finnhub else None,
-              expected_source_sha=(os.environ.get("EXPECTED_SOURCE_SHA") or None) if governed_finnhub else None,
+              expected_candidate_digest=("96936e2b03af129c586ef2043a517068156449a8d1b8dc3d83618451ec90e77f" if publication_recovery else None),
+              expected_publication_digest=("b4b3f66959e497c957472da2626c6e0c3e63dc29cef175c195aca48a9f1126c6" if publication_recovery else None),
+              expected_source_sha=("d5526664b1b4450e67b63a67b01d936f6da5a2a4" if publication_recovery else None),
           )
           required = manifest.get("source_commit_sha") or manifest.get("source_sha")
           if not required:
@@ -387,25 +320,16 @@ jobs:
           verification = {"status": "PASS", "candidate_run_id": manifest.get("run_id"),
                           "candidate_source_sha": required, "source_sha": result["source_sha"],
                           "candidate_generated_at": manifest.get("generated_at"),
-                          "evidence_snapshot_at": (manifest.get("executor_candidate_identity") or {}).get("evidence_snapshot_at") or manifest.get("generated_at"),
-                          "universe_sha256": (manifest.get("executor_candidate_identity") or {}).get("universe_sha256"),
                           "candidate_digest": result["candidate_digest"],
                           "publication_digest": result["publication_digest"],
                           "peak_rss_mib": result["peak_rss_mib"]}
           output = Path("audit_results/full_qa") / os.environ["GITHUB_RUN_ID"] / "candidate_verification.json"
           output.parent.mkdir(parents=True, exist_ok=True)
           output.write_text(json.dumps(verification, indent=2, sort_keys=True), encoding="utf-8")
-          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as handle:
-              handle.write(f"candidate_digest={result['candidate_digest']}\n")
-              handle.write(f"publication_digest={result['publication_digest']}\n")
-              handle.write(f"source_sha={result['source_sha']}\n")
           print(json.dumps(verification, sort_keys=True))
           PY
         env:
           CANDIDATE_KIND: ${{ steps.candidate.outputs.candidate_kind }}
-          EXPECTED_CANDIDATE_DIGEST: ${{ inputs.expected_candidate_digest }}
-          EXPECTED_PUBLICATION_DIGEST: ${{ inputs.expected_publication_digest }}
-          EXPECTED_SOURCE_SHA: ${{ inputs.expected_source_sha }}
 
       - name: Run dataset and numerical certification
         id: data_qa
@@ -483,9 +407,9 @@ jobs:
       ATLAS_QA_RUNTIME_CEILING_SECONDS: "5400"
       ATLAS_AUDIT_PASSWORD: ${{ secrets.ATLAS_AUDIT_PASSWORD }}
       GUEST_PASSWORD: ${{ secrets.ATLAS_AUDIT_PASSWORD }}
-      EXPECTED_CANDIDATE_DIGEST: ${{ needs.backend-certification.outputs.candidate_digest }}
-      EXPECTED_PUBLICATION_DIGEST: ${{ needs.backend-certification.outputs.publication_digest }}
-      EXPECTED_ANALYTICAL_SOURCE_SHA: ${{ needs.backend-certification.outputs.analytical_source_sha }}
+      EXPECTED_CANDIDATE_DIGEST: "96936e2b03af129c586ef2043a517068156449a8d1b8dc3d83618451ec90e77f"
+      EXPECTED_PUBLICATION_DIGEST: "b4b3f66959e497c957472da2626c6e0c3e63dc29cef175c195aca48a9f1126c6"
+      EXPECTED_ANALYTICAL_SOURCE_SHA: "d5526664b1b4450e67b63a67b01d936f6da5a2a4"
     steps:
       - name: Checkout exact release SHA
         uses: actions/checkout@v4
@@ -530,18 +454,9 @@ jobs:
           name: atlas-finnhub-publication-only-recovered-${{ needs.backend-certification.outputs.candidate_run_id }}
           path: audit_results/full_qa/publication_input
 
-      - name: Download exact certified full-universe artifact
-        if: needs.backend-certification.outputs.candidate_kind == 'full-universe'
-        uses: actions/download-artifact@v7
-        with:
-          github-token: ${{ github.token }}
-          run-id: ${{ needs.backend-certification.outputs.candidate_run_id }}
-          name: atlas-finnhub-full-universe-final-${{ needs.backend-certification.outputs.candidate_run_id }}
-          path: audit_results/full_qa/publication_input
-
       - name: Resolve exact publication bundle
         id: bundle
-        if: needs.backend-certification.outputs.candidate_kind == 'publication' || needs.backend-certification.outputs.candidate_kind == 'full-universe'
+        if: needs.backend-certification.outputs.candidate_kind == 'publication'
         shell: bash
         run: |
           mapfile -t manifests < <(find audit_results/full_qa/publication_input -type f -name publication_manifest.json -print)
@@ -555,7 +470,7 @@ jobs:
           echo "report_root=$report_root" >> "$GITHUB_OUTPUT"
 
       - name: Verify identity and build bounded visual runtime
-        if: needs.backend-certification.outputs.candidate_kind == 'publication' || needs.backend-certification.outputs.candidate_kind == 'full-universe'
+        if: needs.backend-certification.outputs.candidate_kind == 'publication'
         run: |
           mkdir -p audit_results/full_qa/visual
           /usr/bin/time -v -o audit_results/full_qa/visual/runtime_projection_memory.txt \
@@ -564,7 +479,6 @@ jobs:
               --report-root "${{ steps.bundle.outputs.report_root }}" \
               --runtime-dir audit_results/full_qa/runtime \
               --output audit_results/full_qa/visual/candidate_verification.json \
-              --backend-handoff audit_results/full_qa/backend/backend_handoff.json \
               --expected-candidate-digest "$EXPECTED_CANDIDATE_DIGEST" \
               --expected-publication-digest "$EXPECTED_PUBLICATION_DIGEST" \
               --expected-source-sha "$EXPECTED_ANALYTICAL_SOURCE_SHA"

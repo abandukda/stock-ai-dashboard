@@ -71,28 +71,17 @@ def rank_customer_publishable_rows(rows: Iterable[Mapping[str, Any]]) -> list[di
 
 
 def load_exact_customer_inventory(path: Path, manifest: Mapping[str, Any]) -> tuple[Any, bool]:
-    """Load a bounded runtime projection only when its versioned contract passes."""
-    payload, valid, _ = load_exact_customer_inventory_with_status(path, manifest)
-    return payload, valid
-
-
-def load_exact_customer_inventory_with_status(
-    path: Path, manifest: Mapping[str, Any],
-) -> tuple[Any, bool, tuple[str, ...]]:
-    """Return the projection plus fail-closed, customer-visible validation reasons."""
+    """Load a below-boundary pool only when its bytes match this run's manifest."""
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-        if manifest.get("runtime_projection_contract"):
-            from services.runtime_projection_contract import validate_runtime_projection
-            valid, failures = validate_runtime_projection(payload, manifest, artifact_name=path.name)
-        else:
-            expected = dict(manifest.get("artifact_hashes") or {}).get(path.name)
-            canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str).encode()
-            valid = bool(expected and hashlib.sha256(canonical).hexdigest() == expected)
-            failures = () if valid else ("LEGACY_ARTIFACT_DIGEST_MISMATCH",)
-        return (payload if valid else []), valid, failures
+        payload_bytes = path.read_bytes()
+        payload = json.loads(payload_bytes)
+        expected = dict(manifest.get("artifact_hashes") or {}).get(path.name)
+        canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str).encode()
+        if not expected or hashlib.sha256(canonical).hexdigest() != expected:
+            return [], False
+        return payload, True
     except (OSError, TypeError, ValueError, json.JSONDecodeError):
-        return [], False, ("RUNTIME_PROJECTION_UNREADABLE",)
+        return [], False
 
 
 def _counts(items: Iterable[Mapping[str, Any]]) -> dict[str, int]:
@@ -955,7 +944,6 @@ def build_home_guidance_story(
 __all__ = [
     "CUSTOMER_ACTION_PRESENTATION", "GUIDANCE_GROUPS", "HOME_FIELD_AUTHORITY", "HOME_GUIDANCE_STORY_VERSION",
     "build_home_action_count_contract", "build_home_guidance_candidate", "build_home_guidance_story",
-    "build_homepage_promotion_metrics", "customer_action_presentation", "load_exact_customer_inventory",
-    "load_exact_customer_inventory_with_status", "select_home_featured_cards",
+    "build_homepage_promotion_metrics", "customer_action_presentation", "load_exact_customer_inventory", "select_home_featured_cards",
     "rank_customer_publishable_rows",
 ]

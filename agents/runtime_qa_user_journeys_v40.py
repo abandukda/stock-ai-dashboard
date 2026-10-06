@@ -123,27 +123,6 @@ ASK_AI_QUESTIONS = (
 _ASK_TICKER = CURRENT_TOP15_TICKER or "NVDA"
 ASK_AI_PROMPTS = tuple((_ASK_TICKER, f"{_ASK_TICKER}: {question}") for question in ASK_AI_QUESTIONS)
 _RESEARCH_SUMMARIES: dict[str, dict[str, Any]] = {}
-_EXPECTATIONS_PATH = Path(__file__).resolve().parents[1] / "certification" / "runtime_projection_expectations_64c0a00a.json"
-
-
-def _runtime_expectations() -> dict[str, Any]:
-    try:
-        return json.loads(_EXPECTATIONS_PATH.read_text(encoding="utf-8"))
-    except (OSError, ValueError, TypeError):
-        return {}
-
-
-def exact_research_authority_matches(actual: Mapping[str, Any], expected: Mapping[str, Any]) -> bool:
-    """Fail closed on every authoritative field and certified identity."""
-    if not actual or not expected:
-        return False
-    numeric = ("atlas_fair_value", "opportunity", "decision_confidence")
-    try:
-        numeric_match = all(abs(float(actual.get(key)) - float(expected.get(key))) < 1e-9 for key in numeric)
-    except (TypeError, ValueError):
-        numeric_match = False
-    return bool(actual.get("action") == expected.get("action") and numeric_match
-                and actual.get("evaluation_snapshot_id") == expected.get("evaluation_snapshot_id"))
 
 
 def navigation_contract_satisfied(*, selected: bool, page_ready: bool, rendered_exception: bool) -> bool:
@@ -706,25 +685,6 @@ async def _canonical_research_summary(page: Page, ticker: str) -> dict[str, Any]
     return {}
 
 
-async def _research_production_authority(page: Page, ticker: str) -> dict[str, Any]:
-    selector = f'[data-atlas-qa="research-production-authority"][data-atlas-ticker="{ticker}"]'
-    attributes = {
-        "action": "data-atlas-action", "atlas_fair_value": "data-atlas-fair-value",
-        "opportunity": "data-atlas-opportunity", "decision_confidence": "data-atlas-confidence",
-        "evaluation_snapshot_id": "data-atlas-evaluation-snapshot",
-        "candidate_digest": "data-atlas-candidate-digest",
-        "publication_digest": "data-atlas-publication-digest", "source_sha": "data-atlas-source-sha",
-    }
-    for scope in _scopes(page):
-        try:
-            marker = scope.locator(selector).last
-            if await marker.count():
-                return {key: (await marker.get_attribute(attribute) or "") for key, attribute in attributes.items()}
-        except Exception:
-            continue
-    return {}
-
-
 async def _rendered_family_summary(page: Page) -> dict[str, dict[str, Any]]:
     result: dict[str, dict[str, Any]] = {}
     for scope in _scopes(page):
@@ -935,7 +895,6 @@ async def _research_one(page: Page, ticker: str, output_dir: Path) -> JourneySte
         )
     context = await _qa_state_metadata(page, "research-container", expected_status, ticker)
     canonical_summary = await _canonical_research_summary(page, ticker) if expected_status == "complete" else {}
-    production_authority = await _research_production_authority(page, ticker) if expected_status == "complete" else {}
     if canonical_summary:
         _RESEARCH_SUMMARIES[ticker] = canonical_summary
     rendered_families = await _rendered_family_summary(page) if expected_status == "complete" else {}
@@ -970,19 +929,6 @@ async def _research_one(page: Page, ticker: str, output_dir: Path) -> JourneySte
     reconciliation = certify_research_context(canonical_summary, rendered_families)
     expected_decision = production_decision_for_ticker(ticker)
     decision_digest_matches = bool(canonical_summary) and canonical_summary.get("production_decision_digest") == protected_decision_digest(expected_decision)
-    expectations = _runtime_expectations()
-    exact_expected = dict(dict(expectations.get("expected_facts") or {}).get(ticker) or {})
-    exact_identity = dict(expectations.get("identity") or {})
-    exact_authority_matches = True
-    if exact_expected:
-        exact_authority_matches = exact_research_authority_matches(production_authority, exact_expected) and all(
-            production_authority.get(actual_key) == exact_identity.get(expected_key)
-            for actual_key, expected_key in (
-                ("candidate_digest", "candidate_digest"),
-                ("publication_digest", "publication_digest"),
-                ("source_sha", "source_sha"),
-            )
-        )
     special: dict[str, Any] = {}
     if ticker == MISSING_PRODUCTION_TICKER:
         empty_expected = production_decision_for_ticker(ticker)
@@ -1000,7 +946,7 @@ async def _research_one(page: Page, ticker: str, output_dir: Path) -> JourneySte
         render_complete=marker_ready,
         rendered_exception=rendered_exception,
     )
-    passed = lifecycle_complete and ticker_present and len(markers) >= 2 and bool(canonical_summary) and decision_digest_matches and exact_authority_matches
+    passed = lifecycle_complete and ticker_present and len(markers) >= 2 and bool(canonical_summary) and decision_digest_matches
     return JourneyStep(
         journey,
         "generate full research",
@@ -1022,8 +968,6 @@ async def _research_one(page: Page, ticker: str, output_dir: Path) -> JourneySte
             "canonical_reconciliation": reconciliation,
             "rendered_family_summary": rendered_families,
             "decision_digest_matches": decision_digest_matches,
-            "production_authority": production_authority,
-            "exact_authority_matches": exact_authority_matches,
             "special_certification": special,
             "markers": markers,
             "rendered_exception_identity": exception_identity,

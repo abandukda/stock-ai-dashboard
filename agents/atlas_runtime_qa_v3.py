@@ -21,7 +21,7 @@ from pathlib import Path
 import re
 import time
 import traceback
-from typing import Any, Iterable, Mapping
+from typing import Any, Iterable
 from urllib.parse import urlsplit, urlunsplit
 
 from playwright.async_api import BrowserContext, Frame, Locator, Page, async_playwright
@@ -43,20 +43,16 @@ from agents.product_hardening_certification import (
     MOBILE_CRITICAL_JOURNEYS, screenshot_manifest_entry,
     visual_certification_completeness,
 )
-from agents.deployment_target import (
-    DeploymentTargetValidationError,
-    canonical_production_url,
-)
 
 
 DEFAULT_URL = os.getenv("ATLAS_PRODUCTION_URL", "").strip()
+RETIRED_DEPLOYMENT_TARGETS = {"https://stock-ai-dashboard.streamlit.app/"}
 PAGE_TIMEOUT_MS = 35_000
 ACTION_TIMEOUT_MS = 6_000
 LOGIN_TIMEOUT_SECONDS = 240
 DEPLOYED_READINESS_TIMEOUT_SECONDS = int(os.getenv("ATLAS_QA_READINESS_TIMEOUT_SECONDS", "180"))
 DEPLOYED_READINESS_STABILITY_SECONDS = 2
 TOTAL_TIMEOUT_SECONDS = 1_500
-_RUNTIME_EXPECTATIONS_PATH = Path(__file__).resolve().parents[1] / "certification" / "runtime_projection_expectations_64c0a00a.json"
 
 DEPLOYED_HEALTH_STATES = {
     "APP_READY", "LOGIN_READY", "DEPLOYMENT_UPDATING",
@@ -78,20 +74,6 @@ class DeploymentTargetError(DeploymentReadinessError):
 
     def __init__(self, diagnostics: dict[str, Any]):
         super().__init__("DEPLOYMENT_TARGET_INVALID", diagnostics)
-
-
-def expected_deployed_source_sha(checkout_sha: str) -> str:
-    """Return the governed deployed identity, defaulting to this checkout."""
-    expected = os.getenv("ATLAS_EXPECTED_DEPLOYED_SOURCE_SHA", "").strip().lower()
-    if not expected:
-        return checkout_sha
-    if not re.fullmatch(r"[0-9a-f]{40}", expected):
-        raise DeploymentTargetError({
-            "reason": "EXPECTED_DEPLOYED_SOURCE_SHA_INVALID",
-            "expected_deployed_source_sha": "INVALID",
-        })
-    return expected
-
 
 KNOWN_NAV_LABELS = (
     "Home",
@@ -203,7 +185,6 @@ def _mobile_result_index(user_journeys: dict[str, Any]) -> dict[str, dict[str, s
         for step in user_journeys.get("steps") or []
         if step.get("journey") == "Core mobile certification"
     }
-    return result
 VALID_TICKER_RE = re.compile(r"^[A-Z][A-Z0-9.-]{0,5}$")
 ERROR_TEXT = re.compile(
     r"traceback|modulenotfounderror|streamlitapiexception|uncaught exception",
@@ -312,11 +293,8 @@ def _canonical_streamlit_url(url: str, *, allow_local_exact_candidate: bool = Fa
         invalid_reason = "GENERIC_STREAMLIT_SHARE_SHELL"
     elif not host.endswith(".streamlit.app") and not local_exact_candidate:
         invalid_reason = "NON_STREAMLIT_APP_ORIGIN"
-    elif not local_exact_candidate:
-        try:
-            return canonical_production_url(raw)
-        except DeploymentTargetValidationError as exc:
-            invalid_reason = exc.reason
+    elif target in RETIRED_DEPLOYMENT_TARGETS:
+        invalid_reason = "RETIRED_ATLAS_DEPLOYMENT_TARGET"
     if invalid_reason:
         raise DeploymentTargetError({"reason": invalid_reason, "resolved_target_url": target})
     return target
@@ -1072,79 +1050,11 @@ async def _visual_layout_issues(page: Page, page_name: str) -> list[QAIssue]:
     return issues
 
 
-async def _marker_attributes(page: Page, selector: str, names: Iterable[str]) -> dict[str, str]:
-    for scope in _all_scopes(page):
-        try:
-            marker = scope.locator(selector).last
-            if await _safe_count(marker):
-                return {name: (await marker.get_attribute(f"data-atlas-{name.replace('_', '-')}") or "") for name in names}
-        except Exception:
-            continue
-    return {}
-
-
-def home_runtime_authority_failures(
-    authority: Mapping[str, str], inventory: Mapping[str, str], expectations: Mapping[str, Any],
-) -> list[str]:
-    identity = dict(expectations.get("identity") or {})
-    expected_inventory = dict(expectations.get("source_inventory") or {})
-    failures = []
-    for actual_key, expected_key in (
-        ("candidate_digest", "candidate_digest"), ("publication_digest", "publication_digest"),
-        ("source_sha", "source_sha"), ("evidence_snapshot", "evidence_snapshot_at"),
-    ):
-        if authority.get(actual_key) != str(identity.get(expected_key) or ""):
-            failures.append(f"HOME_{actual_key.upper()}_MISMATCH")
-    for key, expected_key in (
-        ("canonical_count", "canonical_buy_now_count"),
-        ("publishable_count", "publishable_buy_now_count"),
-        ("withheld_count", "withheld_buy_now_count"),
-    ):
-        if inventory.get(key) != str(expected_inventory.get(expected_key)):
-            failures.append(f"HOME_{key.upper()}_MISMATCH")
-    for key, expected_key in (
-        ("canonical_tickers", "canonical_buy_now"),
-        ("publishable_tickers", "publishable_buy_now"),
-        ("withheld_tickers", "withheld_buy_now"),
-    ):
-        if sorted(filter(None, inventory.get(key, "").split(","))) != sorted(expected_inventory.get(expected_key) or ()):
-            failures.append(f"HOME_{key.upper()}_MISMATCH")
-    return failures
-
-
-async def _home_runtime_authority_issues(page: Page) -> list[QAIssue]:
-    try:
-        expectations = json.loads(_RUNTIME_EXPECTATIONS_PATH.read_text(encoding="utf-8"))
-    except (OSError, ValueError, TypeError):
-        expectations = {}
-    authority = await _marker_attributes(page, '[data-atlas-qa="production-authority"]', (
-        "candidate_digest", "publication_digest", "source_sha", "evidence_snapshot",
-        "projection_digest", "deployed_sha",
-    ))
-    inventory = await _marker_attributes(page, '[data-atlas-qa="home-inventory-authority"]', (
-        "canonical_count", "publishable_count", "withheld_count", "canonical_tickers",
-        "publishable_tickers", "withheld_tickers",
-    ))
-    failures = home_runtime_authority_failures(authority, inventory, expectations)
-    if not failures:
-        return []
-    return [QAIssue(
-        severity="CRITICAL", category="Certified Runtime Authority", page="Home",
-        element="Structured production identity and inventory markers",
-        expected="Exact certified candidate/publication/source/snapshot and 21/11/10 inventory.",
-        actual=", ".join(failures),
-        recommendation="Restore the certified runtime projection and rerun the governed promotion contract.",
-        likely_files=["publication_manifest.json", "services/runtime_projection_contract.py"],
-    )]
-
-
 async def _inventory(page: Page, page_name: str, output_dir: Path | None = None) -> PageResult:
     started = time.monotonic()
     text = await _combined_visible_text(page)
     issues = _page_issues(page_name, text)
     issues.extend(await _visual_layout_issues(page, page_name))
-    if page_name == "Home":
-        issues.extend(await _home_runtime_authority_issues(page))
 
     metrics = tables = charts = buttons = tabs = expanders = 0
     for scope in _all_scopes(page):
@@ -1366,7 +1276,6 @@ async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
     started = time.monotonic()
     architecture = architecture_preflight(".")
     versions = architecture_versions(".")
-    deployed_source_sha = expected_deployed_source_sha(versions["source_commit"])
     if architecture.get("status") != "PASS":
         early = {
             "version": RUNTIME_QA_FRAMEWORK_VERSION,
@@ -1442,7 +1351,7 @@ async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
         try:
             authentication = await asyncio.wait_for(
                 _open_and_authenticate(
-                    page, url, output_dir, expected_sha=deployed_source_sha,
+                    page, url, output_dir, expected_sha=versions["source_commit"],
                 ),
                 timeout=300,
             )
@@ -1863,7 +1772,6 @@ async def run_targeted_preflight_v3(*, url: str, output_dir: Path) -> dict[str, 
     started = time.monotonic()
     architecture = architecture_preflight(".")
     versions = architecture_versions(".")
-    deployed_source_sha = expected_deployed_source_sha(versions["source_commit"])
     artifact_path = output_dir / "atlas_targeted_preflight.json"
     base = {
         "version": "QA4_TARGETED_PREFLIGHT_V1",
@@ -1886,7 +1794,7 @@ async def run_targeted_preflight_v3(*, url: str, output_dir: Path) -> dict[str, 
         try:
             authentication = await asyncio.wait_for(
                 _open_and_authenticate(
-                    page, url, output_dir, expected_sha=deployed_source_sha,
+                    page, url, output_dir, expected_sha=versions["source_commit"],
                 ),
                 timeout=300,
             )

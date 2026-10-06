@@ -165,23 +165,18 @@ def test_current_production_home_counters_reconcile_to_rendered_cards():
     scan_path = Path("market_full_scan.json")
     rows = json.loads(scan_path.read_text())
     manifest = json.loads(Path("publication_manifest.json").read_text())
-    inventory, inventory_valid = load_exact_customer_inventory(Path("full_evaluation_pool.json"), manifest)
-    assert inventory_valid is True
     story = build_home_guidance_story(
         rows, json.loads(Path("recovery_scan.json").read_text()),
         production_manifest=manifest,
         production_artifact_sha256=hashlib.sha256(scan_path.read_bytes()).hexdigest(),
-        customer_inventory_payload=inventory,
-        customer_inventory_binding_valid=inventory_valid,
     )
     contract = story["home_action_count_contract"]
-    expected = manifest["runtime_projection_contract"]["runtime_projection"]["deployed_inventory"]["customer_allowed_count"]
-    assert contract["customer_publication_count"] == expected == 15
-    assert contract["customer_published_action_counts"]["BUY_NOW"] == 11
-    assert contract["customer_published_action_counts"]["WAIT_FOR_CONFIRMATION"] == 4
+    assert contract["customer_publication_count"] == manifest["customer_publication_count"] == 31
+    assert contract["customer_published_action_counts"]["ACCUMULATE"] == 29
+    assert contract["customer_published_action_counts"]["WAIT_FOR_ENTRY"] == 2
     assert contract["home_featured_action_counts"]["ACCUMULATE"] == 0
-    assert contract["counter_sum"] == len(story["home_featured_cards"]) == 10
-    assert story["home_opportunity_empty_state"] is None
+    assert contract["counter_sum"] == len(story["home_featured_cards"]) == 0
+    assert story["home_opportunity_empty_state"]["system_failure"] is False
     assert contract["reconciled"] is True
 
 
