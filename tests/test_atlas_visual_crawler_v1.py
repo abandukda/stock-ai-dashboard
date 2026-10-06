@@ -9,8 +9,6 @@ from agents.atlas_visual_crawler_v1 import (
     AtlasVisualCrawler,
     GLOBAL_FATALS,
     MOBILE_PAGES,
-    REQUIRED_PAGE_VIEWPORTS,
-    REQUIRED_RESEARCH_TICKERS,
     EARNINGS_VNEXT_SECTION_LABELS,
     RECOVERY_VNEXT_SECTION_LABELS,
     recovery_candidate_archetypes,
@@ -21,10 +19,6 @@ from agents.atlas_visual_crawler_v1 import (
     RESEARCH_COMPLETION_TIMEOUT_SECONDS,
     _research_declared_architecture,
     classify_research_terminal_state,
-    certified_research_fields_reconciled,
-    normalize_research_action,
-    research_submission_failure,
-    research_submission_proven,
     VisualResult,
 )
 from services.vnext_presentation_contract import RESEARCH_VNEXT_VERSION
@@ -33,66 +27,6 @@ from agents.product_hardening_certification import ACTIVE_PAGES
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "agents" / "atlas_visual_crawler_v1.py"
-
-
-def test_research_field_reconciliation_accepts_current_customer_labels_and_values():
-    assert certified_research_fields_reconciled({
-        "action": "BUY NOW",
-        "atlas_fair_value": "$338.82",
-        "opportunity": "86.68",
-        "decision_confidence": "88.54%",
-    }) is True
-
-
-def test_research_action_normalization_is_presentation_equivalent_only():
-    assert normalize_research_action("BUY_NOW") == "BUY_NOW"
-    assert normalize_research_action("BUY NOW") == "BUY_NOW"
-    assert normalize_research_action("WAIT FOR CONFIRMATION") == "WAIT_FOR_CONFIRMATION"
-
-
-def test_research_field_reconciliation_accepts_fair_value_display_formats():
-    for value in ("$123.40", "$123", "123.4"):
-        assert certified_research_fields_reconciled({
-            "action": "BUY_NOW", "atlas_fair_value": value,
-            "opportunity": "86.68", "decision_confidence": "88.54%",
-        }) is True
-
-
-def test_research_field_reconciliation_rejects_missing_or_unavailable_fields():
-    complete = {
-        "action": "BUY_NOW", "atlas_fair_value": "$338.82",
-        "opportunity": "86.68", "decision_confidence": "88.54%",
-    }
-    for key in complete:
-        missing = dict(complete)
-        missing.pop(key)
-        assert certified_research_fields_reconciled(missing) is False
-    for key in ("atlas_fair_value", "opportunity", "decision_confidence"):
-        unavailable = dict(complete)
-        unavailable[key] = "Unavailable"
-        assert certified_research_fields_reconciled(unavailable) is False
-
-
-def test_research_field_reconciliation_rejects_unrelated_action_text():
-    assert certified_research_fields_reconciled({
-        "action": "BUY NOW appears elsewhere on page",
-        "atlas_fair_value": "$338.82", "opportunity": "86.68",
-        "decision_confidence": "88.54%",
-    }) is False
-
-
-def test_research_field_extractor_uses_ticker_scoped_action_and_metric_nodes():
-    source = SOURCE.read_text(encoding="utf-8")
-    block = source.split("async def _research_certified_fields", 1)[1].split(
-        "def _source_sha", 1
-    )[0]
-    assert 'st-key-vnext_decision_action_{ticker}' in block
-    assert 'data-testid="stMetric"' in block
-    assert 'data-testid="stMetricLabel"' in block
-    assert 'data-testid="stMetricValue"' in block
-    assert '"ATLAS FAIR VALUE": "atlas_fair_value"' in block
-    assert '"OPPORTUNITY": "opportunity"' in block
-    assert '"DECISION CONFIDENCE": "decision_confidence"' in block
 
 
 def test_visual_crawler_has_complete_non_blocking_product_scope():
@@ -147,109 +81,13 @@ def test_artifacts_are_complete_and_sanitized(tmp_path, monkeypatch):
 def test_every_interaction_is_independently_recorded_and_no_stop_first_failure():
     tree = ast.parse(SOURCE.read_text(encoding="utf-8"))
     source = SOURCE.read_text(encoding="utf-8")
-    assert "name for name in ACTIVE_PAGES" in source
-    assert "for ticker in REQUIRED_RESEARCH_TICKERS" in source
+    assert "for page_name in ACTIVE_PAGES" in source
+    assert "for ticker in tickers" in source
     assert "for name in tabs" in source
     assert "for name, node in candidates" in source
     assert "break" not in ast.get_source_segment(source, next(
-        node for node in ast.walk(tree) if isinstance(node, ast.AsyncFunctionDef) and node.name == "_required_desktop"
+        node for node in ast.walk(tree) if isinstance(node, ast.AsyncFunctionDef) and node.name == "_desktop"
     ))
-
-
-def _contract_crawler(tmp_path, monkeypatch):
-    monkeypatch.setattr(AtlasVisualCrawler, "_source_sha", lambda _self: "a" * 40)
-    monkeypatch.setattr(
-        "agents.atlas_visual_crawler_v1.full_certification_ticker_matrix",
-        lambda _root: {"top15": [], "role_tickers": {}},
-    )
-    return AtlasVisualCrawler(url="http://example.invalid", output_dir=tmp_path, root=ROOT)
-
-
-def _result(*, category, page, viewport="desktop", ticker="", status="PASS", required=True):
-    return VisualResult(
-        category=category, page=page, interaction="contract", expected="pass",
-        observed=status, status=status, severity="NONE" if status == "PASS" else "P1",
-        elapsed_seconds=0.1, ticker_context=ticker, viewport=viewport,
-        required=required,
-    )
-
-
-def _passing_required_results():
-    rows = [
-        _result(category="PAGE", page=page, viewport=viewport)
-        for page, viewport in REQUIRED_PAGE_VIEWPORTS
-    ]
-    rows.extend(
-        _result(category="RESEARCH", page="Research Any Ticker", ticker=ticker)
-        for ticker in REQUIRED_RESEARCH_TICKERS
-    )
-    rows.append(_result(
-        category="RESEARCH", page="Research Any Ticker", ticker="NVDA",
-        viewport="mobile",
-    ))
-    return rows
-
-
-def test_required_home_research_mobile_and_ticker_failures_block(tmp_path, monkeypatch):
-    crawler = _contract_crawler(tmp_path, monkeypatch)
-    for target in (
-        ("PAGE", "Home", "desktop", ""),
-        ("PAGE", "Research Any Ticker", "desktop", ""),
-        ("PAGE", "Home", "mobile", ""),
-        ("RESEARCH", "Research Any Ticker", "desktop", "MSFT"),
-    ):
-        crawler.results = _passing_required_results()
-        category, page, viewport, ticker = target
-        for row in crawler.results:
-            if (row.category, row.page, row.viewport, row.ticker_context) == target:
-                row.status = "FAIL"
-                break
-        assert crawler._required_completeness()["status"] == "FAIL"
-
-
-def test_optional_legacy_defects_are_recorded_without_blocking_required_coverage(tmp_path, monkeypatch):
-    crawler = _contract_crawler(tmp_path, monkeypatch)
-    crawler.results = _passing_required_results()
-    crawler.results.extend([
-        _result(category="FULL_SCAN", page="Full Ranked Scan", status="FAIL", required=False),
-        _result(category="FULL_SCAN_CANDIDATE", page="Full Ranked Scan", status="FAIL", required=False),
-    ])
-    summary = crawler._summary(final=True)
-    assert summary["required_completeness"]["status"] == "PASS"
-    assert summary["counts"]["supplementary"]["failed"] == 2
-    assert len(summary["defects"]) == 2
-
-
-def test_required_coverage_never_passes_with_zero_research_or_incomplete_mobile(tmp_path, monkeypatch):
-    crawler = _contract_crawler(tmp_path, monkeypatch)
-    crawler.results = [
-        _result(category="PAGE", page=page, viewport=viewport)
-        for page, viewport in REQUIRED_PAGE_VIEWPORTS
-    ]
-    assert crawler._required_completeness()["status"] == "FAIL"
-    crawler.results = [
-        row for row in _passing_required_results()
-        if not (row.category == "PAGE" and row.viewport == "mobile")
-    ]
-    assert crawler._required_completeness()["status"] == "FAIL"
-
-
-def test_required_journeys_run_before_supplementary_desktop_and_mobile():
-    source = SOURCE.read_text(encoding="utf-8")
-    run = source.split("async def run", 1)[1].split("def _summary", 1)[0]
-    assert run.index("_required_desktop") < run.index("_required_mobile")
-    assert run.index("_required_mobile") < run.index("_supplementary_desktop")
-    assert run.index("_supplementary_desktop") < run.index("_supplementary_mobile")
-    assert "except Exception as exc" in source.split("async def _supplementary_desktop", 1)[1]
-
-
-def test_authentication_and_source_identity_remain_fail_closed():
-    workflow = (ROOT / ".github/workflows/atlas-runtime-qa-v3.yml").read_text()
-    source = SOURCE.read_text(encoding="utf-8")
-    assert "AUTHENTICATION_FAILED" in source
-    assert "expected_sha=self.expected_deployed_source_sha" in source
-    assert "required_failures" in workflow
-    assert "required_completeness" in workflow
 
 
 def test_visible_customer_evidence_is_primary_and_markers_are_supplemental():
@@ -342,150 +180,19 @@ def test_home_crawler_certifies_guidance_vnext_authority_and_layout_contract():
     source = SOURCE.read_text(encoding="utf-8")
     assert "_home_guidance_vnext_contract" in source
     for marker in (
-        'home-guidance-vnext', 'market-today', 'atlas-market-read',
-        'atlas_action_summary', 'best_opportunities', 'worth_watching',
-        'home-actionable-card', 'data-atlas-evidence-status',
+        'home-guidance-vnext', 'home-guidance-card', 'data-atlas-production-rank',
+        'data-atlas-guidance', 'data-atlas-actionability', 'data-atlas-opportunity',
+        'data-atlas-decision-confidence', 'data-atlas-scan-conviction',
     ):
         assert marker in source
-    assert "ATLAS Action Summary" in source
-    assert "Strongest Opportunities" in source
-    assert "Worth Watching" in source
-    assert "ATLAS found no stocks meeting the strongest certified opportunity threshold" in source
-    assert "ATLAS Fair Value" in source
-    assert "Decision Confidence" in source
+    assert "ATLAS vs Wall Street" in source
+    assert "Technical Opportunities" in source
+    assert "Recovery Opportunities" in source
+    assert "What Changed is not yet available for this evaluation snapshot" in source
     assert "document.documentElement.scrollWidth > window.innerWidth" in source
     method = source.split("async def _home_cards", 1)[1].split("async def _open_buy_now_expander", 1)[0]
     assert "except Exception as exc" in method
     assert 'await self._page_visit(page, "Home", viewport=viewport)' in method
-
-
-def test_production_research_submission_waits_for_stronger_terminal_contract():
-    proven, mode = research_submission_proven(
-        streamlit_event_frames=1,
-        rerun_before=1,
-        rerun_after=2,
-        submission_marker=False,
-        completed_research={},
-    )
-    assert proven is False
-    assert mode == "UNPROVEN"
-
-    proven, mode = research_submission_proven(
-        streamlit_event_frames=1,
-        rerun_before=1,
-        rerun_after=2,
-        submission_marker=False,
-        completed_research={
-            "ticker": True,
-            "no_stale_ticker": True,
-            "lifecycle_complete": True,
-            "vnext": True,
-            "certified_fields_reconciled": True,
-            "provider_boundary_zero": True,
-        },
-    )
-    assert proven is True
-    assert mode == "CERTIFIED_END_TO_END_SUBMISSION"
-
-    proven, mode = research_submission_proven(
-        streamlit_event_frames=1,
-        rerun_before=1,
-        rerun_after=2,
-        submission_marker=True,
-        completed_research={
-            "ticker": True,
-            "no_stale_ticker": True,
-            "lifecycle_complete": True,
-            "vnext": True,
-            "certified_fields_reconciled": True,
-            "provider_boundary_zero": True,
-        },
-    )
-    assert proven is True
-    assert mode == "LEGACY_MARKER_AND_CERTIFIED_COMPLETION"
-
-    source = SOURCE.read_text(encoding="utf-8")
-    boundary = source.split("async def _require_submission_boundary", 1)[1].split(
-        "def _monitor_research_ticker", 1
-    )[0]
-    assert "RESEARCH_COMPLETION_TIMEOUT_SECONDS" in boundary
-    assert "and submission_marker" not in boundary
-
-
-def _submission_surface(**overrides):
-    surface = {
-        "ticker": True,
-        "no_stale_ticker": True,
-        "lifecycle_complete": True,
-        "vnext": True,
-        "certified_fields_reconciled": True,
-        "provider_boundary_zero": True,
-    }
-    surface.update(overrides)
-    return surface
-
-
-def test_marker_absent_requires_event_rerun_exact_owner_terminal_and_fields():
-    for overrides in (
-        {"streamlit_event_frames": 0},
-        {"rerun_after": 1},
-    ):
-        arguments = {
-            "streamlit_event_frames": 1,
-            "rerun_before": 1,
-            "rerun_after": 2,
-            "submission_marker": False,
-            "completed_research": _submission_surface(),
-            **overrides,
-        }
-        assert research_submission_proven(**arguments) == (False, "UNPROVEN")
-
-    for surface_overrides in (
-        {"ticker": False},
-        {"no_stale_ticker": False},
-        {"lifecycle_complete": False},
-        {"vnext": False},
-        {"certified_fields_reconciled": False},
-        {"provider_boundary_zero": False},
-    ):
-        assert research_submission_proven(
-            streamlit_event_frames=1,
-            rerun_before=1,
-            rerun_after=2,
-            submission_marker=False,
-            completed_research=_submission_surface(**surface_overrides),
-        ) == (False, "UNPROVEN")
-
-
-def test_submission_failure_classification_does_not_mislabel_observed_rerun():
-    assert research_submission_failure(
-        streamlit_event_frames=1,
-        rerun_before=1,
-        rerun_after=2,
-        completed_research=_submission_surface(ticker=False),
-    ) == "RESEARCH_TICKER_OWNERSHIP_MISMATCH"
-    assert research_submission_failure(
-        streamlit_event_frames=1,
-        rerun_before=1,
-        rerun_after=1,
-        completed_research=_submission_surface(),
-    ) == "RESEARCH_RERUN_NOT_OBSERVED"
-    assert research_submission_failure(
-        streamlit_event_frames=0,
-        rerun_before=1,
-        rerun_after=2,
-        completed_research=_submission_surface(),
-    ) == "RESEARCH_SUBMISSION_EVENT_NOT_OBSERVED"
-
-
-def test_required_research_matrix_covers_current_production_contract():
-    assert REQUIRED_RESEARCH_TICKERS == ("NVDA", "MSFT", "AVT")
-    assert ("Research Any Ticker", "desktop") in REQUIRED_PAGE_VIEWPORTS
-    assert ("Research Any Ticker", "mobile") in REQUIRED_PAGE_VIEWPORTS
-    source = SOURCE.read_text(encoding="utf-8")
-    assert '"certified_fields_reconciled"' in source
-    assert '"no_stale_ticker"' in source
-    assert 'data-atlas-provider-calls' in (ROOT / "app.py").read_text(encoding="utf-8")
 
 
 def test_crawler_tracks_ux3b_decision_story_without_restoring_legacy_tabs():
@@ -547,10 +254,8 @@ def test_route_generation_recovery_requires_current_visible_healthy_page():
 def test_browser_session_is_shared_between_desktop_and_mobile():
     source = SOURCE.read_text(encoding="utf-8")
     assert source.count("await browser.new_context") == 1
-    assert "self._required_desktop(page), timeout=225" in source
-    assert "self._required_mobile(page), timeout=105" in source
-    assert "await self._supplementary_desktop(page)" in source
-    assert "await self._supplementary_mobile(page)" in source
+    assert "await self._desktop(page)" in source
+    assert "await self._mobile(page)" in source
     assert "await page.set_viewport_size(MOBILE)" in source
 
 

@@ -14,7 +14,6 @@ from engines.research_context import build_production_decision
 from engines.semantic_fields import analyst_consensus, canonical_atlas_fair_value, atlas_valuation_status, number
 from services.on_demand_evaluation_service import evaluate_on_demand
 from services.data_mode_policy import display_scope, internal_trial_mode
-from services.runtime_projection_loader import load_exact_customer_inventory_with_status
 
 
 HOME_GUIDANCE_STORY_VERSION = "HOME_GUIDANCE_VNEXT_V1"
@@ -72,9 +71,17 @@ def rank_customer_publishable_rows(rows: Iterable[Mapping[str, Any]]) -> list[di
 
 
 def load_exact_customer_inventory(path: Path, manifest: Mapping[str, Any]) -> tuple[Any, bool]:
-    """Load a bounded runtime projection only when its versioned contract passes."""
-    payload, valid, _ = load_exact_customer_inventory_with_status(path, manifest)
-    return payload, valid
+    """Load a below-boundary pool only when its bytes match this run's manifest."""
+    try:
+        payload_bytes = path.read_bytes()
+        payload = json.loads(payload_bytes)
+        expected = dict(manifest.get("artifact_hashes") or {}).get(path.name)
+        canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str).encode()
+        if not expected or hashlib.sha256(canonical).hexdigest() != expected:
+            return [], False
+        return payload, True
+    except (OSError, TypeError, ValueError, json.JSONDecodeError):
+        return [], False
 
 
 def _counts(items: Iterable[Mapping[str, Any]]) -> dict[str, int]:
@@ -937,7 +944,6 @@ def build_home_guidance_story(
 __all__ = [
     "CUSTOMER_ACTION_PRESENTATION", "GUIDANCE_GROUPS", "HOME_FIELD_AUTHORITY", "HOME_GUIDANCE_STORY_VERSION",
     "build_home_action_count_contract", "build_home_guidance_candidate", "build_home_guidance_story",
-    "build_homepage_promotion_metrics", "customer_action_presentation", "load_exact_customer_inventory",
-    "load_exact_customer_inventory_with_status", "select_home_featured_cards",
+    "build_homepage_promotion_metrics", "customer_action_presentation", "load_exact_customer_inventory", "select_home_featured_cards",
     "rank_customer_publishable_rows",
 ]

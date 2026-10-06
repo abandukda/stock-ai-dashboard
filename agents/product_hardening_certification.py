@@ -89,24 +89,6 @@ def visual_certification_completeness(
     mobile_results: Mapping[str, Any], session_result: Mapping[str, Any],
 ) -> dict[str, Any]:
     """Fail closed when any required visual/evidence contract is incomplete."""
-    supplied_mobile_results = mobile_results if isinstance(mobile_results, Mapping) else {}
-    normalized_mobile_results: dict[str, dict[str, Any]] = {}
-    for name in MOBILE_CRITICAL_JOURNEYS:
-        raw_result = supplied_mobile_results.get(name)
-        if isinstance(raw_result, Mapping):
-            normalized_mobile_results[name] = {
-                **dict(raw_result),
-                "status": str(raw_result.get("status") or "UNAVAILABLE"),
-                "required": True,
-                "source": str(raw_result.get("source") or "runtime_qa_mobile_journey"),
-            }
-        else:
-            normalized_mobile_results[name] = {
-                "status": "UNAVAILABLE",
-                "reason": "MOBILE_RESULT_MISSING" if raw_result is None else "MOBILE_RESULT_INVALID",
-                "source": "runtime_qa_mobile_journey",
-                "required": True,
-            }
     pages_tested = {str(item.get("page") or "") for item in page_results if item.get("status")}
     page_screenshots = {
         str(item.get("page") or "") for item in screenshot_manifest
@@ -136,10 +118,7 @@ def visual_certification_completeness(
         (evidence_reconciliations.get(page) or {}).get("status") == "PASS"
         for page in ("Research Any Ticker", "Earnings Intelligence", "Political Intelligence", "Ask AI")
     )
-    mobile_complete = all(
-        normalized_mobile_results[name]["status"] == "PASS"
-        for name in MOBILE_CRITICAL_JOURNEYS
-    )
+    mobile_complete = all((mobile_results.get(name) or {}).get("status") == "PASS" for name in MOBILE_CRITICAL_JOURNEYS)
     required_manifest = [item for item in screenshot_manifest if item.get("expected_state")]
     screenshots_missing = sum(not bool(item.get("screenshot_path")) for item in required_manifest)
     traceability_complete = all(architecture_versions.get(key) for key in (
@@ -181,11 +160,7 @@ def visual_certification_completeness(
             for page in ("Research Any Ticker", "Earnings Intelligence", "Political Intelligence", "Ask AI")
         ),
         "mobile_journeys_required": len(MOBILE_CRITICAL_JOURNEYS),
-        "mobile_journeys_completed": sum(
-            normalized_mobile_results[name]["status"] == "PASS"
-            for name in MOBILE_CRITICAL_JOURNEYS
-        ),
-        "mobile_results": normalized_mobile_results,
+        "mobile_journeys_completed": sum((mobile_results.get(name) or {}).get("status") == "PASS" for name in MOBILE_CRITICAL_JOURNEYS),
     }
 
 

@@ -16,9 +16,6 @@ def build_home_runtime_contract(
     market_today = dict(story.get("market_today") or {})
     market = dict(market_health or {})
     news = dict(news_health or {})
-    projection_contract = dict(story.get("runtime_projection_contract") or {})
-    source = dict(projection_contract.get("source_certification") or {})
-    projection = dict(projection_contract.get("runtime_projection") or {})
     failures = []
     if not action.get("reconciled"):
         failures.append("HOME_ACTION_RECONCILIATION_FAILED")
@@ -28,7 +25,6 @@ def build_home_runtime_contract(
         failures.append("MARKET_TODAY_CONTRACT_MISSING")
     if "major_market_news" not in market_today:
         failures.append("MARKET_NEWS_CONTRACT_MISSING")
-    failures.extend(str(value) for value in story.get("customer_inventory_binding_failures") or ())
     per_ticker = []
     for card in story.get("home_featured_cards") or ():
         certified = dict(card.get("certified_customer_evaluation") or {})
@@ -60,17 +56,6 @@ def build_home_runtime_contract(
                         "latest_story_timestamp": max((str(item.get("published_at") or "") for item in market_today.get("major_market_news") or ()), default=None),
                         "story_count": len(market_today.get("major_market_news") or ()), "runtime_health": news},
         "renderer": {"version": HOME_RENDERER_VERSION}, "per_ticker": per_ticker,
-        "production_authority": {
-            "candidate_digest": source.get("candidate_digest"),
-            "publication_digest": source.get("publication_digest"),
-            "source_sha": source.get("analytical_source_sha"),
-            "evidence_snapshot_at": source.get("evidence_snapshot_at"),
-            "projection_digest": projection.get("semantic_digest"),
-            "deployed_sha": build["build_sha"],
-        },
-        "inventory_authority": dict(source.get("inventory") or {}),
-        "runtime_projection": {"record_counts": projection.get("record_counts"),
-                               "withheld_customer_leakage": projection.get("withheld_customer_leakage")},
         "generated_at": datetime.now(timezone.utc).isoformat(), "runtime_ready": not failures,
         "home_runtime_ready": not failures,
         "failure_reasons": list(dict.fromkeys(failures)), "non_scoring": True,

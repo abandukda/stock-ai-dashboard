@@ -59,58 +59,6 @@ def test_visual_mismatch_and_missing_manifest_fail_closed(tmp_path):
                                screenshot_manifest=manifest, output=tmp_path / "visual.json"))
 
 
-def test_fresh_visual_consumes_evidence_backed_parity_object(tmp_path):
-    backend = _write(tmp_path / "backend.json", {"status": "PASS", "candidate_run_id": "1", **IDENTITY})
-    verification = _write(tmp_path / "verification.json", {
-        "status": "PASS", "candidate_digest": "candidate", "publication_bundle_digest": "publication",
-        "candidate_source_sha": "source", "provider_calls": 0, "reacquisition": "none",
-        "same_snapshot_parity": None,
-    })
-    parity = {
-        "status": "PASS", "candidate_digest": "candidate", "publication_digest": "publication",
-        "source_sha": "source", "candidate_run_id": "1", "tickers_checked": ["NVDA", "MSFT", "AVT"],
-        "action_parity": "PASS", "fair_value_parity": "PASS", "opportunity_parity": "PASS",
-        "confidence_parity": "PASS", "evaluation_snapshot_identity_parity": "PASS",
-        "withheld_publication_leakage": 0,
-    }
-    summary = _write(tmp_path / "summary.json", {
-        "status": "PASS", "completion_contract": {"passed": True},
-        "candidate_identity": {"valid": True}, "same_snapshot_parity": parity,
-    })
-    manifest = _write(tmp_path / "manifest.json", [
-        {"viewport": "desktop"}, {"viewport": "mobile"},
-    ])
-    result = build_visual(Namespace(backend=backend, verification=verification, visual_summary=summary,
-                                    screenshot_manifest=manifest, output=tmp_path / "visual.json"))
-    assert result["same_snapshot_parity"] == parity
-
-
-@pytest.mark.parametrize("mutation,error", [
-    (lambda p: p.update(status="FAIL"), "VISUAL_SNAPSHOT_PARITY_FAILED"),
-    (lambda p: p.update(candidate_digest="wrong"), "VISUAL_SNAPSHOT_PARITY_IDENTITY_MISMATCH"),
-    (lambda p: p.update(action_parity="FAIL"), "VISUAL_SNAPSHOT_PARITY_FIELD_FAILED"),
-    (lambda p: p.update(withheld_publication_leakage=1), "VISUAL_WITHHELD_PUBLICATION_LEAKAGE"),
-])
-def test_fresh_visual_parity_fails_closed(tmp_path, mutation, error):
-    backend = _write(tmp_path / "backend.json", {"status": "PASS", "candidate_run_id": "1", **IDENTITY})
-    verification = _write(tmp_path / "verification.json", {
-        "status": "PASS", "candidate_digest": "candidate", "publication_bundle_digest": "publication",
-        "candidate_source_sha": "source", "provider_calls": 0, "reacquisition": "none",
-        "same_snapshot_parity": None,
-    })
-    parity = {"status": "PASS", "candidate_digest": "candidate", "publication_digest": "publication",
-              "source_sha": "source", "candidate_run_id": "1", "action_parity": "PASS",
-              "fair_value_parity": "PASS", "opportunity_parity": "PASS", "confidence_parity": "PASS",
-              "evaluation_snapshot_identity_parity": "PASS", "withheld_publication_leakage": 0}
-    mutation(parity)
-    summary = _write(tmp_path / "summary.json", {"status": "PASS", "completion_contract": {"passed": True},
-                    "candidate_identity": {"valid": True}, "same_snapshot_parity": parity})
-    manifest = _write(tmp_path / "manifest.json", [{"viewport": "desktop"}, {"viewport": "mobile"}])
-    with pytest.raises(RuntimeError, match=error):
-        build_visual(Namespace(backend=backend, verification=verification, visual_summary=summary,
-                               screenshot_manifest=manifest, output=tmp_path / "visual.json"))
-
-
 def test_finalization_requires_matching_passed_constituents(tmp_path):
     backend = _write(tmp_path / "backend.json", {"status": "PASS", "candidate_run_id": "1", **IDENTITY})
     visual = _write(tmp_path / "visual.json", {"status": "PASS", "candidate_run_id": "2", **IDENTITY})

@@ -613,7 +613,6 @@ def certification_record(**values: Any) -> dict[str, Any]:
         "semantic_status": values.get("semantic_status") or "NOT_EXECUTED",
         "reconciliation_status": values.get("reconciliation_status") or "NOT_EXECUTED",
         "responsive_status": values.get("responsive_status") or "NOT_APPLICABLE",
-        "journey_status": values.get("journey_status") or "NOT_APPLICABLE",
     }
     if record["classification"] not in CERTIFICATION_CLASSIFICATIONS:
         raise ValueError("invalid certification classification")
