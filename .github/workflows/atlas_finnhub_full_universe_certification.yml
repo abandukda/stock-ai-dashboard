@@ -9,6 +9,12 @@ on:
     - cron: "00 23 * * 1-5"
   workflow_dispatch:
     inputs:
+      benchmark_scope:
+        description: "Governed execution scope"
+        required: true
+        default: "canaries-only"
+        type: choice
+        options: ["canaries-only", "full"]
       parallel_workers:
         description: "Bounded acquisition workers (six remains locked pending five-worker certification)"
         required: true
@@ -27,6 +33,7 @@ env:
   PYTHONPATH: "."
   ATLAS_FINNHUB_LICENSE_CLASS: PAID_CORE_CERTIFICATION
   SHARD_SIZE: "150"
+  GOVERNED_UNIVERSE_COMMIT: aa12ff9e89c1ac72e20aadad41decfba9a3d774d
 
 jobs:
   contract-tests:
@@ -35,6 +42,10 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Materialize exact governed acquisition universe
+        run: git show "$GOVERNED_UNIVERSE_COMMIT:total_market_universe.json" > total_market_universe.json
       - name: Resolve immutable run identity from checkout
         run: python3 scripts/resolve_finnhub_run_identity.py --expected-sha "$GITHUB_SHA" --github-env "$GITHUB_ENV"
       - uses: actions/setup-python@v5
@@ -46,7 +57,7 @@ jobs:
           FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
         run: |
           case "$GITHUB_REF" in
-            refs/heads/main|refs/heads/codex/full-universe-closure-temp) ;;
+            refs/heads/main|refs/heads/codex/full-universe-closure-temp|refs/heads/codex/parallel-finnhub-certification) ;;
             *) echo "::error::Unsupported full-universe certification ref: $GITHUB_REF"; exit 1 ;;
           esac
           test "$ATLAS_FINNHUB_LICENSE_CLASS" = "PAID_CORE_CERTIFICATION"
@@ -60,7 +71,7 @@ jobs:
           GLOBAL_REQUESTS_PER_MINUTE: ${{ inputs.global_requests_per_minute }}
         run: |
           test "$PARALLEL_WORKERS" = "5"
-          python -c 'import os; value=float(os.environ["GLOBAL_REQUESTS_PER_MINUTE"]); assert value > 0'
+          python -c 'import os; value=float(os.environ["GLOBAL_REQUESTS_PER_MINUTE"]); assert value == 500'
       - run: >-
           pytest -q tests/test_finnhub_full_universe_executor.py
           tests/test_finnhub_run_identity.py
@@ -76,6 +87,10 @@ jobs:
       FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Materialize exact governed acquisition universe
+        run: git show "$GOVERNED_UNIVERSE_COMMIT:total_market_universe.json" > total_market_universe.json
       - name: Resolve immutable run identity from checkout
         run: python3 scripts/resolve_finnhub_run_identity.py --expected-sha "$GITHUB_SHA" --github-env "$GITHUB_ENV"
       - uses: actions/setup-python@v5
@@ -112,6 +127,10 @@ jobs:
       FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Materialize exact governed acquisition universe
+        run: git show "$GOVERNED_UNIVERSE_COMMIT:total_market_universe.json" > total_market_universe.json
       - name: Resolve immutable run identity from checkout
         run: python3 scripts/resolve_finnhub_run_identity.py --expected-sha "$GITHUB_SHA" --github-env "$GITHUB_ENV"
       - uses: actions/setup-python@v5
@@ -144,6 +163,7 @@ jobs:
 
   plan-full-run:
     needs: canary-250
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.benchmark_scope == 'full' }}
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.matrix.outputs.value }}

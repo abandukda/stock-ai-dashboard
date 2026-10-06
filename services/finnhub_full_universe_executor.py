@@ -250,6 +250,8 @@ def acquire_shard(
     started = time.monotonic()
     rows, failures, calls, cache_hits, retry_count = [], [], 0, 0, 0
     rate_limit_events, provider_errors = 0, 0
+    http_4xx_count, http_5xx_count, timeout_count = 0, 0, 0
+    request_attempts: dict[tuple[str, str], int] = {}
     cache: dict[tuple[str, str], dict[str, Any]] = {}
     for symbol in shard["symbols"]:
         checkpoint_path = checkpoint_dir / f"{symbol}.json" if checkpoint_dir else None
@@ -280,9 +282,16 @@ def acquire_shard(
                     rate_governor.before_request()
                 record = _fetch(transport, capability, symbol, 0.0 if rate_governor else pace_seconds, **params)
                 calls += 1
+                request_attempts[key] = request_attempts.get(key, 0) + 1
                 reason = str((record.get("payload") or {}).get("reason") or "").upper()
                 if reason == "HTTP_429":
                     rate_limit_events += 1
+                if reason.startswith("HTTP_4"):
+                    http_4xx_count += 1
+                if reason.startswith("HTTP_5"):
+                    http_5xx_count += 1
+                if "TIMEOUT" in reason:
+                    timeout_count += 1
                 if reason.startswith("HTTP_") or reason.startswith("PROVIDER_ERROR:"):
                     provider_errors += 1
                 retryable = reason == "HTTP_429" or any(reason == f"HTTP_{status}" for status in range(500, 600))
@@ -353,7 +362,11 @@ def acquire_shard(
             "provider_calls": calls, "cache_hits": cache_hits,
             "calls_avoided": cache_hits, "retry_count": retry_count,
             "http_429_count": rate_limit_events, "provider_error_count": provider_errors,
+            "http_4xx_count": http_4xx_count, "http_5xx_count": http_5xx_count,
+            "timeout_count": timeout_count,
+            "duplicate_or_reacquired_requests": sum(max(0, count - 1) for count in request_attempts.values()),
             "rate_limit_wait_seconds": round(rate_governor.wait_seconds, 3) if rate_governor else 0.0,
+            "peak_requests_per_second": rate_governor.peak_requests_per_second if rate_governor else None,
             "rate_contract": rate_governor.contract.as_dict() if rate_governor else None,
             "elapsed_seconds": round(elapsed, 3),
             "symbols_per_minute": round(len(rows) * 60 / elapsed, 3),
@@ -843,11 +856,30 @@ def aggregate_complete_run(*, universe: Mapping[str, Any], identity: Mapping[str
             candidate = candidate_state["candidate"]
             second_candidate = candidate_state["second_candidate"]
             determinism = candidate_state["determinism"]
+    elif not candidate_eligible and completeness["state"] == "FULL_UNIVERSE_CERTIFIED":
+        second = profiled(
+            "D_CANARY_DETERMINISTIC_REVERSE_REPLAY",
+            lambda: evaluate_records(identity=identity, acquired=list(reversed(acquired))),
+        )
+        first_records = sorted(first["terminal_records"], key=lambda item: str(item.get("ticker")))
+        second_records = sorted(second["terminal_records"], key=lambda item: str(item.get("ticker")))
+        first_digest, second_digest = _digest(first_records), _digest(second_records)
+        determinism = {
+            "status": "PASS" if first_digest == second_digest else "FAIL",
+            "first_terminal_records_digest": first_digest,
+            "second_terminal_records_digest": second_digest,
+            "record_count": len(first_records),
+        }
     calls = sum(int((payload.get("provider_telemetry") or {}).get("provider_calls") or 0) for payload in shard_payloads)
     cache_hits = sum(int((payload.get("provider_telemetry") or {}).get("cache_hits") or 0) for payload in shard_payloads)
     retries = sum(int((payload.get("provider_telemetry") or {}).get("retry_count") or 0) for payload in shard_payloads)
     rate_limits = sum(int((payload.get("provider_telemetry") or {}).get("http_429_count") or 0) for payload in shard_payloads)
     provider_errors = sum(int((payload.get("provider_telemetry") or {}).get("provider_error_count") or 0) for payload in shard_payloads)
+    http_4xx = sum(int((payload.get("provider_telemetry") or {}).get("http_4xx_count") or 0) for payload in shard_payloads)
+    http_5xx = sum(int((payload.get("provider_telemetry") or {}).get("http_5xx_count") or 0) for payload in shard_payloads)
+    timeouts = sum(int((payload.get("provider_telemetry") or {}).get("timeout_count") or 0) for payload in shard_payloads)
+    duplicates = sum(int((payload.get("provider_telemetry") or {}).get("duplicate_or_reacquired_requests") or 0) for payload in shard_payloads)
+    peak_rps = max((int((payload.get("provider_telemetry") or {}).get("peak_requests_per_second") or 0) for payload in shard_payloads), default=0)
     elapsed = sum(float((payload.get("provider_telemetry") or {}).get("elapsed_seconds") or 0) for payload in shard_payloads)
     canary_coverage = _canary_coverage(acquired) if not candidate_eligible else None
     canary_coverage_pass = canary_coverage is None or canary_coverage["status"] == "PASS"
@@ -896,6 +928,9 @@ def aggregate_complete_run(*, universe: Mapping[str, Any], identity: Mapping[str
             "provider_calls": calls, "cache_hits": cache_hits, "calls_avoided": cache_hits,
             "retry_count": retries, "retry_rate": round(retries / calls, 6) if calls else 0.0,
             "http_429_count": rate_limits, "provider_error_count": provider_errors,
+            "http_4xx_count": http_4xx, "http_5xx_count": http_5xx,
+            "timeout_count": timeouts, "duplicate_or_reacquired_requests": duplicates,
+            "peak_requests_per_second": peak_rps,
             "summed_shard_elapsed_seconds": round(elapsed, 3),
             "symbols_per_minute_serial_equivalent": round(len(acquired) * 60 / elapsed, 3) if elapsed else 0.0,
         },
@@ -918,6 +953,8 @@ def aggregate_complete_run(*, universe: Mapping[str, Any], identity: Mapping[str
             and not first["shadow_evidence_leakage"] and first["authority_violations"] == 0
             else "CANARY_PASS"
             if not candidate_eligible and completeness["state"] == "FULL_UNIVERSE_CERTIFIED"
+            and determinism.get("status") == "PASS"
+            and rate_limits == 0 and provider_errors == 0 and timeouts == 0
             and first["inspector"]["status"] == "PASS"
             and completeness.get("credential_entitlement_failures") == 0
             and not completeness.get("atlas_integration_failures")

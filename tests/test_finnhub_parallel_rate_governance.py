@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 from services.finnhub_rate_governance import (
-    FinnhubRateContract, FinnhubRateGovernor, build_parallel_rate_governor,
+    SAFE_GLOBAL_REQUESTS_PER_SECOND, FinnhubRateContract, FinnhubRateGovernor, build_parallel_rate_governor,
 )
 from services.finnhub_shadow_provider import FinnhubShadowAdapter
 
@@ -28,6 +28,8 @@ def test_parallel_rate_contract_partitions_global_allowance_conservatively():
     assert contract.minimum_interval_seconds == 0.5
     assert contract.aggregate_burst_limit == 5
     assert contract.max_in_flight_per_worker == 1
+    assert contract.global_requests_per_second_ceiling == SAFE_GLOBAL_REQUESTS_PER_SECOND
+    assert contract.global_requests_per_second_ceiling < 30
 
 
 def test_parallel_rate_governor_paces_every_request_and_retry_delay():
@@ -40,6 +42,7 @@ def test_parallel_rate_governor_paces_every_request_and_retry_delay():
     governor.retry_delay(2.25)
     assert clock.sleeps == [0.5, 2.25]
     assert governor.wait_seconds == 2.75
+    assert governor.peak_requests_per_second == 2
 
 
 def test_parallel_mode_fails_closed_without_explicit_global_allowance():
@@ -68,6 +71,8 @@ def test_workflow_exposes_opt_in_five_worker_contract_without_activating_schedul
     assert "ATLAS_FINNHUB_GLOBAL_REQUESTS_PER_MINUTE" in source
     assert source.count("GOVERNED_GLOBAL_RPM") >= 4
     assert "inputs.parallel_workers || '2'" in source
+    assert 'options: ["canaries-only", "full"]' in source
+    assert "inputs.benchmark_scope == 'full'" in source
     # The five existing schedules remain byte-for-byte represented; 18:30 ET
     # activation is intentionally deferred until a complete governed pass.
     assert source.count("- cron:") == 5

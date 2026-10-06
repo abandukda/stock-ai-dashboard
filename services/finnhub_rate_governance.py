@@ -2,11 +2,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from collections import deque
 import time
 from typing import Callable
 
 
 RATE_CONTRACT_VERSION = "ATLAS_FINNHUB_GLOBAL_RATE_CONTRACT_V1"
+SAFE_GLOBAL_REQUESTS_PER_SECOND = 20.0
 
 
 @dataclass(frozen=True)
@@ -15,6 +17,7 @@ class FinnhubRateContract:
     parallel_workers: int
     worker_slot: int
     max_in_flight_per_worker: int = 1
+    global_requests_per_second_ceiling: float = SAFE_GLOBAL_REQUESTS_PER_SECOND
 
     def __post_init__(self) -> None:
         if self.global_requests_per_minute <= 0:
@@ -25,6 +28,8 @@ class FinnhubRateContract:
             raise ValueError("Finnhub worker slot is outside the configured worker count")
         if self.max_in_flight_per_worker != 1:
             raise ValueError("Finnhub certification permits exactly one in-flight request per worker")
+        if not 0 < self.global_requests_per_second_ceiling < 30:
+            raise ValueError("Finnhub burst ceiling must be positive and below 30 requests/second")
 
     @property
     def per_worker_requests_per_minute(self) -> float:
@@ -32,7 +37,9 @@ class FinnhubRateContract:
 
     @property
     def minimum_interval_seconds(self) -> float:
-        return 60.0 / self.per_worker_requests_per_minute
+        rpm_interval = 60.0 / self.per_worker_requests_per_minute
+        burst_interval = self.parallel_workers / self.global_requests_per_second_ceiling
+        return max(rpm_interval, burst_interval)
 
     @property
     def aggregate_burst_limit(self) -> int:
@@ -50,6 +57,7 @@ class FinnhubRateContract:
             "minimum_interval_seconds": self.minimum_interval_seconds,
             "max_in_flight_per_worker": self.max_in_flight_per_worker,
             "aggregate_burst_limit": self.aggregate_burst_limit,
+            "global_requests_per_second_ceiling": self.global_requests_per_second_ceiling,
         }
 
 
@@ -67,6 +75,8 @@ class FinnhubRateGovernor:
         self._monotonic = monotonic
         self._sleep = sleep
         self._last_started: float | None = None
+        self._request_starts: deque[float] = deque()
+        self.peak_requests_per_second = 0
         self.wait_seconds = 0.0
 
     def before_request(self) -> float:
@@ -79,6 +89,10 @@ class FinnhubRateGovernor:
                 waited = remaining
                 now = self._monotonic()
         self._last_started = now
+        self._request_starts.append(now)
+        while self._request_starts and now - self._request_starts[0] >= 1.0:
+            self._request_starts.popleft()
+        self.peak_requests_per_second = max(self.peak_requests_per_second, len(self._request_starts))
         self.wait_seconds += waited
         return waited
 
@@ -106,6 +120,6 @@ def build_parallel_rate_governor(
 
 
 __all__ = [
-    "RATE_CONTRACT_VERSION", "FinnhubRateContract", "FinnhubRateGovernor",
+    "RATE_CONTRACT_VERSION", "SAFE_GLOBAL_REQUESTS_PER_SECOND", "FinnhubRateContract", "FinnhubRateGovernor",
     "build_parallel_rate_governor",
 ]
