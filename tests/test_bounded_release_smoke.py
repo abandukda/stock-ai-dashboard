@@ -4,7 +4,19 @@ from argparse import Namespace
 from pathlib import Path
 
 from agents.visual_qa_certification_v2 import candidate_identity
-from scripts.run_bounded_release_smoke import PUBLICATION_FILES, _canonical_digest, run
+from scripts.run_bounded_release_smoke import (
+    PUBLICATION_FILES,
+    _action,
+    _canonical_digest,
+    _semantic_json_sha256,
+    _verify_publication_artifact_hashes,
+    _verify_fresh_artifact_contract,
+    _verify_fresh_backend_handoff,
+    _verify_fresh_inventory,
+    _stream_customer_rows,
+    _stream_top_level_scalars,
+    run,
+)
 
 
 SOURCE_SHA = "d5526664b1b4450e67b63a67b01d936f6da5a2a4"
@@ -149,6 +161,325 @@ def test_publication_file_contract_is_exact():
         "total_market_universe.json", "market_scan_state.json", "discovery_candidate_pool.json",
         "full_evaluation_pool.json",
     }
+
+
+def test_pool_engine_actions_use_governed_executor_aliases():
+    def row(state):
+        return {"canonical_investment_evaluation": {"guidance": {"state": state}}}
+
+    assert _action(row("ACCUMULATE")) == "BUILD_A_POSITION"
+    assert _action(row("WAIT_FOR_ENTRY")) == "WAIT_FOR_BETTER_ENTRY"
+    assert _action(row("DATA_LIMITED")) == "RATING_NOT_PUBLISHED"
+    assert _action(row("BUY_NOW")) == "BUY_NOW"
+
+
+def _semantic_manifest(bundle: Path, payloads: dict[str, object]) -> dict:
+    hashes = {}
+    lineage = {}
+    for name in PUBLICATION_FILES:
+        _write(bundle / name, payloads[name])
+        digest = _canonical_digest(payloads[name])
+        hashes[name] = digest
+        lineage[name] = {"semantic_sha256": digest}
+    return {"artifact_hashes": hashes, "artifact_lineage": lineage}
+
+
+def test_fresh_semantic_manifest_accepts_representation_only_byte_differences(tmp_path):
+    bundle = tmp_path / "bundle"
+    rows = [{"ticker": "NVDA", "nested": {"value": 88.54}}]
+    payloads = {name: [] for name in PUBLICATION_FILES}
+    payloads.update({
+        "market_full_scan.json": rows,
+        "market_scan_state.json": {"status": "PASS", "count": 1},
+        "total_market_universe.json": {"symbols": ["NVDA"]},
+    })
+    manifest = _semantic_manifest(bundle, payloads)
+    # Change storage whitespace only; governed canonical meaning is unchanged.
+    (bundle / "market_full_scan.json").write_text(
+        json.dumps(rows, indent=2), encoding="utf-8"
+    )
+
+    verified, diagnostics = _verify_publication_artifact_hashes(
+        bundle, manifest, semantic_contract=True,
+    )
+
+    assert verified["market_full_scan.json"] == manifest["artifact_hashes"]["market_full_scan.json"]
+    detail = diagnostics["market_full_scan.json"]
+    assert detail["digest_contract"] == "CANONICAL_JSON_SEMANTIC_SHA256"
+    assert detail["semantic_digest_verified"] is True
+    assert detail["raw_storage_digest"] != detail["manifest_semantic_digest"]
+
+
+def test_fresh_semantic_manifest_rejects_lineage_digest_divergence(tmp_path):
+    bundle = tmp_path / "bundle"
+    payloads = {name: [] for name in PUBLICATION_FILES}
+    manifest = _semantic_manifest(bundle, payloads)
+    manifest["artifact_lineage"]["market_full_scan.json"]["semantic_sha256"] = "0" * 64
+
+    try:
+        _verify_publication_artifact_hashes(bundle, manifest, semantic_contract=True)
+    except ValueError as error:
+        assert str(error) == (
+            "PUBLICATION_MANIFEST_LINEAGE_DIGEST_MISMATCH:market_full_scan.json"
+        )
+    else:
+        raise AssertionError("fresh semantic lineage divergence must fail closed")
+
+
+def test_legacy_publication_hash_contract_remains_raw_bytes(tmp_path):
+    bundle = tmp_path / "bundle"
+    payloads = {name: [] for name in PUBLICATION_FILES}
+    manifest = _semantic_manifest(bundle, payloads)
+    (bundle / "market_full_scan.json").write_text("[ ]\n", encoding="utf-8")
+    try:
+        _verify_publication_artifact_hashes(bundle, manifest, semantic_contract=False)
+    except ValueError as error:
+        assert str(error) == "PUBLICATION_ARTIFACT_DIGEST_MISMATCH:market_full_scan.json"
+    else:
+        raise AssertionError("legacy raw-byte verification must remain unchanged")
+
+
+def test_fresh_semantic_hash_rejects_logical_corruption(tmp_path):
+    original = [{"ticker": "NVDA", "nested": {"value": 88.54}}]
+    corruptions = (
+        [],
+        original + [{"ticker": "MSFT", "nested": {"value": 80.0}}],
+        [{"ticker": "MSFT", "nested": {"value": 88.54}}],
+        [{"ticker": "NVDA", "nested": {"value": 1.0}}],
+    )
+    for index, corrupted in enumerate(corruptions):
+        bundle = tmp_path / str(index)
+        payloads = {name: [] for name in PUBLICATION_FILES}
+        payloads["market_full_scan.json"] = original
+        manifest = _semantic_manifest(bundle, payloads)
+        _write(bundle / "market_full_scan.json", corrupted)
+        try:
+            _verify_publication_artifact_hashes(bundle, manifest, semantic_contract=True)
+        except ValueError as error:
+            assert str(error) == "PUBLICATION_ARTIFACT_DIGEST_MISMATCH:market_full_scan.json"
+        else:
+            raise AssertionError("logical publication corruption must fail closed")
+
+
+def test_semantic_array_hash_streams_large_top_level_array(tmp_path):
+    path = tmp_path / "large.json"
+    rows = [{"ticker": f"T{index}", "value": index} for index in range(20_000)]
+    path.write_text(json.dumps(rows, indent=1), encoding="utf-8")
+    assert _semantic_json_sha256(path) == _canonical_digest(rows)
+
+
+def test_customer_publication_pool_is_streamed_to_bounded_rows(tmp_path):
+    allowed = {"publication_certification": {"customer_publication_allowed": True}}
+    denied = {"publication_certification": {"customer_publication_allowed": False}}
+    rows = [
+        {"ticker": "NVDA", "canonical_investment_evaluation": {"guidance": {"state": "BUY_NOW"}}, **allowed},
+        {"ticker": "REGN", "canonical_investment_evaluation": {"guidance": {"state": "WAIT_FOR_CONFIRMATION"}}, **allowed},
+        {"ticker": "WITHHELD", "canonical_investment_evaluation": {"guidance": {"state": "BUY_NOW"}}, **denied},
+        {"ticker": "OTHER", "canonical_investment_evaluation": {"guidance": {"state": "WAIT_FOR_BETTER_ENTRY"}}, **allowed},
+    ]
+    pool = tmp_path / "market_full_scan.json"
+    _write(pool, rows)
+
+    selected, published, duplicates = _stream_customer_rows(pool)
+
+    assert published == ["NVDA"]
+    assert {row["ticker"] for row in selected} == {"NVDA", "REGN"}
+    assert duplicates == []
+
+
+def _fresh_inventory_inputs(
+    canonical=("A", "B", "C"), publishable=("A", "B"), withheld=("C",),
+):
+    distribution = {"BUY_NOW": len(canonical), "WAIT_FOR_CONFIRMATION": 2}
+    records = [
+        {
+            "ticker": ticker,
+            "publication_eligible": ticker in publishable,
+            "universe_sha256": "universe",
+        }
+        for ticker in (*publishable, *withheld)
+    ]
+    return {
+        "action_distribution": distribution,
+        "checkpoint": {
+            "action_counts": distribution,
+            "buy_now_tickers": list(publishable),
+            "withheld_buy_now_tickers": list(withheld),
+        },
+        "provenance": {
+            "status": "PASS",
+            "canonical_buy_now_count": len(canonical),
+            "publishable_buy_now_count": len(publishable),
+            "records": records,
+        },
+        "observed_actions": distribution,
+        "pool_inventory": {
+            "canonical_buy_now": list(canonical),
+            "publishable_buy_now": list(publishable),
+            "withheld_buy_now": list(withheld),
+            "duplicate_tickers": [],
+        },
+        "market_publishable": list(publishable),
+        "market_duplicates": [],
+        "universe_sha256": "universe",
+    }
+
+
+def _inventory_error(inputs, expected):
+    try:
+        _verify_fresh_inventory(**inputs)
+    except ValueError as error:
+        assert str(error) == expected
+    else:
+        raise AssertionError(f"expected {expected}")
+
+
+def test_fresh_inventory_validates_dynamic_and_future_counts():
+    current = _verify_fresh_inventory(**_fresh_inventory_inputs(
+        canonical=tuple(f"T{i}" for i in range(21)),
+        publishable=tuple(f"T{i}" for i in range(11)),
+        withheld=tuple(f"T{i}" for i in range(11, 21)),
+    ))
+    assert (current["canonical_buy_now_count"],
+            current["customer_publishable_buy_now_count"],
+            current["withheld_buy_now_count"]) == (21, 11, 10)
+    future = _verify_fresh_inventory(**_fresh_inventory_inputs(
+        canonical=("N1", "N2", "N3", "N4"),
+        publishable=("N1",), withheld=("N2", "N3", "N4"),
+    ))
+    assert (future["canonical_buy_now_count"],
+            future["customer_publishable_buy_now_count"],
+            future["withheld_buy_now_count"]) == (4, 1, 3)
+
+
+def test_fresh_inventory_rejects_count_mismatches():
+    canonical = _fresh_inventory_inputs()
+    canonical["provenance"]["canonical_buy_now_count"] = 4
+    _inventory_error(canonical, "FRESH_INVENTORY_CANONICAL_COUNT_MISMATCH")
+
+    publishable = _fresh_inventory_inputs()
+    publishable["provenance"]["publishable_buy_now_count"] = 1
+    _inventory_error(publishable, "FRESH_INVENTORY_PUBLISHABLE_COUNT_MISMATCH")
+
+    withheld = _fresh_inventory_inputs()
+    withheld["provenance"]["publishable_buy_now_count"] = 3
+    _inventory_error(withheld, "FRESH_INVENTORY_PUBLISHABLE_COUNT_MISMATCH")
+
+
+def test_fresh_inventory_rejects_partition_and_projection_defects():
+    leaked = _fresh_inventory_inputs()
+    leaked["market_publishable"].append("C")
+    _inventory_error(leaked, "FRESH_INVENTORY_WITHHELD_PUBLICATION_LEAK")
+
+    noncanonical = _fresh_inventory_inputs()
+    noncanonical["provenance"]["records"][0]["ticker"] = "X"
+    _inventory_error(noncanonical, "FRESH_INVENTORY_UNEXPECTED_BUY_NOW_TICKER")
+
+    missing = _fresh_inventory_inputs()
+    missing["provenance"]["records"] = missing["provenance"]["records"][:-1]
+    _inventory_error(missing, "FRESH_INVENTORY_CANONICAL_PARTITION_INCOMPLETE")
+
+    duplicate = _fresh_inventory_inputs()
+    duplicate["market_duplicates"] = ["A"]
+    _inventory_error(duplicate, "FRESH_INVENTORY_DUPLICATE_TICKER")
+
+
+def test_fresh_inventory_rejects_authorization_mismatches():
+    inputs = _fresh_inventory_inputs()
+    inputs["authorization"] = {"canonical_buy_now_count": 99}
+    _inventory_error(inputs, "FRESH_INVENTORY_AUTHORIZATION_COUNT_MISMATCH")
+    inputs = _fresh_inventory_inputs()
+    inputs["authorization"] = {"publishable_buy_now": ["A", "X"]}
+    _inventory_error(inputs, "FRESH_INVENTORY_AUTHORIZATION_TICKER_MISMATCH")
+
+
+def test_large_gate_reads_only_required_root_scalars(tmp_path):
+    gate = tmp_path / "full_universe_gate_report.json"
+    _write(gate, {
+        "provider_calls_during_aggregation": 0,
+        "embedded_records": [{"payload": "x" * 1000} for _ in range(50)],
+        "same_snapshot_parity": "PASS",
+        "report_card_prospective_active": False,
+    })
+
+    assert _stream_top_level_scalars(gate, (
+        "provider_calls_during_aggregation", "same_snapshot_parity", "report_card_prospective_active",
+    )) == {
+        "provider_calls_during_aggregation": 0,
+        "same_snapshot_parity": "PASS",
+        "report_card_prospective_active": False,
+    }
+
+
+def test_fresh_backend_handoff_requires_exact_identity_and_governance(tmp_path):
+    path = tmp_path / "backend_handoff.json"
+    handoff = {
+        "schema": "ATLAS_RELEASE_FULL_BACKEND_HANDOFF_V1", "status": "PASS",
+        "candidate_digest": "candidate", "publication_digest": "publication",
+        "source_sha": SOURCE_SHA, "evidence_snapshot_at": "2026-10-04T00:00:00Z",
+        "universe_sha256": "universe", "provider_calls": 0, "reacquisition": "none",
+        "dataset_gate": "PASS", "dataset_certification_status": "PASS",
+        "publication_gate_status": "PASS",
+    }
+    _write(path, handoff)
+    assert _verify_fresh_backend_handoff(
+        path, candidate_digest="candidate", publication_digest="publication",
+        source_sha=SOURCE_SHA, evidence_snapshot_at="2026-10-04T00:00:00Z",
+        universe_sha256="universe",
+    ) == handoff
+
+    for key, bad in (
+        ("candidate_digest", "wrong"), ("publication_digest", "wrong"),
+        ("source_sha", "wrong"), ("evidence_snapshot_at", "wrong"),
+        ("universe_sha256", "wrong"), ("provider_calls", 1),
+        ("reacquisition", "performed"), ("dataset_gate", "FAIL"),
+        ("publication_gate_status", "FAIL"),
+    ):
+        broken = {**handoff, key: bad}
+        _write(path, broken)
+        try:
+            _verify_fresh_backend_handoff(
+                path, candidate_digest="candidate", publication_digest="publication",
+                source_sha=SOURCE_SHA, evidence_snapshot_at="2026-10-04T00:00:00Z",
+                universe_sha256="universe",
+            )
+        except ValueError as error:
+            assert key in str(error)
+        else:
+            raise AssertionError(f"{key} mismatch must fail closed")
+
+
+def test_fresh_artifact_contract_requires_completeness_determinism_and_identity():
+    manifest = {
+        "publication_gate_status": "PASS", "executor_candidate_digest_verified": True,
+        "customer_publication_count": 11, "report_card_prospective_active": False,
+        "generated_at": "2026-10-04T00:00:00Z",
+    }
+    checkpoint = {
+        "state": "FULL_UNIVERSE_CERTIFIED", "terminal_record_count": 6033,
+        "expected_supported_symbol_count": 6033, "missing_symbols": [],
+        "duplicate_symbols": [], "unexpected_symbols": [], "customer_publishable": True,
+    }
+    determinism = {
+        "status": "PASS", "first_digest": "candidate", "second_digest": "candidate",
+        "structural_diff": {"analytical_mismatch_count": 0},
+    }
+    _verify_fresh_artifact_contract(
+        manifest=manifest, checkpoint=checkpoint, determinism=determinism,
+        candidate_digest="candidate", evidence_snapshot_at="2026-10-04T00:00:00Z",
+        universe_sha256="universe",
+    )
+    broken = {**determinism, "status": "FAIL"}
+    try:
+        _verify_fresh_artifact_contract(
+            manifest=manifest, checkpoint=checkpoint, determinism=broken,
+            candidate_digest="candidate", evidence_snapshot_at="2026-10-04T00:00:00Z",
+            universe_sha256="universe",
+        )
+    except ValueError as error:
+        assert "determinism" in str(error)
+    else:
+        raise AssertionError("determinism failure must fail closed")
 
 
 def test_browser_startup_is_explicit_and_fails_with_streamlit_diagnostics():

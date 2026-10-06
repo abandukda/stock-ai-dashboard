@@ -27986,6 +27986,29 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
                 f'data-atlas-context-summary="{html.escape(_qa_encoded)}" aria-hidden="true" style="display:none">research-context-v1</span>',
                 unsafe_allow_html=True,
             )
+            _certified = dict(merged.get("certified_customer_evaluation") or {})
+            _decision = dict(_certified.get("decision") or {})
+            _fields = dict(_certified.get("fields") or {})
+            _digests = dict(_certified.get("digests") or {})
+            try:
+                _runtime_manifest = read_json_file(DATA_DIR / "publication_manifest.json")
+            except Exception:
+                _runtime_manifest = {}
+            _runtime_contract = dict((_runtime_manifest or {}).get("runtime_projection_contract") or {})
+            _runtime_source = dict(_runtime_contract.get("source_certification") or {})
+            st.markdown(
+                f'<span data-atlas-qa="research-production-authority" data-atlas-ticker="{html.escape(ticker)}" '
+                f'data-atlas-action="{html.escape(str(_decision.get("action") or ""))}" '
+                f'data-atlas-fair-value="{html.escape(str(dict(_fields.get("atlas_fair_value") or {}).get("value") or ""))}" '
+                f'data-atlas-opportunity="{html.escape(str(_decision.get("opportunity") or ""))}" '
+                f'data-atlas-confidence="{html.escape(str(_decision.get("decision_confidence") or ""))}" '
+                f'data-atlas-evaluation-snapshot="{html.escape(str(_digests.get("evaluation_snapshot_id") or ""))}" '
+                f'data-atlas-candidate-digest="{html.escape(str(_runtime_source.get("candidate_digest") or ""))}" '
+                f'data-atlas-publication-digest="{html.escape(str(_runtime_source.get("publication_digest") or ""))}" '
+                f'data-atlas-source-sha="{html.escape(str(_runtime_source.get("analytical_source_sha") or ""))}" '
+                'aria-hidden="true" style="display:none">research-production-authority</span>',
+                unsafe_allow_html=True,
+            )
             st.markdown(
                 f'<span data-atlas-qa="research-context" data-atlas-status="{"ready" if _qa_context_ready else "unavailable"}" '
                 f'data-atlas-readiness="{"CANONICAL_READY" if _qa_context_ready else "SHELL_READY"}" '
@@ -33142,12 +33165,58 @@ def v104_pipeline_from_df(full_df):
     )
 
 
+_HOME_RUNTIME_MODULE_GRAPH_VERSION = "ATLAS_HOME_RUNTIME_MODULE_GRAPH_V2"
+_HOME_RUNTIME_MODULES = (
+    "services.runtime_projection_contract",
+    "services.runtime_projection_loader",
+    "engines.home_guidance_story_v1",
+    "services.home_runtime_contract",
+    "ui.home_guidance_vnext",
+)
+
+
+def _home_runtime_authority_functions():
+    """Return one coherent Home authority module graph for this deployment.
+
+    Streamlit Community Cloud can retain imported modules while re-executing a
+    newly deployed ``app.py``. Refreshing this narrow graph once per deployed
+    build prevents a new runtime projection from being paired with stale Home
+    story, contract, or renderer code.
+    """
+    import importlib
+
+    from services.runtime_build_identity import runtime_build_identity
+
+    build_sha = str(runtime_build_identity().get("build_sha") or "UNAVAILABLE")
+    refresh_key = f"{_HOME_RUNTIME_MODULE_GRAPH_VERSION}:{build_sha}"
+    modules = {
+        name: importlib.import_module(name)
+        for name in _HOME_RUNTIME_MODULES
+    }
+    if st.session_state.get("atlas_home_runtime_module_graph") != refresh_key:
+        modules = {
+            name: importlib.reload(modules[name])
+            for name in _HOME_RUNTIME_MODULES
+        }
+        st.session_state["atlas_home_runtime_module_graph"] = refresh_key
+    return (
+        modules["engines.home_guidance_story_v1"].build_home_guidance_story,
+        modules["services.runtime_projection_loader"].load_exact_customer_inventory_with_status,
+        modules["services.home_runtime_contract"].build_home_runtime_contract,
+        modules["ui.home_guidance_vnext"].render_home_guidance_vnext,
+    )
+
+
 def v810_render_dynamic_home(full_df=None, top_df=None, recovery_df=None):
     # Home VNext reads immutable artifact order directly. The legacy V104
     # committee pipeline remains available above as a rollback implementation,
     # but is not ranking or decision authority for the active Home route.
-    from engines.home_guidance_story_v1 import build_home_guidance_story
-    from ui.home_guidance_vnext import render_home_guidance_vnext
+    (
+        build_home_guidance_story,
+        load_exact_customer_inventory_with_status,
+        build_home_runtime_contract,
+        render_home_guidance_vnext,
+    ) = _home_runtime_authority_functions()
     _home_runtime_trace("home_renderer_entered")
     try:
         _home_runtime_trace("market_full_scan_read_started")
@@ -33231,9 +33300,8 @@ def v810_render_dynamic_home(full_df=None, top_df=None, recovery_df=None):
     # The below-boundary customer inventory is usable only when it is the exact
     # full-evaluation artifact certified by this manifest.  A stale or mixed
     # pool fails closed to the analytical Top-150 artifact.
-    from engines.home_guidance_story_v1 import load_exact_customer_inventory
     _home_runtime_trace("customer_inventory_read_started")
-    customer_inventory_payload, customer_inventory_binding_valid = load_exact_customer_inventory(
+    customer_inventory_payload, customer_inventory_binding_valid, customer_inventory_binding_failures = load_exact_customer_inventory_with_status(
         DATA_DIR / "full_evaluation_pool.json", production_manifest,
     )
     _home_runtime_trace("customer_inventory_read_completed", binding_valid=customer_inventory_binding_valid)
@@ -33249,9 +33317,10 @@ def v810_render_dynamic_home(full_df=None, top_df=None, recovery_df=None):
         customer_inventory_payload=customer_inventory_payload,
         customer_inventory_binding_valid=customer_inventory_binding_valid,
     )
+    story["runtime_projection_contract"] = dict(production_manifest.get("runtime_projection_contract") or {})
+    story["customer_inventory_binding_failures"] = list(customer_inventory_binding_failures)
     _home_runtime_trace("home_story_build_completed")
     st.session_state["home_action_runtime_health"] = dict(story.get("home_action_count_contract") or {})
-    from services.home_runtime_contract import build_home_runtime_contract
     story["home_runtime_contract"] = build_home_runtime_contract(
         story, market_health=st.session_state.get("home_market_runtime_health"),
         news_health=st.session_state.get("home_market_news_runtime_health"),
