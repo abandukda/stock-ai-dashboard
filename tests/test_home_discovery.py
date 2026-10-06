@@ -1,3 +1,4 @@
+from datetime import date
 from pathlib import Path
 
 from engines.home_discovery import (
@@ -97,7 +98,9 @@ def test_evidence_floor_prefers_substantiated_candidate_but_does_not_require_fai
 
 def test_morning_view_and_action_counts_come_from_real_rows():
     rows = [row("AAA"), row("BBB", "ACCUMULATE"), row("CCC", "MONITOR")]
-    home = build_home_intelligence(rows, watchlist_tickers=["CCC"])
+    home = build_home_intelligence(
+        rows, watchlist_tickers=["CCC"], as_of=date(2026, 8, 15)
+    )
     assert "1 stock meeting BUY NOW criteria" in home["morning_view"]
     assert "component coverage" not in home["morning_view"].lower()
     assert home["counts"] == {
@@ -113,16 +116,18 @@ def test_morning_view_and_action_counts_come_from_real_rows():
 
 
 def test_dated_news_requires_named_source_to_count_as_verified():
+    today = date.today()
+    news_date = today.isoformat()
     news = row(
         "NEWS",
         next_earnings_date=None,
         latest_news_headline="NEWS reports a verified company event",
-        latest_news_date="2026-08-12",
+        latest_news_date=news_date,
     )
-    without_source = build_home_intelligence([news], as_of=__import__("datetime").date(2026, 8, 12))
+    without_source = build_home_intelligence([news], as_of=today)
     assert without_source["counts"]["company_news_events"] == 0
     news["latest_news_source"] = "Named Publisher"
-    with_source = build_home_intelligence([news], as_of=__import__("datetime").date(2026, 8, 12))
+    with_source = build_home_intelligence([news], as_of=today)
     assert with_source["counts"]["company_news_events"] == 1
     assert with_source["catalysts"][0]["catalyst_source"].endswith("Named Publisher")
 

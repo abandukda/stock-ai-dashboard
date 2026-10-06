@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from engines.ask_atlas_engine import ask_atlas, extract_requested_ticker
 from engines.atlas_research_builder_v2 import build_atlas_research_v2
 from engines.research_engine import research_navigation_state
@@ -94,17 +96,18 @@ def test_all_active_opportunity_links_use_canonical_navigation_contract():
 
 
 def test_verified_company_news_preserves_working_link_metadata():
+    published_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     item = accepted_company_news(
         {"ticker": "CRM", "company": "Salesforce Inc."},
         [{
             "headline": "Salesforce reports a verified company update",
             "publisher": "Reuters",
-            "date": "2026-08-15T12:00:00Z",
+            "date": published_at,
             "url": "https://example.com/salesforce-update",
         }],
     )[0]
     assert item["source"] == "Reuters"
-    assert item["date"] == "2026-08-15T12:00:00Z"
+    assert item["date"] == published_at
     assert item["url"] == "https://example.com/salesforce-update"
 
 

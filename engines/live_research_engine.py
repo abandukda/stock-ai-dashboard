@@ -764,6 +764,11 @@ def _attach_canonical_research_context(
         symbol, production_row=production_row,
         market_snapshot=None, evidence_families={},
     )
+    # The route-supplied ETF classification is authoritative even when the
+    # optional provider context is unavailable.  Do not let the generic stock
+    # context builder erase that fail-closed semantic boundary.
+    if str(row.get("security_type") or "").strip().upper() == "ETF":
+        context = {**context, "security_type": "ETF"}
     row["research_context"] = context
 
     from engines.atlas_guidance_v1 import founder_guidance_v1_enabled

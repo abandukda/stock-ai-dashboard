@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+from datetime import date
 
 from engines.atlas_research_builder_v2 import build_atlas_research_v2
 from engines.guidance_summary import build_guidance_summary
@@ -124,12 +125,13 @@ def test_analyst_actions_preserve_identity_direction_math_and_date_order():
 
 def test_company_news_filters_substrings_unrelated_entities_duplicates_and_missing_provenance():
     row = {"ticker": "ELF", "company": "e.l.f. Beauty, Inc."}
+    news_date = date.today().isoformat()
     items = [
-        {"headline": "e.l.f. Beauty launches a verified new product", "publisher": "Reuters", "date": "2026-08-10", "sentiment": "Positive"},
-        {"headline": "e.l.f. Beauty launches a verified new product", "publisher": "Syndicate", "date": "2026-08-10"},
-        {"headline": "Hackaday: ELF binary tools explained", "publisher": "Hackaday", "date": "2026-08-10"},
-        {"headline": "Unrelated beauty company reports results", "publisher": "Wire", "date": "2026-08-10"},
-        {"headline": "e.l.f. Beauty item without source", "date": "2026-08-10"},
+        {"headline": "e.l.f. Beauty launches a verified new product", "publisher": "Reuters", "date": news_date, "sentiment": "Positive"},
+        {"headline": "e.l.f. Beauty launches a verified new product", "publisher": "Syndicate", "date": news_date},
+        {"headline": "Hackaday: ELF binary tools explained", "publisher": "Hackaday", "date": news_date},
+        {"headline": "Unrelated beauty company reports results", "publisher": "Wire", "date": news_date},
+        {"headline": "e.l.f. Beauty item without source", "date": news_date},
     ]
     accepted = accepted_company_news(row, items)
     assert len(accepted) == 1
@@ -154,7 +156,7 @@ def test_legitimate_negative_company_article_remains_negative_context():
     row = _row(company="Test Systems Inc.")
     accepted = accepted_company_news(row, [{
         "headline": "Test Systems faces regulatory investigation",
-        "publisher": "Reuters", "date": "2026-08-10", "sentiment": "Negative",
+        "publisher": "Reuters", "date": date.today().isoformat(), "sentiment": "Negative",
         "classification": "Legal",
     }])
     assert len(accepted) == 1

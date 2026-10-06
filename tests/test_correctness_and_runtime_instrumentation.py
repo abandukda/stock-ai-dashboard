@@ -116,7 +116,7 @@ def test_legitimate_yahoo_earnings_history_survives_normalization():
 def test_runtime_timing_schema_includes_requested_aggregates():
     timings = scan._persisted_scan_timings()
     expected = {
-        "yahoo_broad_scan_seconds", "yahoo_retry_count", "yahoo_backoff_seconds",
+        "governed_market_scan_seconds", "yahoo_retry_count", "yahoo_backoff_seconds",
         "finalist_provider_seconds", "etf_processing_seconds", "etf_full_committee_seconds",
         "etf_newsapi_calls", "etf_newsapi_seconds",
         "etf_finnhub_news_calls", "etf_finnhub_news_seconds",
@@ -225,7 +225,7 @@ def test_reconciliation_does_not_double_count_nested_or_retry_timings():
     _reset_metadata_timings()
     scan._SCAN_TIMINGS.update(
         {
-            "yahoo_broad_scan_seconds": 40.0,
+            "governed_market_scan_seconds": 40.0,
             "yahoo_backoff_seconds": 5.0,
             "etf_processing_seconds": 10.0,
             "etf_full_committee_seconds": 8.0,

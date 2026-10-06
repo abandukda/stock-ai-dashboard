@@ -7,9 +7,9 @@ from agents.ai_content_integrity_v3 import (
 def test_duplicate_summaries_are_detected():
     records = [
         {"ticker": "AAA", "company": "Alpha", "ai_summary":
-         "Alpha has strong fundamentals and attractive valuation with 20% upside."},
+         "Alpha has strong fundamentals and attractive valuation with 20% upside, supported by revenue growth and improving cash flow."},
         {"ticker": "BBB", "company": "Beta", "ai_summary":
-         "Beta has strong fundamentals and attractive valuation with 20% upside."},
+         "Beta has strong fundamentals and attractive valuation with 20% upside, supported by revenue growth and improving cash flow."},
     ]
     report = audit_summary_collection(records, similarity_threshold=75)
     assert report["duplicate_pairs"]
