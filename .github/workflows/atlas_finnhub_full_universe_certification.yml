@@ -8,6 +8,17 @@ on:
     - cron: "00 19 * * 1-5"
     - cron: "00 23 * * 1-5"
   workflow_dispatch:
+    inputs:
+      parallel_workers:
+        description: "Bounded acquisition workers (six remains locked pending five-worker certification)"
+        required: true
+        default: "5"
+        type: choice
+        options: ["5"]
+      global_requests_per_minute:
+        description: "Governed contracted Finnhub aggregate requests/minute; never inferred"
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -19,7 +30,7 @@ env:
 
 jobs:
   contract-tests:
-    if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/codex/full-universe-closure-temp' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/codex/full-universe-closure-temp' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -42,6 +53,14 @@ jobs:
           test -n "$FINNHUB_API_KEY"
           test -z "${TWELVE_DATA_API_KEY:-}"
           test -z "${FMP_API_KEY:-}"
+      - name: Validate opt-in parallel rate contract
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        env:
+          PARALLEL_WORKERS: ${{ inputs.parallel_workers }}
+          GLOBAL_REQUESTS_PER_MINUTE: ${{ inputs.global_requests_per_minute }}
+        run: |
+          test "$PARALLEL_WORKERS" = "5"
+          python -c 'import os; value=float(os.environ["GLOBAL_REQUESTS_PER_MINUTE"]); assert value > 0'
       - run: >-
           pytest -q tests/test_finnhub_full_universe_executor.py
           tests/test_finnhub_run_identity.py
@@ -68,9 +87,15 @@ jobs:
           path: audit_results/checkpoints/canary50
           key: atlas-finnhub-canary50-${{ github.run_id }}
       - name: Plan and execute deterministic 50-symbol canary
+        env:
+          GOVERNED_GLOBAL_RPM: ${{ github.event_name == 'workflow_dispatch' && inputs.global_requests_per_minute || '' }}
         run: |
+          rate_args=()
+          if [[ -n "$GOVERNED_GLOBAL_RPM" ]]; then
+            rate_args=(--global-requests-per-minute "$GOVERNED_GLOBAL_RPM")
+          fi
           python scripts/run_finnhub_full_universe.py plan --canary-size 50 --output audit_results/full_universe/canary50
-          python scripts/run_finnhub_full_universe.py run-shard --canary-size 50 --shard-index 0 --checkpoint-dir audit_results/checkpoints/canary50/acquisition --output audit_results/full_universe/canary50/shards
+          python scripts/run_finnhub_full_universe.py run-shard --canary-size 50 --shard-index 0 "${rate_args[@]}" --checkpoint-dir audit_results/checkpoints/canary50/acquisition --output audit_results/full_universe/canary50/shards
           python scripts/run_finnhub_full_universe.py aggregate --canary-size 50 --shards audit_results/full_universe/canary50/shards --checkpoint-dir audit_results/checkpoints/canary50/evaluation --output audit_results/full_universe/canary50
       - uses: actions/upload-artifact@v4
         if: always()
@@ -100,9 +125,15 @@ jobs:
       - name: Plan deterministic 250-symbol canary
         run: python scripts/run_finnhub_full_universe.py plan --canary-size 250 --output audit_results/full_universe/canary250
       - name: Execute canary shards sequentially
+        env:
+          GOVERNED_GLOBAL_RPM: ${{ github.event_name == 'workflow_dispatch' && inputs.global_requests_per_minute || '' }}
         run: |
-          python scripts/run_finnhub_full_universe.py run-shard --canary-size 250 --shard-index 0 --checkpoint-dir audit_results/checkpoints/canary250/acquisition --output audit_results/full_universe/canary250/shards
-          python scripts/run_finnhub_full_universe.py run-shard --canary-size 250 --shard-index 1 --checkpoint-dir audit_results/checkpoints/canary250/acquisition --output audit_results/full_universe/canary250/shards
+          rate_args=()
+          if [[ -n "$GOVERNED_GLOBAL_RPM" ]]; then
+            rate_args=(--global-requests-per-minute "$GOVERNED_GLOBAL_RPM")
+          fi
+          python scripts/run_finnhub_full_universe.py run-shard --canary-size 250 --shard-index 0 "${rate_args[@]}" --checkpoint-dir audit_results/checkpoints/canary250/acquisition --output audit_results/full_universe/canary250/shards
+          python scripts/run_finnhub_full_universe.py run-shard --canary-size 250 --shard-index 1 "${rate_args[@]}" --checkpoint-dir audit_results/checkpoints/canary250/acquisition --output audit_results/full_universe/canary250/shards
           python scripts/run_finnhub_full_universe.py aggregate --canary-size 250 --shards audit_results/full_universe/canary250/shards --checkpoint-dir audit_results/checkpoints/canary250/evaluation --output audit_results/full_universe/canary250
       - uses: actions/upload-artifact@v4
         if: always()
@@ -142,7 +173,9 @@ jobs:
     needs: plan-full-run
     strategy:
       fail-fast: false
-      max-parallel: 2
+      # Scheduled production retains the certified two-job legacy path until a
+      # complete governed parallel certification authorizes schedule cutover.
+      max-parallel: ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.parallel_workers || '2') }}
       matrix: ${{ fromJSON(needs.plan-full-run.outputs.matrix) }}
     runs-on: ubuntu-latest
     timeout-minutes: 90
@@ -161,9 +194,13 @@ jobs:
           path: audit_results/checkpoints/full-shard-${{ matrix.shard_index }}
           key: atlas-finnhub-full-shard-${{ github.run_id }}-${{ matrix.shard_index }}
       - name: Acquire canonical shard
+        env:
+          PARALLEL_WORKERS: ${{ github.event_name == 'workflow_dispatch' && inputs.parallel_workers || '1' }}
+          ATLAS_FINNHUB_GLOBAL_REQUESTS_PER_MINUTE: ${{ github.event_name == 'workflow_dispatch' && inputs.global_requests_per_minute || '' }}
         run: >-
           python scripts/run_finnhub_full_universe.py run-shard
           --shard-index ${{ matrix.shard_index }}
+          --parallel-workers "$PARALLEL_WORKERS"
           --checkpoint-dir audit_results/checkpoints/full-shard-${{ matrix.shard_index }}
           --output audit_results/full_universe/shard
       - uses: actions/upload-artifact@v4

@@ -30,6 +30,7 @@ from services.finnhub_full_universe_executor import (
     _pillar_distribution, _publication_diagnostics, _route_distribution,
 )
 from services.executor_publication_bridge import build_publication_bundle, build_publication_bundle_streaming
+from services.finnhub_rate_governance import build_parallel_rate_governor
 from services.full_universe_brain_certification import (
     certify_complete_run, compare_deterministic_candidates, load_frozen_universe,
 )
@@ -241,10 +242,20 @@ def run_shard(args: argparse.Namespace) -> int:
     if args.shard_index < 0 or args.shard_index >= len(shards):
         raise ValueError("shard index outside deterministic manifest")
     catalog, _ = load_governed_classifications()
+    configured_rpm = args.global_requests_per_minute
+    if configured_rpm is None:
+        raw_rpm = os.getenv("ATLAS_FINNHUB_GLOBAL_REQUESTS_PER_MINUTE", "").strip()
+        configured_rpm = float(raw_rpm) if raw_rpm else None
+    rate_governor = build_parallel_rate_governor(
+        global_requests_per_minute=configured_rpm,
+        parallel_workers=args.parallel_workers,
+        shard_index=args.shard_index,
+    )
     payload = acquire_shard(
         adapter=FinnhubCanonicalAdapter(), shard=shards[args.shard_index],
         estimate_adapter=FinnhubShadowAdapter(license_class=FINNHUB_PAID_CORE_CERTIFICATION_LICENSE),
         identity=identity, catalog=catalog, pace_seconds=max(0.0, args.pace_seconds),
+        rate_governor=rate_governor,
         checkpoint_dir=args.checkpoint_dir,
     )
     _write(args.output / f"{shards[args.shard_index]['shard_id']}.json", payload)
@@ -821,6 +832,8 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--shard-size", type=int, default=SHARD_SIZE)
     result.add_argument("--shard-index", type=int, default=0)
     result.add_argument("--pace-seconds", type=float, default=1.05)
+    result.add_argument("--global-requests-per-minute", type=float)
+    result.add_argument("--parallel-workers", type=int, default=1)
     result.add_argument("--checkpoint-dir", type=Path)
     result.add_argument("--merged-checkpoint", type=Path)
     result.add_argument("--canonical-checkpoint", type=Path)

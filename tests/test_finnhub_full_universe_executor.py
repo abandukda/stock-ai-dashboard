@@ -112,6 +112,15 @@ def test_aggregator_rejects_wrong_identity_duplicates_and_missing_symbols():
         executor.validate_shards(universe=scope, identity=ident, shards=[missing])
 
 
+def test_aggregator_requires_exact_terminal_shard_inventory():
+    symbols = tuple(f"S{index:03d}" for index in range(151))
+    scope = universe(symbols); ident = identity(scope)
+    first = _shard_payload(scope, ident, symbols[:150], "shard-000")
+    first["shard"]["index"] = 0
+    with pytest.raises(ValueError, match="shard inventory"):
+        executor.validate_shards(universe=scope, identity=ident, shards=[first])
+
+
 def test_canary_evaluation_is_complete_but_never_builds_publishable_candidate(monkeypatch):
     scope = universe(("A", "B")); ident = identity(scope)
     payload = _shard_payload(scope, ident, ["A", "B"])

@@ -295,7 +295,16 @@ class FinnhubShadowAdapter:
         if status in {401, 403}:
             return self._unavailable(endpoint, ticker, captured, CertificationStatus.ENTITLEMENT_UNAVAILABLE, f"HTTP_{status}")
         if status != 200:
-            return self._unavailable(endpoint, ticker, captured, CertificationStatus.DATA_UNAVAILABLE, f"HTTP_{status or 'UNKNOWN'}")
+            retry_after = None
+            if status == 429:
+                try:
+                    retry_after = max(0.0, float(getattr(response, "headers", {}).get("Retry-After")))
+                except (TypeError, ValueError, AttributeError):
+                    retry_after = None
+            return self._unavailable(
+                endpoint, ticker, captured, CertificationStatus.DATA_UNAVAILABLE,
+                f"HTTP_{status or 'UNKNOWN'}", retry_after_seconds=retry_after,
+            )
         if isinstance(payload, Mapping) and payload.get("error"):
             reason = str(payload.get("error"))[:160]
             entitlement = any(token in reason.lower() for token in ("premium", "permission", "entitlement", "access"))
@@ -557,7 +566,8 @@ class FinnhubShadowAdapter:
         raise ValueError(f"normalizer missing for capability {capability}")
 
     def _unavailable(self, endpoint: FinnhubEndpoint, ticker: str, captured: str,
-                     status: CertificationStatus, reason: str) -> GovernedRecord:
+                     status: CertificationStatus, reason: str,
+                     retry_after_seconds: float | None = None) -> GovernedRecord:
         digest = _hash({"endpoint": endpoint.source_family, "symbol": ticker, "status": status.value, "reason": reason})
         return GovernedRecord(ProvenanceEnvelope(
             provider="FINNHUB", dataset_family=endpoint.family,
@@ -568,7 +578,9 @@ class FinnhubShadowAdapter:
             license_class=self._license_class, display_permission=UsePermission.PROHIBITED,
             derived_use_permission=UsePermission.SHADOW_ONLY,
             market_coverage_class=endpoint.coverage, adapter_version=FINNHUB_ADAPTER_VERSION,
-        ), {"status": status.value, "reason": reason}, ("No fallback or zero substitution was used.",))
+        ), {"status": status.value, "reason": reason,
+            **({"retry_after_seconds": retry_after_seconds} if retry_after_seconds is not None else {})},
+            ("No fallback or zero substitution was used.",))
 
 
 __all__ = ["ENDPOINTS", "ENDPOINT_BY_CAPABILITY", "FINNHUB_ADAPTER_VERSION",
