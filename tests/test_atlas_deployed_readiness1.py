@@ -221,7 +221,7 @@ def test_fatal_exception_fails_before_stability_or_login_timeout(monkeypatch, tm
 
 def test_targeted_and_full_paths_supply_checkout_sha_and_preserve_login_timeout():
     source = (ROOT / "agents/atlas_runtime_qa_v3.py").read_text(encoding="utf-8")
-    assert source.count('expected_sha=versions["source_commit"]') == 2
+    assert source.count("expected_sha=deployed_source_sha") == 2
     assert "LOGIN_TIMEOUT_SECONDS = 240" in source
     assert 'DEPLOYED_READINESS_TIMEOUT_SECONDS = int(os.getenv("ATLAS_QA_READINESS_TIMEOUT_SECONDS", "180"))' in source
     assert 'except DeploymentReadinessError as exc:' in source
@@ -232,9 +232,31 @@ def test_targeted_and_full_paths_supply_checkout_sha_and_preserve_login_timeout(
     assert "traceback.format_exc" not in auth_source
 
 
+def test_expected_deployed_source_defaults_to_checkout(monkeypatch):
+    monkeypatch.delenv("ATLAS_EXPECTED_DEPLOYED_SOURCE_SHA", raising=False)
+    assert qa.expected_deployed_source_sha(EXPECTED_SHA) == EXPECTED_SHA
+
+
+def test_expected_deployed_source_accepts_explicit_exact_sha(monkeypatch):
+    deployed = "a" * 40
+    monkeypatch.setenv("ATLAS_EXPECTED_DEPLOYED_SOURCE_SHA", deployed.upper())
+    assert qa.expected_deployed_source_sha(EXPECTED_SHA) == deployed
+
+
+@pytest.mark.parametrize("value", ["", "abc", "g" * 40, "a" * 39, "a" * 41])
+def test_invalid_explicit_deployed_source_fails_closed(monkeypatch, value):
+    monkeypatch.setenv("ATLAS_EXPECTED_DEPLOYED_SOURCE_SHA", value or " ")
+    if not value:
+        assert qa.expected_deployed_source_sha(EXPECTED_SHA) == EXPECTED_SHA
+    else:
+        with pytest.raises(qa.DeploymentTargetError) as captured:
+            qa.expected_deployed_source_sha(EXPECTED_SHA)
+        assert captured.value.diagnostics["reason"] == "EXPECTED_DEPLOYED_SOURCE_SHA_INVALID"
+
+
 def test_public_streamlit_url_is_normalized_without_inventing_host_route():
-    assert qa._canonical_streamlit_url("atlas-production-7f3.streamlit.app?x=secret") == (
-        "https://atlas-production-7f3.streamlit.app/"
+    assert qa._canonical_streamlit_url("stock-ai-dashboard.streamlit.app?x=secret") == (
+        "https://stock-ai-dashboard.streamlit.app/"
     )
 
 
@@ -247,14 +269,15 @@ def test_local_exact_candidate_target_is_narrowly_allowed(monkeypatch):
         qa._canonical_streamlit_url("http://127.0.0.1:8501")
     with pytest.raises(qa.DeploymentTargetError):
         qa._canonical_streamlit_url("http://localhost:9999", allow_local_exact_candidate=True)
-    assert qa._canonical_streamlit_url("http://atlas-production-7f3.streamlit.app/research") == (
-        "https://atlas-production-7f3.streamlit.app/research"
-    )
+    with pytest.raises(qa.DeploymentTargetError):
+        qa._canonical_streamlit_url("http://stock-ai-dashboard.streamlit.app/research")
 
 
 @pytest.mark.parametrize("target,reason", [
     ("https://share.streamlit.io/app/stock-ai-dashboard/", "GENERIC_STREAMLIT_SHARE_SHELL"),
-    ("https://stock-ai-dashboard.streamlit.app", "RETIRED_ATLAS_DEPLOYMENT_TARGET"),
+    ("https://atlas-production-7f3.streamlit.app", "RETIRED_ATLAS_DEPLOYMENT_TARGET"),
+    ("https://wrong-atlas.streamlit.app", "UNAUTHORIZED_STREAMLIT_APP_TARGET"),
+    ("https://stock-ai-dashboard.streamlit.app/research", "UNEXPECTED_PRODUCTION_URL_PATH"),
     ("https://example.com/atlas", "NON_STREAMLIT_APP_ORIGIN"),
     ("", "ATLAS_PRODUCTION_URL_MISSING"),
 ])
@@ -270,7 +293,7 @@ def test_open_records_resolved_host_transition_and_wake(monkeypatch):
         status = 200
 
     class Page:
-        url = "https://atlas-production-7f3.streamlit.app/"
+        url = "https://stock-ai-dashboard.streamlit.app/"
         async def goto(self, url, **_kwargs):
             self.url = url
             return Response()
@@ -279,10 +302,10 @@ def test_open_records_resolved_host_transition_and_wake(monkeypatch):
     async def wake(_page): return True
     monkeypatch.setattr(qa, "_wait_for_streamlit_shell", shell)
     monkeypatch.setattr(qa, "_wake_if_needed", wake)
-    result = asyncio.run(qa._open_streamlit_origin(Page(), "atlas-production-7f3.streamlit.app"))
+    result = asyncio.run(qa._open_streamlit_origin(Page(), "stock-ai-dashboard.streamlit.app"))
     assert result == {
-        "requested_url": "https://atlas-production-7f3.streamlit.app/",
-        "resolved_url": "https://atlas-production-7f3.streamlit.app/",
+        "requested_url": "https://stock-ai-dashboard.streamlit.app/",
+        "resolved_url": "https://stock-ai-dashboard.streamlit.app/",
         "document_status": 200,
         "streamlit_public_host": True,
         "wake_control_used": True,
@@ -307,7 +330,7 @@ def test_open_retries_transient_navigation_failure_without_skipping_login(monkey
     async def wake(_page): return False
     monkeypatch.setattr(qa, "_wait_for_streamlit_shell", shell)
     monkeypatch.setattr(qa, "_wake_if_needed", wake)
-    result = asyncio.run(qa._open_streamlit_origin(Page(), "https://atlas-production-7f3.streamlit.app"))
+    result = asyncio.run(qa._open_streamlit_origin(Page(), "https://stock-ai-dashboard.streamlit.app"))
     assert result["navigation_attempts"] == 2
     assert result["navigation_error_categories"] == ["TimeoutError"]
 
@@ -321,7 +344,7 @@ def test_redirect_to_generic_share_shell_is_recorded_and_rejected(tmp_path):
             return Response()
     with pytest.raises(qa.DeploymentTargetError) as captured:
         asyncio.run(qa._open_streamlit_origin(
-            Page(), "https://atlas-production-7f3.streamlit.app", tmp_path,
+            Page(), "https://stock-ai-dashboard.streamlit.app", tmp_path,
         ))
     recorded = json.loads((tmp_path / "deployment_target.json").read_text())
     assert recorded["reason"] == "GENERIC_STREAMLIT_SHARE_SHELL"
@@ -337,7 +360,7 @@ def test_redirect_to_generic_share_shell_is_recorded_and_rejected(tmp_path):
 ])
 def test_hosting_bootstrap_responses_are_not_product_defects(path, status):
     result = qa._classify_failed_request(
-        f"https://atlas-production-7f3.streamlit.app{path}?redacted=yes", status,
+        f"https://stock-ai-dashboard.streamlit.app{path}?redacted=yes", status,
     )
     assert result["relevance"] in {"NOT_ATLAS_FUNCTIONALITY", "HOSTING_READINESS_ONLY"}
     assert "redacted" not in str(result)

@@ -60,18 +60,25 @@ def test_canonical_family_wins_and_unavailable_family_does_not_accept_legacy_qua
     assert "fallback_freshness" not in families["company_news"]
 
 
-def test_streamlit_loaded_fmp_secret_is_passed_to_explicit_research(monkeypatch):
-    captured = {}
+def test_retired_fmp_secret_cannot_restore_provider_authority(monkeypatch):
+    called = False
 
     def fake_acquire(symbol, *, production_row, api_key, force_refresh):
-        captured.update(symbol=symbol, api_key=api_key, force_refresh=force_refresh)
+        nonlocal called
+        called = True
         return {"research_context": build_research_context(symbol, production_row=production_row), "diagnostics": {}}
 
     monkeypatch.setattr("services.fmp_research_acquisition.acquire_explicit_fmp_research", fake_acquire)
-    live_research_engine._explicit_fmp_research_context("NVDA", None, api_key="configured-secret")
-    assert captured == {"symbol": "NVDA", "api_key": "configured-secret", "force_refresh": False}
-    app_source = (ROOT / "app.py").read_text(encoding="utf-8")
-    assert "fmp_api_key=FMP_API_KEY" in app_source
+    result, diagnostics = live_research_engine._explicit_fmp_research_context(
+        "NVDA", None, api_key="configured-secret",
+    )
+    assert result is None
+    assert diagnostics == {
+        "semantic_status": "DATA_UNAVAILABLE",
+        "provider_calls": 0,
+        "reason": "OPTIONAL_RESEARCH_PROVIDER_RETIRED",
+    }
+    assert called is False
     assert "fmp_api_key" in inspect.signature(live_research_engine.build_live_research).parameters
 
 

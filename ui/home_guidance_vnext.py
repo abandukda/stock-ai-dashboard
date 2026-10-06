@@ -1547,11 +1547,36 @@ def render_home_guidance_vnext(story: Mapping[str, Any], *, emit_interactive=Non
         emit_interactive = lambda: emit(st, "Home")
     _inject_css()
     runtime = dict(story.get("home_runtime_contract") or {})
+    authority = dict(runtime.get("production_authority") or {})
+    inventory = dict(runtime.get("inventory_authority") or {})
     st.markdown(
         f'<span data-atlas-qa="home-runtime-contract" data-atlas-runtime-ready="{str(runtime.get("runtime_ready") is True).lower()}" '
         f'data-atlas-runtime-version="{html.escape(str(runtime.get("version") or "UNAVAILABLE"))}" '
         'aria-hidden="true" style="display:none">home-runtime-contract</span>', unsafe_allow_html=True,
     )
+    st.markdown(
+        f'<span data-atlas-qa="production-authority" '
+        f'data-atlas-candidate-digest="{html.escape(str(authority.get("candidate_digest") or ""))}" '
+        f'data-atlas-publication-digest="{html.escape(str(authority.get("publication_digest") or ""))}" '
+        f'data-atlas-source-sha="{html.escape(str(authority.get("source_sha") or ""))}" '
+        f'data-atlas-evidence-snapshot="{html.escape(str(authority.get("evidence_snapshot_at") or ""))}" '
+        f'data-atlas-projection-digest="{html.escape(str(authority.get("projection_digest") or ""))}" '
+        f'data-atlas-deployed-sha="{html.escape(str(authority.get("deployed_sha") or ""))}" '
+        'aria-hidden="true" style="display:none">production-authority</span>', unsafe_allow_html=True,
+    )
+    st.markdown(
+        f'<span data-atlas-qa="home-inventory-authority" '
+        f'data-atlas-canonical-count="{int(inventory.get("canonical_buy_now_count") or 0)}" '
+        f'data-atlas-publishable-count="{int(inventory.get("publishable_buy_now_count") or 0)}" '
+        f'data-atlas-withheld-count="{int(inventory.get("withheld_buy_now_count") or 0)}" '
+        f'data-atlas-canonical-tickers="{html.escape(",".join(inventory.get("canonical_buy_now") or ())) }" '
+        f'data-atlas-publishable-tickers="{html.escape(",".join(inventory.get("publishable_buy_now") or ())) }" '
+        f'data-atlas-withheld-tickers="{html.escape(",".join(inventory.get("withheld_buy_now") or ())) }" '
+        'aria-hidden="true" style="display:none">home-inventory-authority</span>', unsafe_allow_html=True,
+    )
+    if not runtime.get("runtime_ready"):
+        reasons = ", ".join(runtime.get("failure_reasons") or ("UNKNOWN_RUNTIME_CONTRACT_FAILURE",))
+        st.error(f"Certified ATLAS inventory is unavailable because runtime validation failed: {reasons}")
     from services.runtime_build_identity import runtime_build_identity
     build = runtime_build_identity()
     st.markdown(

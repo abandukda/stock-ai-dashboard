@@ -119,6 +119,56 @@ def test_evidence_mobile_and_session_contracts_fail_closed():
     assert SESSION_STABILITY_JOURNEY[0] == "authenticated"
 
 
+def test_none_mobile_results_are_explicitly_unavailable_and_do_not_crash():
+    pages, manifest, interaction, evidence, _mobile = complete_inputs()
+    result = visual_certification_completeness(
+        source_sha="abc123", architecture_versions=versions(),
+        page_results=pages, screenshot_manifest=manifest,
+        interaction_certification=interaction, evidence_reconciliations=evidence,
+        mobile_results=None, session_result={"status": "PASS"},
+    )
+    assert result["status"] == "INCOMPLETE"
+    assert result["checks"]["mobile"] is False
+    assert result["mobile_journeys_completed"] == 0
+    assert all(item["status"] == "UNAVAILABLE" for item in result["mobile_results"].values())
+    assert all(item["reason"] == "MOBILE_RESULT_MISSING" for item in result["mobile_results"].values())
+
+
+def test_one_none_required_mobile_result_blocks_mixed_completeness():
+    pages, manifest, interaction, evidence, mobile = complete_inputs()
+    mobile["Research Any Ticker"] = None
+    result = certify(pages=pages, manifest=manifest, interaction=interaction, evidence=evidence, mobile=mobile)
+    assert result["status"] == "INCOMPLETE"
+    assert result["mobile_results"]["Research Any Ticker"]["status"] == "UNAVAILABLE"
+    assert result["mobile_journeys_completed"] == len(MOBILE_CRITICAL_JOURNEYS) - 1
+
+
+def test_explicit_unavailable_mobile_result_remains_unavailable():
+    pages, manifest, interaction, evidence, mobile = complete_inputs()
+    mobile["Home"] = {"status": "UNAVAILABLE", "reason": "READINESS_UNAVAILABLE"}
+    result = certify(pages=pages, manifest=manifest, interaction=interaction, evidence=evidence, mobile=mobile)
+    assert result["mobile_results"]["Home"]["status"] == "UNAVAILABLE"
+    assert result["mobile_results"]["Home"]["reason"] == "READINESS_UNAVAILABLE"
+    assert result["checks"]["mobile"] is False
+
+
+def test_missing_mobile_coverage_fails_closed_with_source_metadata():
+    pages, manifest, interaction, evidence, _mobile = complete_inputs()
+    result = certify(pages=pages, manifest=manifest, interaction=interaction, evidence=evidence, mobile={})
+    assert result["status"] == "INCOMPLETE"
+    assert result["mobile_results"]["Home"] == {
+        "status": "UNAVAILABLE", "reason": "MOBILE_RESULT_MISSING",
+        "source": "runtime_qa_mobile_journey", "required": True,
+    }
+
+
+def test_mobile_result_index_returns_explicit_mapping():
+    indexed = atlas_runtime_qa_v3._mobile_result_index({
+        "steps": [{"journey": "Core mobile certification", "step": "Home", "status": "PASS"}]
+    })
+    assert indexed == {"Home": {"status": "PASS"}}
+
+
 def test_full_runner_writes_visual_contract_but_targeted_runner_stays_separate():
     full_source = inspect.getsource(atlas_runtime_qa_v3.run_runtime_qa_v3)
     targeted_source = inspect.getsource(run_targeted_critical_journeys)
