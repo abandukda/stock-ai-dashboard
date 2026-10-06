@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import resource
+import shutil
 import sys
 import time
 from typing import Any, Mapping
@@ -56,6 +57,36 @@ def _write(path: Path, payload: Any) -> None:
         handle.write("\n")
 
 
+def _write_publication_bundle(output: Path, publication_bundle: Mapping[str, Any]) -> dict[str, Any]:
+    """Write each distinct canonical payload once and hard-link exact duplicates."""
+    output.mkdir(parents=True, exist_ok=True)
+    physical_by_identity: dict[int, Path] = {}
+    logical_bytes = 0
+    physical_bytes = 0
+    for name, payload in publication_bundle["artifacts"].items():
+        target = output / name
+        existing = physical_by_identity.get(id(payload))
+        if existing is not None:
+            if target.exists():
+                target.unlink()
+            os.link(existing, target)
+            size = existing.stat().st_size
+        else:
+            _write(target, payload)
+            physical_by_identity[id(payload)] = target
+            size = target.stat().st_size
+            physical_bytes += size
+        logical_bytes += size
+    manifest_path = output / "publication_manifest.json"
+    _write(manifest_path, publication_bundle["manifest"])
+    manifest_size = manifest_path.stat().st_size
+    return {
+        "logical_bytes": logical_bytes + manifest_size,
+        "physical_bytes_written": physical_bytes + manifest_size,
+        "deduplicated_bytes": logical_bytes - physical_bytes,
+    }
+
+
 def _digest(payload: Any) -> str:
     digest = hashlib.sha256()
     encoder = json.JSONEncoder(sort_keys=True, separators=(",", ":"), default=str)
@@ -70,7 +101,9 @@ def _profiled(phase: str, operation: Any) -> tuple[Any, dict[str, Any]]:
     return result, {
         "phase": phase,
         "duration_seconds": round(time.monotonic() - started, 6),
-        "max_rss_kb": int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss),
+        "max_rss_kb": int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss // 1024
+                          if sys.platform == "darwin"
+                          else resource.getrusage(resource.RUSAGE_SELF).ru_maxrss),
     }
 
 
@@ -264,6 +297,8 @@ def run_shard(args: argparse.Namespace) -> int:
 
 
 def aggregate(args: argparse.Namespace) -> int:
+    aggregate_started = time.monotonic()
+    cpu_started = time.process_time()
     frozen = load_frozen_universe(args.universe)
     scope = _scope(frozen, args.canary_size)
     identity = _identity(frozen, args)
@@ -275,10 +310,14 @@ def aggregate(args: argparse.Namespace) -> int:
     )
     candidates = report.pop("determinism_candidates", {})
     publication_bundle = report.pop("publication_bundle", None)
-    if candidates.get("first") is not None:
-        _write(args.output / "determinism_candidate_first.json", candidates["first"])
-    if candidates.get("second") is not None:
-        _write(args.output / "determinism_candidate_second.json", candidates["second"])
+    candidate = report.pop("immutable_candidate", None)
+    if candidates:
+        _write(args.output / "determinism_candidate_digests.json", {
+            "status": report["determinism"].get("status"),
+            "first_candidate_digest": (candidates.get("first") or {}).get("candidate_digest"),
+            "second_candidate_digest": (candidates.get("second") or {}).get("candidate_digest"),
+            "structural_diff": report["determinism"].get("structural_diff"),
+        })
     _write(args.output / "full_universe_gate_report.json", report)
     _write(args.output / "checkpoint_summary.json", report["full_universe_completeness"])
     _write(args.output / "provider_call_telemetry.json", report["provider_call_telemetry"])
@@ -298,12 +337,23 @@ def aggregate(args: argparse.Namespace) -> int:
     _write(args.output / "action_distribution.json", report["action_distribution"])
     _write(args.output / "buy_now_provenance.json", report["buy_now_provenance"])
     _write(args.output / "determinism_report.json", report["determinism"])
-    if report.get("immutable_candidate") is not None:
-        _write(args.output / "immutable_candidate.json", report["immutable_candidate"])
+    if candidate is not None:
+        _write(args.output / "immutable_candidate.json", candidate)
+    publication_io = {"logical_bytes": 0, "physical_bytes_written": 0, "deduplicated_bytes": 0}
     if publication_bundle is not None:
-        for name, payload in publication_bundle["artifacts"].items():
-            _write(args.output / "publication_bundle" / name, payload)
-        _write(args.output / "publication_bundle" / "publication_manifest.json", publication_bundle["manifest"])
+        publication_io = _write_publication_bundle(args.output / "publication_bundle", publication_bundle)
+    _write(args.output / "aggregation_profile.json", {
+        "phase_metrics": report.get("aggregation_phase_metrics") or [],
+        "total_wall_seconds": round(time.monotonic() - aggregate_started, 6),
+        "total_cpu_seconds": round(time.process_time() - cpu_started, 6),
+        "max_rss_kb": int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss // 1024
+                          if sys.platform == "darwin"
+                          else resource.getrusage(resource.RUSAGE_SELF).ru_maxrss),
+        "shard_input_bytes": sum(path.stat().st_size for path in sorted(args.shards.glob("shard-*.json"))),
+        "candidate_bytes_written": (args.output / "immutable_candidate.json").stat().st_size if candidate is not None else 0,
+        "publication_io": publication_io,
+        "provider_calls_during_aggregation": 0,
+    })
     print(json.dumps({"state": report["state"], "symbols": report["full_universe_completeness"]["terminal_record_count"]}))
     return 0 if report["state"] in {"CANARY_PASS", "FINNHUB_FULL_UNIVERSE_EXECUTOR_CERTIFIED"} else 1
 

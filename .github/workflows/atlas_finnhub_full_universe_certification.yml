@@ -223,10 +223,6 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install -r requirements.txt
-      - uses: actions/cache@v4
-        with:
-          path: audit_results/checkpoints/full-evaluation
-          key: atlas-finnhub-full-evaluation-${{ github.run_id }}
       - uses: actions/download-artifact@v4
         with:
           pattern: atlas-finnhub-full-shard-*-${{ github.run_id }}
@@ -236,7 +232,6 @@ jobs:
         run: >-
           python scripts/run_finnhub_full_universe.py aggregate
           --shards audit_results/full_universe/downloaded
-          --checkpoint-dir audit_results/checkpoints/full-evaluation
           --output audit_results/full_universe/final
       - name: Confirm production artifacts unchanged
         run: >-

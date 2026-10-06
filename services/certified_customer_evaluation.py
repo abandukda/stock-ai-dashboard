@@ -46,7 +46,9 @@ def _field(name: str, value: Any, *, status: str, source: Any = None,
            period_type: Any = None, basis: Any = None, currency: Any = None,
            unit: Any = None, transformation: Any = None, snapshot_id: str,
            limitations: Any = ()) -> dict[str, Any]:
-    ids = tuple(str(item) for item in (evidence_ids or ()) if item)
+    # Evidence identity is a set semantically. Canonical ordering keeps the
+    # certification digest stable across Python hash seeds and processes.
+    ids = tuple(sorted(str(item) for item in (evidence_ids or ()) if item))
     safe = status in PUBLISHABLE and value is not None and bool(source) and bool(ids) and bool(as_of)
     return {
         "field_name": name, "value": value if safe else None,

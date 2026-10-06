@@ -13,6 +13,8 @@ import hashlib
 import json
 import math
 from pathlib import Path
+import resource
+import sys
 import time
 from typing import Any, Callable, Mapping, Sequence
 
@@ -767,12 +769,37 @@ def aggregate_complete_run(*, universe: Mapping[str, Any], identity: Mapping[str
                            checkpoint_dir: Path | None = None,
                            evaluation_checkpoint: Mapping[str, Any] | None = None,
                            candidate_checkpoint: Mapping[str, Any] | None = None) -> dict[str, Any]:
-    acquired = validate_shards(universe=universe, identity=identity, shards=shard_payloads)
+    phase_metrics: list[dict[str, Any]] = []
+
+    def profiled(phase: str, operation: Any) -> Any:
+        started = time.monotonic()
+        cpu_started = time.process_time()
+        value = operation()
+        phase_metrics.append({
+            "phase": phase,
+            "duration_seconds": round(time.monotonic() - started, 6),
+            "cpu_seconds": round(time.process_time() - cpu_started, 6),
+            "max_rss_kb": int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss // 1024
+                              if sys.platform == "darwin"
+                              else resource.getrusage(resource.RUSAGE_SELF).ru_maxrss),
+        })
+        return value
+
+    acquired = profiled(
+        "A_SHARD_INVENTORY_VALIDATION_AND_MERGE",
+        lambda: validate_shards(universe=universe, identity=identity, shards=shard_payloads),
+    )
     if evaluation_checkpoint is None:
-        first = evaluate_records(identity=identity, acquired=acquired, checkpoint_dir=checkpoint_dir)
-        completeness = certify_complete_run(
-            universe=universe, records=first["terminal_records"],
-            acquisition_complete=True, decision_processing_complete=True,
+        first = profiled(
+            "B_CANONICAL_EVALUATION_FORWARD",
+            lambda: evaluate_records(identity=identity, acquired=acquired, checkpoint_dir=checkpoint_dir),
+        )
+        completeness = profiled(
+            "C_COMPLETENESS_ACCOUNTING",
+            lambda: certify_complete_run(
+                universe=universe, records=first["terminal_records"],
+                acquisition_complete=True, decision_processing_complete=True,
+            ),
         )
         second = None
         second_completeness = None
@@ -795,14 +822,23 @@ def aggregate_complete_run(*, universe: Mapping[str, Any], identity: Mapping[str
             determinism = dict(candidate_checkpoint["determinism"])
         else:
             if second is None:
-                second = evaluate_records(identity=identity, acquired=list(reversed(acquired)))
-                second_completeness = certify_complete_run(
-                    universe=universe, records=second["terminal_records"],
-                    acquisition_complete=True, decision_processing_complete=True,
+                second = profiled(
+                    "D_CANONICAL_EVALUATION_REVERSE_REPLAY",
+                    lambda: evaluate_records(identity=identity, acquired=list(reversed(acquired))),
                 )
-            candidate_state = build_candidate_determinism_checkpoint(
-                universe=universe, identity=identity, first=first, completeness=completeness,
-                second=second, second_completeness=second_completeness,
+                second_completeness = profiled(
+                    "E_REPLAY_COMPLETENESS_ACCOUNTING",
+                    lambda: certify_complete_run(
+                        universe=universe, records=second["terminal_records"],
+                        acquisition_complete=True, decision_processing_complete=True,
+                    ),
+                )
+            candidate_state = profiled(
+                "F_CANDIDATE_CONSTRUCTION_AND_DETERMINISM",
+                lambda: build_candidate_determinism_checkpoint(
+                    universe=universe, identity=identity, first=first, completeness=completeness,
+                    second=second, second_completeness=second_completeness,
+                ),
             )
             candidate = candidate_state["candidate"]
             second_candidate = candidate_state["second_candidate"]
@@ -820,9 +856,12 @@ def aggregate_complete_run(*, universe: Mapping[str, Any], identity: Mapping[str
     publication_bundle_digest = None
     if candidate is not None:
         source_rows = {str(item.get("ticker")): dict(item.get("row") or {}) for item in acquired}
-        artifacts, manifest = build_publication_bundle(
-            candidate=candidate, source_rows=source_rows,
-            generated_at=str(identity["evidence_snapshot_at"]),
+        artifacts, manifest = profiled(
+            "G_PUBLICATION_CANDIDATE_GENERATION",
+            lambda: build_publication_bundle(
+                candidate=candidate, source_rows=source_rows,
+                generated_at=str(identity["evidence_snapshot_at"]),
+            ),
         )
         publication_bundle = {"artifacts": artifacts, "manifest": manifest}
         publication_bundle_digest = _digest({
@@ -868,6 +907,7 @@ def aggregate_complete_run(*, universe: Mapping[str, Any], identity: Mapping[str
         "publication_diagnostics": publication_diagnostics,
         "new_full_universe_candidate_certified": new_candidate_certified,
         "release_smoke_ready": new_candidate_certified,
+        "aggregation_phase_metrics": phase_metrics,
         "determinism_candidates": {"first": candidate, "second": second_candidate},
         "state": (
             "FINNHUB_FULL_UNIVERSE_EXECUTOR_CERTIFIED"
