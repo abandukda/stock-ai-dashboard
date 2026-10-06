@@ -56,6 +56,7 @@ def test_acquisition_cache_calls_each_authorized_family_once(monkeypatch, tmp_pa
     assert len(calls) == 2 * len(executor.AUTHORIZED_ACQUISITION_FAMILIES)
     assert report["provider_telemetry"]["provider_calls"] == len(calls)
     assert report["provider_telemetry"]["cache_hits"] == 0
+    assert len(report["provider_telemetry"]["request_start_epoch_seconds"]) == len(calls)
     cached = executor.acquire_shard(
         adapter=object(), shard=shard, identity=identity(universe(("A", "B"))),
         catalog={}, pace_seconds=0, checkpoint_dir=tmp_path,
@@ -71,6 +72,23 @@ def test_acquisition_cache_calls_each_authorized_family_once(monkeypatch, tmp_pa
     assert reused["provider_telemetry"]["provider_calls"] == 0
     assert reused["provider_telemetry"]["cache_hits"] == 2 * len(executor.AUTHORIZED_ACQUISITION_FAMILIES)
     assert len(calls) == calls_before
+
+
+def test_strict_provider_health_stops_on_first_provider_error(monkeypatch):
+    calls = []
+
+    def rejected(_adapter, capability, symbol, _pace, **_params):
+        calls.append((symbol, capability))
+        return {"payload": {"reason": "HTTP_429", "retry_after_seconds": 10}}
+
+    monkeypatch.setattr(executor, "_fetch", rejected)
+    shard = executor.deterministic_shards(["A"], shard_size=1)[0]
+    with pytest.raises(RuntimeError, match="STRICT_PROVIDER_HEALTH_STOP:A:company_profile:HTTP_429"):
+        executor.acquire_shard(
+            adapter=object(), shard=shard, identity=identity(universe(("A",))),
+            catalog={}, pace_seconds=0, strict_provider_health=True,
+        )
+    assert calls == [("A", "company_profile")]
 
 
 def test_acquisition_checkpoint_from_other_run_is_not_reused(monkeypatch, tmp_path):

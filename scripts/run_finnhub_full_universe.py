@@ -290,6 +290,7 @@ def run_shard(args: argparse.Namespace) -> int:
         identity=identity, catalog=catalog, pace_seconds=max(0.0, args.pace_seconds),
         rate_governor=rate_governor,
         checkpoint_dir=args.checkpoint_dir,
+        strict_provider_health=args.strict_provider_health,
     )
     _write(args.output / f"{shards[args.shard_index]['shard_id']}.json", payload)
     print(json.dumps({"shard": shards[args.shard_index]["shard_id"], **payload["provider_telemetry"]}))
@@ -884,6 +885,7 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--pace-seconds", type=float, default=1.05)
     result.add_argument("--global-requests-per-minute", type=float)
     result.add_argument("--parallel-workers", type=int, default=1)
+    result.add_argument("--strict-provider-health", action="store_true")
     result.add_argument("--checkpoint-dir", type=Path)
     result.add_argument("--merged-checkpoint", type=Path)
     result.add_argument("--canonical-checkpoint", type=Path)

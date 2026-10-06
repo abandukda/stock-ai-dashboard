@@ -245,13 +245,16 @@ def acquire_shard(
     pace_seconds: float = 1.05,
     rate_governor: FinnhubRateGovernor | None = None,
     checkpoint_dir: Path | None = None,
+    strict_provider_health: bool = False,
 ) -> dict[str, Any]:
     """Acquire each authorized family once for every symbol in a shard."""
     started = time.monotonic()
+    started_epoch = time.time()
     rows, failures, calls, cache_hits, retry_count = [], [], 0, 0, 0
     rate_limit_events, provider_errors = 0, 0
     http_4xx_count, http_5xx_count, timeout_count = 0, 0, 0
     request_attempts: dict[tuple[str, str], int] = {}
+    request_start_epoch_seconds: list[float] = []
     cache: dict[tuple[str, str], dict[str, Any]] = {}
     for symbol in shard["symbols"]:
         checkpoint_path = checkpoint_dir / f"{symbol}.json" if checkpoint_dir else None
@@ -280,6 +283,7 @@ def acquire_shard(
             for attempt in range(3):
                 if rate_governor is not None:
                     rate_governor.before_request()
+                request_start_epoch_seconds.append(time.time())
                 record = _fetch(transport, capability, symbol, 0.0 if rate_governor else pace_seconds, **params)
                 calls += 1
                 request_attempts[key] = request_attempts.get(key, 0) + 1
@@ -294,6 +298,10 @@ def acquire_shard(
                     timeout_count += 1
                 if reason.startswith("HTTP_") or reason.startswith("PROVIDER_ERROR:"):
                     provider_errors += 1
+                if strict_provider_health and (
+                    reason.startswith("HTTP_") or reason.startswith("PROVIDER_ERROR:") or "TIMEOUT" in reason
+                ):
+                    raise RuntimeError(f"STRICT_PROVIDER_HEALTH_STOP:{symbol}:{capability}:{reason}")
                 retryable = reason == "HTTP_429" or any(reason == f"HTTP_{status}" for status in range(500, 600))
                 if not retryable or attempt == 2:
                     break
@@ -367,6 +375,9 @@ def acquire_shard(
             "duplicate_or_reacquired_requests": sum(max(0, count - 1) for count in request_attempts.values()),
             "rate_limit_wait_seconds": round(rate_governor.wait_seconds, 3) if rate_governor else 0.0,
             "peak_requests_per_second": rate_governor.peak_requests_per_second if rate_governor else None,
+            "request_start_epoch_seconds": request_start_epoch_seconds,
+            "acquisition_started_epoch_seconds": started_epoch,
+            "acquisition_finished_epoch_seconds": time.time(),
             "rate_contract": rate_governor.contract.as_dict() if rate_governor else None,
             "elapsed_seconds": round(elapsed, 3),
             "symbols_per_minute": round(len(rows) * 60 / elapsed, 3),
@@ -880,6 +891,36 @@ def aggregate_complete_run(*, universe: Mapping[str, Any], identity: Mapping[str
     timeouts = sum(int((payload.get("provider_telemetry") or {}).get("timeout_count") or 0) for payload in shard_payloads)
     duplicates = sum(int((payload.get("provider_telemetry") or {}).get("duplicate_or_reacquired_requests") or 0) for payload in shard_payloads)
     peak_rps = max((int((payload.get("provider_telemetry") or {}).get("peak_requests_per_second") or 0) for payload in shard_payloads), default=0)
+    request_starts = sorted(
+        float(value)
+        for payload in shard_payloads
+        for value in ((payload.get("provider_telemetry") or {}).get("request_start_epoch_seconds") or [])
+    )
+    acquisition_starts = [
+        float(value) for payload in shard_payloads
+        if (value := (payload.get("provider_telemetry") or {}).get("acquisition_started_epoch_seconds")) is not None
+    ]
+    acquisition_finishes = [
+        float(value) for payload in shard_payloads
+        if (value := (payload.get("provider_telemetry") or {}).get("acquisition_finished_epoch_seconds")) is not None
+    ]
+
+    def peak_rolling(window_seconds: float) -> int:
+        peak = left = 0
+        for right, timestamp in enumerate(request_starts):
+            while timestamp - request_starts[left] >= window_seconds:
+                left += 1
+            peak = max(peak, right - left + 1)
+        return peak
+
+    acquisition_wall = (
+        max(acquisition_finishes) - min(acquisition_starts)
+        if acquisition_starts and acquisition_finishes else 0.0
+    )
+    configured_workers = max((
+        int(((payload.get("provider_telemetry") or {}).get("rate_contract") or {}).get("parallel_workers") or 1)
+        for payload in shard_payloads
+    ), default=1)
     elapsed = sum(float((payload.get("provider_telemetry") or {}).get("elapsed_seconds") or 0) for payload in shard_payloads)
     canary_coverage = _canary_coverage(acquired) if not candidate_eligible else None
     canary_coverage_pass = canary_coverage is None or canary_coverage["status"] == "PASS"
@@ -931,6 +972,11 @@ def aggregate_complete_run(*, universe: Mapping[str, Any], identity: Mapping[str
             "http_4xx_count": http_4xx, "http_5xx_count": http_5xx,
             "timeout_count": timeouts, "duplicate_or_reacquired_requests": duplicates,
             "peak_requests_per_second": peak_rps,
+            "global_peak_rolling_requests_per_second": peak_rolling(1.0),
+            "global_peak_rolling_requests_per_minute": peak_rolling(60.0),
+            "provider_acquisition_wall_seconds": round(acquisition_wall, 3),
+            "effective_sustained_requests_per_minute": round(calls * 60 / acquisition_wall, 3) if acquisition_wall else 0.0,
+            "worker_utilization": round(elapsed / (acquisition_wall * configured_workers), 6) if acquisition_wall else 0.0,
             "summed_shard_elapsed_seconds": round(elapsed, 3),
             "symbols_per_minute_serial_equivalent": round(len(acquired) * 60 / elapsed, 3) if elapsed else 0.0,
         },

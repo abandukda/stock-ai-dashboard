@@ -169,6 +169,10 @@ jobs:
       matrix: ${{ steps.matrix.outputs.value }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Materialize exact governed acquisition universe
+        run: git show "$GOVERNED_UNIVERSE_COMMIT:total_market_universe.json" > total_market_universe.json
       - name: Resolve immutable run identity from checkout
         run: python3 scripts/resolve_finnhub_run_identity.py --expected-sha "$GITHUB_SHA" --github-env "$GITHUB_ENV"
       - uses: actions/setup-python@v5
@@ -192,7 +196,7 @@ jobs:
   acquire-full-shards:
     needs: plan-full-run
     strategy:
-      fail-fast: false
+      fail-fast: ${{ github.event_name == 'workflow_dispatch' }}
       # Scheduled production retains the certified two-job legacy path until a
       # complete governed parallel certification authorizes schedule cutover.
       max-parallel: ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.parallel_workers || '2') }}
@@ -203,6 +207,10 @@ jobs:
       FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Materialize exact governed acquisition universe
+        run: git show "$GOVERNED_UNIVERSE_COMMIT:total_market_universe.json" > total_market_universe.json
       - name: Resolve immutable run identity from checkout
         run: python3 scripts/resolve_finnhub_run_identity.py --expected-sha "$GITHUB_SHA" --github-env "$GITHUB_ENV"
       - uses: actions/setup-python@v5
@@ -221,6 +229,7 @@ jobs:
           python scripts/run_finnhub_full_universe.py run-shard
           --shard-index ${{ matrix.shard_index }}
           --parallel-workers "$PARALLEL_WORKERS"
+          ${{ github.event_name == 'workflow_dispatch' && '--strict-provider-health' || '' }}
           --checkpoint-dir audit_results/checkpoints/full-shard-${{ matrix.shard_index }}
           --output audit_results/full_universe/shard
       - uses: actions/upload-artifact@v4
@@ -237,6 +246,10 @@ jobs:
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Materialize exact governed acquisition universe
+        run: git show "$GOVERNED_UNIVERSE_COMMIT:total_market_universe.json" > total_market_universe.json
       - name: Resolve immutable run identity from checkout
         run: python3 scripts/resolve_finnhub_run_identity.py --expected-sha "$GITHUB_SHA" --github-env "$GITHUB_ENV"
       - uses: actions/setup-python@v5
@@ -254,7 +267,8 @@ jobs:
           --shards audit_results/full_universe/downloaded
           --output audit_results/full_universe/final
       - name: Confirm production artifacts unchanged
-        run: >-
+        run: |
+          git restore --source=HEAD -- total_market_universe.json
           git diff --exit-code -- market_full_scan.json market_prescreen.json
           market_scan_state.json publication_manifest.json discovery_candidate_pool.json
           full_evaluation_pool.json total_market_universe.json
