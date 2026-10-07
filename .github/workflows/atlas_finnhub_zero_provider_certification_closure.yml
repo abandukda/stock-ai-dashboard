@@ -1,0 +1,133 @@
+name: ATLAS Finnhub Zero-Provider Certification Closure
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: "Explicit historical run containing all certified shard artifacts"
+        required: true
+        type: string
+      source_sha:
+        description: "Exact evidence source SHA embedded in every certified manifest"
+        required: true
+        type: string
+      source_run_identity:
+        description: "Exact immutable run identity embedded in every certified manifest"
+        required: true
+        type: string
+      expected_candidate_digest:
+        description: "Exact certified candidate digest"
+        required: true
+        type: string
+      expected_publication_digest:
+        description: "Exact certified publication bundle digest"
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+env:
+  PYTHONPATH: "."
+  GOVERNED_UNIVERSE_COMMIT: aa12ff9e89c1ac72e20aadad41decfba9a3d774d
+
+jobs:
+  certify-existing-evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      - name: Record closure execution identity
+        run: |
+          test -n "${{ inputs.source_run_id }}"
+          test -n "${{ inputs.source_sha }}"
+          test -n "${{ inputs.source_run_identity }}"
+          test -n "${{ inputs.expected_candidate_digest }}"
+          test -n "${{ inputs.expected_publication_digest }}"
+          echo "CLOSURE_STARTED_EPOCH=$(date +%s)" >> "$GITHUB_ENV"
+          echo "EXECUTION_SHA=$GITHUB_SHA" >> "$GITHUB_ENV"
+      - name: Materialize exact governed universe without provider access
+        run: git show "$GOVERNED_UNIVERSE_COMMIT:total_market_universe.json" > total_market_universe.json
+      - name: Download explicitly pinned certified shard artifacts
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.source_run_id }}
+          pattern: atlas-finnhub-full-shard-*-${{ inputs.source_run_id }}
+          path: audit_results/zero_provider_closure/evidence
+          merge-multiple: true
+      - name: Validate 41 certified historical checkpoints and identities
+        run: >-
+          python scripts/run_finnhub_zero_provider_closure.py validate-evidence
+          --evidence-root audit_results/zero_provider_closure/evidence
+          --universe total_market_universe.json
+          --source-run-id "${{ inputs.source_run_id }}"
+          --source-sha "${{ inputs.source_sha }}"
+          --source-run-identity "${{ inputs.source_run_identity }}"
+          --output audit_results/zero_provider_closure/report/evidence_validation.json
+      - name: Aggregate and deterministically replay validated evidence only
+        run: >-
+          python scripts/run_finnhub_full_universe.py aggregate
+          --shards audit_results/zero_provider_closure/evidence
+          --source-sha "${{ inputs.source_sha }}"
+          --evidence-snapshot "$(python -c 'import json; print(json.load(open("audit_results/zero_provider_closure/report/evidence_validation.json"))["evidence_snapshot_at"])')"
+          --parallel-workers 5
+          --global-requests-per-minute 500
+          --require-certified-shard-checkpoints
+          --output audit_results/zero_provider_closure/final
+      - name: Confirm zero provider calls
+        run: |
+          python - <<'PY'
+          import json
+          gate = json.load(open("audit_results/zero_provider_closure/final/full_universe_gate_report.json"))
+          profile = json.load(open("audit_results/zero_provider_closure/final/aggregation_profile.json"))
+          assert gate["provider_call_telemetry"]["provider_calls"] == 36198
+          assert profile["provider_calls_during_aggregation"] == 0
+          PY
+      - name: Confirm production artifacts unchanged
+        run: |
+          git restore --source=HEAD -- total_market_universe.json
+          governed_artifacts=(
+            market_full_scan.json
+            market_prescreen.json
+            market_scan_state.json
+            publication_manifest.json
+            discovery_candidate_pool.json
+            full_evaluation_pool.json
+            total_market_universe.json
+          )
+          git diff --exit-code -- "${governed_artifacts[@]}"
+      - name: Build final zero-provider closure report
+        run: >-
+          python scripts/run_finnhub_zero_provider_closure.py finalize
+          --gate-report audit_results/zero_provider_closure/final/full_universe_gate_report.json
+          --aggregation-profile audit_results/zero_provider_closure/final/aggregation_profile.json
+          --preflight audit_results/zero_provider_closure/report/evidence_validation.json
+          --execution-sha "$EXECUTION_SHA"
+          --expected-candidate-digest "${{ inputs.expected_candidate_digest }}"
+          --expected-publication-digest "${{ inputs.expected_publication_digest }}"
+          --repository-integrity PASS
+          --closure-started-epoch "$CLOSURE_STARTED_EPOCH"
+          --output audit_results/zero_provider_closure/report/closure_report.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atlas-finnhub-zero-provider-closure-${{ github.run_id }}
+          path: |
+            audit_results/zero_provider_closure/report
+            audit_results/zero_provider_closure/final/full_universe_gate_report.json
+            audit_results/zero_provider_closure/final/checkpoint_summary.json
+            audit_results/zero_provider_closure/final/provider_call_telemetry.json
+            audit_results/zero_provider_closure/final/determinism_report.json
+            audit_results/zero_provider_closure/final/determinism_candidate_digests.json
+            audit_results/zero_provider_closure/final/evidence_inspector_coverage.json
+            audit_results/zero_provider_closure/final/aggregation_profile.json
+          if-no-files-found: warn
+          retention-days: 30
