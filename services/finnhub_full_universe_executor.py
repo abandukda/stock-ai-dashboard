@@ -13,6 +13,8 @@ import hashlib
 import json
 import math
 from pathlib import Path
+import resource
+import sys
 import time
 from typing import Any, Callable, Mapping, Sequence
 
@@ -21,6 +23,7 @@ from services.evidence_inspector import inspect_ticker
 from services.finnhub_canonical_authority import AUTHORITY_VERSION, FinnhubCanonicalAdapter
 from services.finnhub_shadow_provider import FINNHUB_PAID_CORE_CERTIFICATION_LICENSE, FinnhubShadowAdapter
 from services.finnhub_forward_valuation_bridge import apply_forward_inputs
+from services.finnhub_rate_governance import FinnhubRateGovernor
 from services.executor_publication_bridge import build_publication_bundle, bridge_evaluation
 from services.full_universe_brain_certification import (
     REPORT_CARD_PROSPECTIVE_ACTIVE, build_immutable_candidate, certify_complete_run,
@@ -32,6 +35,10 @@ from services.technical_intelligence.engine import DailyBar
 
 
 VERSION = "ATLAS_FINNHUB_FULL_UNIVERSE_EXECUTOR_V2_MULTI_METHOD"
+SHARD_CHECKPOINT_CONTRACT_VERSION = "ATLAS_FINNHUB_CERTIFIED_SHARD_CHECKPOINT_V1"
+TRANSIENT_RETRY_POLICY_VERSION = "ATLAS_FINNHUB_TRANSIENT_RETRY_V1"
+MAX_TRANSIENT_RETRIES = 2
+TRANSIENT_HTTP_STATUSES = frozenset({500, 502, 503, 504})
 NORMALIZATION_VERSION = "FINNHUB_CANONICAL_NORMALIZATION_V1"
 PROVIDER_EVIDENCE_VERSION = "FINNHUB_CANONICAL_EVIDENCE_V1"
 VALUATION_VERSION = "ATLAS_PROFESSIONAL_VALUATION_V2"
@@ -60,6 +67,110 @@ def _canonical_json(value: Any) -> bytes:
 
 def _digest(value: Any) -> str:
     return hashlib.sha256(_canonical_json(value)).hexdigest()
+
+
+def classify_provider_failure(reason: str) -> str:
+    """Classify a serialized provider failure without broadening retry scope."""
+    normalized = str(reason or "").strip().upper()
+    if not normalized:
+        return "NONE"
+    if normalized == "HTTP_429":
+        return "GOVERNANCE_STOP"
+    if normalized.startswith("HTTP_"):
+        try:
+            status = int(normalized.split("_", 1)[1])
+        except (TypeError, ValueError):
+            return "NON_RETRYABLE"
+        return "TRANSIENT" if status in TRANSIENT_HTTP_STATUSES else "NON_RETRYABLE"
+    transient_tokens = (
+        "READTIMEOUT", "READ_TIMEOUT", "CONNECTTIMEOUT", "CONNECT_TIMEOUT",
+        "CONNECTIONRESET", "CONNECTION_RESET", "CONNECTION RESET",
+    )
+    if any(token in normalized for token in transient_tokens):
+        return "TRANSIENT"
+    return "NON_RETRYABLE"
+
+
+def transient_retry_delay(symbol: str, capability: str, retry_index: int) -> float:
+    """Return bounded exponential delay plus deterministic sub-second jitter."""
+    if retry_index < 0 or retry_index >= MAX_TRANSIENT_RETRIES:
+        raise ValueError("retry index outside governed transient retry budget")
+    jitter = int(hashlib.sha256(
+        f"{TRANSIENT_RETRY_POLICY_VERSION}:{symbol}:{capability}:{retry_index}".encode()
+    ).hexdigest()[:4], 16) / 65535
+    return min(4.0, float(2 ** retry_index) + jitter)
+
+
+def shard_checkpoint_contract(
+    *, identity: Mapping[str, Any], shard: Mapping[str, Any], provider_configuration_identity: str,
+    global_requests_per_minute: float, burst_ceiling: float, parallel_workers: int,
+) -> dict[str, Any]:
+    return {
+        "checkpoint_contract_version": SHARD_CHECKPOINT_CONTRACT_VERSION,
+        "retry_policy_version": TRANSIENT_RETRY_POLICY_VERSION,
+        "source_sha": identity.get("source_sha"),
+        "run_identity_sha256": identity.get("run_identity_sha256"),
+        "provider_configuration_identity": provider_configuration_identity,
+        "governed_global_requests_per_minute": float(global_requests_per_minute),
+        "burst_ceiling_requests_per_second": float(burst_ceiling),
+        "parallel_workers": int(parallel_workers),
+        "expected_requests_per_symbol": len(AUTHORIZED_ACQUISITION_FAMILIES),
+        "shard_id": shard.get("shard_id"),
+        "expected_symbols": list(shard.get("symbols") or ()),
+        "expected_symbol_set_sha256": shard.get("symbol_list_sha256"),
+    }
+
+
+def build_certified_shard_checkpoint(
+    *, payload: Mapping[str, Any], artifact_digest: str, contract: Mapping[str, Any],
+) -> dict[str, Any]:
+    records = list(payload.get("records") or ())
+    telemetry = dict(payload.get("provider_telemetry") or {})
+    expected_symbols = list(contract.get("expected_symbols") or ())
+    actual_symbols = [str(item.get("ticker") or "").upper() for item in records]
+    if payload.get("shard", {}).get("shard_id") != contract.get("shard_id"):
+        raise ValueError("cannot certify shard with mismatched identity")
+    if len(records) != len(expected_symbols) or sorted(actual_symbols) != sorted(expected_symbols):
+        raise ValueError("cannot certify partial shard payload")
+    body = {
+        **dict(contract),
+        "completed_symbol_count": len(records),
+        "provider_call_count": int(telemetry.get("provider_calls") or 0),
+        "fresh_provider_call_count": int(telemetry.get("fresh_provider_calls") or 0),
+        "retry_count": int(telemetry.get("retry_count") or 0),
+        "acquisition_elapsed_seconds": float(telemetry.get("elapsed_seconds") or 0.0),
+        "acquisition_digest": payload.get("shard_digest"),
+        "artifact_digest": artifact_digest,
+        "completion_status": "CERTIFIED_COMPLETE",
+    }
+    return {**body, "manifest_digest": _digest(body)}
+
+
+def validate_certified_shard_checkpoint(
+    *, payload: Mapping[str, Any], artifact_digest: str, checkpoint: Mapping[str, Any],
+    expected_contract: Mapping[str, Any],
+) -> None:
+    manifest = dict(checkpoint)
+    manifest_digest = manifest.pop("manifest_digest", None)
+    if manifest_digest != _digest(manifest):
+        raise ValueError("certified shard checkpoint manifest digest mismatch")
+    for key, value in expected_contract.items():
+        if manifest.get(key) != value:
+            raise ValueError(f"certified shard checkpoint {key} mismatch")
+    if manifest.get("completion_status") != "CERTIFIED_COMPLETE":
+        raise ValueError("partial or failed shard checkpoint is not reusable")
+    records = list(payload.get("records") or ())
+    symbols = [str(item.get("ticker") or "").upper() for item in records]
+    if len(records) != len(expected_contract.get("expected_symbols") or ()):
+        raise ValueError("certified shard completed symbol count mismatch")
+    if sorted(symbols) != sorted(expected_contract.get("expected_symbols") or ()):
+        raise ValueError("certified shard symbol set mismatch")
+    if manifest.get("completed_symbol_count") != len(records):
+        raise ValueError("certified shard manifest symbol count mismatch")
+    if manifest.get("acquisition_digest") != payload.get("shard_digest"):
+        raise ValueError("certified shard acquisition digest mismatch")
+    if manifest.get("artifact_digest") != artifact_digest:
+        raise ValueError("certified shard artifact digest mismatch")
 
 
 def _analytical_projection(record: Mapping[str, Any]) -> dict[str, Any]:
@@ -240,11 +351,18 @@ def acquire_shard(
     identity: Mapping[str, Any], catalog: Mapping[str, Mapping[str, Any]],
     estimate_adapter: FinnhubShadowAdapter | None = None,
     pace_seconds: float = 1.05,
+    rate_governor: FinnhubRateGovernor | None = None,
     checkpoint_dir: Path | None = None,
+    strict_provider_health: bool = False,
 ) -> dict[str, Any]:
     """Acquire each authorized family once for every symbol in a shard."""
     started = time.monotonic()
+    started_epoch = time.time()
     rows, failures, calls, cache_hits, retry_count = [], [], 0, 0, 0
+    rate_limit_events, provider_errors = 0, 0
+    http_4xx_count, http_5xx_count, timeout_count = 0, 0, 0
+    request_attempts: dict[tuple[str, str], int] = {}
+    request_start_epoch_seconds: list[float] = []
     cache: dict[tuple[str, str], dict[str, Any]] = {}
     for symbol in shard["symbols"]:
         checkpoint_path = checkpoint_dir / f"{symbol}.json" if checkpoint_dir else None
@@ -270,18 +388,43 @@ def acquire_shard(
             if capability in CERTIFIED_FORWARD_ACQUISITION_FAMILIES:
                 params = {"freq": "annual"}
             transport = (estimate_adapter or adapter) if capability in CERTIFIED_FORWARD_ACQUISITION_FAMILIES else adapter
-            for attempt in range(3):
-                record = _fetch(transport, capability, symbol, pace_seconds, **params)
+            for attempt in range(MAX_TRANSIENT_RETRIES + 1):
+                if rate_governor is not None:
+                    rate_governor.before_request()
+                request_start_epoch_seconds.append(time.time())
+                record = _fetch(transport, capability, symbol, 0.0 if rate_governor else pace_seconds, **params)
                 calls += 1
+                request_attempts[key] = request_attempts.get(key, 0) + 1
                 reason = str((record.get("payload") or {}).get("reason") or "").upper()
-                retryable = reason == "HTTP_429" or any(reason == f"HTTP_{status}" for status in range(500, 600))
-                if not retryable or attempt == 2:
+                if reason == "HTTP_429":
+                    rate_limit_events += 1
+                if reason.startswith("HTTP_4"):
+                    http_4xx_count += 1
+                if reason.startswith("HTTP_5"):
+                    http_5xx_count += 1
+                if "TIMEOUT" in reason:
+                    timeout_count += 1
+                if reason.startswith("HTTP_") or reason.startswith("PROVIDER_ERROR:"):
+                    provider_errors += 1
+                classification = classify_provider_failure(reason)
+                if classification == "NONE":
+                    break
+                if classification != "TRANSIENT":
+                    if strict_provider_health:
+                        raise RuntimeError(f"STRICT_PROVIDER_HEALTH_STOP:{symbol}:{capability}:{reason}")
+                    break
+                if attempt == MAX_TRANSIENT_RETRIES:
+                    if strict_provider_health:
+                        raise RuntimeError(
+                            f"STRICT_PROVIDER_HEALTH_STOP:{symbol}:{capability}:{reason}:RETRY_BUDGET_EXHAUSTED"
+                        )
                     break
                 retry_count += 1
-                # Deterministic jitter prevents shard lockstep without changing
-                # analytical results or immutable evidence identity.
-                jitter = int(hashlib.sha256(f"{symbol}:{capability}:{attempt}".encode()).hexdigest()[:4], 16) / 65535
-                time.sleep((2 ** attempt) + jitter)
+                delay = transient_retry_delay(symbol, capability, attempt)
+                if rate_governor is not None:
+                    rate_governor.retry_delay(delay)
+                else:
+                    time.sleep(delay)
             cache[key] = record
             records[capability] = record
         core_records = {name: records[name] for name in CORE_ACQUISITION_FAMILIES}
@@ -335,7 +478,21 @@ def acquire_shard(
         "shard": dict(shard), "records": rows,
         "provider_telemetry": {
             "provider_calls": calls, "cache_hits": cache_hits,
+            "fresh_provider_calls": len(request_attempts),
+            "retry_provider_calls": retry_count,
             "calls_avoided": cache_hits, "retry_count": retry_count,
+            "http_429_count": rate_limit_events, "provider_error_count": provider_errors,
+            "http_4xx_count": http_4xx_count, "http_5xx_count": http_5xx_count,
+            "timeout_count": timeout_count,
+            "duplicate_or_reacquired_requests": max(
+                0, sum(max(0, count - 1) for count in request_attempts.values()) - retry_count,
+            ),
+            "rate_limit_wait_seconds": round(rate_governor.wait_seconds, 3) if rate_governor else 0.0,
+            "peak_requests_per_second": rate_governor.peak_requests_per_second if rate_governor else None,
+            "request_start_epoch_seconds": request_start_epoch_seconds,
+            "acquisition_started_epoch_seconds": started_epoch,
+            "acquisition_finished_epoch_seconds": time.time(),
+            "rate_contract": rate_governor.contract.as_dict() if rate_governor else None,
             "elapsed_seconds": round(elapsed, 3),
             "symbols_per_minute": round(len(rows) * 60 / elapsed, 3),
         },
@@ -347,6 +504,9 @@ def acquire_shard(
 def validate_shards(*, universe: Mapping[str, Any], identity: Mapping[str, Any],
                     shards: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
     expected = set(universe.get("supported_symbols") or ())
+    expected_shard_ids = {
+        item["shard_id"] for item in deterministic_shards(sorted(expected), shard_size=SHARD_SIZE)
+    }
     records, seen_shards = [], set()
     for payload in shards:
         if (payload.get("run_identity") or {}).get("run_identity_sha256") != identity.get("run_identity_sha256"):
@@ -360,6 +520,8 @@ def validate_shards(*, universe: Mapping[str, Any], identity: Mapping[str, Any],
         if _digest(sorted(symbols)) != (payload.get("shard") or {}).get("symbol_list_sha256"):
             raise ValueError("shard symbol digest mismatch")
         records.extend(values)
+    if seen_shards != expected_shard_ids:
+        raise ValueError("expected shard inventory is incomplete or unexpected")
     symbols = [str(item.get("ticker") or "").upper() for item in records]
     duplicates = [symbol for symbol, count in Counter(symbols).items() if count != 1]
     if duplicates or set(symbols) != expected:
@@ -745,12 +907,37 @@ def aggregate_complete_run(*, universe: Mapping[str, Any], identity: Mapping[str
                            checkpoint_dir: Path | None = None,
                            evaluation_checkpoint: Mapping[str, Any] | None = None,
                            candidate_checkpoint: Mapping[str, Any] | None = None) -> dict[str, Any]:
-    acquired = validate_shards(universe=universe, identity=identity, shards=shard_payloads)
+    phase_metrics: list[dict[str, Any]] = []
+
+    def profiled(phase: str, operation: Any) -> Any:
+        started = time.monotonic()
+        cpu_started = time.process_time()
+        value = operation()
+        phase_metrics.append({
+            "phase": phase,
+            "duration_seconds": round(time.monotonic() - started, 6),
+            "cpu_seconds": round(time.process_time() - cpu_started, 6),
+            "max_rss_kb": int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss // 1024
+                              if sys.platform == "darwin"
+                              else resource.getrusage(resource.RUSAGE_SELF).ru_maxrss),
+        })
+        return value
+
+    acquired = profiled(
+        "A_SHARD_INVENTORY_VALIDATION_AND_MERGE",
+        lambda: validate_shards(universe=universe, identity=identity, shards=shard_payloads),
+    )
     if evaluation_checkpoint is None:
-        first = evaluate_records(identity=identity, acquired=acquired, checkpoint_dir=checkpoint_dir)
-        completeness = certify_complete_run(
-            universe=universe, records=first["terminal_records"],
-            acquisition_complete=True, decision_processing_complete=True,
+        first = profiled(
+            "B_CANONICAL_EVALUATION_FORWARD",
+            lambda: evaluate_records(identity=identity, acquired=acquired, checkpoint_dir=checkpoint_dir),
+        )
+        completeness = profiled(
+            "C_COMPLETENESS_ACCOUNTING",
+            lambda: certify_complete_run(
+                universe=universe, records=first["terminal_records"],
+                acquisition_complete=True, decision_processing_complete=True,
+            ),
         )
         second = None
         second_completeness = None
@@ -773,21 +960,81 @@ def aggregate_complete_run(*, universe: Mapping[str, Any], identity: Mapping[str
             determinism = dict(candidate_checkpoint["determinism"])
         else:
             if second is None:
-                second = evaluate_records(identity=identity, acquired=list(reversed(acquired)))
-                second_completeness = certify_complete_run(
-                    universe=universe, records=second["terminal_records"],
-                    acquisition_complete=True, decision_processing_complete=True,
+                second = profiled(
+                    "D_CANONICAL_EVALUATION_REVERSE_REPLAY",
+                    lambda: evaluate_records(identity=identity, acquired=list(reversed(acquired))),
                 )
-            candidate_state = build_candidate_determinism_checkpoint(
-                universe=universe, identity=identity, first=first, completeness=completeness,
-                second=second, second_completeness=second_completeness,
+                second_completeness = profiled(
+                    "E_REPLAY_COMPLETENESS_ACCOUNTING",
+                    lambda: certify_complete_run(
+                        universe=universe, records=second["terminal_records"],
+                        acquisition_complete=True, decision_processing_complete=True,
+                    ),
+                )
+            candidate_state = profiled(
+                "F_CANDIDATE_CONSTRUCTION_AND_DETERMINISM",
+                lambda: build_candidate_determinism_checkpoint(
+                    universe=universe, identity=identity, first=first, completeness=completeness,
+                    second=second, second_completeness=second_completeness,
+                ),
             )
             candidate = candidate_state["candidate"]
             second_candidate = candidate_state["second_candidate"]
             determinism = candidate_state["determinism"]
+    elif not candidate_eligible and completeness["state"] == "FULL_UNIVERSE_CERTIFIED":
+        second = profiled(
+            "D_CANARY_DETERMINISTIC_REVERSE_REPLAY",
+            lambda: evaluate_records(identity=identity, acquired=list(reversed(acquired))),
+        )
+        first_records = sorted(first["terminal_records"], key=lambda item: str(item.get("ticker")))
+        second_records = sorted(second["terminal_records"], key=lambda item: str(item.get("ticker")))
+        first_digest, second_digest = _digest(first_records), _digest(second_records)
+        determinism = {
+            "status": "PASS" if first_digest == second_digest else "FAIL",
+            "first_terminal_records_digest": first_digest,
+            "second_terminal_records_digest": second_digest,
+            "record_count": len(first_records),
+        }
     calls = sum(int((payload.get("provider_telemetry") or {}).get("provider_calls") or 0) for payload in shard_payloads)
     cache_hits = sum(int((payload.get("provider_telemetry") or {}).get("cache_hits") or 0) for payload in shard_payloads)
     retries = sum(int((payload.get("provider_telemetry") or {}).get("retry_count") or 0) for payload in shard_payloads)
+    rate_limits = sum(int((payload.get("provider_telemetry") or {}).get("http_429_count") or 0) for payload in shard_payloads)
+    provider_errors = sum(int((payload.get("provider_telemetry") or {}).get("provider_error_count") or 0) for payload in shard_payloads)
+    http_4xx = sum(int((payload.get("provider_telemetry") or {}).get("http_4xx_count") or 0) for payload in shard_payloads)
+    http_5xx = sum(int((payload.get("provider_telemetry") or {}).get("http_5xx_count") or 0) for payload in shard_payloads)
+    timeouts = sum(int((payload.get("provider_telemetry") or {}).get("timeout_count") or 0) for payload in shard_payloads)
+    duplicates = sum(int((payload.get("provider_telemetry") or {}).get("duplicate_or_reacquired_requests") or 0) for payload in shard_payloads)
+    peak_rps = max((int((payload.get("provider_telemetry") or {}).get("peak_requests_per_second") or 0) for payload in shard_payloads), default=0)
+    request_starts = sorted(
+        float(value)
+        for payload in shard_payloads
+        for value in ((payload.get("provider_telemetry") or {}).get("request_start_epoch_seconds") or [])
+    )
+    acquisition_starts = [
+        float(value) for payload in shard_payloads
+        if (value := (payload.get("provider_telemetry") or {}).get("acquisition_started_epoch_seconds")) is not None
+    ]
+    acquisition_finishes = [
+        float(value) for payload in shard_payloads
+        if (value := (payload.get("provider_telemetry") or {}).get("acquisition_finished_epoch_seconds")) is not None
+    ]
+
+    def peak_rolling(window_seconds: float) -> int:
+        peak = left = 0
+        for right, timestamp in enumerate(request_starts):
+            while timestamp - request_starts[left] >= window_seconds:
+                left += 1
+            peak = max(peak, right - left + 1)
+        return peak
+
+    acquisition_wall = (
+        max(acquisition_finishes) - min(acquisition_starts)
+        if acquisition_starts and acquisition_finishes else 0.0
+    )
+    configured_workers = max((
+        int(((payload.get("provider_telemetry") or {}).get("rate_contract") or {}).get("parallel_workers") or 1)
+        for payload in shard_payloads
+    ), default=1)
     elapsed = sum(float((payload.get("provider_telemetry") or {}).get("elapsed_seconds") or 0) for payload in shard_payloads)
     canary_coverage = _canary_coverage(acquired) if not candidate_eligible else None
     canary_coverage_pass = canary_coverage is None or canary_coverage["status"] == "PASS"
@@ -796,9 +1043,12 @@ def aggregate_complete_run(*, universe: Mapping[str, Any], identity: Mapping[str
     publication_bundle_digest = None
     if candidate is not None:
         source_rows = {str(item.get("ticker")): dict(item.get("row") or {}) for item in acquired}
-        artifacts, manifest = build_publication_bundle(
-            candidate=candidate, source_rows=source_rows,
-            generated_at=str(identity["evidence_snapshot_at"]),
+        artifacts, manifest = profiled(
+            "G_PUBLICATION_CANDIDATE_GENERATION",
+            lambda: build_publication_bundle(
+                candidate=candidate, source_rows=source_rows,
+                generated_at=str(identity["evidence_snapshot_at"]),
+            ),
         )
         publication_bundle = {"artifacts": artifacts, "manifest": manifest}
         publication_bundle_digest = _digest({
@@ -832,6 +1082,15 @@ def aggregate_complete_run(*, universe: Mapping[str, Any], identity: Mapping[str
         "provider_call_telemetry": {
             "provider_calls": calls, "cache_hits": cache_hits, "calls_avoided": cache_hits,
             "retry_count": retries, "retry_rate": round(retries / calls, 6) if calls else 0.0,
+            "http_429_count": rate_limits, "provider_error_count": provider_errors,
+            "http_4xx_count": http_4xx, "http_5xx_count": http_5xx,
+            "timeout_count": timeouts, "duplicate_or_reacquired_requests": duplicates,
+            "peak_requests_per_second": peak_rps,
+            "global_peak_rolling_requests_per_second": peak_rolling(1.0),
+            "global_peak_rolling_requests_per_minute": peak_rolling(60.0),
+            "provider_acquisition_wall_seconds": round(acquisition_wall, 3),
+            "effective_sustained_requests_per_minute": round(calls * 60 / acquisition_wall, 3) if acquisition_wall else 0.0,
+            "worker_utilization": round(elapsed / (acquisition_wall * configured_workers), 6) if acquisition_wall else 0.0,
             "summed_shard_elapsed_seconds": round(elapsed, 3),
             "symbols_per_minute_serial_equivalent": round(len(acquired) * 60 / elapsed, 3) if elapsed else 0.0,
         },
@@ -843,6 +1102,7 @@ def aggregate_complete_run(*, universe: Mapping[str, Any], identity: Mapping[str
         "publication_diagnostics": publication_diagnostics,
         "new_full_universe_candidate_certified": new_candidate_certified,
         "release_smoke_ready": new_candidate_certified,
+        "aggregation_phase_metrics": phase_metrics,
         "determinism_candidates": {"first": candidate, "second": second_candidate},
         "state": (
             "FINNHUB_FULL_UNIVERSE_EXECUTOR_CERTIFIED"
@@ -853,6 +1113,8 @@ def aggregate_complete_run(*, universe: Mapping[str, Any], identity: Mapping[str
             and not first["shadow_evidence_leakage"] and first["authority_violations"] == 0
             else "CANARY_PASS"
             if not candidate_eligible and completeness["state"] == "FULL_UNIVERSE_CERTIFIED"
+            and determinism.get("status") == "PASS"
+            and rate_limits == 0 and provider_errors == 0 and timeouts == 0
             and first["inspector"]["status"] == "PASS"
             and completeness.get("credential_entitlement_failures") == 0
             and not completeness.get("atlas_integration_failures")
@@ -897,9 +1159,11 @@ def _canary_coverage(acquired: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
 
 __all__ = [
     "ACTION_VERSION", "AUTHORIZED_ACQUISITION_FAMILIES", "NORMALIZATION_VERSION",
-    "PROVIDER_EVIDENCE_VERSION", "SHARD_SIZE", "VERSION", "acquire_shard",
+    "PROVIDER_EVIDENCE_VERSION", "SHARD_CHECKPOINT_CONTRACT_VERSION", "SHARD_SIZE",
+    "TRANSIENT_RETRY_POLICY_VERSION", "VERSION", "acquire_shard",
     "aggregate_complete_run", "build_candidate_determinism_checkpoint", "build_single_immutable_candidate",
-    "build_run_identity", "deserialize_bars",
+    "build_certified_shard_checkpoint", "build_run_identity", "classify_provider_failure", "deserialize_bars",
     "deterministic_canary", "deterministic_shards", "evaluate_records",
-    "serialize_bars", "validate_executor_checkpoint", "validate_shards",
+    "serialize_bars", "shard_checkpoint_contract", "transient_retry_delay",
+    "validate_certified_shard_checkpoint", "validate_executor_checkpoint", "validate_shards",
 ]

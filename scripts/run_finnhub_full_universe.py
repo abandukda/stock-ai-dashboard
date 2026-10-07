@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import resource
+import shutil
 import sys
 import time
 from typing import Any, Mapping
@@ -24,12 +25,15 @@ from services.finnhub_canonical_authority import FinnhubCanonicalAdapter
 from services.finnhub_shadow_provider import FINNHUB_PAID_CORE_CERTIFICATION_LICENSE, FinnhubShadowAdapter
 from services.finnhub_full_universe_executor import (
     SHARD_SIZE, acquire_shard, aggregate_complete_run, build_run_identity, build_single_immutable_candidate,
+    build_certified_shard_checkpoint,
     combine_evaluation_results, deterministic_canary, deterministic_shards,
     evaluate_records, validate_shards, compare_replay_candidates,
+    shard_checkpoint_contract, validate_certified_shard_checkpoint,
     _buy_now_report, _gate_diagnostics, _method_distribution,
     _pillar_distribution, _publication_diagnostics, _route_distribution,
 )
 from services.executor_publication_bridge import build_publication_bundle, build_publication_bundle_streaming
+from services.finnhub_rate_governance import SAFE_GLOBAL_REQUESTS_PER_SECOND, build_parallel_rate_governor
 from services.full_universe_brain_certification import (
     certify_complete_run, compare_deterministic_candidates, load_frozen_universe,
 )
@@ -55,6 +59,36 @@ def _write(path: Path, payload: Any) -> None:
         handle.write("\n")
 
 
+def _write_publication_bundle(output: Path, publication_bundle: Mapping[str, Any]) -> dict[str, Any]:
+    """Write each distinct canonical payload once and hard-link exact duplicates."""
+    output.mkdir(parents=True, exist_ok=True)
+    physical_by_identity: dict[int, Path] = {}
+    logical_bytes = 0
+    physical_bytes = 0
+    for name, payload in publication_bundle["artifacts"].items():
+        target = output / name
+        existing = physical_by_identity.get(id(payload))
+        if existing is not None:
+            if target.exists():
+                target.unlink()
+            os.link(existing, target)
+            size = existing.stat().st_size
+        else:
+            _write(target, payload)
+            physical_by_identity[id(payload)] = target
+            size = target.stat().st_size
+            physical_bytes += size
+        logical_bytes += size
+    manifest_path = output / "publication_manifest.json"
+    _write(manifest_path, publication_bundle["manifest"])
+    manifest_size = manifest_path.stat().st_size
+    return {
+        "logical_bytes": logical_bytes + manifest_size,
+        "physical_bytes_written": physical_bytes + manifest_size,
+        "deduplicated_bytes": logical_bytes - physical_bytes,
+    }
+
+
 def _digest(payload: Any) -> str:
     digest = hashlib.sha256()
     encoder = json.JSONEncoder(sort_keys=True, separators=(",", ":"), default=str)
@@ -63,13 +97,86 @@ def _digest(payload: Any) -> str:
     return digest.hexdigest()
 
 
+def _provider_configuration_identity() -> str:
+    return _digest({
+        "authority": "FINNHUB_CANONICAL",
+        "core_adapter": "FinnhubCanonicalAdapter",
+        "estimate_adapter": "FinnhubShadowAdapter:PAID_CORE_CERTIFICATION",
+        "authorized_families": [
+            "company_profile", "financial_statements", "basic_financials",
+            "historical_ohlcv", "eps_estimates", "ebitda_estimates",
+        ],
+    })
+
+
+def _shard_contract(*, identity: Mapping[str, Any], shard: Mapping[str, Any],
+                    configured_rpm: float, parallel_workers: int) -> dict[str, Any]:
+    return shard_checkpoint_contract(
+        identity=identity, shard=shard,
+        provider_configuration_identity=_provider_configuration_identity(),
+        global_requests_per_minute=configured_rpm,
+        burst_ceiling=SAFE_GLOBAL_REQUESTS_PER_SECOND,
+        parallel_workers=parallel_workers,
+    )
+
+
+def _reuse_certified_shard(
+    *, resume_root: Path | None, shard: Mapping[str, Any], expected_contract: Mapping[str, Any],
+) -> tuple[dict[str, Any], bytes, dict[str, Any]] | None:
+    if resume_root is None or not resume_root.exists():
+        return None
+    payload_paths = list(resume_root.rglob(f"{shard['shard_id']}.json"))
+    checkpoint_paths = list(resume_root.rglob(f"{shard['shard_id']}.checkpoint.json"))
+    if not payload_paths and not checkpoint_paths:
+        return None
+    if len(payload_paths) != 1 or len(checkpoint_paths) != 1:
+        raise ValueError("resume shard payload/checkpoint inventory is incomplete or ambiguous")
+    raw = payload_paths[0].read_bytes()
+    payload = json.loads(raw)
+    checkpoint = json.loads(checkpoint_paths[0].read_text(encoding="utf-8"))
+    validate_certified_shard_checkpoint(
+        payload=payload, artifact_digest=hashlib.sha256(raw).hexdigest(),
+        checkpoint=checkpoint, expected_contract=expected_contract,
+    )
+    return payload, raw, checkpoint
+
+
+def _validate_certified_shard_set(
+    *, root: Path, identity: Mapping[str, Any], shards: list[Mapping[str, Any]],
+    configured_rpm: float, parallel_workers: int,
+) -> None:
+    payload_paths = _shard_files(root)
+    checkpoint_paths = sorted((root / "certification").glob("shard-*.checkpoint.json"))
+    if len(payload_paths) != len(shards) or len(checkpoint_paths) != len(shards):
+        raise ValueError(f"certified shard inventory requires {len(shards)}/{len(shards)} valid artifacts")
+    payload_by_name = {path.stem: path for path in payload_paths}
+    checkpoint_by_name = {path.name.removesuffix(".checkpoint.json"): path for path in checkpoint_paths}
+    for shard in shards:
+        shard_id = str(shard["shard_id"])
+        payload_path = payload_by_name.get(shard_id)
+        checkpoint_path = checkpoint_by_name.get(shard_id)
+        if payload_path is None or checkpoint_path is None:
+            raise ValueError(f"certified shard artifact missing for {shard_id}")
+        raw = payload_path.read_bytes()
+        validate_certified_shard_checkpoint(
+            payload=json.loads(raw), artifact_digest=hashlib.sha256(raw).hexdigest(),
+            checkpoint=json.loads(checkpoint_path.read_text(encoding="utf-8")),
+            expected_contract=_shard_contract(
+                identity=identity, shard=shard, configured_rpm=configured_rpm,
+                parallel_workers=parallel_workers,
+            ),
+        )
+
+
 def _profiled(phase: str, operation: Any) -> tuple[Any, dict[str, Any]]:
     started = time.monotonic()
     result = operation()
     return result, {
         "phase": phase,
         "duration_seconds": round(time.monotonic() - started, 6),
-        "max_rss_kb": int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss),
+        "max_rss_kb": int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss // 1024
+                          if sys.platform == "darwin"
+                          else resource.getrusage(resource.RUSAGE_SELF).ru_maxrss),
     }
 
 
@@ -241,33 +348,115 @@ def run_shard(args: argparse.Namespace) -> int:
     if args.shard_index < 0 or args.shard_index >= len(shards):
         raise ValueError("shard index outside deterministic manifest")
     catalog, _ = load_governed_classifications()
+    configured_rpm = args.global_requests_per_minute
+    if configured_rpm is None:
+        raw_rpm = os.getenv("ATLAS_FINNHUB_GLOBAL_REQUESTS_PER_MINUTE", "").strip()
+        configured_rpm = float(raw_rpm) if raw_rpm else None
+    if args.certify_shard_checkpoint and configured_rpm is None:
+        raise ValueError("certified shard checkpoints require an explicit governed RPM")
+    contract = _shard_contract(
+        identity=identity, shard=shards[args.shard_index],
+        configured_rpm=float(configured_rpm or 0), parallel_workers=args.parallel_workers,
+    ) if args.certify_shard_checkpoint else None
+    reusable = _reuse_certified_shard(
+        resume_root=args.resume_shards, shard=shards[args.shard_index], expected_contract=contract,
+    ) if contract is not None else None
+    if reusable is not None:
+        payload, raw, checkpoint = reusable
+        output_path = args.output / f"{shards[args.shard_index]['shard_id']}.json"
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_bytes(raw)
+        checkpoint_path = args.output / "certification" / f"{shards[args.shard_index]['shard_id']}.checkpoint.json"
+        _write(checkpoint_path, checkpoint)
+        _write(args.output / "resume_telemetry" / f"{shards[args.shard_index]['shard_id']}.json", {
+            "shard_id": shards[args.shard_index]["shard_id"], "reused_certified_shard": True,
+            "resumed_run_provider_calls": 0, "resumed_run_retry_calls": 0,
+        })
+        print(json.dumps({
+            "shard": shards[args.shard_index]["shard_id"], "reused_certified_shard": True,
+            "resumed_shards": 1, "fresh_provider_calls": 0, "retry_provider_calls": 0,
+            "provider_calls": 0,
+        }))
+        return 0
+    rate_governor = build_parallel_rate_governor(
+        global_requests_per_minute=configured_rpm,
+        parallel_workers=args.parallel_workers,
+        shard_index=args.shard_index,
+    )
     payload = acquire_shard(
         adapter=FinnhubCanonicalAdapter(), shard=shards[args.shard_index],
         estimate_adapter=FinnhubShadowAdapter(license_class=FINNHUB_PAID_CORE_CERTIFICATION_LICENSE),
         identity=identity, catalog=catalog, pace_seconds=max(0.0, args.pace_seconds),
+        rate_governor=rate_governor,
         checkpoint_dir=args.checkpoint_dir,
+        strict_provider_health=args.strict_provider_health,
     )
-    _write(args.output / f"{shards[args.shard_index]['shard_id']}.json", payload)
+    output_path = args.output / f"{shards[args.shard_index]['shard_id']}.json"
+    _write(output_path, payload)
+    if contract is not None:
+        checkpoint = build_certified_shard_checkpoint(
+            payload=payload, artifact_digest=hashlib.sha256(output_path.read_bytes()).hexdigest(),
+            contract=contract,
+        )
+        _write(
+            args.output / "certification" / f"{shards[args.shard_index]['shard_id']}.checkpoint.json",
+            checkpoint,
+        )
+        _write(args.output / "resume_telemetry" / f"{shards[args.shard_index]['shard_id']}.json", {
+            "shard_id": shards[args.shard_index]["shard_id"], "reused_certified_shard": False,
+            "resumed_run_provider_calls": int(payload["provider_telemetry"].get("provider_calls") or 0),
+            "resumed_run_retry_calls": int(payload["provider_telemetry"].get("retry_count") or 0),
+        })
     print(json.dumps({"shard": shards[args.shard_index]["shard_id"], **payload["provider_telemetry"]}))
     return 0
 
 
 def aggregate(args: argparse.Namespace) -> int:
+    aggregate_started = time.monotonic()
+    cpu_started = time.process_time()
     frozen = load_frozen_universe(args.universe)
     scope = _scope(frozen, args.canary_size)
     identity = _identity(frozen, args)
+    if args.require_certified_shard_checkpoints:
+        configured_rpm = args.global_requests_per_minute
+        if configured_rpm is None:
+            raw_rpm = os.getenv("ATLAS_FINNHUB_GLOBAL_REQUESTS_PER_MINUTE", "").strip()
+            configured_rpm = float(raw_rpm) if raw_rpm else None
+        if configured_rpm is None:
+            raise ValueError("certified shard aggregation requires an explicit governed RPM")
+        _validate_certified_shard_set(
+            root=args.shards, identity=identity,
+            shards=deterministic_shards(scope["supported_symbols"], shard_size=args.shard_size),
+            configured_rpm=float(configured_rpm), parallel_workers=args.parallel_workers,
+        )
     payloads = [json.loads(path.read_text(encoding="utf-8")) for path in sorted(args.shards.glob("shard-*.json"))]
     report = aggregate_complete_run(
         universe=scope, identity=identity, shard_payloads=payloads,
         candidate_eligible=args.canary_size == 0,
         checkpoint_dir=args.checkpoint_dir,
     )
+    resume_telemetry = [
+        json.loads(path.read_text(encoding="utf-8"))
+        for path in sorted((args.shards / "resume_telemetry").glob("shard-*.json"))
+    ]
+    if resume_telemetry:
+        report["provider_call_telemetry"].update({
+            "reused_certified_shards": sum(bool(item.get("reused_certified_shard")) for item in resume_telemetry),
+            "fresh_or_reacquired_shards": sum(not bool(item.get("reused_certified_shard")) for item in resume_telemetry),
+            "resumed_run_provider_calls": sum(int(item.get("resumed_run_provider_calls") or 0) for item in resume_telemetry),
+            "resumed_run_retry_calls": sum(int(item.get("resumed_run_retry_calls") or 0) for item in resume_telemetry),
+            "fresh_full_universe_acquisition_equivalent_calls": report["provider_call_telemetry"]["provider_calls"],
+        })
     candidates = report.pop("determinism_candidates", {})
     publication_bundle = report.pop("publication_bundle", None)
-    if candidates.get("first") is not None:
-        _write(args.output / "determinism_candidate_first.json", candidates["first"])
-    if candidates.get("second") is not None:
-        _write(args.output / "determinism_candidate_second.json", candidates["second"])
+    candidate = report.pop("immutable_candidate", None)
+    if candidates:
+        _write(args.output / "determinism_candidate_digests.json", {
+            "status": report["determinism"].get("status"),
+            "first_candidate_digest": (candidates.get("first") or {}).get("candidate_digest"),
+            "second_candidate_digest": (candidates.get("second") or {}).get("candidate_digest"),
+            "structural_diff": report["determinism"].get("structural_diff"),
+        })
     _write(args.output / "full_universe_gate_report.json", report)
     _write(args.output / "checkpoint_summary.json", report["full_universe_completeness"])
     _write(args.output / "provider_call_telemetry.json", report["provider_call_telemetry"])
@@ -287,12 +476,23 @@ def aggregate(args: argparse.Namespace) -> int:
     _write(args.output / "action_distribution.json", report["action_distribution"])
     _write(args.output / "buy_now_provenance.json", report["buy_now_provenance"])
     _write(args.output / "determinism_report.json", report["determinism"])
-    if report.get("immutable_candidate") is not None:
-        _write(args.output / "immutable_candidate.json", report["immutable_candidate"])
+    if candidate is not None:
+        _write(args.output / "immutable_candidate.json", candidate)
+    publication_io = {"logical_bytes": 0, "physical_bytes_written": 0, "deduplicated_bytes": 0}
     if publication_bundle is not None:
-        for name, payload in publication_bundle["artifacts"].items():
-            _write(args.output / "publication_bundle" / name, payload)
-        _write(args.output / "publication_bundle" / "publication_manifest.json", publication_bundle["manifest"])
+        publication_io = _write_publication_bundle(args.output / "publication_bundle", publication_bundle)
+    _write(args.output / "aggregation_profile.json", {
+        "phase_metrics": report.get("aggregation_phase_metrics") or [],
+        "total_wall_seconds": round(time.monotonic() - aggregate_started, 6),
+        "total_cpu_seconds": round(time.process_time() - cpu_started, 6),
+        "max_rss_kb": int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss // 1024
+                          if sys.platform == "darwin"
+                          else resource.getrusage(resource.RUSAGE_SELF).ru_maxrss),
+        "shard_input_bytes": sum(path.stat().st_size for path in sorted(args.shards.glob("shard-*.json"))),
+        "candidate_bytes_written": (args.output / "immutable_candidate.json").stat().st_size if candidate is not None else 0,
+        "publication_io": publication_io,
+        "provider_calls_during_aggregation": 0,
+    })
     print(json.dumps({"state": report["state"], "symbols": report["full_universe_completeness"]["terminal_record_count"]}))
     return 0 if report["state"] in {"CANARY_PASS", "FINNHUB_FULL_UNIVERSE_EXECUTOR_CERTIFIED"} else 1
 
@@ -821,6 +1021,12 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--shard-size", type=int, default=SHARD_SIZE)
     result.add_argument("--shard-index", type=int, default=0)
     result.add_argument("--pace-seconds", type=float, default=1.05)
+    result.add_argument("--global-requests-per-minute", type=float)
+    result.add_argument("--parallel-workers", type=int, default=1)
+    result.add_argument("--strict-provider-health", action="store_true")
+    result.add_argument("--certify-shard-checkpoint", action="store_true")
+    result.add_argument("--resume-shards", type=Path)
+    result.add_argument("--require-certified-shard-checkpoints", action="store_true")
     result.add_argument("--checkpoint-dir", type=Path)
     result.add_argument("--merged-checkpoint", type=Path)
     result.add_argument("--canonical-checkpoint", type=Path)
