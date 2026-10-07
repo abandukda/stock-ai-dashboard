@@ -1,11 +1,17 @@
 import hashlib
 import json
+from pathlib import Path
+import subprocess
+import textwrap
 from types import SimpleNamespace
 
 import pytest
 
 import services.finnhub_full_universe_executor as executor
 import scripts.run_finnhub_full_universe as runner
+
+
+WORKFLOW = Path(".github/workflows/atlas_finnhub_full_universe_certification.yml")
 
 
 def _universe(symbols=("A",)):
@@ -259,3 +265,22 @@ def test_retry_telemetry_does_not_change_deterministic_analytical_replay():
     comparison = executor.compare_replay_candidates(first, second)
     assert comparison["analytical_mismatch_count"] == 0
     assert comparison["classifications"]["ACTION_DIFFERENCE"] == 0
+
+
+def test_post_aggregation_integrity_step_is_one_valid_shell_command():
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    marker = "      - name: Confirm production artifacts unchanged\n        run: |\n"
+    assert workflow.count(marker) == 1
+    script = textwrap.dedent(workflow.split(marker, 1)[1].split("      - uses:", 1)[0])
+
+    expected = {
+        "market_full_scan.json", "market_prescreen.json", "market_scan_state.json",
+        "publication_manifest.json", "discovery_candidate_pool.json",
+        "full_evaluation_pool.json", "total_market_universe.json",
+    }
+    assert 'git diff --exit-code -- "${governed_artifacts[@]}"' in script
+    assert expected == {
+        line.strip() for line in script.splitlines()
+        if line.strip().endswith(".json") and not line.lstrip().startswith("git ")
+    }
+    subprocess.run(["bash", "-n"], input=script, text=True, check=True)

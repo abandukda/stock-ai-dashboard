@@ -288,9 +288,16 @@ jobs:
       - name: Confirm production artifacts unchanged
         run: |
           git restore --source=HEAD -- total_market_universe.json
-          git diff --exit-code -- market_full_scan.json market_prescreen.json
-          market_scan_state.json publication_manifest.json discovery_candidate_pool.json
-          full_evaluation_pool.json total_market_universe.json
+          governed_artifacts=(
+            market_full_scan.json
+            market_prescreen.json
+            market_scan_state.json
+            publication_manifest.json
+            discovery_candidate_pool.json
+            full_evaluation_pool.json
+            total_market_universe.json
+          )
+          git diff --exit-code -- "${governed_artifacts[@]}"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
