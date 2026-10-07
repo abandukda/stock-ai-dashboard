@@ -25,6 +25,11 @@ on:
         description: "Governed contracted Finnhub aggregate requests/minute; never inferred"
         required: true
         type: string
+      resume_source_run_id:
+        description: "Optional prior run containing certified shard checkpoints from this exact contract"
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read
@@ -221,6 +226,15 @@ jobs:
         with:
           path: audit_results/checkpoints/full-shard-${{ matrix.shard_index }}
           key: atlas-finnhub-full-shard-${{ github.run_id }}-${{ matrix.shard_index }}
+      - name: Download exact certified shard checkpoint for governed resume
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.resume_source_run_id != '' }}
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: atlas-finnhub-full-shard-${{ matrix.shard_index }}-${{ inputs.resume_source_run_id }}
+          path: audit_results/full_universe/resume
+          run-id: ${{ inputs.resume_source_run_id }}
+          github-token: ${{ github.token }}
       - name: Acquire canonical shard
         env:
           PARALLEL_WORKERS: ${{ github.event_name == 'workflow_dispatch' && inputs.parallel_workers || '1' }}
@@ -230,6 +244,8 @@ jobs:
           --shard-index ${{ matrix.shard_index }}
           --parallel-workers "$PARALLEL_WORKERS"
           ${{ github.event_name == 'workflow_dispatch' && '--strict-provider-health' || '' }}
+          ${{ github.event_name == 'workflow_dispatch' && '--certify-shard-checkpoint' || '' }}
+          ${{ github.event_name == 'workflow_dispatch' && inputs.resume_source_run_id != '' && '--resume-shards audit_results/full_universe/resume' || '' }}
           --checkpoint-dir audit_results/checkpoints/full-shard-${{ matrix.shard_index }}
           --output audit_results/full_universe/shard
       - uses: actions/upload-artifact@v4
@@ -265,6 +281,9 @@ jobs:
         run: >-
           python scripts/run_finnhub_full_universe.py aggregate
           --shards audit_results/full_universe/downloaded
+          --parallel-workers ${{ github.event_name == 'workflow_dispatch' && inputs.parallel_workers || '1' }}
+          ${{ github.event_name == 'workflow_dispatch' && '--require-certified-shard-checkpoints' || '' }}
+          ${{ github.event_name == 'workflow_dispatch' && format('--global-requests-per-minute {0}', inputs.global_requests_per_minute) || '' }}
           --output audit_results/full_universe/final
       - name: Confirm production artifacts unchanged
         run: |

@@ -35,6 +35,10 @@ from services.technical_intelligence.engine import DailyBar
 
 
 VERSION = "ATLAS_FINNHUB_FULL_UNIVERSE_EXECUTOR_V2_MULTI_METHOD"
+SHARD_CHECKPOINT_CONTRACT_VERSION = "ATLAS_FINNHUB_CERTIFIED_SHARD_CHECKPOINT_V1"
+TRANSIENT_RETRY_POLICY_VERSION = "ATLAS_FINNHUB_TRANSIENT_RETRY_V1"
+MAX_TRANSIENT_RETRIES = 2
+TRANSIENT_HTTP_STATUSES = frozenset({500, 502, 503, 504})
 NORMALIZATION_VERSION = "FINNHUB_CANONICAL_NORMALIZATION_V1"
 PROVIDER_EVIDENCE_VERSION = "FINNHUB_CANONICAL_EVIDENCE_V1"
 VALUATION_VERSION = "ATLAS_PROFESSIONAL_VALUATION_V2"
@@ -63,6 +67,110 @@ def _canonical_json(value: Any) -> bytes:
 
 def _digest(value: Any) -> str:
     return hashlib.sha256(_canonical_json(value)).hexdigest()
+
+
+def classify_provider_failure(reason: str) -> str:
+    """Classify a serialized provider failure without broadening retry scope."""
+    normalized = str(reason or "").strip().upper()
+    if not normalized:
+        return "NONE"
+    if normalized == "HTTP_429":
+        return "GOVERNANCE_STOP"
+    if normalized.startswith("HTTP_"):
+        try:
+            status = int(normalized.split("_", 1)[1])
+        except (TypeError, ValueError):
+            return "NON_RETRYABLE"
+        return "TRANSIENT" if status in TRANSIENT_HTTP_STATUSES else "NON_RETRYABLE"
+    transient_tokens = (
+        "READTIMEOUT", "READ_TIMEOUT", "CONNECTTIMEOUT", "CONNECT_TIMEOUT",
+        "CONNECTIONRESET", "CONNECTION_RESET", "CONNECTION RESET",
+    )
+    if any(token in normalized for token in transient_tokens):
+        return "TRANSIENT"
+    return "NON_RETRYABLE"
+
+
+def transient_retry_delay(symbol: str, capability: str, retry_index: int) -> float:
+    """Return bounded exponential delay plus deterministic sub-second jitter."""
+    if retry_index < 0 or retry_index >= MAX_TRANSIENT_RETRIES:
+        raise ValueError("retry index outside governed transient retry budget")
+    jitter = int(hashlib.sha256(
+        f"{TRANSIENT_RETRY_POLICY_VERSION}:{symbol}:{capability}:{retry_index}".encode()
+    ).hexdigest()[:4], 16) / 65535
+    return min(4.0, float(2 ** retry_index) + jitter)
+
+
+def shard_checkpoint_contract(
+    *, identity: Mapping[str, Any], shard: Mapping[str, Any], provider_configuration_identity: str,
+    global_requests_per_minute: float, burst_ceiling: float, parallel_workers: int,
+) -> dict[str, Any]:
+    return {
+        "checkpoint_contract_version": SHARD_CHECKPOINT_CONTRACT_VERSION,
+        "retry_policy_version": TRANSIENT_RETRY_POLICY_VERSION,
+        "source_sha": identity.get("source_sha"),
+        "run_identity_sha256": identity.get("run_identity_sha256"),
+        "provider_configuration_identity": provider_configuration_identity,
+        "governed_global_requests_per_minute": float(global_requests_per_minute),
+        "burst_ceiling_requests_per_second": float(burst_ceiling),
+        "parallel_workers": int(parallel_workers),
+        "expected_requests_per_symbol": len(AUTHORIZED_ACQUISITION_FAMILIES),
+        "shard_id": shard.get("shard_id"),
+        "expected_symbols": list(shard.get("symbols") or ()),
+        "expected_symbol_set_sha256": shard.get("symbol_list_sha256"),
+    }
+
+
+def build_certified_shard_checkpoint(
+    *, payload: Mapping[str, Any], artifact_digest: str, contract: Mapping[str, Any],
+) -> dict[str, Any]:
+    records = list(payload.get("records") or ())
+    telemetry = dict(payload.get("provider_telemetry") or {})
+    expected_symbols = list(contract.get("expected_symbols") or ())
+    actual_symbols = [str(item.get("ticker") or "").upper() for item in records]
+    if payload.get("shard", {}).get("shard_id") != contract.get("shard_id"):
+        raise ValueError("cannot certify shard with mismatched identity")
+    if len(records) != len(expected_symbols) or sorted(actual_symbols) != sorted(expected_symbols):
+        raise ValueError("cannot certify partial shard payload")
+    body = {
+        **dict(contract),
+        "completed_symbol_count": len(records),
+        "provider_call_count": int(telemetry.get("provider_calls") or 0),
+        "fresh_provider_call_count": int(telemetry.get("fresh_provider_calls") or 0),
+        "retry_count": int(telemetry.get("retry_count") or 0),
+        "acquisition_elapsed_seconds": float(telemetry.get("elapsed_seconds") or 0.0),
+        "acquisition_digest": payload.get("shard_digest"),
+        "artifact_digest": artifact_digest,
+        "completion_status": "CERTIFIED_COMPLETE",
+    }
+    return {**body, "manifest_digest": _digest(body)}
+
+
+def validate_certified_shard_checkpoint(
+    *, payload: Mapping[str, Any], artifact_digest: str, checkpoint: Mapping[str, Any],
+    expected_contract: Mapping[str, Any],
+) -> None:
+    manifest = dict(checkpoint)
+    manifest_digest = manifest.pop("manifest_digest", None)
+    if manifest_digest != _digest(manifest):
+        raise ValueError("certified shard checkpoint manifest digest mismatch")
+    for key, value in expected_contract.items():
+        if manifest.get(key) != value:
+            raise ValueError(f"certified shard checkpoint {key} mismatch")
+    if manifest.get("completion_status") != "CERTIFIED_COMPLETE":
+        raise ValueError("partial or failed shard checkpoint is not reusable")
+    records = list(payload.get("records") or ())
+    symbols = [str(item.get("ticker") or "").upper() for item in records]
+    if len(records) != len(expected_contract.get("expected_symbols") or ()):
+        raise ValueError("certified shard completed symbol count mismatch")
+    if sorted(symbols) != sorted(expected_contract.get("expected_symbols") or ()):
+        raise ValueError("certified shard symbol set mismatch")
+    if manifest.get("completed_symbol_count") != len(records):
+        raise ValueError("certified shard manifest symbol count mismatch")
+    if manifest.get("acquisition_digest") != payload.get("shard_digest"):
+        raise ValueError("certified shard acquisition digest mismatch")
+    if manifest.get("artifact_digest") != artifact_digest:
+        raise ValueError("certified shard artifact digest mismatch")
 
 
 def _analytical_projection(record: Mapping[str, Any]) -> dict[str, Any]:
@@ -280,7 +388,7 @@ def acquire_shard(
             if capability in CERTIFIED_FORWARD_ACQUISITION_FAMILIES:
                 params = {"freq": "annual"}
             transport = (estimate_adapter or adapter) if capability in CERTIFIED_FORWARD_ACQUISITION_FAMILIES else adapter
-            for attempt in range(3):
+            for attempt in range(MAX_TRANSIENT_RETRIES + 1):
                 if rate_governor is not None:
                     rate_governor.before_request()
                 request_start_epoch_seconds.append(time.time())
@@ -298,19 +406,21 @@ def acquire_shard(
                     timeout_count += 1
                 if reason.startswith("HTTP_") or reason.startswith("PROVIDER_ERROR:"):
                     provider_errors += 1
-                if strict_provider_health and (
-                    reason.startswith("HTTP_") or reason.startswith("PROVIDER_ERROR:") or "TIMEOUT" in reason
-                ):
-                    raise RuntimeError(f"STRICT_PROVIDER_HEALTH_STOP:{symbol}:{capability}:{reason}")
-                retryable = reason == "HTTP_429" or any(reason == f"HTTP_{status}" for status in range(500, 600))
-                if not retryable or attempt == 2:
+                classification = classify_provider_failure(reason)
+                if classification == "NONE":
+                    break
+                if classification != "TRANSIENT":
+                    if strict_provider_health:
+                        raise RuntimeError(f"STRICT_PROVIDER_HEALTH_STOP:{symbol}:{capability}:{reason}")
+                    break
+                if attempt == MAX_TRANSIENT_RETRIES:
+                    if strict_provider_health:
+                        raise RuntimeError(
+                            f"STRICT_PROVIDER_HEALTH_STOP:{symbol}:{capability}:{reason}:RETRY_BUDGET_EXHAUSTED"
+                        )
                     break
                 retry_count += 1
-                # Deterministic jitter prevents shard lockstep without changing
-                # analytical results or immutable evidence identity.
-                jitter = int(hashlib.sha256(f"{symbol}:{capability}:{attempt}".encode()).hexdigest()[:4], 16) / 65535
-                retry_after = float((record.get("payload") or {}).get("retry_after_seconds") or 0.0)
-                delay = max((2 ** attempt) + jitter, retry_after)
+                delay = transient_retry_delay(symbol, capability, attempt)
                 if rate_governor is not None:
                     rate_governor.retry_delay(delay)
                 else:
@@ -368,11 +478,15 @@ def acquire_shard(
         "shard": dict(shard), "records": rows,
         "provider_telemetry": {
             "provider_calls": calls, "cache_hits": cache_hits,
+            "fresh_provider_calls": len(request_attempts),
+            "retry_provider_calls": retry_count,
             "calls_avoided": cache_hits, "retry_count": retry_count,
             "http_429_count": rate_limit_events, "provider_error_count": provider_errors,
             "http_4xx_count": http_4xx_count, "http_5xx_count": http_5xx_count,
             "timeout_count": timeout_count,
-            "duplicate_or_reacquired_requests": sum(max(0, count - 1) for count in request_attempts.values()),
+            "duplicate_or_reacquired_requests": max(
+                0, sum(max(0, count - 1) for count in request_attempts.values()) - retry_count,
+            ),
             "rate_limit_wait_seconds": round(rate_governor.wait_seconds, 3) if rate_governor else 0.0,
             "peak_requests_per_second": rate_governor.peak_requests_per_second if rate_governor else None,
             "request_start_epoch_seconds": request_start_epoch_seconds,
@@ -1045,9 +1159,11 @@ def _canary_coverage(acquired: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
 
 __all__ = [
     "ACTION_VERSION", "AUTHORIZED_ACQUISITION_FAMILIES", "NORMALIZATION_VERSION",
-    "PROVIDER_EVIDENCE_VERSION", "SHARD_SIZE", "VERSION", "acquire_shard",
+    "PROVIDER_EVIDENCE_VERSION", "SHARD_CHECKPOINT_CONTRACT_VERSION", "SHARD_SIZE",
+    "TRANSIENT_RETRY_POLICY_VERSION", "VERSION", "acquire_shard",
     "aggregate_complete_run", "build_candidate_determinism_checkpoint", "build_single_immutable_candidate",
-    "build_run_identity", "deserialize_bars",
+    "build_certified_shard_checkpoint", "build_run_identity", "classify_provider_failure", "deserialize_bars",
     "deterministic_canary", "deterministic_shards", "evaluate_records",
-    "serialize_bars", "validate_executor_checkpoint", "validate_shards",
+    "serialize_bars", "shard_checkpoint_contract", "transient_retry_delay",
+    "validate_certified_shard_checkpoint", "validate_executor_checkpoint", "validate_shards",
 ]
