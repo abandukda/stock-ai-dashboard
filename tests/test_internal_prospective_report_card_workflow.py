@@ -39,3 +39,12 @@ def test_validation_mode_cannot_activate_or_download_publication():
     assert "inputs.operation == 'validate_storage'" in source
     assert "scripts/validate_report_card_storage.py" in source
     assert "operational_activation_created" not in source  # asserted by the validator report itself
+
+
+def test_self_hosted_paths_require_and_use_python3():
+    source = WORKFLOW.read_text(encoding="utf-8")
+    assert "command -v python3" in source
+    assert "python3 --version" in source
+    assert "python3 scripts/validate_report_card_storage.py" in source
+    assert "python3 scripts/run_internal_prospective_report_card.py" in source
+    assert "\n          python " not in source

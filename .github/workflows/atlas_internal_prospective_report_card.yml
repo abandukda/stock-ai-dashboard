@@ -61,6 +61,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Verify runner Python 3 interpreter
+        shell: bash
+        run: |
+          command -v python3
+          python3 --version
+
       - name: Fail closed unless durable storage is configured
         shell: bash
         run: |
@@ -76,7 +82,7 @@ jobs:
         if: ${{ inputs.operation == 'validate_storage' }}
         shell: bash
         run: |
-          python scripts/validate_report_card_storage.py \
+          python3 scripts/validate_report_card_storage.py \
             --primary-root "$ATLAS_REPORT_CARD_DURABLE_ROOT" \
             --backup-root "$ATLAS_REPORT_CARD_BACKUP_ROOT" \
             --output audit_results/report_card_storage_validation.json
@@ -119,7 +125,7 @@ jobs:
         shell: bash
         run: |
           activation_timestamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          python scripts/run_internal_prospective_report_card.py \
+          python3 scripts/run_internal_prospective_report_card.py \
             --manifest "${{ steps.source.outputs.manifest }}" \
             --publication "${{ steps.source.outputs.publication }}" \
             --ledger "$ATLAS_REPORT_CARD_DURABLE_ROOT/report-card.sqlite3" \
@@ -134,7 +140,7 @@ jobs:
         if: ${{ inputs.operation == 'capture' }}
         shell: bash
         run: |
-          python - <<'PY'
+          python3 - <<'PY'
           import json
           report = json.load(open('audit_results/internal_report_card_capture.json'))
           assert report['provider_calls'] == 0
