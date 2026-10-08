@@ -110,6 +110,7 @@ def test_internal_signal_detail_ui_and_home_deep_link_contracts_are_registered()
         assert marker in ui
     assert "report_card_selected_signal_id" in ui and "report_card_selected_signal_id" in home
     assert 'st.session_state.pop("report_card_selected_signal_id", None)' in home
+    assert "on_click=_open_report_card_overview" in home
     assert "Open {signal[\"ticker\"]} signal" in home
 
 

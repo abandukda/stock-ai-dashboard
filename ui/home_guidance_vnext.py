@@ -1450,12 +1450,17 @@ def _render_internal_performance_tracking(*, authorized_internal: bool) -> None:
     st.markdown('<span data-atlas-interaction-id="home-report-card-view" data-atlas-interaction-type="DRILL_DOWN" '
                 'data-atlas-expected-page="Internal Report Card" '
                 'aria-hidden="true" style="display:none">report-card-link</span>', unsafe_allow_html=True)
-    if st.button("View Report Card", key="home_view_internal_report_card", type="secondary"):
-        # The overview CTA owns overview navigation even when this session
-        # previously inspected a signal detail.
+    def _open_report_card_overview() -> None:
+        # Run before Streamlit's widget rerun so retained signal-detail state
+        # cannot override the overview CTA during route reconstruction.
         st.session_state.pop("report_card_selected_signal_id", None)
         st.session_state["v79_pending_page"] = "Internal Report Card"
-        st.rerun()
+
+    st.button("View Report Card",
+        key="home_view_internal_report_card",
+        type="secondary",
+        on_click=_open_report_card_overview,
+    )
     signal_columns = st.columns(min(3, max(1, len(report["signals"]))))
     for index, signal in enumerate(report["signals"][:3]):
         with signal_columns[index]:
