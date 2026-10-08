@@ -214,7 +214,7 @@ jobs:
           values={
               "bundle":manifests[0].parent,
               "evidence_snapshot":manifest.get("generated_at"),
-              "universe":manifest.get("universe_sha256"),
+              "universe":(manifest.get("executor_candidate_identity") or {}).get("universe_sha256"),
           }
           expectations=list(root.rglob("runtime_projection_expectations_*.json"))
           if not expectations:
