@@ -1,0 +1,226 @@
+name: ATLAS Customer Experience Autonomous QA
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_sha:
+        description: Exact review candidate SHA
+        required: true
+        type: string
+      mode:
+        description: Certification policy
+        required: true
+        default: certify_only
+        type: choice
+        options: [certify_only, certify_and_repair]
+      max_repair_attempts:
+        description: Bounded repair attempts (0-2)
+        required: true
+        default: "2"
+        type: string
+      baseline_sha:
+        description: Optional accepted semantic baseline SHA
+        required: false
+        type: string
+      runtime_source_run:
+        description: Optional governed runtime artifact source run
+        required: false
+        type: string
+      runtime_artifact_identity:
+        description: Optional exact governed runtime artifact name
+        required: false
+        type: string
+  pull_request:
+    branches: [main]
+    paths:
+      - "app.py"
+      - "ui/**"
+      - "agents/**"
+      - "services/**"
+      - "tests/**"
+      - ".github/workflows/atlas_customer_experience_autonomous_qa.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: atlas-customer-experience-qa-${{ github.event.pull_request.number || inputs.candidate_sha || github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  policy-and-self-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.candidate_sha || github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt pytest pyyaml
+      - name: Enforce candidate and repair policy
+        env:
+          EXPECTED_SHA: ${{ inputs.candidate_sha || github.event.pull_request.head.sha || github.sha }}
+          MODE: ${{ inputs.mode || 'certify_only' }}
+          MAX_REPAIR_ATTEMPTS: ${{ inputs.max_repair_attempts || '2' }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test "$MAX_REPAIR_ATTEMPTS" -ge 0
+          test "$MAX_REPAIR_ATTEMPTS" -le 2
+          if [ "$MODE" = "certify_and_repair" ]; then
+            case "${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}" in codex/*) ;; *) exit 74 ;; esac
+          fi
+      - name: Offline autonomous QA self-tests
+        run: python3 -m pytest -q tests/test_customer_experience_autonomous_qa.py
+      - name: Static validation
+        run: |
+          python3 -m py_compile agents/customer_experience_qa_contracts.py agents/customer_experience_qa_validators.py agents/customer_experience_qa_repairs.py agents/atlas_customer_experience_autonomous_qa.py scripts/prepare_customer_experience_qa_evidence.py
+          python3 -c "import yaml; yaml.safe_load(open('.github/workflows/atlas_customer_experience_autonomous_qa.yml'))"
+
+  governed-browser-certification:
+    needs: policy-and-self-test
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 110
+    env:
+      ATLAS_QA_PROVIDER_CALLS_ALLOWED: "0"
+      ATLAS_CUSTOMER_REPORT_CARD_ENABLED: "false"
+      ATLAS_QA_OUTPUT: audit_results/customer_experience_qa
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.candidate_sha }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt playwright pyyaml
+      - run: python3 -m playwright install --with-deps chromium
+      - name: Require exact governed runtime handoff
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN: ${{ inputs.runtime_source_run }}
+          ARTIFACT_NAME: ${{ inputs.runtime_artifact_identity }}
+        run: |
+          test -n "$SOURCE_RUN"
+          test -n "$ARTIFACT_NAME"
+          mkdir -p audit_results/governed_runtime_handoff
+          gh run download "$SOURCE_RUN" --name "$ARTIFACT_NAME" --dir audit_results/governed_runtime_handoff
+      - name: Resolve governed handoff identities
+        id: handoff
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          root=Path("audit_results/governed_runtime_handoff")
+          manifests=list(root.rglob("publication_manifest.json"))
+          if len(manifests) != 1:
+              raise SystemExit(f"PUBLICATION_MANIFEST_AMBIGUOUS:{len(manifests)}")
+          manifest=json.loads(manifests[0].read_text())
+          values={
+              "bundle": manifests[0].parent,
+              "candidate": manifest.get("candidate_digest"),
+              "publication": manifest.get("publication_digest") or manifest.get("publication_bundle_digest"),
+              "source": manifest.get("source_sha") or manifest.get("candidate_source_sha"),
+          }
+          expectations=list(root.rglob("runtime_projection_expectations_*.json"))
+          if len(expectations) != 1:
+              raise SystemExit(f"RUNTIME_EXPECTATIONS_AMBIGUOUS:{len(expectations)}")
+          values["expectations_dir"]=expectations[0].parent
+          if not all(values.values()):
+              raise SystemExit("PUBLICATION_IDENTITY_INCOMPLETE")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+              for key, value in values.items(): out.write(f"{key}={value}\n")
+          PY
+      - name: Materialize bounded zero-provider runtime
+        run: |
+          mkdir -p audit_results/full_qa/runtime audit_results/customer_experience_qa
+          python3 scripts/run_bounded_release_smoke.py \
+            --bundle "${{ steps.handoff.outputs.bundle }}" \
+            --report-root audit_results/governed_runtime_handoff \
+            --runtime-dir audit_results/full_qa/runtime \
+            --output audit_results/customer_experience_qa/bounded_runtime.json \
+            --expected-candidate-digest "${{ steps.handoff.outputs.candidate }}" \
+            --expected-publication-digest "${{ steps.handoff.outputs.publication }}" \
+            --expected-source-sha "${{ steps.handoff.outputs.source }}" \
+            --runtime-expectations-dir "${{ steps.handoff.outputs.expectations_dir }}"
+      - name: Launch exact candidate
+        env:
+          ATLAS_QA_MODE: "1"
+          ATLAS_REPORT_CARD_CUSTOMER_VISIBLE: "false"
+        run: |
+          python3 -m streamlit run app.py --server.headless true --server.port 8501 > "$RUNNER_TEMP/atlas-streamlit.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/atlas-streamlit.pid"
+          curl --retry 30 --retry-delay 2 --retry-connrefused -fsS http://127.0.0.1:8501/_stcore/health
+      - name: Crawl interactions and capture deterministic screenshots
+        run: |
+          python3 agents/atlas_runtime_qa_v3.py --url http://127.0.0.1:8501 --output "$ATLAS_QA_OUTPUT/browser"
+      - name: Bind browser evidence to governed authority
+        run: python3 scripts/prepare_customer_experience_qa_evidence.py --root "$ATLAS_QA_OUTPUT"
+      - name: Consolidate exact-authority certification
+        id: certify
+        continue-on-error: true
+        env:
+          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+          BASELINE_SHA: ${{ inputs.baseline_sha }}
+          MODE: ${{ inputs.mode }}
+          MAX_REPAIR_ATTEMPTS: ${{ inputs.max_repair_attempts }}
+        run: |
+          python3 agents/atlas_customer_experience_autonomous_qa.py \
+            --candidate-sha "$CANDIDATE_SHA" \
+            --baseline-sha "$BASELINE_SHA" \
+            --mode "$MODE" \
+            --max-repair-attempts "$MAX_REPAIR_ATTEMPTS" \
+            --authority "$ATLAS_QA_OUTPUT/authority_manifest.json" \
+            --browser-report "$ATLAS_QA_OUTPUT/browser/atlas_runtime_qa_v3.json" \
+            --screenshot-manifest "$ATLAS_QA_OUTPUT/screenshot_manifest.json" \
+            --output "$ATLAS_QA_OUTPUT/final"
+      - name: Bounded ephemeral repair and recertification
+        if: steps.certify.outcome == 'failure' && inputs.mode == 'certify_and_repair'
+        env:
+          MAX_REPAIR_ATTEMPTS: ${{ inputs.max_repair_attempts }}
+        run: |
+          for attempt in $(seq 1 "$MAX_REPAIR_ATTEMPTS"); do
+            python3 agents/customer_experience_qa_repairs.py --plan "$ATLAS_QA_OUTPUT/final/repair_plan.json" --output "$ATLAS_QA_OUTPUT/final/repair-attempt-$attempt.json"
+            git diff --check
+            git diff --binary --output="$ATLAS_QA_OUTPUT/final/repair-attempt-$attempt.patch"
+            git config user.name "atlas-customer-qa"
+            git config user.email "atlas-customer-qa@users.noreply.github.com"
+            git add -u
+            git diff --cached --quiet && break
+            git commit -m "Repair customer QA findings (attempt $attempt)"
+            git show --binary --format=email HEAD --output="$ATLAS_QA_OUTPUT/final/repair-attempt-$attempt.commit.patch"
+            kill "$(cat "$RUNNER_TEMP/atlas-streamlit.pid")" || true
+            python3 -m streamlit run app.py --server.headless true --server.port 8501 > "$RUNNER_TEMP/atlas-streamlit.log" 2>&1 &
+            echo $! > "$RUNNER_TEMP/atlas-streamlit.pid"
+            curl --retry 30 --retry-delay 2 --retry-connrefused -fsS http://127.0.0.1:8501/_stcore/health
+            mv "$ATLAS_QA_OUTPUT/browser" "$ATLAS_QA_OUTPUT/browser-before-attempt-$attempt"
+            python3 agents/atlas_runtime_qa_v3.py --url http://127.0.0.1:8501 --output "$ATLAS_QA_OUTPUT/browser" || true
+            python3 scripts/prepare_customer_experience_qa_evidence.py --root "$ATLAS_QA_OUTPUT"
+            if python3 agents/atlas_customer_experience_autonomous_qa.py --candidate-sha "$(git rev-parse HEAD)" --mode certify_and_repair --max-repair-attempts "$MAX_REPAIR_ATTEMPTS" --authority "$ATLAS_QA_OUTPUT/authority_manifest.json" --browser-report "$ATLAS_QA_OUTPUT/browser/atlas_runtime_qa_v3.json" --screenshot-manifest "$ATLAS_QA_OUTPUT/screenshot_manifest.json" --output "$ATLAS_QA_OUTPUT/final"; then break; fi
+          done
+      - name: Require final green certification
+        run: python3 -c "import json; r=json.load(open('$ATLAS_QA_OUTPUT/final/atlas_customer_experience_qa.json')); assert r['status']=='PASS', r['failures']"
+      - name: Assert no provider use or durable Report Card mutation
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          report=json.loads(Path("audit_results/customer_experience_qa/final/atlas_customer_experience_qa.json").read_text())
+          assert report["provider_boundary"] == {"calls": 0, "reacquisition": "none"}
+          assert report["customer_report_card"] == "OFF"
+          PY
+      - name: Collect browser logs
+        if: always()
+        run: cp "$RUNNER_TEMP/atlas-streamlit.log" "$ATLAS_QA_OUTPUT/streamlit.log" || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atlas-customer-experience-qa-${{ inputs.candidate_sha }}
+          path: audit_results/customer_experience_qa
+          if-no-files-found: error
+          retention-days: 30
