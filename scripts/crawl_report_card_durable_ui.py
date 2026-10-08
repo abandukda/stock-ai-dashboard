@@ -76,7 +76,21 @@ async def run(output: Path) -> None:
                 if not await back.count() or not await back.first.is_visible():
                     raise
                 await back.first.click()
-                await overview.wait_for(state="attached", timeout=30000)
+                try:
+                    await overview.wait_for(state="attached", timeout=12000)
+                except Exception:
+                    # A Streamlit rerun may preserve the old detail tree even
+                    # after the Back click resolves. Re-enter exclusively via
+                    # the governed Home overview CTA, whose product callback
+                    # clears the retained detail id before routing.
+                    home = page.get_by_role("radio", name="Home", exact=True)
+                    await home.first.click(timeout=10000)
+                    await page.locator('[data-atlas-qa="home-performance-tracking"]').wait_for(timeout=30000)
+                    await page.get_by_role("button", name="View Report Card", exact=True).click(timeout=10000)
+                    await page.locator('[data-atlas-qa="internal-report-card"]').wait_for(
+                        state="attached", timeout=30000
+                    )
+                    await overview.wait_for(state="attached", timeout=30000)
             await page.get_by_text("Prospective Report Card", exact=True).wait_for(state="visible", timeout=30000)
             overview_facts = {
                 key: await overview.get_attribute(f"data-atlas-{key}")
