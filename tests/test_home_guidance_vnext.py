@@ -679,6 +679,35 @@ def test_home_summary_uses_shared_duplicate_guard():
     assert _atlas_summary(card) == "The thesis is improving. Main risk is execution."
 
 
+def test_compact_top_idea_uses_only_governed_entry_status():
+    from ui.home_guidance_vnext import _compact_entry_status
+
+    assert _compact_entry_status({"trade_plan": {"entry_status": "IN_ENTRY_ZONE"}}) == "Inside Entry Zone"
+    assert _compact_entry_status({"trade_plan": {"entry_status": "ABOVE_PREFERRED_ENTRY"}}) == "Above Preferred Entry"
+    assert _compact_entry_status({"display_price": 100, "trade_plan": {"entry_low": 90, "entry_high": 110}}) == "Not published"
+
+
+def test_compact_top_idea_does_not_guess_units_in_analyst_copy():
+    from ui.home_guidance_vnext import _compact_reason
+
+    card = {
+        "guidance": "BUY_NOW",
+        "reason_codes": ("ALL_BUY_NOW_GATES_PASSED",),
+        "certified_summary_facts": {"financial_driver": "Revenue growth was 83"},
+    }
+    rendered = _compact_reason(card)
+    assert "83" not in rendered
+    assert rendered == "Business quality, valuation, risk, entry conditions and price structure support initiating a position."
+
+
+def test_compact_top_idea_primary_risk_fails_closed():
+    from ui.home_guidance_vnext import _compact_primary_risk
+
+    assert _compact_primary_risk({}) == "Not published for this certified snapshot."
+    card = {"certified_summary_facts": {"primary_risk": "execution_risk"}}
+    assert _compact_primary_risk(card) == "execution risk."
+
+
 def test_single_method_concentration_is_prominent_without_changing_decision():
     from ui.home_guidance_vnext import _valuation_concentration_notice
     card = {

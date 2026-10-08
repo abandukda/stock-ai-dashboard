@@ -37,11 +37,38 @@ def build_internal_report_card(path: Path, *, authorized: bool) -> dict[str, Any
         decoded.append({**dict(row), "payload": payload})
     signals = [row for row in decoded if row["record_type"] == "SIGNAL"]
     observations = [row for row in decoded if row["record_type"] == "OBSERVATION"]
+    amendments = [row for row in decoded if row["record_type"] == "AMENDMENT"]
     observed = {(row["parent_id"], int(row["payload"]["horizon_trading_days"])): row["payload"] for row in observations}
     table = []
+    signal_details = []
     for signal in signals:
         payload = signal["payload"]
         observation_count = sum(row["parent_id"] == signal["record_id"] for row in observations)
+        signal_observations = [row["payload"] for row in observations if row["parent_id"] == signal["record_id"]]
+        matured = sorted(int(item["horizon_trading_days"]) for item in signal_observations)
+        next_horizon = next((horizon for horizon in HORIZONS if horizon not in matured), None)
+        latest_action = next((str(row["payload"].get("canonical_action") or "") for row in reversed(amendments)
+                              if row["parent_id"] == signal["record_id"] and row["payload"].get("canonical_action")), None)
+        publication_eligible = payload.get("withholding_status") == "CUSTOMER_PUBLISHABLE"
+        admission_reason = ("CUSTOMER_PUBLISHABLE_BUY_NOW_TRANSITION"
+                            if payload.get("canonical_recommendation") == "BUY_NOW" and publication_eligible
+                            else "ADMISSION_PROVENANCE_INCOMPLETE")
+        signal_details.append({
+            "signal_id": signal["record_id"], "ticker": payload.get("ticker"),
+            "original_action": payload.get("canonical_recommendation"),
+            "buy_now_transition_timestamp": payload.get("first_seen_at"),
+            "signal_timestamp": payload.get("first_seen_at"), "reference_price": payload.get("reference_price"),
+            "reference_price_timestamp": payload.get("reference_price_timestamp"),
+            "signal_provenance": payload.get("evidence_ids") or [],
+            "candidate_digest": payload.get("candidate_digest"), "publication_digest": payload.get("publication_digest"),
+            "evaluation_snapshot_id": payload.get("evaluation_snapshot_id"),
+            "customer_publication_eligible_at_issuance": publication_eligible,
+            "admission_reason": admission_reason, "observation_count": observation_count,
+            "registered_horizons": list(HORIZONS), "next_eligible_horizon": next_horizon,
+            "corporate_action_state": next((item.get("corporate_action_status") for item in reversed(signal_observations)
+                                              if item.get("corporate_action_status")), "Not yet observed"),
+            "open": latest_action in (None, "", "BUY_NOW"),
+        })
         for horizon in HORIZONS:
             item = observed.get((signal["record_id"], horizon))
             table.append({
@@ -59,6 +86,13 @@ def build_internal_report_card(path: Path, *, authorized: bool) -> dict[str, Any
             })
     available = [row for row in table if row["status"] == "AVAILABLE"]
     returns = [float(row["stock_return"]) for row in available]
+    open_tickers = [str(item["ticker"] or "") for item in signal_details if item["open"]]
+    duplicated_open_episodes = sorted({ticker for ticker in open_tickers if ticker and open_tickers.count(ticker) > 1})
+    admission_defects = [f"REPEATED_BUY_NOW_EPISODE_DUPLICATED:{ticker}" for ticker in duplicated_open_episodes]
+    admission_defects.extend(
+        f'ADMISSION_PROVENANCE_INCOMPLETE:{item["signal_id"]}'
+        for item in signal_details if item["admission_reason"] == "ADMISSION_PROVENANCE_INCOMPLETE"
+    )
     coverage = {
         str(horizon): {
             "available": sum(row["horizon_sessions"] == horizon and row["status"] == "AVAILABLE" for row in table),
@@ -71,8 +105,11 @@ def build_internal_report_card(path: Path, *, authorized: bool) -> dict[str, Any
         "public_performance_claims_allowed": False, "activation_timestamp": metadata.get("activation_timestamp"),
         "ledger_tip_digest": previous, "integrity": "PASS", "signal_count": len(signals),
         "observation_count": len(observations), "spy_comparison_count": sum(row["spy_return"] is not None for row in available),
+        "open_signal_count": sum(item["open"] for item in signal_details),
+        "admission_integrity": "PASS" if not admission_defects else "FAIL",
+        "admission_defects": admission_defects,
         "coverage": coverage, "mean_return": sum(returns) / len(returns) if returns else None,
-        "median_return": median(returns) if returns else None, "rows": table,
+        "median_return": median(returns) if returns else None, "rows": table, "signals": signal_details,
         "registered_horizons": list(HORIZONS),
         "next_eligible_observation": metadata.get("next_eligible_observation", "Determined by governed trading-session calendar"),
         "last_backup_status": metadata.get("last_backup_status", "Verify from protected backup workflow"),

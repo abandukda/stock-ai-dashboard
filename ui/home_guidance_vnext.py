@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import html
 import json
+import os
 import re
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Mapping, Sequence
 from zoneinfo import ZoneInfo
 
@@ -65,7 +67,7 @@ def _time_et(value: Any) -> str:
         return "Time unavailable"
 
 
-def _open_research(ticker: str, key: str) -> None:
+def _open_research(ticker: str, key: str, *, compact: bool = False) -> None:
     contract = research_interaction_contract(ticker, key)
     st.markdown(
         f'<span data-atlas-qa="home-guidance-research-cta" data-atlas-ticker="{html.escape(ticker)}" '
@@ -74,7 +76,9 @@ def _open_research(ticker: str, key: str) -> None:
         f'data-atlas-expected-ticker="{html.escape(contract["expected_ticker"])}" aria-hidden="true" '
         'style="display:none">home-guidance-research-cta</span>', unsafe_allow_html=True,
     )
-    if st.button(f"View Full Investment Case — {ticker}", key=key, type="primary", width="stretch"):
+    target = st.container(key=f"compact_cta_{key}") if compact else st
+    label = "View Research →" if compact else f"View Full Investment Case — {ticker}"
+    if target.button(label, key=key, type="primary", width="content" if compact else "stretch"):
         begin_research_entry(
             st.session_state, ticker, source="HOME_GUIDANCE_VNEXT",
             interaction_id=contract["interaction_id"],
@@ -1277,14 +1281,45 @@ def _compact_reason(card: Mapping[str, Any]) -> str:
     for key in ("business_driver", "financial_driver", "valuation_driver", "primary_driver"):
         value = facts.get(key)
         if value and not isinstance(value, (Mapping, list, tuple, set)):
-            return str(value).strip().rstrip(".") + "."
+            statement = str(value).strip().rstrip(".")
+            if not re.search(r"\d", statement):
+                return statement + "."
     summary = _atlas_summary(card).strip()
     if summary and "cannot produce" not in summary.lower():
         first_sentence = summary.split(".", 1)[0].strip()
         company = str(card.get("company") or card.get("company_name") or "").strip().rstrip(".")
-        if len(first_sentence.split()) >= 6 and first_sentence.casefold() != company.casefold():
+        if (len(first_sentence.split()) >= 6 and first_sentence.casefold() != company.casefold()
+                and not re.search(r"\d", first_sentence)):
             return first_sentence + "."
-    return "A concise certified investment reason is unavailable for this snapshot."
+    explanation = _guidance_explanation(card).strip()
+    return explanation if not re.search(r"\d", explanation) else "Certified thesis detail is available in Research."
+
+
+def _compact_entry_status(card: Mapping[str, Any]) -> str:
+    """Display only a persisted governed entry classification; never derive one."""
+    trade = card.get("trade_plan") if isinstance(card.get("trade_plan"), Mapping) else {}
+    raw = trade.get("entry_status") or card.get("entry_status")
+    normalized = str(raw or "").strip().upper().replace(" ", "_")
+    labels = {
+        "IN_ENTRY_ZONE": "Inside Entry Zone", "INSIDE_ENTRY_ZONE": "Inside Entry Zone",
+        "INSIDE": "Inside Entry Zone", "NEAR_ENTRY": "Near Entry", "NEAR_ENTRY_ZONE": "Near Entry",
+        "ABOVE_PREFERRED_ENTRY": "Above Preferred Entry", "ABOVE_ENTRY_ZONE": "Above Preferred Entry",
+        "WAIT_FOR_ENTRY": "Above Preferred Entry",
+    }
+    return labels.get(normalized, "Not published")
+
+
+def _compact_primary_risk(card: Mapping[str, Any]) -> str:
+    """Return concise governed risk evidence without manufacturing a fallback."""
+    facts = card.get("certified_summary_facts") if isinstance(card.get("certified_summary_facts"), Mapping) else {}
+    risk = facts.get("primary_risk")
+    if not risk:
+        evaluation = card.get("evaluation") if isinstance(card.get("evaluation"), Mapping) else {}
+        evidence = dict(dict(evaluation.get("risk") or {}).get("evidence") or {})
+        risk = next((evidence.get(key) for key in ("primary_risk", "volatility_risk", "drawdown_label") if evidence.get(key)), None)
+    if not risk:
+        return "Not published for this certified snapshot."
+    return str(risk).replace("_", " ").strip().rstrip(".") + "."
 
 
 def _compact_opportunity_card(card: Mapping[str, Any], *, key: str, first: bool = False) -> None:
@@ -1294,23 +1329,29 @@ def _compact_opportunity_card(card: Mapping[str, Any], *, key: str, first: bool 
     if potential is None:
         potential = card.get("atlas_expected_return")
     evidence = _customer_evidence_state(card)
+    company = str(card.get("company") or card.get("company_name") or "").strip()
+    identity = f"{ticker} · {company}" if company and company.casefold() != ticker.casefold() else ticker
+    entry_status = _compact_entry_status(card)
     st.markdown(
         f'<article class="atlas-home-compact-card" data-atlas-qa="home-actionable-card" '
         f'data-atlas-first="{str(first).lower()}" data-atlas-ticker="{html.escape(ticker)}" '
         f'data-atlas-guidance="{html.escape(state)}" data-atlas-evidence-status="{html.escape(evidence)}">'
-        f'<header><div><small>{html.escape(_display(state))}</small><h3>{html.escape(ticker)}</h3></div>'
-        f'<strong>{html.escape(_money(card.get("display_price")))}</strong></header>'
+        f'<header><div><small>{html.escape(_display(state))}</small><h3>{html.escape(identity)}</h3></div>'
+        f'<aside><small>Opportunity</small><strong>{html.escape(_score(card.get("opportunity")))}</strong></aside></header>'
         '<div class="atlas-home-compact-values">'
         f'<span><small>Current Price</small><b>{html.escape(_money(card.get("display_price")))}</b></span>'
         f'<span><small>ATLAS Fair Value</small><b>{html.escape(_money(card.get("atlas_fair_value")))}</b></span>'
-        f'<span><small>Potential</small><b>{html.escape(_score(potential, suffix="%"))}</b></span></div>'
-        f'<p><b>Why ATLAS Likes It</b> {html.escape(_compact_reason(card))}</p>'
+        f'<span><small>Potential</small><b>{html.escape(_score(potential, suffix="%"))}</b></span>'
+        f'<span><small>Opportunity</small><b>{html.escape(_score(card.get("opportunity")))}</b></span>'
+        f'<span><small>Confidence</small><b>{html.escape(_score(card.get("decision_confidence"), suffix="%"))}</b></span>'
+        f'<span><small>Entry Status</small><b>{html.escape(entry_status)}</b></span></div>'
+        f'<p class="atlas-home-compact-thesis"><b>Investment View</b> {html.escape(_compact_reason(card))}</p>'
+        f'<p class="atlas-home-compact-risk"><b>Primary Risk</b> {html.escape(_compact_primary_risk(card))}</p>'
         '<footer>'
-        f'<span>Decision Confidence: <b>{html.escape(_score(card.get("decision_confidence"), suffix="%"))}</b></span>'
-        f'<span>{html.escape(evidence)}</span><span>As of {_timestamp(card.get("decision_as_of"))}</span></footer></article>',
+        f'<span>{html.escape(evidence)}</span><span>Certified {_timestamp(card.get("decision_as_of"))}</span></footer></article>',
         unsafe_allow_html=True,
     )
-    _open_research(ticker, f"home_top_idea_{key}_{ticker}")
+    _open_research(ticker, f"home_top_idea_{key}_{ticker}", compact=True)
 
 
 def _render_groups(story: Mapping[str, Any], *, emit_interactive) -> None:
@@ -1336,10 +1377,20 @@ def _render_groups(story: Mapping[str, Any], *, emit_interactive) -> None:
     if not actionable:
         empty = story.get("home_opportunity_empty_state") if isinstance(story.get("home_opportunity_empty_state"), Mapping) else {}
         st.info(str(empty.get("message") or "ATLAS found no stocks meeting the strongest certified opportunity threshold for this snapshot."))
-    for index, card in enumerate(actionable):
-        _compact_opportunity_card(card, key=f"actionable_{index}", first=index == 0)
+    for index, card in enumerate(actionable[:5]):
+        with st.container(key=f"home_top_idea_position_{index + 1}"):
+            _compact_opportunity_card(card, key=f"actionable_{index}", first=index == 0)
         if index == 0:
             emit_interactive()
+    if len(actionable) > 5:
+        with st.expander(f"View all certified opportunities ({len(actionable)})", expanded=False):
+            for card in actionable:
+                st.markdown(
+                    f'**{html.escape(str(card.get("ticker") or "UNKNOWN"))}** · '
+                    f'{html.escape(str(card.get("company") or ""))} · '
+                    f'Opportunity {_score(card.get("opportunity"))} · '
+                    f'Confidence {_score(card.get("decision_confidence"), suffix="%")}'
+                )
     if not actionable:
         emit_interactive()
     _section_marker("worth_watching")
@@ -1371,6 +1422,35 @@ def _action_counts(story: Mapping[str, Any]) -> str:
         f'<span class="atlas-home-count-{tone}"><small>{html.escape(label)}</small><b>{count}</b></span>'
         for label, count, tone in values
     ) + '</div>'
+
+
+def _render_internal_performance_tracking(*, authorized_internal: bool) -> None:
+    """Expose operational tracking only to an authorized internal session."""
+    enabled = os.getenv("ATLAS_INTERNAL_REPORT_CARD_UI_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"}
+    root = os.getenv("ATLAS_REPORT_CARD_DURABLE_ROOT", "").strip()
+    if not (authorized_internal and enabled and root):
+        return
+    from services.report_card_dashboard import build_internal_report_card
+    try:
+        report = build_internal_report_card(Path(root) / "report-card.sqlite3", authorized=True)
+    except (FileNotFoundError, PermissionError, ValueError):
+        return
+    st.markdown(
+        '<section class="atlas-home-performance" data-atlas-qa="home-performance-tracking">'
+        '<header><div><small>INTERNAL · PROSPECTIVE</small><h2>Performance Tracking</h2></div>'
+        f'<strong>{report["integrity"]}</strong></header><div class="atlas-home-performance-grid">'
+        f'<span><small>Signals</small><b>{report["signal_count"]}</b></span>'
+        f'<span><small>Observations</small><b>{report["observation_count"]}</b></span>'
+        f'<span><small>SPY coverage</small><b>{report["spy_comparison_count"]}</b></span>'
+        f'<span><small>Next observation</small><b>{html.escape(str(report["next_eligible_observation"]))}</b></span>'
+        '</div><footer>Customer visibility OFF · Signal tracking, not a funded model portfolio · Append-only ledger</footer></section>', unsafe_allow_html=True,
+    )
+    st.markdown('<span data-atlas-interaction-id="home-report-card-view" data-atlas-interaction-type="DRILL_DOWN" '
+                'data-atlas-expected-page="Internal Report Card" '
+                'aria-hidden="true" style="display:none">report-card-link</span>', unsafe_allow_html=True)
+    if st.button("View Report Card", key="home_view_internal_report_card", type="secondary"):
+        st.session_state["v79_pending_page"] = "Internal Report Card"
+        st.rerun()
 
 
 def _render_market_today(story: Mapping[str, Any]) -> None:
@@ -1548,17 +1628,22 @@ def _inject_css() -> None:
     st.markdown("""<style>
     .atlas-home-market-strip{display:flex;align-items:center;gap:.7rem;padding:.45rem .65rem;margin:.1rem 0 .35rem;border-radius:10px;background:rgba(30,41,59,.38);color:#b9c4d3}.atlas-home-market-strip small{white-space:nowrap;color:#7fa9d8}.atlas-home-market-strip p{margin:0!important;font-size:.82rem}
     .atlas-home-market-read{margin:.1rem 0 .7rem;padding:.52rem .68rem;border-left:3px solid var(--atlas-blue);border-radius:0 10px 10px 0;background:rgba(37,99,235,.07)}.atlas-home-market-read h2{margin:0 0 .16rem!important;padding:0!important;font-size:1rem!important;color:#dce8f6}.atlas-home-market-read p{margin:0!important;max-width:76ch;font-size:.84rem;line-height:1.45;color:#bdc9d8}
-    .atlas-home-compact-card{padding:.82rem .9rem;margin:.45rem 0;border-radius:14px;background:linear-gradient(135deg,rgba(18,35,50,.92),rgba(17,28,45,.7));border-left:4px solid var(--atlas-teal)}.atlas-home-compact-card header,.atlas-home-compact-card footer{display:flex;align-items:center;justify-content:space-between;gap:.6rem}.atlas-home-compact-card header small{color:var(--atlas-teal);font-weight:800;letter-spacing:.05em}.atlas-home-compact-card h3{margin:.05rem 0!important}.atlas-home-compact-values{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.35rem;margin:.55rem 0}.atlas-home-compact-values span{display:grid;padding:.4rem .5rem;border-radius:9px;background:rgba(15,23,42,.5)}.atlas-home-compact-values small,.atlas-home-compact-card footer{font-size:.72rem;color:#9aa8ba}.atlas-home-compact-card p{margin:.45rem 0!important;font-size:.86rem;line-height:1.4}.atlas-home-compact-card footer{justify-content:flex-start;flex-wrap:wrap}.atlas-home-compact-card footer span+span:before{content:"·";margin-right:.5rem}.atlas-home-action-counts{grid-template-columns:repeat(2,minmax(0,1fr));max-width:460px}
-    @media(max-width:700px){.atlas-home-market-strip{display:block}.atlas-home-market-strip p,.atlas-home-market-read p{overflow-wrap:anywhere}.atlas-home-market-read{padding:.48rem .58rem}.atlas-home-market-read p{font-size:.8rem}.atlas-home-compact-values{grid-template-columns:1fr 1fr 1fr}.atlas-home-compact-values b{font-size:.88rem}.atlas-home-compact-card header strong{font-size:1rem}.atlas-home-compact-card footer{display:grid}.atlas-home-compact-card footer span+span:before{content:"";margin:0}}
+    .atlas-home-performance{padding:.72rem .82rem;margin:.15rem 0 .65rem;border:1px solid rgba(45,212,191,.28);border-radius:14px;background:linear-gradient(120deg,rgba(13,148,136,.09),rgba(15,23,42,.62))}.atlas-home-performance header{display:flex;justify-content:space-between;align-items:center}.atlas-home-performance h2{margin:.06rem 0!important;font-size:1.12rem!important}.atlas-home-performance header small,.atlas-home-performance footer{font-size:.68rem;color:#8493a7}.atlas-home-performance header strong{color:#5eead4}.atlas-home-performance-grid{display:grid;grid-template-columns:.7fr .7fr .8fr 2fr;gap:.3rem;margin:.42rem 0}.atlas-home-performance-grid span{display:grid;padding:.34rem .42rem;border-radius:8px;background:rgba(15,23,42,.5)}.atlas-home-performance-grid small{font-size:.68rem;color:#8f9caf}.atlas-home-performance-grid b{font-size:.84rem;overflow-wrap:anywhere}
+    .atlas-home-compact-card{padding:.58rem .72rem;margin:.28rem 0 .08rem;border-radius:14px;background:linear-gradient(135deg,rgba(18,35,50,.92),rgba(17,28,45,.7));border-left:4px solid var(--atlas-teal)}.atlas-home-compact-card header,.atlas-home-compact-card footer{display:flex;align-items:center;justify-content:space-between;gap:.55rem}.atlas-home-compact-card header small{color:var(--atlas-teal);font-weight:800;letter-spacing:.05em}.atlas-home-compact-card header aside{display:grid;text-align:right}.atlas-home-compact-card header aside strong{font-size:1.05rem;color:#5eead4}.atlas-home-compact-card h3{margin:.02rem 0!important;font-size:1.08rem!important}.atlas-home-compact-values{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.28rem;margin:.36rem 0}.atlas-home-compact-values span{display:grid;padding:.3rem .42rem;border-radius:8px;background:rgba(15,23,42,.5)}.atlas-home-compact-values small,.atlas-home-compact-card footer{font-size:.68rem;color:#8f9caf}.atlas-home-compact-values b{font-size:.86rem}.atlas-home-compact-card p{margin:.22rem 0!important;font-size:.8rem;line-height:1.32}.atlas-home-compact-card p b{color:#b9c9da;margin-right:.3rem}.atlas-home-compact-risk{color:#aeb8c6}.atlas-home-compact-card footer{justify-content:flex-start;flex-wrap:wrap;margin-top:.22rem;opacity:.78}.atlas-home-compact-card footer span+span:before{content:"·";margin-right:.5rem}.atlas-home-action-counts{grid-template-columns:repeat(2,minmax(0,1fr));max-width:460px}
+    [class*="st-key-compact_cta_"]{margin:.04rem 0 .18rem}[class*="st-key-compact_cta_"] [data-testid="stButton"]{width:100%}[class*="st-key-compact_cta_"] button{display:block;margin-left:auto;white-space:nowrap}
+    @media(max-width:700px){.atlas-home-market-strip{display:block}.atlas-home-market-strip p,.atlas-home-market-read p{overflow-wrap:anywhere}.atlas-home-market-read{padding:.48rem .58rem}.atlas-home-market-read p{font-size:.8rem}.atlas-home-compact-values{grid-template-columns:repeat(2,minmax(0,1fr))}.atlas-home-compact-values b{font-size:.84rem}.atlas-home-compact-card header{align-items:flex-start}.atlas-home-compact-card header h3{font-size:.98rem!important;line-height:1.25}.atlas-home-compact-card header aside strong{font-size:.95rem}.atlas-home-compact-card footer{display:flex}.atlas-home-compact-card footer span+span:before{content:"·";margin-right:.4rem}}
+    @media(max-width:700px){.atlas-home-performance-grid{grid-template-columns:1fr 1fr}.atlas-home-performance-grid span:last-child{grid-column:1/-1}}
+    @media(max-width:700px){[class*="st-key-home_top_idea_position_4"],[class*="st-key-home_top_idea_position_5"]{display:none}}
     </style>""", unsafe_allow_html=True)
 
 
-def render_home_guidance_vnext(story: Mapping[str, Any], *, emit_interactive=None) -> None:
+def render_home_guidance_vnext(story: Mapping[str, Any], *, emit_interactive=None, authorized_internal: bool = False) -> None:
     """Render persisted Guidance shell; optional context occurs after interactivity."""
     if emit_interactive is None:
         from services.session_stability import emit_page_interactive as emit
         emit_interactive = lambda: emit(st, "Home")
     _inject_css()
+    _render_internal_performance_tracking(authorized_internal=authorized_internal)
     runtime = dict(story.get("home_runtime_contract") or {})
     authority = dict(runtime.get("production_authority") or {})
     inventory = dict(runtime.get("inventory_authority") or {})

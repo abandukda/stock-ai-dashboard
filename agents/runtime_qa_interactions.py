@@ -44,7 +44,7 @@ class InteractionContract:
 
 
 STATIC_INTERACTIONS = (
-    InteractionContract("home-report-card-dynamic", "Home", "DRILL_DOWN", "Open Full Research", "Research context loads for the card ticker", "Research Any Ticker", failure_severity="P1"),
+    InteractionContract("home-report-card-dynamic", "Home", "DRILL_DOWN", "View Report Card", "Authorized internal Report Card renders without exposing customer data", "Internal Report Card", failure_severity="P1"),
     InteractionContract("home-more-decisions-tabs", "Home", "TAB", "More Decisions tabs", "Every Home tab selects and renders distinct content"),
     InteractionContract("opportunities-research-link", "Today's Opportunities", "DRILL_DOWN", "Ticker Research", "Correct ticker Research context loads", "Research Any Ticker"),
     InteractionContract("opportunities-filters", "Today's Opportunities", "FILTER", "Opportunity filters", "Filtered rows update without exception"),

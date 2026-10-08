@@ -33398,7 +33398,9 @@ def v810_render_dynamic_home(full_df=None, top_df=None, recovery_df=None):
         emit_page_interactive(st, "Home")
         _home_runtime_trace("home_interactive_emitted")
     _home_runtime_trace("home_render_started")
-    render_home_guidance_vnext(story, emit_interactive=_home_guidance_interactive)
+    render_home_guidance_vnext(
+        story, emit_interactive=_home_guidance_interactive, authorized_internal=not is_viewer(),
+    )
     _home_runtime_trace("home_render_completed")
     # Optional Twelve Data work is intentionally after PAGE_INTERACTIVE. A
     # completed result is consumed on the next rerun; the first shell never
