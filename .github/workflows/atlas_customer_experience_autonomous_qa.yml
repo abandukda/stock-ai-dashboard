@@ -94,6 +94,7 @@ jobs:
       ATLAS_QA_PROVIDER_CALLS_ALLOWED: "0"
       ATLAS_CUSTOMER_REPORT_CARD_ENABLED: "false"
       ATLAS_QA_OUTPUT: audit_results/customer_experience_qa
+      PYTHONPATH: .
     steps:
       - uses: actions/checkout@v4
         with:
