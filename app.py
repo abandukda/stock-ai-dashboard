@@ -28389,9 +28389,15 @@ def main():
     _research_widget_trace("script_run_entry", active_route=st.session_state.get("v784_single_nav"))
     render_v59_design_system(); render_v65_design_system(); render_v70_design_system(); render_v72_design_system(); render_v73_design_system(); render_v74_design_system(); v775_design_system(); v793_design_system(); v8055_inject_research_css()
     pages=["Home","Today's Opportunities","Volume Intelligence","Atlas Core Holdings","Research Any Ticker","Earnings Intelligence","Full Ranked Scan","Portfolio Intelligence","Watchlist Intelligence","Recovery","ETFs","Political Intelligence","Ask AI","Developer Center"]
+    _internal_report_card_enabled = (
+        not is_viewer()
+        and os.getenv("ATLAS_INTERNAL_REPORT_CARD_UI_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"}
+    )
+    if _internal_report_card_enabled:
+        pages.append("Internal Report Card")
     selected_page=render_v73_top_nav(pages)
     _research_widget_trace("route_selected", selected_page=selected_page)
-    if selected_page == "Research Any Ticker":
+    if selected_page in {"Research Any Ticker", "Internal Report Card"}:
         # Research owns its form lifecycle before any cross-surface bootstrap.
         # Its saved-record resolver loads only the submitted ticker after the
         # form trigger has been consumed; exact-candidate mode uses the bounded
@@ -28459,6 +28465,10 @@ def main():
         emit_page_interactive(st, "ETFs")
     elif selected_page=="Political Intelligence": render_v58_political_intelligence(full_df)
     elif selected_page=="Ask AI": render_chat_helper(full_df)
+    elif selected_page=="Internal Report Card":
+        from ui.internal_report_card import render_internal_report_card
+        _durable_root = Path(os.environ["ATLAS_REPORT_CARD_DURABLE_ROOT"])
+        render_internal_report_card(_durable_root / "report-card.sqlite3", authorized=not is_viewer())
     elif selected_page=="Developer Center":
         _developer_pipeline = v104_pipeline_from_df(full_df)
         render_developer_center(

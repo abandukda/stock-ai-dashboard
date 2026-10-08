@@ -1310,6 +1310,7 @@ def _compact_opportunity_card(card: Mapping[str, Any], *, key: str, first: bool 
         f'<span>{html.escape(evidence)}</span><span>As of {_timestamp(card.get("decision_as_of"))}</span></footer></article>',
         unsafe_allow_html=True,
     )
+    _open_research(ticker, f"home_top_idea_{key}_{ticker}")
 
 
 def _render_groups(story: Mapping[str, Any], *, emit_interactive) -> None:
@@ -1324,7 +1325,13 @@ def _render_groups(story: Mapping[str, Any], *, emit_interactive) -> None:
         if _customer_state(card) in {"ACCUMULATE", "WAIT_FOR_ENTRY", "WAIT_FOR_CONFIRMATION", "DATA_LIMITED"}
     ]
     _section_marker("best_opportunities")
-    st.markdown("## Strongest Opportunities")
+    st.markdown(
+        '<span data-atlas-qa="home-top-ideas" data-atlas-surface="CANONICAL_DECISIONS" '
+        'data-atlas-report-card="false" aria-hidden="true" style="display:none">top-ideas</span>',
+        unsafe_allow_html=True,
+    )
+    st.markdown("## Top Ideas · Strongest Opportunities")
+    st.caption("Current certified decisions—not historical or verified performance results.")
     if not actionable:
         empty = story.get("home_opportunity_empty_state") if isinstance(story.get("home_opportunity_empty_state"), Mapping) else {}
         st.info(str(empty.get("message") or "ATLAS found no stocks meeting the strongest certified opportunity threshold for this snapshot."))
@@ -1450,14 +1457,19 @@ def _render_market_read(story: Mapping[str, Any]) -> None:
 
 def _render_footer_navigation() -> None:
     _section_marker("footer_navigation")
-    st.markdown("### Continue your research")
-    ranked, research = st.columns(2)
-    if ranked.button("Full Ranked", key="home_full_ranked", use_container_width=True):
-        st.session_state["v79_pending_page"] = "Full Ranked Scan"
-        st.rerun()
-    if research.button("Research Any Ticker", key="home_research_any", type="primary", use_container_width=True):
-        st.session_state["v79_pending_page"] = "Research Any Ticker"
-        st.rerun()
+    st.markdown("### Continue with ATLAS intelligence")
+    destinations = (
+        ("Recovery", "Recovery"), ("Earnings", "Earnings Intelligence"),
+        ("ETFs", "ETFs"), ("Watchlist", "Watchlist Intelligence"),
+        ("Political Context", "Political Intelligence"), ("Research Any Ticker", "Research Any Ticker"),
+    )
+    for start in range(0, len(destinations), 3):
+        columns = st.columns(3)
+        for column, (label, page) in zip(columns, destinations[start:start + 3]):
+            if column.button(label, key=f"home_continue_{page}", use_container_width=True,
+                             type="primary" if page == "Research Any Ticker" else "secondary"):
+                st.session_state["v79_pending_page"] = page
+                st.rerun()
 
 
 def _comparison(card: Mapping[str, Any]) -> None:
@@ -1590,7 +1602,7 @@ def render_home_guidance_vnext(story: Mapping[str, Any], *, emit_interactive=Non
     )
     st.markdown(
         '<div class="atlas-home-guidance-hero">'
-        '<h1>ATLAS Today</h1>'
+        '<h1>ATLAS Morning View</h1>'
         '<p>Actionable opportunities from the latest certified ATLAS evaluation.</p>'
         f'<small>As of {html.escape(_timestamp(story.get("scan_timestamp")))}</small>'
         '</div>', unsafe_allow_html=True,

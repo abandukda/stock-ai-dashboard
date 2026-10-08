@@ -190,6 +190,36 @@ class ProspectiveLedger:
             db.execute("COMMIT")
         return True
 
+    def append_many(self, records: Sequence[tuple[str, str, Mapping[str, Any], datetime, str | None]]) -> int:
+        """Append a prevalidated record set in one transaction or not at all."""
+        self.initialize()
+        inserted = 0
+        with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            previous = db.execute("SELECT record_digest FROM records ORDER BY sequence DESC LIMIT 1").fetchone()
+            previous_digest = str(previous[0]) if previous else "GENESIS"
+            for record_type, record_id, payload, created_at, parent_id in records:
+                encoded = _canonical(payload)
+                existing = db.execute(
+                    "SELECT payload_json,record_type,parent_id FROM records WHERE record_id=?", (record_id,)
+                ).fetchone()
+                if existing:
+                    if existing[0] != encoded or existing[1] != record_type or existing[2] != parent_id:
+                        raise ValueError("IMMUTABLE_RECORD_CONFLICT")
+                    continue
+                normalized_created_at = created_at.astimezone(timezone.utc).isoformat()
+                digest = _digest({"type": record_type, "id": record_id, "parent": parent_id,
+                                  "created_at": normalized_created_at, "payload": payload,
+                                  "previous_digest": previous_digest})
+                db.execute(
+                    "INSERT INTO records(record_type,record_id,parent_id,created_at,payload_json,previous_digest,record_digest) VALUES(?,?,?,?,?,?,?)",
+                    (record_type, record_id, parent_id, normalized_created_at, encoded, previous_digest, digest),
+                )
+                previous_digest = digest
+                inserted += 1
+            db.execute("COMMIT")
+        return inserted
+
     def rows(self, record_type: str | None = None) -> list[dict[str, Any]]:
         with self._connect() as db:
             query = "SELECT * FROM records" + (" WHERE record_type=?" if record_type else "") + " ORDER BY sequence"
@@ -336,8 +366,8 @@ def append_amendment(ledger: ProspectiveLedger, *, signal_id: str, amendment: Ma
     return amendment_id
 
 
-def append_observation(ledger: ProspectiveLedger, *, signal_id: str, horizon: int,
-                       observation: Mapping[str, Any], now: datetime) -> str:
+def _validated_observation_record(ledger: ProspectiveLedger, *, signal_id: str, horizon: int,
+                                  observation: Mapping[str, Any], now: datetime) -> tuple[str, dict[str, Any]]:
     if horizon not in HORIZONS:
         raise ValueError("UNREGISTERED_REPORT_CARD_HORIZON")
     if not any(row["record_id"] == signal_id for row in ledger.rows("SIGNAL")):
@@ -374,8 +404,29 @@ def append_observation(ledger: ProspectiveLedger, *, signal_id: str, horizon: in
     payload = {"schema_version": SCHEMA_VERSION, "signal_id": signal_id, "horizon_trading_days": horizon,
                **dict(observation), "target_stop_status": status}
     observation_id = _digest({"signal": signal_id, "horizon": horizon, "observed_at": observation["observed_at"]})
+    return observation_id, payload
+
+
+def append_observation(ledger: ProspectiveLedger, *, signal_id: str, horizon: int,
+                       observation: Mapping[str, Any], now: datetime) -> str:
+    observation_id, payload = _validated_observation_record(
+        ledger, signal_id=signal_id, horizon=horizon, observation=observation, now=now,
+    )
     ledger.append("OBSERVATION", observation_id, payload, created_at=now, parent_id=signal_id)
     return observation_id
+
+
+def append_observations_atomic(ledger: ProspectiveLedger, *, horizon: int,
+                               observations: Sequence[tuple[str, Mapping[str, Any]]], now: datetime) -> tuple[int, int]:
+    """Validate the full horizon first, then append it in one SQLite transaction."""
+    prepared = []
+    for signal_id, observation in observations:
+        observation_id, payload = _validated_observation_record(
+            ledger, signal_id=signal_id, horizon=horizon, observation=observation, now=now,
+        )
+        prepared.append(("OBSERVATION", observation_id, payload, now, signal_id))
+    inserted = ledger.append_many(prepared)
+    return inserted, len(prepared) - inserted
 
 
 def internal_dashboard(ledger: ProspectiveLedger, *, authorized: bool) -> dict[str, Any]:
@@ -408,5 +459,5 @@ def internal_dashboard(ledger: ProspectiveLedger, *, authorized: bool) -> dict[s
 
 
 __all__ = ["CAPTURE_VERSION", "CaptureResult", "DEFAULT_MAX_EVIDENCE_AGE", "ProspectiveLedger",
-           "SCHEMA_VERSION", "append_amendment", "append_observation", "capture_certified_publication",
+           "SCHEMA_VERSION", "append_amendment", "append_observation", "append_observations_atomic", "capture_certified_publication",
            "internal_dashboard"]

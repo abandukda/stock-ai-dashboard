@@ -26,14 +26,21 @@ def bundle(ledger: ProspectiveLedger):
     for ticker, price in (("NVDA", 110.0), ("MSFT", 190.0)):
         records.append({"signal_id": ticker, "observation": {
             "observed_price": price, "observed_at": "2026-10-08T20:00:00+00:00",
-            "price_source": "GOVERNED_MARKET_CLOSE", "corporate_action_status": "NONE",
+            "price_source": "GOVERNED_OFFICIAL_DAILY_CLOSE", "corporate_action_status": "NONE",
             "data_status": "AVAILABLE", "benchmark_ticker": "SPY",
             "benchmark_observed_at": "2026-10-08T20:00:00+00:00",
             "benchmark_reference_price": 500.0, "benchmark_observed_price": 505.0,
-            "benchmark_return": None, "trading_sessions": ["2026-10-08"]}})
+            "benchmark_return": None, "trading_sessions": ["2026-10-08"],
+            "price_provenance": {"provider": "GOVERNED_FIXTURE", "instrument": ticker,
+                                 "as_of": "2026-10-08T20:00:00+00:00",
+                                 "retrieved_at": "2026-10-08T20:02:00+00:00", "currency": "USD",
+                                 "session_status": "FINALIZED_REGULAR_CLOSE"}}})
     return {"schema_version": BUNDLE_SCHEMA, "activation_timestamp": ACTIVATION.isoformat(),
             "ledger_tip_before": ledger.verify(), "session_open_at": "2026-10-08T13:30:00+00:00",
             "session_close_at": CLOSE.isoformat(), "horizon_trading_days": 1, "records": records,
+            "bundle_certified_at": "2026-10-08T20:03:00+00:00",
+            "session_status": "FINALIZED_REGULAR_CLOSE", "trading_calendar_source": "XNYS",
+            "trading_calendar_version": "2026.10",
             "provider_calls": 0, "reacquisition": "none", "customer_visible": False,
             "public_performance_claims_allowed": False}
 
@@ -42,12 +49,12 @@ def test_complete_mature_bundle_is_atomic_backed_up_and_idempotent(tmp_path):
     ledger = ledger_with_signals(tmp_path / "primary/ledger.sqlite3")
     payload = bundle(ledger)
     result = apply_observation_bundle(ledger=ledger, backup_root=tmp_path / "backup",
-                                      bundle=payload, now=CLOSE + timedelta(minutes=1))
+                                      bundle=payload, now=CLOSE + timedelta(minutes=4))
     assert (result.appended, result.signal_count, result.session_date) == (2, 2, "2026-10-08")
     assert ProspectiveLedger(Path(result.backup_path)).verify() == result.ledger_tip
     payload["ledger_tip_before"] = ledger.verify()
     replay = apply_observation_bundle(ledger=ledger, backup_root=tmp_path / "backup2",
-                                      bundle=payload, now=CLOSE + timedelta(minutes=2))
+                                      bundle=payload, now=CLOSE + timedelta(minutes=5))
     assert (replay.appended, replay.idempotent) == (0, 2)
 
 
@@ -64,7 +71,7 @@ def test_before_close_fails_without_mutating_ledger(tmp_path):
     (lambda b: b["records"].pop(), "OBSERVATION_SIGNAL_COVERAGE_MISMATCH"),
     (lambda b: b.update(ledger_tip_before="wrong"), "OBSERVATION_LEDGER_TIP_MISMATCH"),
     (lambda b: b["records"][0]["observation"].update(corporate_action_status=""), "CORPORATE_ACTION_STATUS_REQUIRED"),
-    (lambda b: b["records"][0]["observation"].update(benchmark_observed_at="2026-10-07T20:00:00+00:00"),
+    (lambda b: b["records"][1]["observation"].update(benchmark_observed_at="2026-10-07T20:00:00+00:00"),
      "STOCK_BENCHMARK_BOUNDARIES_NOT_ALIGNED"),
 ])
 def test_bundle_fails_closed(mutation, error, tmp_path):
@@ -73,7 +80,8 @@ def test_bundle_fails_closed(mutation, error, tmp_path):
     mutation(payload)
     with pytest.raises(ValueError, match=error):
         apply_observation_bundle(ledger=ledger, backup_root=tmp_path / "backup", bundle=payload,
-                                 now=CLOSE + timedelta(minutes=1))
+                                 now=CLOSE + timedelta(minutes=4))
+    assert ledger.rows("OBSERVATION") == []
 
 
 def test_observation_workflow_is_manual_internal_and_zero_provider():
