@@ -28,6 +28,7 @@ from services.vnext_presentation_contract import (
     RESEARCH_WITHHELD_PRIMARY_COPY,
     RESEARCH_WITHHELD_SUPPORTING_COPY,
 )
+from services.customer_authority import customer_authority
 
 
 RESEARCH_VNEXT_SECTIONS: Final = (
@@ -55,7 +56,8 @@ def _trust_tier(label: str, copy: str) -> None:
 
 
 def _certified_field(report: Mapping[str, Any], name: str) -> Any:
-    field = safe_mapping(safe_mapping(report.get("certified_customer_evaluation")).get("fields")).get(name)
+    certified = safe_mapping(customer_authority(report).get("certified_customer_evaluation"))
+    field = safe_mapping(certified.get("fields")).get(name)
     envelope = safe_mapping(field)
     if str(envelope.get("certification_status") or "").upper() in {
         "CERTIFIED", "CERTIFIED_HIGH_UNCERTAINTY", "PUBLISHED", "AVAILABLE",
@@ -66,10 +68,10 @@ def _certified_field(report: Mapping[str, Any], name: str) -> Any:
 
 def _certified_decision_authority(report: Mapping[str, Any]) -> Mapping[str, Any]:
     """Return the customer-publishable certified decision, or no authority."""
-    certified = safe_mapping(report.get("certified_customer_evaluation"))
-    if certified.get("customer_publication_allowed") is not True:
+    authority = customer_authority(report)
+    if authority.get("status") != "AVAILABLE":
         return {}
-    return safe_mapping(certified.get("decision"))
+    return safe_mapping(safe_mapping(authority.get("certified_customer_evaluation")).get("decision"))
 
 
 def _score_display(value: Any) -> str:

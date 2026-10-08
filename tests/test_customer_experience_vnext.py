@@ -99,8 +99,10 @@ def test_watchlist_and_intraday_context_cannot_change_action():
 
 def test_watchlist_uses_only_customer_publishable_certified_authority():
     row = {"certified_customer_evaluation": {"customer_publication_allowed": True,
-           "decision": {"action": "BUY_NOW"},
-           "certified_fields": {"atlas_fair_value": {"value": 123.45}}}}
+           "ticker": "NVDA",
+           "decision": {"action": "BUY_NOW", "opportunity": 85.96, "decision_confidence": 87.46},
+           "fields": {"atlas_fair_value": {"value": 123.45, "certification_status": "CERTIFIED"}},
+           "digests": {"evaluation_snapshot_id": "snapshot-1"}}}
     assert _certified_fields(row) == ("BUY_NOW", 123.45)
     row["certified_customer_evaluation"]["customer_publication_allowed"] = False
     assert _certified_fields(row) == ("RATING_NOT_PUBLISHED", None)

@@ -152,6 +152,26 @@ def _decision_sentence(report: Mapping[str, Any]) -> str:
     return f"ATLAS decision for {ticker}: {decision['state'].replace('_', ' ')}."
 
 
+def _certified_investment_view(report: Mapping[str, Any]) -> str:
+    """Render protected customer fields without recalculation or inference."""
+    from services.customer_authority import customer_authority
+    authority = customer_authority(report)
+    ticker = str(report.get("ticker") or authority.get("ticker") or "This security").upper()
+    if authority.get("status") != "AVAILABLE":
+        decision = canonical_ask_decision(report)
+        if decision.get("state") != "DATA_UNAVAILABLE":
+            return f"### Certified ATLAS view for {ticker}\n\n{_decision_sentence(report)}"
+        return _canonical_unavailable_answer(report)
+    return (
+        f"### Certified ATLAS view for {ticker}\n\n"
+        f"**Action:** {str(authority['action']).replace('_', ' ')}  \n"
+        f"**ATLAS Fair Value:** ${float(authority['fair_value']):,.2f}  \n"
+        f"**Opportunity:** {float(authority['opportunity']):.2f}  \n"
+        f"**Decision Confidence:** {float(authority['confidence']):.2f}\n\n"
+        "These values come from the customer-publishable certified evaluation; no protected field was recalculated."
+    )
+
+
 def _canonical_unavailable_answer(report: Mapping[str, Any]) -> str:
     """Explain unavailable authority without manufacturing a substitute action."""
     ticker = str(report.get("ticker") or "This security").upper()
@@ -318,6 +338,12 @@ def _deterministic_answer(question: str, report: Mapping[str, Any]) -> str:
     ai_valuation = ai_valuation_object(report)
     decision = canonical_ask_decision(report)
     decision_sentence = _decision_sentence(report)
+
+    if any(term in q for term in (
+        "what does atlas think", "atlas view", "investment view", "atlas think about",
+        "recommendation for", "view on", "why does atlas like", "why atlas likes",
+    )):
+        return _certified_investment_view(report)
 
     contextual_analyst_question = any(term in q for term in (
         "wall street", "analyst", "target change", "target raise", "target cut",
@@ -627,6 +653,8 @@ def ask_atlas(question: str, report: Mapping[str, Any]) -> dict[str, Any]:
         "what changed", "actionable", "what should i do", "should i buy", "what would make",
         "what is missing", "missing evidence", "invalidate", "what breaks", "watch next",
         "watching next", "insider", "politician", "political", "congress",
+        "what does atlas think", "atlas view", "investment view", "atlas think about",
+        "recommendation for", "view on", "why does atlas like", "why atlas likes",
     )):
         answer = _deterministic_answer(question, report)
         mode = "deterministic_decision_story"

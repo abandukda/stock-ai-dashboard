@@ -4724,7 +4724,7 @@ def render_chat_helper(full_df):
     ticker = matched.get("Ticker") or matched.get("ticker")
     ticker = str(ticker).upper().strip()
     st.session_state.update(ask_ai_status="loading", ask_ai_ticker=ticker, ask_ai_response="", ask_ai_error="")
-    st.markdown(f'<span data-atlas-qa="ask-ai-response" data-atlas-status="loading" data-atlas-ticker="{html.escape(ticker)}" aria-hidden="true" style="display:none">ask-ai-loading</span>', unsafe_allow_html=True)
+    st.markdown(f'<span data-atlas-qa="ask-ai-lifecycle" data-atlas-state="SUBMITTED" data-atlas-ticker="{html.escape(ticker)}" aria-hidden="true" style="display:none">ask-ai-submitted</span>', unsafe_allow_html=True)
     st.markdown(f"### {ticker} Atlas AI Response")
 
     try:
@@ -4732,14 +4732,21 @@ def render_chat_helper(full_df):
         from engines.atlas_research_builder_v2 import build_atlas_research_v2
         _ask_started = time.monotonic()
         source = matched.get("Raw") or matched.get("raw")
+        source = source if isinstance(source, dict) else dict(matched)
+        from services.customer_authority import bind_report_to_customer_authority, customer_authority
+        _saved_authority = customer_authority(source)
+        st.markdown(f'<span data-atlas-qa="ask-ai-lifecycle" data-atlas-state="GROUNDING_RESOLVED" data-atlas-ticker="{html.escape(ticker)}" aria-hidden="true" style="display:none">ask-ai-grounding-resolved</span>', unsafe_allow_html=True)
         session_research = (
             st.session_state.get(f"atlas_canonical_research_row_{ticker}")
             or st.session_state.get(f"v8054_live_row_{ticker}")
             or st.session_state.get(f"v8053_live_row_{ticker}")
         )
-        if not isinstance(session_research, dict) or session_research.get("error"):
+        if (_saved_authority.get("status") != "AVAILABLE"
+                and (not isinstance(session_research, dict) or session_research.get("error"))):
             session_research = build_live_research_row(ticker, force_refresh=False)
-        canonical_row = dict(session_research) if isinstance(session_research, dict) and not session_research.get("error") else (dict(source) if isinstance(source, dict) else dict(matched))
+        canonical_row = dict(source) if _saved_authority.get("status") == "AVAILABLE" else (
+            dict(session_research) if isinstance(session_research, dict) and not session_research.get("error") else dict(source)
+        )
         # Preserve the exact canonical Research row that the customer saw.
         # Scan-table aliases must never overwrite RESEARCH_CONTEXT_V1 decision authority.
         canonical_row["ticker"] = ticker
@@ -4750,9 +4757,13 @@ def render_chat_helper(full_df):
         _context_rebuilt = not isinstance(report, dict)
         if _context_rebuilt:
             report = build_atlas_research_v2(canonical_row)
+            report = bind_report_to_customer_authority(report, canonical_row)
             st.session_state[_report_key] = report
+        else:
+            report = bind_report_to_customer_authority(report, canonical_row)
         _context_seconds = max(0.0, time.monotonic() - _ask_started)
         _llm_started = time.monotonic()
+        st.markdown(f'<span data-atlas-qa="ask-ai-lifecycle" data-atlas-state="RESPONSE_GENERATING" data-atlas-ticker="{html.escape(ticker)}" aria-hidden="true" style="display:none">ask-ai-response-generating</span>', unsafe_allow_html=True)
         result = ask_atlas(question, report)
         _llm_seconds = max(0.0, time.monotonic() - _llm_started)
         response = str(result.get("answer") or "").strip()
@@ -4804,6 +4815,7 @@ def render_chat_helper(full_df):
         )
         st.markdown(
             f'<span data-atlas-qa="ask-ai-response" data-atlas-status="complete" '
+            f'data-atlas-lifecycle="RESPONSE_COMPLETE" '
             f'data-atlas-ticker="{html.escape(ticker)}" data-atlas-section="{html.escape(str(result.get("section") or "overview"))}" '
             f'data-atlas-evidence-used="{evidence_used}" data-atlas-evidence-missing="{evidence_missing}" '
             f'data-atlas-evidence-ids="{html.escape(_ask_evidence_ids)}" '
