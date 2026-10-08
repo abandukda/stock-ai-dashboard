@@ -1,0 +1,93 @@
+name: ATLAS Internal Report Card Observation
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: Run containing the governed observation bundle
+        required: true
+        type: string
+      artifact_name:
+        description: Exact observation artifact name
+        required: true
+        type: string
+      activate_observation:
+        description: Explicit authorization for one matured observation bundle
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: atlas-internal-report-card-observation
+  cancel-in-progress: false
+
+jobs:
+  observe:
+    environment: atlas-internal-report-card
+    runs-on: [self-hosted, Linux, X64, atlas-worker-1]
+    timeout-minutes: 20
+    env:
+      ATLAS_REPORT_CARD_DURABLE_ROOT: ${{ vars.ATLAS_REPORT_CARD_DURABLE_ROOT }}
+      ATLAS_REPORT_CARD_BACKUP_ROOT: ${{ vars.ATLAS_REPORT_CARD_BACKUP_ROOT }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require explicit internal observation authorization
+        shell: bash
+        run: |
+          test "${{ inputs.activate_observation }}" = "true"
+          test -n "$ATLAS_REPORT_CARD_DURABLE_ROOT"
+          test -n "$ATLAS_REPORT_CARD_BACKUP_ROOT"
+          test "$ATLAS_REPORT_CARD_DURABLE_ROOT" != "$ATLAS_REPORT_CARD_BACKUP_ROOT"
+          command -v python3
+      - name: Download exact governed observation bundle
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.source_run_id }}
+          name: ${{ inputs.artifact_name }}
+          path: audit_results/report_card_observation_source
+      - name: Resolve exactly one observation bundle
+        id: bundle
+        shell: bash
+        run: |
+          mapfile -t bundles < <(find audit_results/report_card_observation_source -type f -name report_card_observations.json)
+          test "${#bundles[@]}" -eq 1
+          echo "path=${bundles[0]}" >> "$GITHUB_OUTPUT"
+      - name: Apply matured observations and verify atomic backup
+        shell: bash
+        run: |
+          python3 scripts/run_internal_report_card_observations.py \
+            --bundle "${{ steps.bundle.outputs.path }}" \
+            --ledger "$ATLAS_REPORT_CARD_DURABLE_ROOT/report-card.sqlite3" \
+            --backup-root "$ATLAS_REPORT_CARD_BACKUP_ROOT" \
+            --output audit_results/internal_report_card_observation.json
+      - name: Assert internal-only zero-provider boundary
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          report = json.load(open('audit_results/internal_report_card_observation.json'))
+          assert report['provider_calls'] == 0
+          assert report['reacquisition'] == 'none'
+          assert report['customer_visible'] is False
+          assert report['public_performance_claims_allowed'] is False
+          assert report['status'] == 'OBSERVATIONS_RECORDED'
+          PY
+      - name: Emit governed failure alert
+        if: failure()
+        shell: bash
+        run: |
+          echo "::error title=ATLAS Report Card observation failed::No observation retry was attempted; inspect this run before any further action."
+          echo "## ATLAS observation failed closed" >> "$GITHUB_STEP_SUMMARY"
+          echo "No automatic retry, provider acquisition, or public reporting occurred." >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atlas-internal-report-card-observation-${{ github.run_id }}
+          path: audit_results/internal_report_card_observation.json
+          retention-days: 30
