@@ -109,6 +109,7 @@ def test_internal_signal_detail_ui_and_home_deep_link_contracts_are_registered()
     ):
         assert marker in ui
     assert "report_card_selected_signal_id" in ui and "report_card_selected_signal_id" in home
+    assert 'st.session_state.pop("report_card_selected_signal_id", None)' in home
     assert "Open {signal[\"ticker\"]} signal" in home
 
 
@@ -124,6 +125,7 @@ def test_autonomous_crawler_opens_and_certifies_signal_detail():
     assert 'page.locator(\'[data-atlas-qa="report-card-overview"]\')' in crawler
     assert 'get_by_text("Signals", exact=True)' not in crawler
     assert "ATLAS_REPORT_CARD_SIGNAL_DIGEST_CERTIFIED" in crawler
+    assert 'await overview.wait_for(state="attached", timeout=5000)' in crawler
 
 
 def test_signal_detail_semantic_marker_carries_existing_authority_and_evidence_states():

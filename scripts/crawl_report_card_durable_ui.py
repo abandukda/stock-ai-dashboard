@@ -63,7 +63,17 @@ async def run(output: Path) -> None:
             await page.get_by_role("button", name="View Report Card").click()
             await page.locator('[data-atlas-qa="internal-report-card"]').wait_for(state="attached", timeout=30000)
             overview = page.locator('[data-atlas-qa="report-card-overview"]')
-            await overview.wait_for(state="attached", timeout=30000)
+            # Normalize a retained detail sub-state through the product's
+            # governed Back action before certifying overview facts.  Never
+            # infer overview state from detail prose.
+            try:
+                await overview.wait_for(state="attached", timeout=5000)
+            except Exception:
+                back = page.get_by_role("button", name="← Back to Report Card")
+                if not await back.count() or not await back.first.is_visible():
+                    raise
+                await back.first.click()
+                await overview.wait_for(state="attached", timeout=30000)
             await page.get_by_text("Prospective Report Card", exact=True).wait_for(state="visible", timeout=30000)
             overview_facts = {
                 key: await overview.get_attribute(f"data-atlas-{key}")
