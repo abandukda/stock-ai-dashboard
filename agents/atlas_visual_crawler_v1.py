@@ -904,8 +904,12 @@ class AtlasVisualCrawler:
             # The rendered state and viewport determine visual identity.  Do
             # not defeat deduplication merely because two traversal labels
             # reached byte-identical DOM.
+            # A visually identical DOM on a different governed surface is not
+            # interchangeable evidence. Keep a distinct artifact per page,
+            # viewport, ticker and interaction while still deduplicating exact
+            # retry captures of that same state.
             state_key = hashlib.sha256(
-                f"{viewport}|{state_digest}".encode("utf-8")
+                f"{page_name}|{interaction}|{state}|{ticker}|{viewport}|{state_digest}".encode("utf-8")
             ).hexdigest()
             prior = self._screenshot_states.get(state_key)
             if prior:
@@ -1620,15 +1624,21 @@ class AtlasVisualCrawler:
 
     async def _current_route_visible(self, page: Page, page_name: str) -> bool:
         """Prefer the current radio selection over stale lifecycle nodes from old reruns."""
+        customer_label = {
+            "Research Any Ticker": "Research",
+            "Earnings Intelligence": "Earnings",
+            "Watchlist Intelligence": "Watchlist",
+            "Ask AI": "Ask ATLAS",
+        }.get(page_name, page_name)
         for scope in _scopes(page):
             try:
-                radio = scope.get_by_role("radio", name=page_name, exact=True)
+                radio = scope.get_by_role("radio", name=customer_label, exact=True)
                 if await radio.count() and await radio.first.is_checked():
                     return True
             except Exception:
                 continue
         text = await _visible_text(page)
-        return page_name.lower() in text.lower()
+        return customer_label.lower() in text.lower()
 
     async def _research_route_owned(self, page: Page) -> bool:
         """Prove the live primary DOM belongs to the selected Research route."""

@@ -233,6 +233,19 @@ def _render_transcript_intelligence(story: Mapping[str, Any], *, suffix: str) ->
     """Render/load derived transcript evidence without exposing transcript bodies."""
     transcript = story.get("transcript_intelligence") or {}
     data = transcript.get("data") if isinstance(transcript.get("data"), Mapping) else transcript
+    from services.customer_ai_summary import build_earnings_summary
+    summary = build_earnings_summary(story)
+    st.markdown('<span data-atlas-qa="earnings-ai-summary" data-atlas-classification="contextual-non-scoring" '
+                'style="display:none">earnings-ai-summary</span>', unsafe_allow_html=True)
+    st.markdown("#### AI Earnings Summary")
+    st.caption("Transcript context · contextual/non-scoring · cannot change the certified ATLAS Action")
+    if summary["status"] != "AVAILABLE":
+        st.info("Transcript analysis unavailable")
+    else:
+        for label, items in summary["sections"].items():
+            st.markdown(f"**{label}**")
+            st.write("\n".join(f"- {item}" for item in items) or "No grounded statement available.")
+        st.caption("Transcript evidence: " + (", ".join(summary["evidence_ids"]) or "Unavailable"))
     st.markdown("#### What management emphasized")
     if transcript.get("semantic_status") == "AVAILABLE":
         for label, key in (

@@ -41,10 +41,11 @@ def build_internal_report_card(path: Path, *, authorized: bool) -> dict[str, Any
     table = []
     for signal in signals:
         payload = signal["payload"]
+        observation_count = sum(row["parent_id"] == signal["record_id"] for row in observations)
         for horizon in HORIZONS:
             item = observed.get((signal["record_id"], horizon))
             table.append({
-                "ticker": payload.get("ticker"), "first_seen_at": payload.get("first_seen_at"),
+                "signal_id": signal["record_id"], "ticker": payload.get("ticker"), "first_seen_at": payload.get("first_seen_at"),
                 "issuance_price": payload.get("reference_price"), "action": payload.get("canonical_recommendation"),
                 "opportunity": payload.get("opportunity"), "confidence": payload.get("decision_confidence"),
                 "horizon_sessions": horizon, "status": item.get("data_status") if item else "NOT_MATURED_OR_NOT_OBSERVED",
@@ -54,6 +55,7 @@ def build_internal_report_card(path: Path, *, authorized: bool) -> dict[str, Any
                 "spy_return": item.get("benchmark_return") if item else None,
                 "excess_return": item.get("excess_return") if item else None,
                 "corporate_action_status": item.get("corporate_action_status") if item else None,
+                "observation_count": observation_count,
             })
     available = [row for row in table if row["status"] == "AVAILABLE"]
     returns = [float(row["stock_return"]) for row in available]
@@ -71,6 +73,9 @@ def build_internal_report_card(path: Path, *, authorized: bool) -> dict[str, Any
         "observation_count": len(observations), "spy_comparison_count": sum(row["spy_return"] is not None for row in available),
         "coverage": coverage, "mean_return": sum(returns) / len(returns) if returns else None,
         "median_return": median(returns) if returns else None, "rows": table,
+        "registered_horizons": list(HORIZONS),
+        "next_eligible_observation": metadata.get("next_eligible_observation", "Determined by governed trading-session calendar"),
+        "last_backup_status": metadata.get("last_backup_status", "Verify from protected backup workflow"),
         "limitations": ["PROSPECTIVE_ONLY", "DESCRIPTIVE_ONLY", "INTERNAL_NOT_CUSTOMER_FACING",
                         "NO_CONCLUSION_WHILE_SAMPLE_IS_INSUFFICIENT"],
     }

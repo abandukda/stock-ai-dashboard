@@ -1152,6 +1152,26 @@ def _render_full_investment_case(report: Mapping[str, Any]) -> None:
         st.caption(f"Deep-dive report for {ticker}; AI explains bounded evidence and does not invent ATLAS decisions.")
 
 
+def _render_grounded_atlas_summary(report: Mapping[str, Any]) -> None:
+    from services.customer_ai_summary import build_research_summary
+    summary = build_research_summary(report)
+    st.markdown('<span data-atlas-qa="research-ai-summary" data-atlas-ai-role="explanation-only" '
+                'data-atlas-authority="certified-atlas" style="display:none">research-ai-summary</span>',
+                unsafe_allow_html=True)
+    st.markdown("## ATLAS Summary")
+    st.caption("CERTIFIED ATLAS FACTS · AI-GENERATED EXPLANATION · No independent recommendation authority")
+    if summary["status"] != "AVAILABLE":
+        st.info("ATLAS Summary unavailable because the required certified evidence is not published.")
+        return
+    for label, value in summary["sections"].items():
+        st.markdown(f"**{label}**")
+        if isinstance(value, list):
+            st.write("\n".join(f"- {item}" for item in value) or "Evidence unavailable.")
+        else:
+            st.write(value)
+    st.caption("Evidence IDs: " + (", ".join(summary["evidence_ids"]) or "Bound to the certified evaluation envelope"))
+
+
 def _render_risk_evidence(report: Mapping[str, Any], view: Mapping[str, Any], legacy: Mapping[str, Callable[..., Any]]) -> None:
     ticker = str(report.get("ticker") or "UNKNOWN")
     _section_marker("Risk & Evidence", ticker)
@@ -1402,9 +1422,11 @@ def render_research_vnext(report: Mapping[str, Any], *, legacy: Mapping[str, Cal
         """,
         unsafe_allow_html=True,
     )
+    _render_decision(report, view)
+    _render_grounded_atlas_summary(report)
     tabs = st.tabs(list(RESEARCH_VNEXT_SECTIONS))
     with tabs[0]:
-        _render_decision(report, view)
+        st.caption("The certified decision and grounded summary are displayed above.")
     with tabs[1]:
         _render_fundamentals(report, legacy)
     with tabs[2]:

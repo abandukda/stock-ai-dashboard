@@ -21,6 +21,7 @@ def render_internal_report_card(ledger_path: Path, *, authorized: bool) -> Mappi
     c.metric("SPY comparisons", report["spy_comparison_count"])
     d.metric("Ledger integrity", report["integrity"])
     st.caption(f'Activated {report["activation_timestamp"]} · Ledger tip {report["ledger_tip_digest"][:16]}…')
+    st.caption(f'Next eligible observation: {report["next_eligible_observation"]} · Last backup: {report["last_backup_status"]}')
     coverage_rows = [
         {"Horizon": f"{h} sessions", **values} for h, values in report["coverage"].items()
     ]

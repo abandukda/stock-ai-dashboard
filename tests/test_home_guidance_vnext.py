@@ -560,7 +560,8 @@ render_home_guidance_vnext(story, emit_interactive=lambda: st.markdown('<span da
     assert 'data-atlas-qa="home-guidance-quick-evidence"' not in rendered
     assert "Professional Detail" not in "\n".join(str(item.label) for item in app.expander)
     assert "Founder Guidance Preview" not in rendered
-    assert "Actionable opportunities from the latest certified ATLAS evaluation." in rendered
+    assert "Actionable opportunities from the latest certified evaluation." in rendered
+    assert "AI-GENERATED EXPLANATION" in rendered
 
 
 def test_final_app_home_function_wires_vnext_without_v104_pipeline_authority():
