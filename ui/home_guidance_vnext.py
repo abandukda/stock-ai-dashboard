@@ -1330,8 +1330,7 @@ def _render_groups(story: Mapping[str, Any], *, emit_interactive) -> None:
         'data-atlas-report-card="false" aria-hidden="true" style="display:none">top-ideas</span>',
         unsafe_allow_html=True,
     )
-    st.markdown("## Active BUY Ideas · Top Ideas · Strongest Opportunities")
-    st.caption("CERTIFIED ATLAS FACTS · Only customer-publishable certified BUY NOW records are eligible")
+    st.markdown("## Top Ideas · Strongest Opportunities")
     st.caption("Current certified decisions—not historical or verified performance results.")
     if not actionable:
         empty = story.get("home_opportunity_empty_state") if isinstance(story.get("home_opportunity_empty_state"), Mapping) else {}
@@ -1604,8 +1603,7 @@ def render_home_guidance_vnext(story: Mapping[str, Any], *, emit_interactive=Non
     st.markdown(
         '<div class="atlas-home-guidance-hero">'
         '<h1>ATLAS Morning View</h1>'
-        '<p><b>CERTIFIED ATLAS FACTS</b> · Actionable opportunities from the latest certified evaluation.<br>'
-        '<span>AI-GENERATED EXPLANATION · Grounded narrative only; it cannot change ATLAS decisions.</span></p>'
+        '<p>Actionable opportunities from the latest certified ATLAS evaluation.</p>'
         f'<small>As of {html.escape(_timestamp(story.get("scan_timestamp")))}</small>'
         '</div>', unsafe_allow_html=True,
     )

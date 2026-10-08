@@ -106,8 +106,6 @@ jobs:
             --phase required
 
       - name: Run Atlas Runtime QA supplementary certification
-        id: supplementary_certification
-        continue-on-error: true
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.mode != 'visual_crawl' }}
         env:
           ATLAS_AUDIT_PASSWORD: ${{ secrets.ATLAS_AUDIT_PASSWORD }}
@@ -118,12 +116,6 @@ jobs:
             --url "$ATLAS_PRODUCTION_URL" \
             --output audit_results \
             --mode "$ATLAS_QA_MODE"
-
-      - name: Record supplementary certification status
-        if: ${{ always() && (github.event_name != 'workflow_dispatch' || inputs.mode != 'visual_crawl') }}
-        run: |
-          echo "Supplementary Runtime QA outcome: ${{ steps.supplementary_certification.outcome }}"
-          echo "Required Phase A remains the promotion authority; supplementary defects remain visible in the uploaded artifact."
 
       - name: Run non-blocking Atlas Visual Crawler
         id: visual_crawl

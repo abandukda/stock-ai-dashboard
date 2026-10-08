@@ -409,11 +409,7 @@ async def _click_text(page: Page, label: str, *, timeout_ms: int = 6500) -> bool
 async def _navigate(page: Page, label: str, output_dir: Path | None = None) -> tuple[bool, float, str]:
     started = time.monotonic()
     before_shot = await _screenshot(page, output_dir, f"before_nav_{label}") if output_dir else ""
-    customer_label = {
-        "Research Any Ticker": "Research", "Earnings Intelligence": "Earnings",
-        "Watchlist Intelligence": "Watchlist", "Ask AI": "Ask ATLAS",
-    }.get(label, label)
-    clicked = await _click_text(page, customer_label)
+    clicked = await _click_text(page, label)
     if not clicked:
         return False, time.monotonic() - started, f"Could not click navigation label: {label}"
 
@@ -426,7 +422,7 @@ async def _navigate(page: Page, label: str, output_dir: Path | None = None) -> t
         selected = False
         for scope in _scopes(page):
             try:
-                controls = scope.get_by_role("radio", name=customer_label, exact=True)
+                controls = scope.get_by_role("radio", name=label, exact=True)
                 for index in range(await controls.count()):
                     control = controls.nth(index)
                     if await control.is_checked():

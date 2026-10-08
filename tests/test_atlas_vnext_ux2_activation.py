@@ -11,8 +11,8 @@ from streamlit.testing.v1 import AppTest
 
 ROOT = Path(__file__).resolve().parents[1]
 SECTIONS = [
-    "ATLAS View", "ATLAS Fair Value", "Live Market & Trade",
-    "Additional Context", "Decision Evidence",
+    "Decision", "Fundamentals & Valuation", "Technical & Trade State",
+    "Catalysts & Sentiment", "Risk & Evidence",
 ]
 LEGACY_TABS = {
     "Thesis", "Growth & Profitability", "Earnings Intelligence", "Risk",
@@ -52,7 +52,7 @@ def _assert_five_section_dom(app_test: AppTest, ticker: str) -> None:
     assert labels == SECTIONS
     assert not (set(labels) & LEGACY_TABS)
     html = "\n".join(str(markdown.value) for markdown in app_test.markdown)
-    assert 'data-atlas-version="ATLAS_RESEARCH_VNEXT_UX3_ACTION_FIRST"' in html
+    assert 'data-atlas-version="ATLAS_RESEARCH_VNEXT_UX2"' in html
     assert f'data-atlas-ticker="{ticker}"' in html
     assert 'data-atlas-section-count="5"' in html
     assert 'data-atlas-qa="research-ask-cta"' in html
@@ -94,7 +94,7 @@ def test_final_active_app_monitor_is_non_actionable_and_five_section():
     app_test = _active_app("CRC", monitor=True)
     _assert_five_section_dom(app_test, "CRC")
     assert "Monitor — Not currently actionable" in "\n".join(
-        str(item.value) for item in (*app_test.markdown, *app_test.caption)
+        str(item.value) for item in app_test.markdown
     )
 
 

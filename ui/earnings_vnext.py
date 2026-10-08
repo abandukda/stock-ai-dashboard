@@ -233,19 +233,6 @@ def _render_transcript_intelligence(story: Mapping[str, Any], *, suffix: str) ->
     """Render/load derived transcript evidence without exposing transcript bodies."""
     transcript = story.get("transcript_intelligence") or {}
     data = transcript.get("data") if isinstance(transcript.get("data"), Mapping) else transcript
-    from services.customer_ai_summary import build_earnings_summary
-    summary = build_earnings_summary(story)
-    st.markdown('<span data-atlas-qa="earnings-ai-summary" data-atlas-classification="contextual-non-scoring" '
-                'style="display:none">earnings-ai-summary</span>', unsafe_allow_html=True)
-    st.markdown("#### AI Earnings Summary")
-    st.caption("Transcript context · contextual/non-scoring · cannot change the certified ATLAS Action")
-    if summary["status"] != "AVAILABLE":
-        st.info("Transcript analysis unavailable")
-    else:
-        for label, items in summary["sections"].items():
-            st.markdown(f"**{label}**")
-            st.write("\n".join(f"- {item}" for item in items) or "No grounded statement available.")
-        st.caption("Transcript evidence: " + (", ".join(summary["evidence_ids"]) or "Unavailable"))
     st.markdown("#### What management emphasized")
     if transcript.get("semantic_status") == "AVAILABLE":
         for label, key in (
@@ -492,18 +479,13 @@ def _upcoming_card(story: Mapping[str, Any], open_research: Callable[[str], Any]
 def render_earnings_vnext(full_df: Any, *, open_research: Callable[[str], Any]) -> None:
     st.markdown('<span data-atlas-earnings-version="ATLAS_EARNINGS_VNEXT_V1" style="display:none">earnings-vnext</span>', unsafe_allow_html=True)
     _inject_earnings_css()
-    st.markdown('<div class="atlas-kicker">Executive evidence review</div>', unsafe_allow_html=True)
     st.title("Earnings Intelligence")
     st.caption("What happened, why it matters, what remains unverified, and the current canonical ATLAS decision.")
     emit_page_interactive(st, "Earnings Intelligence")
     reported, upcoming = _stories(full_df)
     st.markdown("## Recently Reported")
     if not reported:
-        st.markdown(
-            '<div class="atlas-empty-state"><strong>Transcript analysis is pending.</strong>'
-            '<span>No normalized reported-quarter evidence is available in this certified snapshot.</span></div>',
-            unsafe_allow_html=True,
-        )
+        st.info("No normalized reported-quarter evidence is available in the current persisted universe.")
     for index, story in enumerate(reported[:8]):
         with st.container(border=True):
             _reported_card(story, open_research, index)
@@ -513,11 +495,7 @@ def render_earnings_vnext(full_df: Any, *, open_research: Callable[[str], Any]) 
                 _reported_card(story, open_research, index)
     st.markdown("## Upcoming Earnings")
     if not upcoming:
-        st.markdown(
-            '<div class="atlas-empty-state"><strong>No verified earnings event is scheduled.</strong>'
-            '<span>ATLAS will show the next event when governed evidence is available.</span></div>',
-            unsafe_allow_html=True,
-        )
+        st.info("No upcoming earnings events are verified in the current persisted universe.")
     for index, story in enumerate(upcoming[:8]):
         with st.container(border=True):
             _upcoming_card(story, open_research, index)
