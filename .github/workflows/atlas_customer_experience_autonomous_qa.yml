@@ -1,6 +1,9 @@
 name: ATLAS Customer Experience Autonomous QA
 
 on:
+  'push':
+    branches:
+      - codex/customer-experience-vnext
   workflow_dispatch:
     inputs:
       candidate_sha:
@@ -44,7 +47,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: atlas-customer-experience-qa-${{ github.event.pull_request.number || inputs.candidate_sha || github.sha }}
+  group: atlas-customer-experience-qa-${{ github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -64,7 +67,7 @@ jobs:
       - name: Enforce candidate and repair policy
         env:
           EXPECTED_SHA: ${{ inputs.candidate_sha || github.event.pull_request.head.sha || github.sha }}
-          MODE: ${{ inputs.mode || 'certify_only' }}
+          MODE: ${{ github.event_name == 'push' && 'certify_and_repair' || inputs.mode || 'certify_only' }}
           MAX_REPAIR_ATTEMPTS: ${{ inputs.max_repair_attempts || '2' }}
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
@@ -82,9 +85,11 @@ jobs:
 
   governed-browser-certification:
     needs: policy-and-self-test
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'push'
     runs-on: ubuntu-24.04
     timeout-minutes: 110
+    permissions:
+      contents: write
     env:
       ATLAS_QA_PROVIDER_CALLS_ALLOWED: "0"
       ATLAS_CUSTOMER_REPORT_CARD_ENABLED: "false"
@@ -92,8 +97,53 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.candidate_sha }}
+          ref: ${{ github.event_name == 'push' && github.sha || inputs.candidate_sha }}
           fetch-depth: 0
+      - name: Resolve governed execution context
+        id: context
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          DISPATCH_MODE: ${{ inputs.mode }}
+          DISPATCH_MAX_REPAIRS: ${{ inputs.max_repair_attempts }}
+          DISPATCH_BASELINE_SHA: ${{ inputs.baseline_sha }}
+          DISPATCH_SOURCE_RUN: ${{ inputs.runtime_source_run }}
+          DISPATCH_ARTIFACT: ${{ inputs.runtime_artifact_identity }}
+          GOVERNED_BASELINE_SHA: ${{ vars.ATLAS_ACCEPTED_CUSTOMER_QA_BASELINE_SHA }}
+        run: |
+          candidate_sha=$(git rev-parse HEAD)
+          subject=$(git log -1 --pretty=%s)
+          generation=0
+          case "$subject" in
+            *"[atlas-cx-auto-repair 1/2]"*) generation=1 ;;
+            *"[atlas-cx-auto-repair 2/2]"*) generation=2 ;;
+          esac
+          if [ "$EVENT_NAME" = "push" ]; then
+            mode=certify_and_repair
+            requested_repairs=2
+            source_run=37216506983
+            artifact=atlas-finnhub-full-universe-final-37216506983
+            baseline_sha="$GOVERNED_BASELINE_SHA"
+          else
+            mode="$DISPATCH_MODE"
+            requested_repairs="$DISPATCH_MAX_REPAIRS"
+            source_run="$DISPATCH_SOURCE_RUN"
+            artifact="$DISPATCH_ARTIFACT"
+            baseline_sha="${DISPATCH_BASELINE_SHA:-$GOVERNED_BASELINE_SHA}"
+          fi
+          remaining=$((2 - generation))
+          if [ "$requested_repairs" -gt "$remaining" ]; then requested_repairs="$remaining"; fi
+          if [ "$generation" -ge 2 ]; then mode=certify_only; requested_repairs=0; fi
+          test "$requested_repairs" -ge 0
+          test "$requested_repairs" -le 2
+          {
+            echo "candidate_sha=$candidate_sha"
+            echo "mode=$mode"
+            echo "max_repair_attempts=$requested_repairs"
+            echo "baseline_sha=$baseline_sha"
+            echo "source_run=$source_run"
+            echo "artifact=$artifact"
+            echo "repair_generation=$generation"
+          } >> "$GITHUB_OUTPUT"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -103,8 +153,8 @@ jobs:
       - name: Require exact governed runtime handoff
         env:
           GH_TOKEN: ${{ github.token }}
-          SOURCE_RUN: ${{ inputs.runtime_source_run }}
-          ARTIFACT_NAME: ${{ inputs.runtime_artifact_identity }}
+          SOURCE_RUN: ${{ steps.context.outputs.source_run }}
+          ARTIFACT_NAME: ${{ steps.context.outputs.artifact }}
         run: |
           test -n "$SOURCE_RUN"
           test -n "$ARTIFACT_NAME"
@@ -128,6 +178,9 @@ jobs:
               "source": manifest.get("source_sha") or manifest.get("candidate_source_sha"),
           }
           expectations=list(root.rglob("runtime_projection_expectations_*.json"))
+          if not expectations:
+              expectations=list(Path("certification").glob("runtime_projection_expectations_*.json"))
+              expectations=[path for path in expectations if json.loads(path.read_text()).get("identity",{}).get("candidate_digest")==values["candidate"]]
           if len(expectations) != 1:
               raise SystemExit(f"RUNTIME_EXPECTATIONS_AMBIGUOUS:{len(expectations)}")
           values["expectations_dir"]=expectations[0].parent
@@ -165,10 +218,10 @@ jobs:
         id: certify
         continue-on-error: true
         env:
-          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
-          BASELINE_SHA: ${{ inputs.baseline_sha }}
-          MODE: ${{ inputs.mode }}
-          MAX_REPAIR_ATTEMPTS: ${{ inputs.max_repair_attempts }}
+          CANDIDATE_SHA: ${{ steps.context.outputs.candidate_sha }}
+          BASELINE_SHA: ${{ steps.context.outputs.baseline_sha }}
+          MODE: ${{ steps.context.outputs.mode }}
+          MAX_REPAIR_ATTEMPTS: ${{ steps.context.outputs.max_repair_attempts }}
         run: |
           python3 agents/atlas_customer_experience_autonomous_qa.py \
             --candidate-sha "$CANDIDATE_SHA" \
@@ -180,11 +233,14 @@ jobs:
             --screenshot-manifest "$ATLAS_QA_OUTPUT/screenshot_manifest.json" \
             --output "$ATLAS_QA_OUTPUT/final"
       - name: Bounded ephemeral repair and recertification
-        if: steps.certify.outcome == 'failure' && inputs.mode == 'certify_and_repair'
+        if: steps.certify.outcome == 'failure' && steps.context.outputs.mode == 'certify_and_repair' && steps.context.outputs.max_repair_attempts != '0'
         env:
-          MAX_REPAIR_ATTEMPTS: ${{ inputs.max_repair_attempts }}
+          MAX_REPAIR_ATTEMPTS: ${{ steps.context.outputs.max_repair_attempts }}
+          START_GENERATION: ${{ steps.context.outputs.repair_generation }}
+          REVIEW_BRANCH: codex/customer-experience-vnext
         run: |
           for attempt in $(seq 1 "$MAX_REPAIR_ATTEMPTS"); do
+            generation=$((START_GENERATION + attempt))
             python3 agents/customer_experience_qa_repairs.py --plan "$ATLAS_QA_OUTPUT/final/repair_plan.json" --output "$ATLAS_QA_OUTPUT/final/repair-attempt-$attempt.json"
             git diff --check
             git diff --binary --output="$ATLAS_QA_OUTPUT/final/repair-attempt-$attempt.patch"
@@ -192,7 +248,7 @@ jobs:
             git config user.email "atlas-customer-qa@users.noreply.github.com"
             git add -u
             git diff --cached --quiet && break
-            git commit -m "Repair customer QA findings (attempt $attempt)"
+            git commit -m "Repair customer QA findings [atlas-cx-auto-repair $generation/2]"
             git show --binary --format=email HEAD --output="$ATLAS_QA_OUTPUT/final/repair-attempt-$attempt.commit.patch"
             kill "$(cat "$RUNNER_TEMP/atlas-streamlit.pid")" || true
             python3 -m streamlit run app.py --server.headless true --server.port 8501 > "$RUNNER_TEMP/atlas-streamlit.log" 2>&1 &
@@ -201,8 +257,34 @@ jobs:
             mv "$ATLAS_QA_OUTPUT/browser" "$ATLAS_QA_OUTPUT/browser-before-attempt-$attempt"
             python3 agents/atlas_runtime_qa_v3.py --url http://127.0.0.1:8501 --output "$ATLAS_QA_OUTPUT/browser" || true
             python3 scripts/prepare_customer_experience_qa_evidence.py --root "$ATLAS_QA_OUTPUT"
-            if python3 agents/atlas_customer_experience_autonomous_qa.py --candidate-sha "$(git rev-parse HEAD)" --mode certify_and_repair --max-repair-attempts "$MAX_REPAIR_ATTEMPTS" --authority "$ATLAS_QA_OUTPUT/authority_manifest.json" --browser-report "$ATLAS_QA_OUTPUT/browser/atlas_runtime_qa_v3.json" --screenshot-manifest "$ATLAS_QA_OUTPUT/screenshot_manifest.json" --output "$ATLAS_QA_OUTPUT/final"; then break; fi
+            if python3 agents/atlas_customer_experience_autonomous_qa.py --candidate-sha "$(git rev-parse HEAD)" --mode certify_and_repair --max-repair-attempts "$MAX_REPAIR_ATTEMPTS" --authority "$ATLAS_QA_OUTPUT/authority_manifest.json" --browser-report "$ATLAS_QA_OUTPUT/browser/atlas_runtime_qa_v3.json" --screenshot-manifest "$ATLAS_QA_OUTPUT/screenshot_manifest.json" --output "$ATLAS_QA_OUTPUT/final"; then
+              if ! git push origin "HEAD:refs/heads/$REVIEW_BRANCH"; then
+                python3 -c "import json; p='$ATLAS_QA_OUTPUT/final/atlas_customer_experience_qa.json'; r=json.load(open(p)); r['auto_repair_write_permission']='UNAVAILABLE'; r['final_state']='AUTO_REPAIR_WRITE_PERMISSION_UNAVAILABLE'; open(p,'w').write(json.dumps(r,indent=2,sort_keys=True)+'\n')"
+              fi
+              break
+            fi
           done
+      - name: Record exact tested SHA lineage
+        env:
+          TRIGGERING_SHA: ${{ steps.context.outputs.candidate_sha }}
+          START_GENERATION: ${{ steps.context.outputs.repair_generation }}
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess
+          from pathlib import Path
+          path=Path(os.environ["ATLAS_QA_OUTPUT"])/"final"/"atlas_customer_experience_qa.json"
+          report=json.loads(path.read_text())
+          tested=subprocess.check_output(["git","rev-parse","HEAD"], text=True).strip()
+          triggering=os.environ["TRIGGERING_SHA"]
+          report["sha_lineage"]={
+              "triggering_sha": triggering,
+              "tested_sha": tested,
+              "repair_parent_sha": subprocess.check_output(["git","rev-parse","HEAD^"], text=True).strip() if tested != triggering else None,
+              "repair_commit_sha": tested if tested != triggering else None,
+              "starting_repair_generation": int(os.environ["START_GENERATION"]),
+          }
+          path.write_text(json.dumps(report, indent=2, sort_keys=True)+"\n")
+          PY
       - name: Require final green certification
         run: python3 -c "import json; r=json.load(open('$ATLAS_QA_OUTPUT/final/atlas_customer_experience_qa.json')); assert r['status']=='PASS', r['failures']"
       - name: Assert no provider use or durable Report Card mutation
