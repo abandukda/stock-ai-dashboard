@@ -185,18 +185,28 @@ jobs:
           candidates=identity_values(manifest, {"candidate_digest", "candidate_id"})
           publications=identity_values(manifest, {"publication_digest", "publication_bundle_digest"})
           sources=identity_values(manifest, {"source_sha", "candidate_source_sha"})
-          values={
-              "bundle": manifests[0].parent,
-              "candidate": next(iter(candidates)) if len(candidates)==1 else None,
-              "publication": next(iter(publications)) if len(publications)==1 else None,
-              "source": next(iter(sources)) if len(sources)==1 else None,
-          }
+          values={"bundle": manifests[0].parent}
           expectations=list(root.rglob("runtime_projection_expectations_*.json"))
           if not expectations:
               expectations=list(Path("certification").glob("runtime_projection_expectations_*.json"))
-              expectations=[path for path in expectations if json.loads(path.read_text()).get("identity",{}).get("candidate_digest")==values["candidate"]]
+              expectations=[path for path in expectations if json.loads(path.read_text()).get("identity",{}).get("candidate_digest") in candidates]
           if len(expectations) != 1:
               raise SystemExit(f"RUNTIME_EXPECTATIONS_AMBIGUOUS:{len(expectations)}")
+          expectation_identity=json.loads(expectations[0].read_text()).get("identity", {})
+          expected_candidate=expectation_identity.get("candidate_digest")
+          expected_publication=expectation_identity.get("publication_digest")
+          expected_source=expectation_identity.get("source_sha")
+          if candidates != {expected_candidate}:
+              raise SystemExit("RUNTIME_EXPECTATIONS_CANDIDATE_MISMATCH")
+          if publications and publications != {expected_publication}:
+              raise SystemExit("RUNTIME_EXPECTATIONS_PUBLICATION_MISMATCH")
+          if sources and sources != {expected_source}:
+              raise SystemExit("RUNTIME_EXPECTATIONS_SOURCE_MISMATCH")
+          values.update({
+              "candidate":expected_candidate,
+              "publication":expected_publication,
+              "source":expected_source,
+          })
           values["expectations_dir"]=expectations[0].parent
           output=Path("audit_results/customer_experience_qa")
           output.mkdir(parents=True, exist_ok=True)
