@@ -172,13 +172,24 @@ jobs:
           if len(manifests) != 1:
               raise SystemExit(f"PUBLICATION_MANIFEST_AMBIGUOUS:{len(manifests)}")
           manifest=json.loads(manifests[0].read_text())
-          certified=manifest.get("release_certification") or manifest.get("visual_same_snapshot_parity") or manifest.get("promotion_governance") or {}
-          executor=manifest.get("executor_candidate_identity") or {}
+          def identity_values(node, keys):
+              found=set()
+              if isinstance(node, dict):
+                  for key, value in node.items():
+                      if key in keys and isinstance(value, str) and len(value)==64:
+                          found.add(value)
+                      found.update(identity_values(value, keys))
+              elif isinstance(node, list):
+                  for value in node: found.update(identity_values(value, keys))
+              return found
+          candidates=identity_values(manifest, {"candidate_digest", "candidate_id"})
+          publications=identity_values(manifest, {"publication_digest", "publication_bundle_digest"})
+          sources=identity_values(manifest, {"source_sha", "candidate_source_sha"})
           values={
               "bundle": manifests[0].parent,
-              "candidate": manifest.get("candidate_digest") or certified.get("candidate_digest") or executor.get("candidate_digest"),
-              "publication": manifest.get("publication_digest") or manifest.get("publication_bundle_digest") or certified.get("publication_digest"),
-              "source": manifest.get("source_sha") or manifest.get("candidate_source_sha") or certified.get("source_sha") or executor.get("source_sha"),
+              "candidate": next(iter(candidates)) if len(candidates)==1 else None,
+              "publication": next(iter(publications)) if len(publications)==1 else None,
+              "source": next(iter(sources)) if len(sources)==1 else None,
           }
           expectations=list(root.rglob("runtime_projection_expectations_*.json"))
           if not expectations:
@@ -187,6 +198,12 @@ jobs:
           if len(expectations) != 1:
               raise SystemExit(f"RUNTIME_EXPECTATIONS_AMBIGUOUS:{len(expectations)}")
           values["expectations_dir"]=expectations[0].parent
+          output=Path("audit_results/customer_experience_qa")
+          output.mkdir(parents=True, exist_ok=True)
+          (output/"handoff_identity_resolution.json").write_text(json.dumps({
+              "candidate_values":sorted(candidates), "publication_values":sorted(publications),
+              "source_values":sorted(sources), "expectations":[str(path) for path in expectations],
+          }, indent=2)+"\n")
           if not all(values.values()):
               raise SystemExit("PUBLICATION_IDENTITY_INCOMPLETE")
           with open(os.environ["GITHUB_OUTPUT"], "a") as out:
