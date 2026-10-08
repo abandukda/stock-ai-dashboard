@@ -1,11 +1,6 @@
+import ast
 from pathlib import Path
 
-from agents.atlas_visual_crawler_v1 import (
-    REQUIRED_CUSTOMER_ROUTES,
-    REQUIRED_PAGE_VIEWPORTS,
-    REQUIRED_PHASE_BUDGET,
-    REQUIRED_PHASE_TIMEOUT_SECONDS,
-)
 from scripts.prepare_report_card_qa_fixture import prepare
 from services.prospective_report_card import ProspectiveLedger
 
@@ -16,7 +11,20 @@ WORKFLOW = (ROOT / ".github/workflows/atlas_customer_experience_autonomous_qa.ym
 PREPARER = (ROOT / "scripts/prepare_customer_experience_qa_evidence.py").read_text()
 
 
+def _crawler_constant(name: str):
+    module = ast.parse(CRAWLER)
+    for node in module.body:
+        if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == name for target in node.targets):
+            expression = node.value
+            if isinstance(expression, ast.Call) and isinstance(expression.func, ast.Name) and expression.func.id == "frozenset":
+                expression = expression.args[0]
+            return ast.literal_eval(expression)
+    raise AssertionError(f"missing crawler constant: {name}")
+
+
 def test_required_phase_has_exact_customer_routes_and_mobile_coverage() -> None:
+    REQUIRED_CUSTOMER_ROUTES = _crawler_constant("REQUIRED_CUSTOMER_ROUTES")
+    REQUIRED_PAGE_VIEWPORTS = frozenset(_crawler_constant("REQUIRED_PAGE_VIEWPORTS"))
     assert REQUIRED_CUSTOMER_ROUTES == ("Home", "Research", "Earnings", "Watchlist", "Ask ATLAS")
     required_mobile = {page for page, viewport in REQUIRED_PAGE_VIEWPORTS if viewport == "mobile"}
     assert required_mobile == {
@@ -27,6 +35,8 @@ def test_required_phase_has_exact_customer_routes_and_mobile_coverage() -> None:
 
 
 def test_required_phase_budget_is_explicit_and_below_ceiling() -> None:
+    REQUIRED_PHASE_BUDGET = _crawler_constant("REQUIRED_PHASE_BUDGET")
+    REQUIRED_PHASE_TIMEOUT_SECONDS = _crawler_constant("REQUIRED_PHASE_TIMEOUT_SECONDS")
     worst_case = sum(
         item["timeout_seconds"] * (item["retries"] + 1)
         for item in REQUIRED_PHASE_BUDGET.values()
