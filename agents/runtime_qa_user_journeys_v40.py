@@ -413,7 +413,24 @@ async def _navigate(page: Page, label: str, output_dir: Path | None = None) -> t
         "Research Any Ticker": "Research", "Earnings Intelligence": "Earnings",
         "Watchlist Intelligence": "Watchlist", "Ask AI": "Ask ATLAS",
     }.get(label, label)
-    clicked = await _click_text(page, customer_label)
+    # Streamlit can leave the already-selected radio covered briefly while a
+    # rerun settles. Re-clicking that control adds no navigation signal and
+    # can consume the entire route budget waiting for actionability. Treat an
+    # exact checked route control as navigation having completed; the
+    # readiness loop below still proves route identity and render state.
+    already_selected = False
+    for scope in _scopes(page):
+        try:
+            controls = scope.get_by_role("radio", name=customer_label, exact=True)
+            for index in range(await controls.count()):
+                if await controls.nth(index).is_checked():
+                    already_selected = True
+                    break
+        except Exception:
+            continue
+        if already_selected:
+            break
+    clicked = already_selected or await _click_text(page, customer_label)
     if not clicked:
         return False, time.monotonic() - started, f"Could not click navigation label: {label}"
 

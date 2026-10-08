@@ -85,6 +85,13 @@ def test_run65_research_interactive_does_not_wait_for_render_complete():
     assert settled and detail == ""
 
 
+def test_already_selected_route_does_not_require_a_second_click():
+    page = Page()
+    page.selected = True
+    settled, _, detail = asyncio.run(_navigate(page, "Research Any Ticker"))
+    assert settled and detail == ""
+
+
 def test_all_fourteen_pages_and_nine_deep_pages_have_interactive_contracts():
     assert len(ACTIVE_PAGES) == len(PAGE_INTERACTIVE_CONTRACTS) == 14
     assert set(ACTIVE_PAGES) == set(PAGE_INTERACTIVE_CONTRACTS)

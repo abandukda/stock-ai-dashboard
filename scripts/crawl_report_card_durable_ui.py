@@ -7,6 +7,7 @@ import asyncio
 import json
 import os
 from pathlib import Path
+import re
 from typing import Any
 
 from playwright.async_api import Page, async_playwright
@@ -69,7 +70,9 @@ async def run(output: Path) -> None:
             try:
                 await overview.wait_for(state="attached", timeout=5000)
             except Exception:
-                back = page.get_by_role("button", name="← Back to Report Card")
+                # Chromium may omit the decorative arrow from the accessible
+                # name. Match the governed semantic label in either form.
+                back = page.get_by_role("button", name=re.compile(r"Back to Report Card", re.I))
                 if not await back.count() or not await back.first.is_visible():
                     raise
                 await back.first.click()
