@@ -2,6 +2,15 @@ from copy import deepcopy
 from pathlib import Path
 
 from services.report_card_signal_detail import CONTEXT_CLASSIFICATION, build_signal_detail
+from ui.internal_report_card import (
+    REPORT_CARD_SELECTED_SIGNAL_KEY,
+    REPORT_CARD_VIEW_DETAIL,
+    REPORT_CARD_VIEW_KEY,
+    REPORT_CARD_VIEW_OVERVIEW,
+    normalize_report_card_view_state,
+    open_report_card_detail,
+    open_report_card_overview,
+)
 
 
 SIGNAL = {
@@ -108,8 +117,8 @@ def test_internal_signal_detail_ui_and_home_deep_link_contracts_are_registered()
         "Performance by registered horizon", "← Back to Report Card",
     ):
         assert marker in ui
-    assert "report_card_selected_signal_id" in ui and "report_card_selected_signal_id" in home
-    assert 'st.session_state.pop("report_card_selected_signal_id", None)' in home
+    assert "REPORT_CARD_SELECTED_SIGNAL_KEY" in ui
+    assert "open_report_card_overview(st.session_state)" in home
     assert "on_click=_open_report_card_overview" in home
     assert "Open {signal[\"ticker\"]} signal" in home
 
@@ -121,15 +130,15 @@ def test_autonomous_crawler_opens_and_certifies_signal_detail():
     assert "REPORT_CARD_SIGNAL_DETAIL_MISSING" in crawler
     assert "REPORT_CARD_SIGNAL_CONTEXT_CLASSIFICATION_MISSING" in crawler
     assert "REPORT_CARD_SIGNAL_HORIZONTAL_OVERFLOW" in crawler
-    assert 'name=re.compile(r"Back to Report Card", re.I)' in crawler
-    assert 'get_by_role("radio", name="Home", exact=True)' in crawler
+    assert 'name="← Back to Report Card"' in crawler
+    assert 'await select_route(page, "Home")' in crawler
     assert 'name="View Report Card", exact=True' in crawler
-    assert 'click(timeout=10000, force=True)' in crawler
     assert 'data-atlas-qa="report-card-overview"' in Path("ui/internal_report_card.py").read_text(encoding="utf-8")
     assert 'page.locator(\'[data-atlas-qa="report-card-overview"]\')' in crawler
     assert 'get_by_text("Signals", exact=True)' not in crawler
     assert "ATLAS_REPORT_CARD_SIGNAL_DIGEST_CERTIFIED" in crawler
-    assert 'await overview.wait_for(state="attached", timeout=5000)' in crawler
+    assert 'data-atlas-report-card-view' in crawler
+    assert 'REPORT_CARD_REENTRY_VIEW_STATE_INVALID' in crawler
 
 
 def test_signal_detail_semantic_marker_carries_existing_authority_and_evidence_states():
@@ -142,3 +151,80 @@ def test_signal_detail_semantic_marker_carries_existing_authority_and_evidence_s
         "data-atlas-company-profile", "data-atlas-performance-evidence",
     ):
         assert attribute in ui
+
+
+def test_fresh_report_card_session_defaults_to_overview():
+    state = {}
+    assert normalize_report_card_view_state(state, ["signal-nvda"]) == (REPORT_CARD_VIEW_OVERVIEW, None)
+    assert state == {REPORT_CARD_VIEW_KEY: REPORT_CARD_VIEW_OVERVIEW}
+
+
+def test_overview_to_detail_requires_and_retains_exact_signal():
+    state = {REPORT_CARD_VIEW_KEY: REPORT_CARD_VIEW_OVERVIEW}
+    open_report_card_detail(state, "signal-nvda")
+    assert normalize_report_card_view_state(state, ["signal-nvda"]) == (
+        REPORT_CARD_VIEW_DETAIL, "signal-nvda"
+    )
+    assert state[REPORT_CARD_SELECTED_SIGNAL_KEY] == "signal-nvda"
+
+
+def test_detail_back_to_overview_clears_selected_signal():
+    state = {
+        REPORT_CARD_VIEW_KEY: REPORT_CARD_VIEW_DETAIL,
+        REPORT_CARD_SELECTED_SIGNAL_KEY: "signal-nvda",
+    }
+    open_report_card_overview(state)
+    assert normalize_report_card_view_state(state, ["signal-nvda"]) == (REPORT_CARD_VIEW_OVERVIEW, None)
+    assert REPORT_CARD_SELECTED_SIGNAL_KEY not in state
+
+
+def test_home_entry_overrides_retained_detail_state():
+    state = {
+        REPORT_CARD_VIEW_KEY: REPORT_CARD_VIEW_DETAIL,
+        REPORT_CARD_SELECTED_SIGNAL_KEY: "signal-nvda",
+    }
+    open_report_card_overview(state)
+    assert state == {REPORT_CARD_VIEW_KEY: REPORT_CARD_VIEW_OVERVIEW}
+
+
+def test_missing_mode_with_stale_selection_normalizes_to_overview():
+    state = {REPORT_CARD_SELECTED_SIGNAL_KEY: "signal-nvda"}
+    assert normalize_report_card_view_state(state, ["signal-nvda"]) == (REPORT_CARD_VIEW_OVERVIEW, None)
+    assert REPORT_CARD_SELECTED_SIGNAL_KEY not in state
+
+
+def test_invalid_detail_target_fails_safely_to_overview():
+    state = {
+        REPORT_CARD_VIEW_KEY: REPORT_CARD_VIEW_DETAIL,
+        REPORT_CARD_SELECTED_SIGNAL_KEY: "missing-signal",
+    }
+    assert normalize_report_card_view_state(state, ["signal-nvda"]) == (REPORT_CARD_VIEW_OVERVIEW, None)
+    assert REPORT_CARD_SELECTED_SIGNAL_KEY not in state
+
+
+def test_overview_mode_clears_stale_selected_signal():
+    state = {
+        REPORT_CARD_VIEW_KEY: REPORT_CARD_VIEW_OVERVIEW,
+        REPORT_CARD_SELECTED_SIGNAL_KEY: "signal-nvda",
+    }
+    assert normalize_report_card_view_state(state, ["signal-nvda"]) == (REPORT_CARD_VIEW_OVERVIEW, None)
+    assert REPORT_CARD_SELECTED_SIGNAL_KEY not in state
+
+
+def test_legitimate_detail_state_survives_rerender_normalization():
+    state = {
+        REPORT_CARD_VIEW_KEY: REPORT_CARD_VIEW_DETAIL,
+        REPORT_CARD_SELECTED_SIGNAL_KEY: "signal-nvda",
+    }
+    first = normalize_report_card_view_state(state, ["signal-nvda"])
+    second = normalize_report_card_view_state(state, ["signal-nvda"])
+    assert first == second == (REPORT_CARD_VIEW_DETAIL, "signal-nvda")
+
+
+def test_report_card_view_metadata_and_home_transition_helpers_are_registered():
+    ui = Path("ui/internal_report_card.py").read_text(encoding="utf-8")
+    home = Path("ui/home_guidance_vnext.py").read_text(encoding="utf-8")
+    assert 'data-atlas-report-card-view="{REPORT_CARD_VIEW_OVERVIEW}"' in ui
+    assert 'data-atlas-report-card-view="{REPORT_CARD_VIEW_DETAIL}"' in ui
+    assert "open_report_card_overview(st.session_state)" in home
+    assert "open_report_card_detail(st.session_state, signal[\"signal_id\"])" in home

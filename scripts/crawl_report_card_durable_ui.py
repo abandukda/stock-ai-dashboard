@@ -64,40 +64,9 @@ async def run(output: Path) -> None:
             await page.get_by_role("button", name="View Report Card").click()
             await page.locator('[data-atlas-qa="internal-report-card"]').wait_for(state="attached", timeout=30000)
             overview = page.locator('[data-atlas-qa="report-card-overview"]')
-            # Normalize a retained detail sub-state through the product's
-            # governed Back action before certifying overview facts.  Never
-            # infer overview state from detail prose.
-            try:
-                await overview.wait_for(state="attached", timeout=5000)
-            except Exception:
-                # Chromium may omit the decorative arrow from the accessible
-                # name. Match the governed semantic label in either form.
-                back = page.get_by_role("button", name=re.compile(r"Back to Report Card", re.I))
-                if not await back.count() or not await back.first.is_visible():
-                    raise
-                await back.first.click()
-                try:
-                    await overview.wait_for(state="attached", timeout=12000)
-                except Exception:
-                    # A Streamlit rerun may preserve the old detail tree even
-                    # after the Back click resolves. Re-enter exclusively via
-                    # the governed Home overview CTA, whose product callback
-                    # clears the retained detail id before routing.
-                    home = page.get_by_role("radio", name="Home", exact=True)
-                    # Streamlit's styled radio wrapper can transiently
-                    # intercept pointer events even though the native input is
-                    # visible and enabled. This is an established control, so
-                    # force the native click instead of weakening any route or
-                    # readiness assertion.
-                    await home.first.click(timeout=10000, force=True)
-                    await page.locator('[data-atlas-qa="home-performance-tracking"]').wait_for(timeout=30000)
-                    await page.get_by_role("button", name="View Report Card", exact=True).click(
-                        timeout=10000, force=True
-                    )
-                    await page.locator('[data-atlas-qa="internal-report-card"]').wait_for(
-                        state="attached", timeout=30000
-                    )
-                    await overview.wait_for(state="attached", timeout=30000)
+            await overview.wait_for(state="attached", timeout=30000)
+            if await overview.get_attribute("data-atlas-report-card-view") != "OVERVIEW":
+                raise AssertionError(f"REPORT_CARD_OVERVIEW_VIEW_STATE_INVALID:{mode}")
             await page.get_by_text("Prospective Report Card", exact=True).wait_for(state="visible", timeout=30000)
             overview_facts = {
                 key: await overview.get_attribute(f"data-atlas-{key}")
@@ -131,6 +100,8 @@ async def run(output: Path) -> None:
             await digest_button.click()
             detail = page.locator('[data-atlas-qa="report-card-signal-detail"]')
             await detail.wait_for(state="attached", timeout=30000)
+            if await detail.get_attribute("data-atlas-report-card-view") != "DETAIL":
+                raise AssertionError(f"REPORT_CARD_DETAIL_VIEW_STATE_INVALID:{mode}")
             detail_facts = {
                 key: await detail.get_attribute(f"data-atlas-{key}")
                 for key in (
@@ -171,7 +142,16 @@ async def run(output: Path) -> None:
             await page.wait_for_timeout(250)
             await shot(page, output, f"signal-detail-{mode}", manifest)
             await page.get_by_role("button", name="← Back to Report Card").click()
+            await overview.wait_for(state="attached", timeout=30000)
+            if await overview.get_attribute("data-atlas-report-card-view") != "OVERVIEW":
+                raise AssertionError(f"REPORT_CARD_BACK_VIEW_STATE_INVALID:{mode}")
+            await select_route(page, "Home")
+            await page.locator('[data-atlas-qa="home-performance-tracking"]').wait_for(timeout=30000)
+            await page.get_by_role("button", name="View Report Card", exact=True).click()
             await page.locator('[data-atlas-qa="internal-report-card"]').wait_for(state="attached", timeout=30000)
+            await overview.wait_for(state="attached", timeout=30000)
+            if await overview.get_attribute("data-atlas-report-card-view") != "OVERVIEW":
+                raise AssertionError(f"REPORT_CARD_REENTRY_VIEW_STATE_INVALID:{mode}")
             await select_route(page, "Home")
             links.append({"viewport": mode, "source": "Internal Report Card", "label": "Home",
                           "destination": "Home", "status": "PASS"})

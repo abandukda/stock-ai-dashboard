@@ -1453,7 +1453,8 @@ def _render_internal_performance_tracking(*, authorized_internal: bool) -> None:
     def _open_report_card_overview() -> None:
         # Run before Streamlit's widget rerun so retained signal-detail state
         # cannot override the overview CTA during route reconstruction.
-        st.session_state.pop("report_card_selected_signal_id", None)
+        from ui.internal_report_card import open_report_card_overview
+        open_report_card_overview(st.session_state)
         st.session_state["v79_pending_page"] = "Internal Report Card"
 
     st.button("View Report Card",
@@ -1469,7 +1470,8 @@ def _render_internal_performance_tracking(*, authorized_internal: bool) -> None:
                 key=f'home_report_card_signal_{signal["signal_id"]}',
                 type="tertiary",
             ):
-                st.session_state["report_card_selected_signal_id"] = signal["signal_id"]
+                from ui.internal_report_card import open_report_card_detail
+                open_report_card_detail(st.session_state, signal["signal_id"])
                 st.session_state["v79_pending_page"] = "Internal Report Card"
                 st.rerun()
 

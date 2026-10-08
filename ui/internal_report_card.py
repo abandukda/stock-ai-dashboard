@@ -3,11 +3,48 @@ from __future__ import annotations
 
 import html
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, MutableMapping, Sequence
 
 import streamlit as st
 
 from services.report_card_dashboard import build_internal_report_card
+
+
+REPORT_CARD_VIEW_OVERVIEW = "OVERVIEW"
+REPORT_CARD_VIEW_DETAIL = "DETAIL"
+REPORT_CARD_VIEW_KEY = "report_card_view_mode"
+REPORT_CARD_SELECTED_SIGNAL_KEY = "report_card_selected_signal_id"
+
+
+def normalize_report_card_view_state(
+    session_state: MutableMapping[str, Any], valid_signal_ids: Sequence[str]
+) -> tuple[str, str | None]:
+    """Normalize Report Card view ownership without inventing a detail target."""
+    valid_ids = {str(item) for item in valid_signal_ids if item}
+    mode = str(session_state.get(REPORT_CARD_VIEW_KEY) or "").upper()
+    selected_id = session_state.get(REPORT_CARD_SELECTED_SIGNAL_KEY)
+    selected_id = str(selected_id) if selected_id else None
+
+    if mode == REPORT_CARD_VIEW_DETAIL and selected_id in valid_ids:
+        return REPORT_CARD_VIEW_DETAIL, selected_id
+
+    session_state[REPORT_CARD_VIEW_KEY] = REPORT_CARD_VIEW_OVERVIEW
+    session_state.pop(REPORT_CARD_SELECTED_SIGNAL_KEY, None)
+    return REPORT_CARD_VIEW_OVERVIEW, None
+
+
+def open_report_card_overview(session_state: MutableMapping[str, Any]) -> None:
+    session_state[REPORT_CARD_VIEW_KEY] = REPORT_CARD_VIEW_OVERVIEW
+    session_state.pop(REPORT_CARD_SELECTED_SIGNAL_KEY, None)
+
+
+def open_report_card_detail(session_state: MutableMapping[str, Any], signal_id: str) -> None:
+    exact_id = str(signal_id or "").strip()
+    if not exact_id:
+        open_report_card_overview(session_state)
+        return
+    session_state[REPORT_CARD_SELECTED_SIGNAL_KEY] = exact_id
+    session_state[REPORT_CARD_VIEW_KEY] = REPORT_CARD_VIEW_DETAIL
 
 
 def _percent(value: Any) -> str:
@@ -43,6 +80,7 @@ def _render_signal_detail(detail: Mapping[str, Any]) -> None:
     </style>""", unsafe_allow_html=True)
     st.markdown(
         f'<div class="atlas-signal-detail" data-atlas-qa="report-card-signal-detail" '
+        f'data-atlas-report-card-view="{REPORT_CARD_VIEW_DETAIL}" '
         f'data-atlas-signal-id="{html.escape(str(detail.get("signal_id") or ""))}" '
         f'data-atlas-ticker="{ticker}" data-atlas-snapshot="{html.escape(str(original.get("evaluation_snapshot_id") or ""))}" '
         f'data-atlas-action="{html.escape(str(original.get("action") or ""))}" '
@@ -138,11 +176,14 @@ def render_internal_report_card(ledger_path: Path, *, authorized: bool) -> Mappi
         'Descriptive research operations only — Not a public performance claim.</p></div>',
         unsafe_allow_html=True,
     )
-    selected_id = st.session_state.get("report_card_selected_signal_id")
+    view_mode, selected_id = normalize_report_card_view_state(
+        st.session_state,
+        [item["signal_id"] for item in report["signal_details"]],
+    )
     selected = next((item for item in report["signal_details"] if item["signal_id"] == selected_id), None)
-    if selected is not None:
+    if view_mode == REPORT_CARD_VIEW_DETAIL and selected is not None:
         if st.button("← Back to Report Card", key="report_card_back_to_overview"):
-            st.session_state.pop("report_card_selected_signal_id", None)
+            open_report_card_overview(st.session_state)
             st.rerun()
         _render_signal_detail(selected)
         return report
@@ -154,6 +195,7 @@ def render_internal_report_card(ledger_path: Path, *, authorized: bool) -> Mappi
     d.metric("SPY comparisons", report["spy_comparison_count"])
     st.markdown(
         f'<span data-atlas-qa="report-card-overview" '
+        f'data-atlas-report-card-view="{REPORT_CARD_VIEW_OVERVIEW}" '
         f'data-atlas-signal-count="{int(report["signal_count"])}" '
         f'data-atlas-observation-count="{int(report["observation_count"])}" '
         f'data-atlas-open-signal-count="{int(report["open_signal_count"])}" '
@@ -213,10 +255,14 @@ def render_internal_report_card(ledger_path: Path, *, authorized: bool) -> Mappi
                 })
             st.dataframe(rows, width="stretch", hide_index=True)
             if st.button("View Signal Digest →", key=f'report_card_signal_{signal["signal_id"]}'):
-                st.session_state["report_card_selected_signal_id"] = signal["signal_id"]
+                open_report_card_detail(st.session_state, signal["signal_id"])
                 st.rerun()
     st.caption("Sample sizes are shown per horizon. Missing and not-yet-matured observations remain explicit.")
     return report
 
 
-__all__ = ["render_internal_report_card"]
+__all__ = [
+    "REPORT_CARD_SELECTED_SIGNAL_KEY", "REPORT_CARD_VIEW_DETAIL", "REPORT_CARD_VIEW_KEY",
+    "REPORT_CARD_VIEW_OVERVIEW", "normalize_report_card_view_state", "open_report_card_detail",
+    "open_report_card_overview", "render_internal_report_card",
+]
