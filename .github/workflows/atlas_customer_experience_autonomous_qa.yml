@@ -161,6 +161,32 @@ jobs:
           test -n "$ARTIFACT_NAME"
           mkdir -p audit_results/governed_runtime_handoff
           gh run download "$SOURCE_RUN" --name "$ARTIFACT_NAME" --dir audit_results/governed_runtime_handoff
+      - name: Download exact certified backend handoff
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BACKEND_RUN_ID: "37468858158"
+          BACKEND_ARTIFACT_ID: "11415988048"
+          BACKEND_ARTIFACT_NAME: atlas-release-full-backend-37468858158
+          BACKEND_ARTIFACT_DIGEST: sha256:9068856fe969fe1ab0c32c6b4fcb65a55c8bf0c1d14004fba6eed2c14d81e83b
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$BACKEND_ARTIFACT_ID" > "$RUNNER_TEMP/backend-artifact.json"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          artifact=json.loads((Path(os.environ["RUNNER_TEMP"])/"backend-artifact.json").read_text())
+          expected={
+              "id":int(os.environ["BACKEND_ARTIFACT_ID"]),
+              "name":os.environ["BACKEND_ARTIFACT_NAME"],
+              "digest":os.environ["BACKEND_ARTIFACT_DIGEST"],
+              "expired":False,
+          }
+          mismatches=[key for key, value in expected.items() if artifact.get(key) != value]
+          run=(artifact.get("workflow_run") or {}).get("id")
+          if run != int(os.environ["BACKEND_RUN_ID"]): mismatches.append("workflow_run.id")
+          if mismatches: raise SystemExit("BACKEND_HANDOFF_IDENTITY_MISMATCH:"+",".join(mismatches))
+          PY
+          mkdir -p audit_results/full_qa/backend
+          gh run download "$BACKEND_RUN_ID" --name "$BACKEND_ARTIFACT_NAME" --dir audit_results/full_qa/backend
       - name: Resolve governed handoff identities
         id: handoff
         run: |
@@ -185,7 +211,11 @@ jobs:
           candidates=identity_values(manifest, {"candidate_digest", "candidate_id"})
           publications=identity_values(manifest, {"publication_digest", "publication_bundle_digest"})
           sources=identity_values(manifest, {"source_sha", "candidate_source_sha"})
-          values={"bundle": manifests[0].parent}
+          values={
+              "bundle":manifests[0].parent,
+              "evidence_snapshot":manifest.get("generated_at"),
+              "universe":manifest.get("universe_sha256"),
+          }
           expectations=list(root.rglob("runtime_projection_expectations_*.json"))
           if not expectations:
               expectations=list(Path("certification").glob("runtime_projection_expectations_*.json"))
@@ -219,6 +249,39 @@ jobs:
           with open(os.environ["GITHUB_OUTPUT"], "a") as out:
               for key, value in values.items(): out.write(f"{key}={value}\n")
           PY
+      - name: Verify exact certified backend handoff
+        id: backend
+        env:
+          EXPECTED_CANDIDATE: ${{ steps.handoff.outputs.candidate }}
+          EXPECTED_PUBLICATION: ${{ steps.handoff.outputs.publication }}
+          EXPECTED_SOURCE: ${{ steps.handoff.outputs.source }}
+          EXPECTED_SNAPSHOT: ${{ steps.handoff.outputs.evidence_snapshot }}
+          EXPECTED_UNIVERSE: ${{ steps.handoff.outputs.universe }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          paths=list(Path("audit_results/full_qa/backend").rglob("backend_handoff.json"))
+          if len(paths) != 1: raise SystemExit(f"BACKEND_HANDOFF_AMBIGUOUS:{len(paths)}")
+          handoff=json.loads(paths[0].read_text())
+          expected={
+              "schema":"ATLAS_RELEASE_FULL_BACKEND_HANDOFF_V1",
+              "status":"PASS",
+              "candidate_digest":os.environ["EXPECTED_CANDIDATE"],
+              "publication_digest":os.environ["EXPECTED_PUBLICATION"],
+              "source_sha":os.environ["EXPECTED_SOURCE"],
+              "evidence_snapshot_at":os.environ["EXPECTED_SNAPSHOT"],
+              "universe_sha256":os.environ["EXPECTED_UNIVERSE"],
+              "provider_calls":0,
+              "reacquisition":"none",
+              "dataset_gate":"PASS",
+              "dataset_certification_status":"PASS",
+              "publication_gate_status":"PASS",
+          }
+          mismatches=[key for key, value in expected.items() if handoff.get(key) != value]
+          if mismatches: raise SystemExit("BACKEND_HANDOFF_IDENTITY_MISMATCH:"+",".join(mismatches))
+          with open(os.environ["GITHUB_OUTPUT"], "a") as out: out.write(f"path={paths[0]}\n")
+          PY
       - name: Materialize bounded zero-provider runtime
         run: |
           mkdir -p audit_results/full_qa/runtime audit_results/customer_experience_qa
@@ -227,6 +290,7 @@ jobs:
             --report-root audit_results/governed_runtime_handoff \
             --runtime-dir audit_results/full_qa/runtime \
             --output audit_results/customer_experience_qa/bounded_runtime.json \
+            --backend-handoff "${{ steps.backend.outputs.path }}" \
             --expected-candidate-digest "${{ steps.handoff.outputs.candidate }}" \
             --expected-publication-digest "${{ steps.handoff.outputs.publication }}" \
             --expected-source-sha "${{ steps.handoff.outputs.source }}" \
