@@ -1,0 +1,146 @@
+name: ATLAS Report Card Durable Read-Only Certification
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_ref:
+        description: Exact reviewed commit containing the internal UI and certification scripts
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: atlas-report-card-durable-readonly-certification
+  cancel-in-progress: false
+
+jobs:
+  certify:
+    environment: atlas-internal-report-card
+    runs-on: [self-hosted, Linux, X64, atlas-worker-1]
+    timeout-minutes: 30
+    env:
+      PYTHONPATH: "."
+      ATLAS_REPORT_CARD_DURABLE_ROOT: ${{ vars.ATLAS_REPORT_CARD_DURABLE_ROOT }}
+      ATLAS_REPORT_CARD_BACKUP_ROOT: ${{ vars.ATLAS_REPORT_CARD_BACKUP_ROOT }}
+      ATLAS_INTERNAL_REPORT_CARD_UI_ENABLED: "true"
+      ATLAS_INTERNAL_QA_PASSWORD: ${{ secrets.APP_PASSWORD }}
+      ATLAS_VIEWER_QA_PASSWORD: ${{ secrets.ATLAS_AUDIT_PASSWORD }}
+      APP_PASSWORD: ${{ secrets.APP_PASSWORD }}
+      GUEST_PASSWORD: ${{ secrets.ATLAS_AUDIT_PASSWORD }}
+      VIEWER_PASSWORD: ${{ secrets.ATLAS_AUDIT_PASSWORD }}
+      FINNHUB_API_KEY: ""
+      FMP_API_KEY: ""
+      NEWSAPI_KEY: ""
+      ALPHA_VANTAGE_API_KEY: ""
+    steps:
+      - name: Checkout exact reviewed candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.candidate_ref }}
+
+      - name: Enforce exact runner and immutable inputs
+        shell: bash
+        run: |
+          test "${{ runner.name }}" = "atlas-worker-1"
+          test -n "$ATLAS_REPORT_CARD_DURABLE_ROOT"
+          test -n "$ATLAS_REPORT_CARD_BACKUP_ROOT"
+          test -n "$ATLAS_INTERNAL_QA_PASSWORD"
+          test -n "$ATLAS_VIEWER_QA_PASSWORD"
+          test "$ATLAS_REPORT_CARD_DURABLE_ROOT" = "/mnt/atlas_report_card_primary"
+          test "$ATLAS_REPORT_CARD_BACKUP_ROOT" = "/mnt/atlas_report_card_backup"
+          test -f "$ATLAS_REPORT_CARD_DURABLE_ROOT/report-card.sqlite3"
+          test -d "$ATLAS_REPORT_CARD_BACKUP_ROOT"
+          mkdir -p audit_results/report_card_durable_readonly
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install bounded UI dependencies
+        shell: bash
+        run: |
+          python -m pip install -r requirements.txt
+          python -m pip install playwright==1.52.0
+          python -m playwright install chromium
+
+      - name: Capture immutable before state
+        shell: bash
+        run: |
+          python scripts/certify_report_card_durable_readonly.py \
+            --ledger "$ATLAS_REPORT_CARD_DURABLE_ROOT/report-card.sqlite3" \
+            --backup-root "$ATLAS_REPORT_CARD_BACKUP_ROOT" \
+            --output-dir audit_results/report_card_durable_readonly \
+            --phase before
+
+      - name: Audit durable ledger and cohort read-only
+        shell: bash
+        run: |
+          python scripts/certify_report_card_durable_readonly.py \
+            --ledger "$ATLAS_REPORT_CARD_DURABLE_ROOT/report-card.sqlite3" \
+            --backup-root "$ATLAS_REPORT_CARD_BACKUP_ROOT" \
+            --output-dir audit_results/report_card_durable_readonly \
+            --phase audit
+
+      - name: Launch runner-local internal UI
+        shell: bash
+        run: |
+          python -m streamlit run app.py \
+            --server.headless true --server.address 127.0.0.1 --server.port 8501 \
+            > audit_results/report_card_durable_readonly/streamlit.log 2>&1 &
+          echo $! > audit_results/report_card_durable_readonly/streamlit.pid
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8501/_stcore/health; then exit 0; fi
+            sleep 1
+          done
+          exit 1
+
+      - name: Crawl authorized and customer-OFF UI
+        shell: bash
+        run: |
+          python scripts/crawl_report_card_durable_ui.py \
+            --output-dir audit_results/report_card_durable_readonly
+
+      - name: Stop runner-local UI
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          if test -f audit_results/report_card_durable_readonly/streamlit.pid; then
+            kill "$(cat audit_results/report_card_durable_readonly/streamlit.pid)" 2>/dev/null || true
+          fi
+
+      - name: Capture after state and prove no mutation
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          python scripts/certify_report_card_durable_readonly.py \
+            --ledger "$ATLAS_REPORT_CARD_DURABLE_ROOT/report-card.sqlite3" \
+            --backup-root "$ATLAS_REPORT_CARD_BACKUP_ROOT" \
+            --output-dir audit_results/report_card_durable_readonly \
+            --phase after
+          python scripts/certify_report_card_durable_readonly.py \
+            --ledger "$ATLAS_REPORT_CARD_DURABLE_ROOT/report-card.sqlite3" \
+            --backup-root "$ATLAS_REPORT_CARD_BACKUP_ROOT" \
+            --output-dir audit_results/report_card_durable_readonly \
+            --phase compare
+
+      - name: Build certification summary
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          python -c 'import json,pathlib; p=pathlib.Path("audit_results/report_card_durable_readonly"); before=json.loads((p/"before_state.json").read_text()); after=json.loads((p/"after_state.json").read_text()); audit=json.loads((p/"ledger_integrity.json").read_text()); links=json.loads((p/"link_crawl.json").read_text()) if (p/"link_crawl.json").exists() else {"status":"FAIL"}; access=json.loads((p/"access_control.json").read_text()) if (p/"access_control.json").exists() else {}; ready=audit["classification"]=="LEDGER_AND_COHORT_PASS" and links["status"]=="PASS" and all(x.get("status")=="PASS" for x in access.values()) and before["sha256"]==after["sha256"]; state="REAL_REPORT_CARD_LEDGER_CERTIFIED_READY_FOR_FIRST_OBSERVATION" if ready else ("REPORT_CARD_SIGNAL_COHORT_REQUIRES_REVIEW" if audit["classification"]!="LEDGER_AND_COHORT_PASS" else "REPORT_CARD_DURABLE_UI_CERTIFICATION_BLOCKED"); summary={"final_state":state,"candidate_ref":"${{ inputs.candidate_ref }}","before_checksum":before["sha256"],"after_checksum":after["sha256"],"signal_count":audit["signal_count"],"observation_count":audit["observation_count"],"provider_calls":0,"ledger_mutation":"NONE" if before["sha256"]==after["sha256"] else "DETECTED","customer_visibility":"OFF"}; (p/"certification_summary.json").write_text(json.dumps(summary,indent=2)); (p/"summary.md").write_text("# ATLAS durable Report Card certification\n\n```json\n"+json.dumps(summary,indent=2)+"\n```\n")'
+
+      - name: Upload complete certification artifact
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: atlas-report-card-durable-readonly-${{ github.run_id }}
+          path: audit_results/report_card_durable_readonly
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Enforce terminal certification state
+        shell: bash
+        run: |
+          python -c 'import json; value=json.load(open("audit_results/report_card_durable_readonly/certification_summary.json")); assert value["final_state"]=="REAL_REPORT_CARD_LEDGER_CERTIFIED_READY_FOR_FIRST_OBSERVATION", value["final_state"]'
