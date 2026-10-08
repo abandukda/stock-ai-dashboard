@@ -63,7 +63,9 @@ def test_unavailable_transcript_never_generates_summary():
 
 def test_customer_navigation_and_internal_report_card_boundaries_are_explicit():
     source = Path("app.py").read_text(encoding="utf-8")
-    assert 'customer_pages = ["Home", "Research", "Earnings", "Watchlist", "Ask ATLAS"]' in source
+    contract = Path("services/customer_navigation_contract.py").read_text(encoding="utf-8")
+    assert 'CUSTOMER_ROUTES = ("Home", "Research", "Earnings", "Watchlist", "Ask ATLAS")' in contract
+    assert "customer_pages = list(CUSTOMER_ROUTES)" in source
     assert "if not is_viewer():\n        pages.extend(internal_pages)" in source
     assert "ATLAS_INTERNAL_REPORT_CARD_UI_ENABLED" in source
 

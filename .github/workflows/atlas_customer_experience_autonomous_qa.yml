@@ -77,10 +77,10 @@ jobs:
             case "${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}" in codex/*) ;; *) exit 74 ;; esac
           fi
       - name: Offline autonomous QA self-tests
-        run: python3 -m pytest -q tests/test_customer_experience_autonomous_qa.py
+        run: python3 -m pytest -q tests/test_customer_experience_autonomous_qa.py tests/test_customer_navigation_contract.py tests/test_customer_required_phase_orchestration.py
       - name: Static validation
         run: |
-          python3 -m py_compile agents/customer_experience_qa_contracts.py agents/customer_experience_qa_validators.py agents/customer_experience_qa_repairs.py agents/atlas_customer_experience_autonomous_qa.py scripts/prepare_customer_experience_qa_evidence.py
+          python3 -m py_compile agents/customer_experience_qa_contracts.py agents/customer_experience_qa_validators.py agents/customer_experience_qa_repairs.py agents/atlas_customer_experience_autonomous_qa.py agents/atlas_visual_crawler_v1.py scripts/prepare_customer_experience_qa_evidence.py scripts/prepare_report_card_qa_fixture.py services/customer_navigation_contract.py
           python3 -c "import yaml; yaml.safe_load(open('.github/workflows/atlas_customer_experience_autonomous_qa.yml'))"
 
   governed-browser-certification:
@@ -95,7 +95,13 @@ jobs:
       ATLAS_CUSTOMER_REPORT_CARD_ENABLED: "false"
       ATLAS_QA_OUTPUT: audit_results/customer_experience_qa
       ATLAS_AUDIT_PASSWORD: ${{ secrets.ATLAS_AUDIT_PASSWORD }}
-      GUEST_PASSWORD: ${{ secrets.ATLAS_AUDIT_PASSWORD }}
+      APP_PASSWORD: ${{ secrets.ATLAS_AUDIT_PASSWORD }}
+      GUEST_PASSWORD: atlas-viewer-qa-local
+      ATLAS_INTERNAL_QA_PASSWORD: ${{ secrets.ATLAS_AUDIT_PASSWORD }}
+      ATLAS_VIEWER_QA_PASSWORD: atlas-viewer-qa-local
+      ATLAS_INTERNAL_REPORT_CARD_UI_ENABLED: "true"
+      ATLAS_REPORT_CARD_DURABLE_ROOT: ${{ runner.temp }}/atlas-report-card-primary
+      ATLAS_REPORT_CARD_BACKUP_ROOT: ${{ runner.temp }}/atlas-report-card-backup
       PYTHONPATH: .
     steps:
       - uses: actions/checkout@v4
@@ -303,13 +309,31 @@ jobs:
           ATLAS_QA_MODE: "1"
           ATLAS_REPORT_CARD_CUSTOMER_VISIBLE: "false"
         run: |
+          python3 scripts/prepare_report_card_qa_fixture.py \
+            --primary-root "$ATLAS_REPORT_CARD_DURABLE_ROOT" \
+            --backup-root "$ATLAS_REPORT_CARD_BACKUP_ROOT"
           python3 -m streamlit run app.py --server.headless true --server.port 8501 > "$RUNNER_TEMP/atlas-streamlit.log" 2>&1 &
           echo $! > "$RUNNER_TEMP/atlas-streamlit.pid"
           curl --retry 30 --retry-delay 2 --retry-connrefused -fsS http://127.0.0.1:8501/_stcore/health
-      - name: Crawl interactions and capture deterministic screenshots
+      - name: Required-first customer surface certification
+        id: required_browser
+        continue-on-error: true
+        env:
+          ATLAS_EXACT_CANDIDATE_QA: "true"
         run: |
-          python3 agents/atlas_runtime_qa_v3.py --url http://127.0.0.1:8501 --output "$ATLAS_QA_OUTPUT/browser" --exact-candidate-localhost
-      - name: Bind browser evidence to governed authority
+          python3 agents/atlas_visual_crawler_v1.py \
+            --url http://127.0.0.1:8501 \
+            --root audit_results/full_qa/runtime \
+            --output "$ATLAS_QA_OUTPUT/browser/required" \
+            --phase required
+      - name: Required authorized and customer-OFF Report Card certification
+        id: required_report_card
+        continue-on-error: true
+        run: |
+          python3 scripts/crawl_report_card_durable_ui.py \
+            --output-dir "$ATLAS_QA_OUTPUT/browser/report-card"
+      - name: Bind required browser evidence to governed authority
+        if: always()
         run: python3 scripts/prepare_customer_experience_qa_evidence.py --root "$ATLAS_QA_OUTPUT"
       - name: Consolidate exact-authority certification
         id: certify
@@ -326,7 +350,7 @@ jobs:
             --mode "$MODE" \
             --max-repair-attempts "$MAX_REPAIR_ATTEMPTS" \
             --authority "$ATLAS_QA_OUTPUT/authority_manifest.json" \
-            --browser-report "$ATLAS_QA_OUTPUT/browser/atlas_runtime_qa_v3.json" \
+            --browser-report "$ATLAS_QA_OUTPUT/browser/customer_required_phase.json" \
             --screenshot-manifest "$ATLAS_QA_OUTPUT/screenshot_manifest.json" \
             --output "$ATLAS_QA_OUTPUT/final"
       - name: Bounded ephemeral repair and recertification
@@ -351,16 +375,28 @@ jobs:
             python3 -m streamlit run app.py --server.headless true --server.port 8501 > "$RUNNER_TEMP/atlas-streamlit.log" 2>&1 &
             echo $! > "$RUNNER_TEMP/atlas-streamlit.pid"
             curl --retry 30 --retry-delay 2 --retry-connrefused -fsS http://127.0.0.1:8501/_stcore/health
-            mv "$ATLAS_QA_OUTPUT/browser" "$ATLAS_QA_OUTPUT/browser-before-attempt-$attempt"
-            python3 agents/atlas_runtime_qa_v3.py --url http://127.0.0.1:8501 --output "$ATLAS_QA_OUTPUT/browser" --exact-candidate-localhost || true
+            mv "$ATLAS_QA_OUTPUT/browser/required" "$ATLAS_QA_OUTPUT/browser/required-before-attempt-$attempt"
+            ATLAS_EXACT_CANDIDATE_QA=true python3 agents/atlas_visual_crawler_v1.py --url http://127.0.0.1:8501 --root audit_results/full_qa/runtime --output "$ATLAS_QA_OUTPUT/browser/required" --phase required || true
+            python3 scripts/crawl_report_card_durable_ui.py --output-dir "$ATLAS_QA_OUTPUT/browser/report-card" || true
             python3 scripts/prepare_customer_experience_qa_evidence.py --root "$ATLAS_QA_OUTPUT"
-            if python3 agents/atlas_customer_experience_autonomous_qa.py --candidate-sha "$(git rev-parse HEAD)" --mode certify_and_repair --max-repair-attempts "$MAX_REPAIR_ATTEMPTS" --authority "$ATLAS_QA_OUTPUT/authority_manifest.json" --browser-report "$ATLAS_QA_OUTPUT/browser/atlas_runtime_qa_v3.json" --screenshot-manifest "$ATLAS_QA_OUTPUT/screenshot_manifest.json" --output "$ATLAS_QA_OUTPUT/final"; then
+            if python3 agents/atlas_customer_experience_autonomous_qa.py --candidate-sha "$(git rev-parse HEAD)" --mode certify_and_repair --max-repair-attempts "$MAX_REPAIR_ATTEMPTS" --authority "$ATLAS_QA_OUTPUT/authority_manifest.json" --browser-report "$ATLAS_QA_OUTPUT/browser/customer_required_phase.json" --screenshot-manifest "$ATLAS_QA_OUTPUT/screenshot_manifest.json" --output "$ATLAS_QA_OUTPUT/final"; then
               if ! git push origin "HEAD:refs/heads/$REVIEW_BRANCH"; then
                 python3 -c "import json; p='$ATLAS_QA_OUTPUT/final/atlas_customer_experience_qa.json'; r=json.load(open(p)); r['auto_repair_write_permission']='UNAVAILABLE'; r['final_state']='AUTO_REPAIR_WRITE_PERMISSION_UNAVAILABLE'; open(p,'w').write(json.dumps(r,indent=2,sort_keys=True)+'\n')"
               fi
               break
             fi
           done
+      - name: Supplementary non-blocking visual findings
+        if: steps.certify.outcome == 'success'
+        continue-on-error: true
+        env:
+          ATLAS_EXACT_CANDIDATE_QA: "true"
+        run: |
+          python3 agents/atlas_visual_crawler_v1.py \
+            --url http://127.0.0.1:8501 \
+            --root audit_results/full_qa/runtime \
+            --output "$ATLAS_QA_OUTPUT/browser/supplementary" \
+            --phase supplementary
       - name: Record exact tested SHA lineage
         env:
           TRIGGERING_SHA: ${{ steps.context.outputs.candidate_sha }}

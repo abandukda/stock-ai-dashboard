@@ -44,13 +44,15 @@ VISUAL_CRAWLER_VERSION = "ATLAS_VISUAL_CRAWLER_V1_1"
 RESEARCH_COMPLETION_TIMEOUT_SECONDS = 90
 REQUIRED_PHASE_TIMEOUT_SECONDS = 480
 REQUIRED_PHASE_BUDGET = {
-    "authentication_and_deployment": {"timeout_seconds": 90, "retries": 0},
-    "home_desktop": {"timeout_seconds": 45, "retries": 0},
-    "research_desktop_nvda": {"timeout_seconds": 60, "retries": 0},
-    "research_desktop_msft": {"timeout_seconds": 60, "retries": 0},
-    "research_desktop_avt": {"timeout_seconds": 60, "retries": 0},
-    "home_mobile": {"timeout_seconds": 45, "retries": 0},
-    "research_mobile_nvda": {"timeout_seconds": 60, "retries": 0},
+    "authentication_and_deployment": {"timeout_seconds": 60, "retries": 0},
+    "home_desktop": {"timeout_seconds": 90, "retries": 0},
+    "research_desktop_nvda": {"timeout_seconds": 45, "retries": 0},
+    "research_desktop_msft": {"timeout_seconds": 45, "retries": 0},
+    "research_desktop_avt": {"timeout_seconds": 45, "retries": 0},
+    "earnings_watchlist_ask_desktop": {"timeout_seconds": 60, "retries": 0},
+    "home_mobile": {"timeout_seconds": 30, "retries": 0},
+    "research_mobile_nvda": {"timeout_seconds": 45, "retries": 0},
+    "earnings_watchlist_ask_mobile": {"timeout_seconds": 60, "retries": 0},
 }
 RESEARCH_VNEXT_SECTIONS = (
     "decision", "fundamentals-and-valuation", "technical-and-trade-state",
@@ -184,7 +186,11 @@ REQUIRED_RESEARCH_TICKERS = ("NVDA", "MSFT", "AVT")
 REQUIRED_PAGE_VIEWPORTS = frozenset({
     ("Home", "desktop"), ("Home", "mobile"),
     ("Research Any Ticker", "desktop"), ("Research Any Ticker", "mobile"),
+    ("Earnings Intelligence", "desktop"), ("Earnings Intelligence", "mobile"),
+    ("Watchlist Intelligence", "desktop"), ("Watchlist Intelligence", "mobile"),
+    ("Ask AI", "desktop"), ("Ask AI", "mobile"),
 })
+REQUIRED_CUSTOMER_ROUTES = ("Home", "Research", "Earnings", "Watchlist", "Ask ATLAS")
 PRIMARY_VISIBLE_SIGNALS = {
     "Home": ("Atlas Morning Decision", "Home"),
     "Today's Opportunities": ("Today's Opportunities", "Opportunity"),
@@ -1104,6 +1110,8 @@ class AtlasVisualCrawler:
             return (page_name, viewport) in REQUIRED_PAGE_VIEWPORTS
         if page_name == "Home":
             return viewport in {"desktop", "mobile"}
+        if page_name in {"Earnings Intelligence", "Watchlist Intelligence", "Ask AI"}:
+            return viewport in {"desktop", "mobile"}
         if page_name != "Research Any Ticker":
             return False
         normalized = ticker.upper()
@@ -1136,6 +1144,30 @@ class AtlasVisualCrawler:
             "missing_research_tickers": missing_research,
             "failure_count": len(failures),
         }
+
+    async def _customer_navigation_contract(self, page: Page) -> None:
+        """Fail closed unless the authenticated shell exposes the exact VNext routes."""
+        started = time.monotonic()
+        marker = page.locator('[data-atlas-qa="customer-navigation-contract"]').last
+        await marker.wait_for(state="attached", timeout=30000)
+        version = await marker.get_attribute("data-atlas-contract-version") or ""
+        role = await marker.get_attribute("data-atlas-role-category") or ""
+        routes = tuple(filter(None, (await marker.get_attribute("data-atlas-customer-routes") or "").split("|")))
+        active = await marker.get_attribute("data-atlas-active-route") or ""
+        passed = (
+            version == "ATLAS_CUSTOMER_NAV_VNEXT_1"
+            and role in {"customer_viewer", "internal_admin"}
+            and routes == REQUIRED_CUSTOMER_ROUTES
+            and active in REQUIRED_CUSTOMER_ROUTES
+        )
+        await self._record(
+            category="GLOBAL", page_name="GLOBAL", interaction="customer-navigation-authority",
+            expected="Exact Home/Research/Earnings/Watchlist/Ask ATLAS navigation contract",
+            observed=f"version={version}; role={role}; routes={routes}; active={active}",
+            passed=passed, elapsed=time.monotonic() - started, severity="P1",
+        )
+        if not passed:
+            raise GlobalCrawlFailure("CUSTOMER_NAVIGATION_AUTHORITY_FAILED")
 
     async def _visible_primary(self, page: Page, page_name: str) -> tuple[bool, str]:
         text = await _visible_text(page)
@@ -2086,9 +2118,20 @@ class AtlasVisualCrawler:
         )
         await self._open_buy_now_expander(page)
         unique = await self._discover_visible_home_cards(page)
-        indexes = sorted(set((0, len(unique) // 2, len(unique) - 1))) if unique else []
-        for index in indexes:
-            interaction_id, ticker = unique[index]
+        by_ticker = {ticker: (interaction_id, ticker) for interaction_id, ticker in unique}
+        if viewport == "desktop":
+            selected = [by_ticker[ticker] for ticker in ("NVDA", "MSFT", "CODA") if ticker in by_ticker]
+            missing = [ticker for ticker in ("NVDA", "MSFT", "CODA") if ticker not in by_ticker]
+            for ticker in missing:
+                await self._record(
+                    category="HOME_DRILLDOWN", page_name="Home", interaction=f"home-to-research-{ticker.lower()}",
+                    expected=f"Governed Home card exposes Research CTA for {ticker}",
+                    observed="required CTA not discovered", passed=False, elapsed=0.0,
+                    ticker=ticker, viewport=viewport, severity="P1",
+                )
+        else:
+            selected = [by_ticker.get("NVDA", unique[0] if unique else ("", "NVDA"))]
+        for interaction_id, ticker in selected:
             started = time.monotonic()
             before = ""
             operation = "resolve_visible_cta"
@@ -2395,11 +2438,15 @@ class AtlasVisualCrawler:
                 ticker="NVDA", viewport=viewport, screenshots=(before, after), severity="P1",
                 exception=await self._exception_identity(page) if exception else {},
             )
-            digest_state = "PASS" if digest_match else ("FAIL" if metadata.get("context-digest") and research_identity.get("context_digest") else "NEEDS_REVIEW")
+            digest_state = "PASS" if digest_match else "FAIL"
             await self._record(
                 category="ASK_RECONCILIATION", page_name="Ask AI", interaction="context-digest",
                 expected="Ask context digest equals the rendered canonical Research context digest",
-                observed=f"state={digest_state}; ask_digest={bool(metadata.get('context-digest'))}; research_digest={bool(research_identity.get('context_digest'))}",
+                observed=(
+                    f"state={digest_state}; ask_digest={metadata.get('context-digest') or 'MISSING'}; "
+                    f"research_digest={research_identity.get('context_digest') or 'MISSING'}; "
+                    f"ticker={metadata.get('ticker') or 'MISSING'}"
+                ),
                 passed=digest_state == "PASS", elapsed=time.monotonic() - started,
                 ticker="NVDA", viewport=viewport, screenshots=(after,), severity="P2",
                 status_override=digest_state,
@@ -2421,11 +2468,17 @@ class AtlasVisualCrawler:
 
     async def _required_desktop(self, page: Page) -> None:
         await page.set_viewport_size(DESKTOP)
-        await asyncio.wait_for(self._home_cards(page), timeout=45)
+        await asyncio.wait_for(self._home_cards(page), timeout=90)
         for ticker in REQUIRED_RESEARCH_TICKERS:
-            passed = await asyncio.wait_for(self._submit_research(page, ticker, tabs=False), timeout=60)
+            passed = await asyncio.wait_for(self._submit_research(page, ticker, tabs=True), timeout=45)
             if not passed:
                 raise GlobalCrawlFailure(f"REQUIRED_RESEARCH_FAILED_{ticker}")
+        if not await asyncio.wait_for(self._page_visit(page, "Earnings Intelligence"), timeout=20):
+            raise GlobalCrawlFailure("REQUIRED_EARNINGS_DESKTOP_FAILED")
+        await asyncio.wait_for(self._earnings_vnext_contract(page, viewport="desktop"), timeout=15)
+        if not await asyncio.wait_for(self._page_visit(page, "Watchlist Intelligence"), timeout=20):
+            raise GlobalCrawlFailure("REQUIRED_WATCHLIST_DESKTOP_FAILED")
+        await asyncio.wait_for(self._ask(page, viewport="desktop"), timeout=35)
 
     async def _supplementary_desktop(self, page: Page) -> None:
         await page.set_viewport_size(DESKTOP)
@@ -2460,10 +2513,16 @@ class AtlasVisualCrawler:
 
     async def _required_mobile(self, page: Page) -> None:
         await page.set_viewport_size(MOBILE)
-        await asyncio.wait_for(self._home_cards(page, viewport="mobile"), timeout=45)
-        passed = await asyncio.wait_for(self._submit_research(page, "NVDA", tabs=False, viewport="mobile"), timeout=60)
+        await asyncio.wait_for(self._home_cards(page, viewport="mobile"), timeout=30)
+        passed = await asyncio.wait_for(self._submit_research(page, "NVDA", tabs=True, viewport="mobile"), timeout=45)
         if not passed:
             raise GlobalCrawlFailure("REQUIRED_RESEARCH_FAILED_NVDA_MOBILE")
+        if not await asyncio.wait_for(self._page_visit(page, "Earnings Intelligence", viewport="mobile"), timeout=20):
+            raise GlobalCrawlFailure("REQUIRED_EARNINGS_MOBILE_FAILED")
+        await asyncio.wait_for(self._earnings_vnext_contract(page, viewport="mobile"), timeout=15)
+        if not await asyncio.wait_for(self._page_visit(page, "Watchlist Intelligence", viewport="mobile"), timeout=20):
+            raise GlobalCrawlFailure("REQUIRED_WATCHLIST_MOBILE_FAILED")
+        await asyncio.wait_for(self._ask(page, viewport="mobile"), timeout=35)
 
     async def _supplementary_mobile(self, page: Page) -> None:
         await page.set_viewport_size(MOBILE)
@@ -2515,7 +2574,7 @@ class AtlasVisualCrawler:
                                 in {"1", "true", "yes"}
                             ),
                         ),
-                        timeout=90 if phase in {"required", "all"} else 300,
+                        timeout=60 if phase in {"required", "all"} else 300,
                     )
                 except Exception as exc:
                     shot = await self._shot(page, page_name="GLOBAL", interaction="authentication", state="failure")
@@ -2528,8 +2587,9 @@ class AtlasVisualCrawler:
                     )
                     raise GlobalCrawlFailure(category) from exc
                 if phase in {"required", "all"}:
-                    await asyncio.wait_for(self._required_desktop(page), timeout=225)
-                    await asyncio.wait_for(self._required_mobile(page), timeout=105)
+                    await self._customer_navigation_contract(page)
+                    await asyncio.wait_for(self._required_desktop(page), timeout=285)
+                    await asyncio.wait_for(self._required_mobile(page), timeout=135)
                     if self._required_completeness().get("status") != "PASS":
                         raise GlobalCrawlFailure("REQUIRED_PRODUCTION_CERTIFICATION_FAILED")
                 if phase in {"supplementary", "all"}:

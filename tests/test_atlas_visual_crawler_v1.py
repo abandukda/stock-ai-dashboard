@@ -596,8 +596,8 @@ def test_route_generation_recovery_requires_current_visible_healthy_page():
 def test_browser_session_is_shared_between_desktop_and_mobile():
     source = SOURCE.read_text(encoding="utf-8")
     assert source.count("await browser.new_context") == 1
-    assert "self._required_desktop(page), timeout=225" in source
-    assert "self._required_mobile(page), timeout=105" in source
+    assert "self._required_desktop(page), timeout=285" in source
+    assert "self._required_mobile(page), timeout=135" in source
     assert "await self._supplementary_desktop(page)" in source
     assert "await self._supplementary_mobile(page)" in source
     assert "await page.set_viewport_size(MOBILE)" in source

@@ -34,13 +34,16 @@ def test_workflow_is_review_only_bounded_and_zero_provider() -> None:
     raw = WORKFLOW.read_text()
     assert "  pull_request:" in raw
     assert "  workflow_dispatch:" in raw
-    assert "push:" not in raw
+    assert "      - codex/customer-experience-vnext" in raw
     assert "MAX_REPAIR_ATTEMPTS" in raw
     assert "-le 2" in raw
     assert 'ATLAS_QA_PROVIDER_CALLS_ALLOWED: "0"' in raw
     assert 'ATLAS_CUSTOMER_REPORT_CARD_ENABLED: "false"' in raw
     assert "gh run download" in raw
     assert "run_bounded_release_smoke.py" in raw
+    assert "--phase required" in raw
+    assert "--phase supplementary" in raw
+    assert "atlas_runtime_qa_v3.py --url" not in raw
     assert MAX_REPAIR_ATTEMPTS == 2
 
 
