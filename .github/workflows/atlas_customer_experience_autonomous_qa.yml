@@ -94,6 +94,8 @@ jobs:
       ATLAS_QA_PROVIDER_CALLS_ALLOWED: "0"
       ATLAS_CUSTOMER_REPORT_CARD_ENABLED: "false"
       ATLAS_QA_OUTPUT: audit_results/customer_experience_qa
+      ATLAS_AUDIT_PASSWORD: ${{ secrets.ATLAS_AUDIT_PASSWORD }}
+      GUEST_PASSWORD: ${{ secrets.ATLAS_AUDIT_PASSWORD }}
       PYTHONPATH: .
     steps:
       - uses: actions/checkout@v4
