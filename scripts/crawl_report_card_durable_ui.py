@@ -65,18 +65,42 @@ async def wait_for_report_card_overview_settled(page: Page, mode: str) -> None:
 async def wait_for_report_card_signal_entry_settled(page: Page, mode: str) -> None:
     async def settled() -> bool:
         expander = page.locator('[data-testid="stExpander"]').first
+        return await expander.count() > 0 and await expander.is_visible()
+
+    await _wait_for_stable_condition(
+        settled,
+        f"REPORT_CARD_SIGNAL_ENTRY_NOT_SETTLED:{mode}",
+    )
+
+
+async def open_report_card_signal_expander(page: Page, mode: str) -> Any:
+    expander = page.locator('[data-testid="stExpander"]').first
+    await expander.click()
+
+    async def settled() -> bool:
         button = page.get_by_role("button", name="View Signal Digest →").first
+        text = await expander.inner_text() if await expander.count() else ""
+        details = expander.locator("details")
+        summary = expander.locator("summary")
+        expanded = (
+            (await details.count() > 0 and await details.get_attribute("open") is not None)
+            or (await summary.count() > 0 and await summary.get_attribute("aria-expanded") == "true")
+            or "Signal ID:" in text
+        )
         return (
-            await expander.count() > 0
-            and await expander.is_visible()
+            expanded
+            and "Signal ID:" in text
             and await button.count() > 0
             and await button.is_visible()
         )
 
     await _wait_for_stable_condition(
         settled,
-        f"REPORT_CARD_SIGNAL_ENTRY_NOT_SETTLED:{mode}",
+        f"REPORT_CARD_SIGNAL_EXPANDER_NOT_SETTLED:{mode}",
+        timeout_seconds=15.0,
+        interval_seconds=0.15,
     )
+    return expander
 
 
 DETAIL_SECTIONS = (
@@ -170,10 +194,7 @@ async def run(output: Path) -> None:
                 raise AssertionError(f"MISLEADING_ZERO_PERFORMANCE:{mode}")
             await shot(page, output, f"internal-report-card-{mode}", manifest)
             await wait_for_report_card_signal_entry_settled(page, mode)
-            expander = page.locator('[data-testid="stExpander"]').first
-            if await expander.count():
-                await expander.click()
-                await page.wait_for_timeout(400)
+            await open_report_card_signal_expander(page, mode)
             digest_button = page.get_by_role("button", name="View Signal Digest →").first
             await digest_button.wait_for(state="visible", timeout=30000)
             await digest_button.click()

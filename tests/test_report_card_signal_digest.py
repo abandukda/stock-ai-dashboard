@@ -177,7 +177,8 @@ def test_crawler_settlement_contract_covers_overview_entry_detail_and_both_viewp
     crawler = Path("scripts/crawl_report_card_durable_ui.py").read_text(encoding="utf-8")
     for contract in (
         "wait_for_report_card_overview_settled", "wait_for_report_card_signal_entry_settled",
-        "wait_for_report_card_detail_settled", "REPORT_CARD_SIGNAL_ENTRY_NOT_SETTLED",
+        "open_report_card_signal_expander", "wait_for_report_card_detail_settled",
+        "REPORT_CARD_SIGNAL_ENTRY_NOT_SETTLED", "REPORT_CARD_SIGNAL_EXPANDER_NOT_SETTLED",
         "REPORT_CARD_SIGNAL_DETAIL_VISIBLE_RENDER_NOT_SETTLED", "REPORT_CARD_COMPANY_PROFILE_NOT_SETTLED",
     ):
         assert contract in crawler
@@ -186,6 +187,26 @@ def test_crawler_settlement_contract_covers_overview_entry_detail_and_both_viewp
     assert "data-atlas-signal-count" not in crawler  # read through the semantic marker attribute helper
     assert 'f"data-atlas-{key}"' in crawler
     assert 'f"about-company-{mode}"' in crawler
+
+
+def test_crawler_opens_signal_expander_before_waiting_for_digest_button():
+    crawler = Path("scripts/crawl_report_card_durable_ui.py").read_text(encoding="utf-8")
+    run_body = crawler[crawler.index("async def run("):]
+    entry = run_body.index("await wait_for_report_card_signal_entry_settled(page, mode)")
+    opened = run_body.index("await open_report_card_signal_expander(page, mode)")
+    digest = run_body.index('digest_button = page.get_by_role("button", name="View Signal Digest →").first')
+    clicked = run_body.index("await digest_button.click()")
+    assert entry < opened < digest < clicked
+
+
+def test_expander_settlement_requires_real_identity_and_visible_digest_control():
+    crawler = Path("scripts/crawl_report_card_durable_ui.py").read_text(encoding="utf-8")
+    helper = crawler[crawler.index("async def open_report_card_signal_expander"):crawler.index("DETAIL_SECTIONS")]
+    assert "await expander.click()" in helper
+    assert '"Signal ID:" in text' in helper
+    assert "await button.is_visible()" in helper
+    assert "timeout_seconds=15.0" in helper
+    assert "stable_checks" in crawler
 
 
 def test_signal_detail_semantic_marker_carries_existing_authority_and_evidence_states():
