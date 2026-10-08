@@ -28431,7 +28431,13 @@ def main():
     render_v59_design_system(); render_v65_design_system(); render_v70_design_system(); render_v72_design_system(); render_v73_design_system(); render_v74_design_system(); v775_design_system(); v793_design_system(); v8055_inject_research_css()
     from ui.atlas_design_system import inject_atlas_design_system
     inject_atlas_design_system()
-    customer_pages = ["Home", "Research", "Earnings", "Watchlist", "Ask ATLAS"]
+    from services.customer_navigation_contract import (
+        CUSTOMER_NAV_CONTRACT_VERSION,
+        CUSTOMER_ROUTES,
+        migrate_navigation_state,
+        role_category,
+    )
+    customer_pages = list(CUSTOMER_ROUTES)
     internal_pages = ["Today's Opportunities", "Volume Intelligence", "Atlas Core Holdings", "Full Ranked Scan", "Portfolio Intelligence", "Recovery", "ETFs", "Political Intelligence", "Developer Center"]
     pages = list(customer_pages)
     if not is_viewer():
@@ -28442,17 +28448,23 @@ def main():
     )
     if _internal_report_card_enabled:
         pages.append("Internal Report Card")
-    _route_aliases = {
-        "Research Any Ticker": "Research", "Earnings Intelligence": "Earnings",
-        "Watchlist Intelligence": "Watchlist", "Ask AI": "Ask ATLAS",
-    }
-    if st.session_state.get("v79_pending_page") in _route_aliases:
-        st.session_state["v79_pending_page"] = _route_aliases[st.session_state["v79_pending_page"]]
+    migrate_navigation_state(st.session_state, allowed_routes=pages)
     selected_page=render_v73_top_nav(pages)
     selected_route = {
         "Research": "Research Any Ticker", "Earnings": "Earnings Intelligence",
         "Watchlist": "Watchlist Intelligence", "Ask ATLAS": "Ask AI",
     }.get(selected_page, selected_page)
+    _internal_available = [page for page in pages if page not in customer_pages]
+    st.markdown(
+        '<span data-atlas-qa="customer-navigation-contract" '
+        f'data-atlas-contract-version="{html.escape(CUSTOMER_NAV_CONTRACT_VERSION)}" '
+        f'data-atlas-role-category="{html.escape(role_category(viewer=is_viewer()))}" '
+        f'data-atlas-customer-routes="{html.escape("|".join(customer_pages))}" '
+        f'data-atlas-internal-routes="{html.escape("|".join(_internal_available))}" '
+        f'data-atlas-active-route="{html.escape(selected_page)}" '
+        'aria-hidden="true" style="display:none">customer-navigation-contract</span>',
+        unsafe_allow_html=True,
+    )
     _research_widget_trace("route_selected", selected_page=selected_page)
     if selected_route in {"Research Any Ticker", "Internal Report Card"}:
         # Research owns its form lifecycle before any cross-surface bootstrap.
