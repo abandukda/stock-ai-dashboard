@@ -1349,6 +1349,7 @@ def render_research_vnext(report: Mapping[str, Any], *, legacy: Mapping[str, Cal
         'aria-hidden="true" style="display:none">research-vnext</span>',
         unsafe_allow_html=True,
     )
+    st.markdown('<div class="atlas-kicker">Certified equity research</div>', unsafe_allow_html=True)
     if certified_customer and certified_customer.get("customer_publication_allowed") is not True:
         fields = safe_mapping(certified_customer.get("fields"))
         price = safe_mapping(fields.get("price")).get("value")

@@ -13,15 +13,25 @@ def render_internal_report_card(ledger_path: Path, *, authorized: bool) -> Mappi
     report = build_internal_report_card(ledger_path, authorized=authorized)
     st.markdown('<span data-atlas-qa="internal-report-card" data-atlas-customer-visible="false" '
                 'aria-hidden="true" style="display:none">internal-report-card</span>', unsafe_allow_html=True)
-    st.title("Internal Prospective Report Card")
-    st.warning("INTERNAL ONLY · Prospective and descriptive. Not a public performance claim.")
+    st.markdown(
+        '<div class="atlas-report-card-hero"><div class="atlas-kicker">INTERNAL ONLY · access controlled</div>'
+        '<h1>Prospective Report Card</h1><p>Immutable signal observations measured against SPY. '
+        'Descriptive research operations only — Not a public performance claim.</p></div>',
+        unsafe_allow_html=True,
+    )
     a, b, c, d = st.columns(4)
     a.metric("Signals", report["signal_count"])
     b.metric("Observations", report["observation_count"])
     c.metric("SPY comparisons", report["spy_comparison_count"])
     d.metric("Ledger integrity", report["integrity"])
-    st.caption(f'Activated {report["activation_timestamp"]} · Ledger tip {report["ledger_tip_digest"][:16]}…')
-    st.caption(f'Next eligible observation: {report["next_eligible_observation"]} · Last backup: {report["last_backup_status"]}')
+    st.markdown(
+        '<div class="atlas-source-chips"><span class="atlas-certification-chip">Append-only ledger</span>'
+        f'<span class="atlas-source-chip">Activated {report["activation_timestamp"]}</span>'
+        f'<span class="atlas-source-chip">Ledger {report["ledger_tip_digest"][:12]}…</span>'
+        f'<span class="atlas-source-chip">Backup {report["last_backup_status"]}</span></div>',
+        unsafe_allow_html=True,
+    )
+    st.caption(f'Next eligible observation: {report["next_eligible_observation"]}')
     coverage_rows = [
         {"Horizon": f"{h} sessions", **values} for h, values in report["coverage"].items()
     ]

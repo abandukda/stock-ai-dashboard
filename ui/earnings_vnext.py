@@ -492,13 +492,18 @@ def _upcoming_card(story: Mapping[str, Any], open_research: Callable[[str], Any]
 def render_earnings_vnext(full_df: Any, *, open_research: Callable[[str], Any]) -> None:
     st.markdown('<span data-atlas-earnings-version="ATLAS_EARNINGS_VNEXT_V1" style="display:none">earnings-vnext</span>', unsafe_allow_html=True)
     _inject_earnings_css()
+    st.markdown('<div class="atlas-kicker">Executive evidence review</div>', unsafe_allow_html=True)
     st.title("Earnings Intelligence")
     st.caption("What happened, why it matters, what remains unverified, and the current canonical ATLAS decision.")
     emit_page_interactive(st, "Earnings Intelligence")
     reported, upcoming = _stories(full_df)
     st.markdown("## Recently Reported")
     if not reported:
-        st.info("No normalized reported-quarter evidence is available in the current persisted universe.")
+        st.markdown(
+            '<div class="atlas-empty-state"><strong>Transcript analysis is pending.</strong>'
+            '<span>No normalized reported-quarter evidence is available in this certified snapshot.</span></div>',
+            unsafe_allow_html=True,
+        )
     for index, story in enumerate(reported[:8]):
         with st.container(border=True):
             _reported_card(story, open_research, index)
@@ -508,7 +513,11 @@ def render_earnings_vnext(full_df: Any, *, open_research: Callable[[str], Any]) 
                 _reported_card(story, open_research, index)
     st.markdown("## Upcoming Earnings")
     if not upcoming:
-        st.info("No upcoming earnings events are verified in the current persisted universe.")
+        st.markdown(
+            '<div class="atlas-empty-state"><strong>No verified earnings event is scheduled.</strong>'
+            '<span>ATLAS will show the next event when governed evidence is available.</span></div>',
+            unsafe_allow_html=True,
+        )
     for index, story in enumerate(upcoming[:8]):
         with st.container(border=True):
             _upcoming_card(story, open_research, index)

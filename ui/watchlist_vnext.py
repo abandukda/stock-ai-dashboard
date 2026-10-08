@@ -7,6 +7,7 @@ import streamlit as st
 
 from services.session_stability import emit_page_interactive
 from services.customer_authority import customer_authority
+from ui.atlas_design_system import action_badge
 
 
 def _value(row: Mapping[str, Any], *keys: str) -> Any:
@@ -43,6 +44,7 @@ def _certified_fields(row: Mapping[str, Any]) -> tuple[str, Any]:
 def render_watchlist_vnext(full_df: Any, tickers: list[str], *, open_research: Callable[[str], Any]) -> None:
     st.markdown('<span data-atlas-qa="watchlist-vnext" data-atlas-non-scoring="true" '
                 'style="display:none">watchlist-vnext</span>', unsafe_allow_html=True)
+    st.markdown('<div class="atlas-kicker">Certified monitoring</div>', unsafe_allow_html=True)
     st.title("Watchlist")
     st.caption("What changed since the last certified review. Market-state context cannot change the certified Action.")
     emit_page_interactive(st, "Watchlist Intelligence")
@@ -55,10 +57,15 @@ def render_watchlist_vnext(full_df: Any, tickers: list[str], *, open_research: C
             if ticker and (not wanted or ticker in wanted):
                 rows.append((ticker, row))
     if not rows:
-        st.info("Add a ticker to your Watchlist to see certified decisions and what changed.")
+        st.markdown(
+            '<div class="atlas-empty-state"><strong>Your certified watchlist is ready.</strong>'
+            '<span>Add a ticker to monitor its ATLAS decision and meaningful changes.</span></div>',
+            unsafe_allow_html=True,
+        )
         return
     for ticker, row in rows:
         with st.container(border=True):
+            st.markdown('<span class="atlas-watchlist-card-anchor" aria-hidden="true"></span>', unsafe_allow_html=True)
             company = str(_value(row, "Company", "company", "Name") or ticker)
             authority = customer_authority(row)
             action, certified_fair_value = _certified_fields(row)
@@ -71,6 +78,7 @@ def render_watchlist_vnext(full_df: Any, tickers: list[str], *, open_research: C
             except (TypeError, ValueError, ZeroDivisionError):
                 pass
             st.markdown(f"### {ticker} · {company}")
+            st.markdown(action_badge(action), unsafe_allow_html=True)
             st.markdown(
                 f'<span data-atlas-qa="watchlist-certified-authority" data-atlas-ticker="{ticker}" '
                 f'data-atlas-publication-allowed="{str(authority.get("publication_allowed") is True).lower()}" '

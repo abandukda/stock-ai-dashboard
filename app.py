@@ -4583,6 +4583,12 @@ def render_research_any_ticker(full_df, recovery_df, watch_df, prescreen_df, etf
 
 
 def render_chat_helper(full_df):
+    st.markdown(
+        '<span data-atlas-qa="ask-atlas-vnext" data-atlas-customer-surface="true" '
+        'aria-hidden="true" style="display:none">ask-atlas-vnext</span>',
+        unsafe_allow_html=True,
+    )
+    st.markdown('<div class="atlas-kicker">Certified research assistant</div>', unsafe_allow_html=True)
     st.subheader("Ask ATLAS — Continue the Decision Story")
     st.caption("Ask about the canonical Research context. Ask can explain existing evidence and decisions, but cannot calculate a new recommendation, value, expected return, or trade plan.")
     st.markdown(
@@ -4674,7 +4680,13 @@ def render_chat_helper(full_df):
         _grounding = st.session_state.get("ask_ai_grounding") or {}
         st.markdown(_ask_completion_marker(status, ticker, _grounding), unsafe_allow_html=True)
         if status == "complete" and st.session_state["ask_ai_response"]:
-            st.markdown(st.session_state["ask_ai_response"])
+            st.markdown("> **ATLAS analyst response**\n>\n> " + str(st.session_state["ask_ai_response"]).replace("\n", "\n> "))
+            st.markdown(
+                '<div class="atlas-source-chips"><span class="atlas-source-chip">Certified ATLAS View</span>'
+                '<span class="atlas-source-chip">Certified Evaluation</span>'
+                '<span class="atlas-source-chip">Governed evidence</span></div>',
+                unsafe_allow_html=True,
+            )
             st.markdown("### Supporting evidence")
             st.write(", ".join(_customer_evidence_label(item) for item in (_grounding.get("evidence_used") or [])) or "No supporting evidence family was registered.")
             st.markdown("### Missing evidence & limitations")
@@ -4842,7 +4854,13 @@ def render_chat_helper(full_df):
             unsafe_allow_html=True,
         )
         st.markdown(f"#### Asked: {html.escape(question.strip())}")
-        st.markdown(response)
+        st.markdown("> **ATLAS analyst response**\n>\n> " + response.replace("\n", "\n> "))
+        st.markdown(
+            '<div class="atlas-source-chips"><span class="atlas-source-chip">Certified ATLAS View</span>'
+            '<span class="atlas-source-chip">Certified Evaluation</span>'
+            '<span class="atlas-source-chip">Governed evidence</span></div>',
+            unsafe_allow_html=True,
+        )
         st.markdown("### Supporting evidence")
         st.write(", ".join(_customer_evidence_label(item) for item in (result.get("evidence_used") or result.get("sources_used") or [])) or "No supporting evidence family was registered.")
         st.markdown("### Missing evidence & limitations")
@@ -28411,6 +28429,8 @@ def main():
         st.session_state["atlas_widget_trace_run_sequence"] = int(st.session_state.get("atlas_widget_trace_run_sequence") or 0) + 1
     _research_widget_trace("script_run_entry", active_route=st.session_state.get("v784_single_nav"))
     render_v59_design_system(); render_v65_design_system(); render_v70_design_system(); render_v72_design_system(); render_v73_design_system(); render_v74_design_system(); v775_design_system(); v793_design_system(); v8055_inject_research_css()
+    from ui.atlas_design_system import inject_atlas_design_system
+    inject_atlas_design_system()
     customer_pages = ["Home", "Research", "Earnings", "Watchlist", "Ask ATLAS"]
     internal_pages = ["Today's Opportunities", "Volume Intelligence", "Atlas Core Holdings", "Full Ranked Scan", "Portfolio Intelligence", "Recovery", "ETFs", "Political Intelligence", "Developer Center"]
     pages = list(customer_pages)
