@@ -222,7 +222,7 @@ jobs:
       - name: Materialize bounded zero-provider runtime
         run: |
           mkdir -p audit_results/full_qa/runtime audit_results/customer_experience_qa
-          python3 scripts/run_bounded_release_smoke.py \
+          PYTHONPATH=. python3 scripts/run_bounded_release_smoke.py \
             --bundle "${{ steps.handoff.outputs.bundle }}" \
             --report-root audit_results/governed_runtime_handoff \
             --runtime-dir audit_results/full_qa/runtime \
