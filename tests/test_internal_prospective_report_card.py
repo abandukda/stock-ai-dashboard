@@ -14,6 +14,7 @@ from services.prospective_report_card import (
     capture_certified_publication, internal_dashboard,
 )
 from services.report_card_governance import public_report_allowed
+from services.report_card_capture_handoff import build_capture_handoff
 
 
 NOW = datetime(2026, 10, 7, 15, 0, tzinfo=timezone.utc)
@@ -109,6 +110,18 @@ def test_uncertified_publication_rejected(ledger, change, error):
         capture_certified_publication(ledger=ledger, manifest=manifest(**change), rows=[row()], observed_at=NOW)
 
 
+def test_green_capture_handoff_supplies_missing_release_publication_authority(ledger):
+    source = manifest()
+    source.pop("release_certification")
+    source["report_card_capture_authority"] = {
+        "status": "PASS", "classification": "FINNHUB_FULL_UNIVERSE_CERTIFICATION_CLOSED_GREEN",
+        "candidate_digest": CANDIDATE, "publication_digest": PUBLICATION, "source_sha": SOURCE,
+    }
+    result = capture_certified_publication(ledger=ledger, manifest=source, rows=[row()], observed_at=NOW)
+    assert result.captured == 1
+    assert ledger.rows("SIGNAL")[0]["payload"]["publication_digest"] == PUBLICATION
+
+
 def test_withheld_and_non_buy_now_signals_rejected(ledger):
     result = capture_certified_publication(
         ledger=ledger, manifest=manifest(), rows=[row(ticker="AIT", allowed=False), row(ticker="MSFT", action="WAIT_FOR_CONFIRMATION")],
@@ -196,10 +209,33 @@ def test_cli_stale_publication_does_not_create_operational_activation(tmp_path):
     output = tmp_path / "output.json"
     manifest_path.write_text(json.dumps(manifest()), encoding="utf-8")
     publication_path.write_text(json.dumps([row(evidence_at=NOW - timedelta(days=5))]), encoding="utf-8")
+    closure_path = tmp_path / "closure.json"
+    required = {"candidate_digest", "publication_digest", "determinism", "analytical_mismatches",
+                "manifests", "payloads", "symbols", "repository_integrity", "publication_gate"}
+    closure_path.write_text(json.dumps({
+        "evidence_source_run_id": "1", "evidence_source_run_identity": "r" * 64,
+        "evidence_source_sha": SOURCE, "candidate_digest": CANDIDATE, "publication_digest": PUBLICATION,
+        "classification": "FINNHUB_FULL_UNIVERSE_CERTIFICATION_CLOSED_GREEN", "workflow_conclusion": "GREEN",
+        "determinism": "PASS", "analytical_mismatches": 0, "closure_provider_calls": 0,
+        "checkpoint_validation": {"status": "PASS", "manifests": 41, "payloads": 41},
+        "symbol_completeness": {"actual": 6033, "expected": 6033, "status": "PASS"},
+        "checks": {key: True for key in required},
+    }), encoding="utf-8")
+    source_manifest = json.loads(manifest_path.read_text())
+    source_manifest["artifact_hashes"] = {"market_full_scan.json": "a" * 64}
+    manifest_path.write_text(json.dumps(source_manifest), encoding="utf-8")
+    handoff_path = tmp_path / "handoff.json"
+    handoff_path.write_text(json.dumps(build_capture_handoff(
+        manifest_path=manifest_path, publication_path=publication_path, closure_path=closure_path,
+        expected_acquisition_run_id="1", expected_closure_run_id="2", expected_run_identity="r" * 64,
+        expected_source_sha=SOURCE, expected_candidate_digest=CANDIDATE,
+        expected_publication_digest=PUBLICATION,
+    )), encoding="utf-8")
     ledger_path = tmp_path / "durable" / "ledger.sqlite3"
     subprocess.run([
         sys.executable, "scripts/run_internal_prospective_report_card.py",
         "--manifest", str(manifest_path), "--publication", str(publication_path),
+        "--closure", str(closure_path), "--capture-handoff", str(handoff_path),
         "--ledger", str(ledger_path), "--backup-root", str(tmp_path / "backup"),
         "--activation-timestamp", datetime.now(timezone.utc).isoformat(),
         "--expected-candidate-digest", CANDIDATE, "--expected-publication-digest", PUBLICATION,

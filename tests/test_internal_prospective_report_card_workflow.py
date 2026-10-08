@@ -32,6 +32,11 @@ def test_workflow_consumes_certified_artifact_without_acquisition():
     assert "expected_source_sha" in source
     assert "run_finnhub" not in source
     assert "provider_calls'] == 0" in source
+    assert "closure_run_id" in source
+    assert "closure_artifact_name" in source
+    assert "historical_run_identity" in source
+    assert "scripts/build_report_card_capture_handoff.py" in source
+    assert "--capture-handoff audit_results/report_card_capture_handoff.json" in source
 
 
 def test_validation_mode_cannot_activate_or_download_publication():

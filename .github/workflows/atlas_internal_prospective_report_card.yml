@@ -19,6 +19,18 @@ on:
         description: Exact certified publication artifact name
         required: false
         type: string
+      closure_run_id:
+        description: Exact zero-provider closure run
+        required: false
+        type: string
+      closure_artifact_name:
+        description: Exact zero-provider closure artifact name
+        required: false
+        type: string
+      historical_run_identity:
+        description: Immutable historical acquisition run identity
+        required: false
+        type: string
       publication_filename:
         description: Exact certified publication file inside the artifact
         required: false
@@ -94,6 +106,9 @@ jobs:
           test "${{ inputs.activate_internal_capture }}" = "true"
           test -n "${{ inputs.source_run_id }}"
           test -n "${{ inputs.artifact_name }}"
+          test -n "${{ inputs.closure_run_id }}"
+          test -n "${{ inputs.closure_artifact_name }}"
+          test -n "${{ inputs.historical_run_identity }}"
           test -n "${{ inputs.expected_candidate_digest }}"
           test -n "${{ inputs.expected_publication_digest }}"
           test -n "${{ inputs.expected_source_sha }}"
@@ -108,6 +123,16 @@ jobs:
           name: ${{ inputs.artifact_name }}
           path: audit_results/report_card_source
 
+      - name: Download exact zero-provider closure
+        if: ${{ inputs.operation == 'capture' }}
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.closure_run_id }}
+          name: ${{ inputs.closure_artifact_name }}
+          path: audit_results/report_card_closure
+
       - name: Resolve one manifest and one certified publication
         if: ${{ inputs.operation == 'capture' }}
         id: source
@@ -120,6 +145,31 @@ jobs:
           echo "manifest=${manifests[0]}" >> "$GITHUB_OUTPUT"
           echo "publication=${publications[0]}" >> "$GITHUB_OUTPUT"
 
+      - name: Resolve one zero-provider closure report
+        if: ${{ inputs.operation == 'capture' }}
+        id: closure
+        shell: bash
+        run: |
+          mapfile -t reports < <(find audit_results/report_card_closure -type f -name closure_report.json)
+          test "${#reports[@]}" -eq 1
+          echo "report=${reports[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: Build exact certified capture handoff
+        if: ${{ inputs.operation == 'capture' }}
+        shell: bash
+        run: |
+          python3 scripts/build_report_card_capture_handoff.py \
+            --manifest "${{ steps.source.outputs.manifest }}" \
+            --publication "${{ steps.source.outputs.publication }}" \
+            --closure "${{ steps.closure.outputs.report }}" \
+            --acquisition-run-id "${{ inputs.source_run_id }}" \
+            --closure-run-id "${{ inputs.closure_run_id }}" \
+            --historical-run-identity "${{ inputs.historical_run_identity }}" \
+            --expected-candidate-digest "${{ inputs.expected_candidate_digest }}" \
+            --expected-publication-digest "${{ inputs.expected_publication_digest }}" \
+            --expected-source-sha "${{ inputs.expected_source_sha }}" \
+            --output audit_results/report_card_capture_handoff.json
+
       - name: Capture prospective signals and verify backup recovery
         if: ${{ inputs.operation == 'capture' }}
         shell: bash
@@ -128,6 +178,8 @@ jobs:
           python3 scripts/run_internal_prospective_report_card.py \
             --manifest "${{ steps.source.outputs.manifest }}" \
             --publication "${{ steps.source.outputs.publication }}" \
+            --closure "${{ steps.closure.outputs.report }}" \
+            --capture-handoff audit_results/report_card_capture_handoff.json \
             --ledger "$ATLAS_REPORT_CARD_DURABLE_ROOT/report-card.sqlite3" \
             --backup-root "$ATLAS_REPORT_CARD_BACKUP_ROOT" \
             --activation-timestamp "$activation_timestamp" \
@@ -163,6 +215,7 @@ jobs:
           name: atlas-internal-report-card-audit-${{ github.run_id }}
           path: |
             audit_results/internal_report_card_capture.json
+            audit_results/report_card_capture_handoff.json
             audit_results/report_card_storage_validation.json
           retention-days: 30
           if-no-files-found: error

@@ -18,6 +18,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from services.prospective_report_card import ProspectiveLedger, capture_certified_publication, internal_dashboard
+from services.report_card_capture_handoff import validate_capture_handoff
 
 
 def _json(path: Path):
@@ -38,6 +39,8 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--publication", type=Path, required=True)
+    parser.add_argument("--closure", type=Path, required=True)
+    parser.add_argument("--capture-handoff", type=Path, required=True)
     parser.add_argument("--ledger", type=Path, required=True)
     parser.add_argument("--backup-root", type=Path, required=True)
     parser.add_argument("--activation-timestamp", required=True)
@@ -56,9 +59,15 @@ def main(argv: list[str] | None = None) -> int:
     if backup_root == ledger_path.parent or backup_root.is_relative_to(ledger_path.parent) or ledger_path.is_relative_to(backup_root):
         raise ValueError("PRIMARY_AND_BACKUP_STORAGE_MUST_BE_DISJOINT")
     manifest, rows = _json(args.manifest), _json(args.publication)
-    identity = manifest.get("release_certification") or {}
-    candidate = (manifest.get("executor_candidate_identity") or {}).get("candidate_digest") or identity.get("candidate_digest")
-    actual = (str(candidate or ""), str(identity.get("publication_digest") or ""), str(identity.get("source_sha") or ""))
+    handoff = _json(args.capture_handoff)
+    authority = validate_capture_handoff(handoff, manifest_path=args.manifest,
+                                         publication_path=args.publication, closure_path=args.closure)
+    manifest = {**manifest, "report_card_capture_authority": {
+        **authority, "status": "PASS",
+        "classification": "FINNHUB_FULL_UNIVERSE_CERTIFICATION_CLOSED_GREEN",
+    }}
+    candidate = (manifest.get("executor_candidate_identity") or {}).get("candidate_digest") or authority.get("candidate_digest")
+    actual = (str(candidate or ""), authority["publication_digest"], authority["source_sha"])
     expected = (args.expected_candidate_digest, args.expected_publication_digest, args.expected_source_sha)
     if actual != expected:
         raise ValueError(f"EXPECTED_PUBLICATION_IDENTITY_MISMATCH:{actual}")

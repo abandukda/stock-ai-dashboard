@@ -48,9 +48,13 @@ def _manifest_identity(manifest: Mapping[str, Any]) -> dict[str, str]:
     candidate = dict(manifest.get("executor_candidate_identity") or {})
     release = dict(manifest.get("release_certification") or {})
     promotion = dict(manifest.get("promotion_governance") or {})
+    handoff = dict(manifest.get("report_card_capture_authority") or {})
+    if handoff and (handoff.get("status") != "PASS" or
+                    handoff.get("classification") != "FINNHUB_FULL_UNIVERSE_CERTIFICATION_CLOSED_GREEN"):
+        raise ValueError("REPORT_CARD_CAPTURE_AUTHORITY_INVALID")
     identity = {
         "candidate_digest": str(candidate.get("candidate_digest") or release.get("candidate_digest") or ""),
-        "publication_digest": str(release.get("publication_digest") or promotion.get("publication_digest") or ""),
+        "publication_digest": str(release.get("publication_digest") or promotion.get("publication_digest") or handoff.get("publication_digest") or ""),
         "source_sha": str(candidate.get("source_sha") or release.get("source_sha") or ""),
         "methodology_version": str(candidate.get("methodology_version") or manifest.get("methodology_version") or ""),
         "provider_authority_version": str(candidate.get("provider_authority_version") or manifest.get("provider_authority_version") or ""),
