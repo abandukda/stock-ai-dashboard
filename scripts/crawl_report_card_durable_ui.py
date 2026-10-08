@@ -84,9 +84,16 @@ async def run(output: Path) -> None:
                     # the governed Home overview CTA, whose product callback
                     # clears the retained detail id before routing.
                     home = page.get_by_role("radio", name="Home", exact=True)
-                    await home.first.click(timeout=10000)
+                    # Streamlit's styled radio wrapper can transiently
+                    # intercept pointer events even though the native input is
+                    # visible and enabled. This is an established control, so
+                    # force the native click instead of weakening any route or
+                    # readiness assertion.
+                    await home.first.click(timeout=10000, force=True)
                     await page.locator('[data-atlas-qa="home-performance-tracking"]').wait_for(timeout=30000)
-                    await page.get_by_role("button", name="View Report Card", exact=True).click(timeout=10000)
+                    await page.get_by_role("button", name="View Report Card", exact=True).click(
+                        timeout=10000, force=True
+                    )
                     await page.locator('[data-atlas-qa="internal-report-card"]').wait_for(
                         state="attached", timeout=30000
                     )

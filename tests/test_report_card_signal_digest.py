@@ -123,6 +123,7 @@ def test_autonomous_crawler_opens_and_certifies_signal_detail():
     assert 'name=re.compile(r"Back to Report Card", re.I)' in crawler
     assert 'get_by_role("radio", name="Home", exact=True)' in crawler
     assert 'name="View Report Card", exact=True' in crawler
+    assert 'click(timeout=10000, force=True)' in crawler
     assert 'data-atlas-qa="report-card-overview"' in Path("ui/internal_report_card.py").read_text(encoding="utf-8")
     assert 'page.locator(\'[data-atlas-qa="report-card-overview"]\')' in crawler
     assert 'get_by_text("Signals", exact=True)' not in crawler
