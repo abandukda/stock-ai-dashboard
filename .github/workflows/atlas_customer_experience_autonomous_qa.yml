@@ -144,6 +144,7 @@ jobs:
             echo "artifact=$artifact"
             echo "repair_generation=$generation"
           } >> "$GITHUB_OUTPUT"
+          mkdir -p audit_results/customer_experience_qa
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -171,11 +172,13 @@ jobs:
           if len(manifests) != 1:
               raise SystemExit(f"PUBLICATION_MANIFEST_AMBIGUOUS:{len(manifests)}")
           manifest=json.loads(manifests[0].read_text())
+          certified=manifest.get("release_certification") or manifest.get("visual_same_snapshot_parity") or manifest.get("promotion_governance") or {}
+          executor=manifest.get("executor_candidate_identity") or {}
           values={
               "bundle": manifests[0].parent,
-              "candidate": manifest.get("candidate_digest"),
-              "publication": manifest.get("publication_digest") or manifest.get("publication_bundle_digest"),
-              "source": manifest.get("source_sha") or manifest.get("candidate_source_sha"),
+              "candidate": manifest.get("candidate_digest") or certified.get("candidate_digest") or executor.get("candidate_digest"),
+              "publication": manifest.get("publication_digest") or manifest.get("publication_bundle_digest") or certified.get("publication_digest"),
+              "source": manifest.get("source_sha") or manifest.get("candidate_source_sha") or certified.get("source_sha") or executor.get("source_sha"),
           }
           expectations=list(root.rglob("runtime_projection_expectations_*.json"))
           if not expectations:
@@ -302,7 +305,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: atlas-customer-experience-qa-${{ inputs.candidate_sha }}
+          name: atlas-customer-experience-qa-${{ steps.context.outputs.candidate_sha }}
           path: audit_results/customer_experience_qa
           if-no-files-found: error
           retention-days: 30
