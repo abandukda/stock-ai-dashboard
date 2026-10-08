@@ -100,8 +100,8 @@ jobs:
       ATLAS_INTERNAL_QA_PASSWORD: ${{ secrets.ATLAS_AUDIT_PASSWORD }}
       ATLAS_VIEWER_QA_PASSWORD: atlas-viewer-qa-local
       ATLAS_INTERNAL_REPORT_CARD_UI_ENABLED: "true"
-      ATLAS_REPORT_CARD_DURABLE_ROOT: ${{ runner.temp }}/atlas-report-card-primary
-      ATLAS_REPORT_CARD_BACKUP_ROOT: ${{ runner.temp }}/atlas-report-card-backup
+      ATLAS_REPORT_CARD_DURABLE_ROOT: ${{ github.workspace }}/audit_results/report-card-qa-primary
+      ATLAS_REPORT_CARD_BACKUP_ROOT: ${{ github.workspace }}/audit_results/report-card-qa-backup
       PYTHONPATH: .
     steps:
       - uses: actions/checkout@v4
