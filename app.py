@@ -4622,6 +4622,7 @@ def render_chat_helper(full_df):
             "data-atlas-status": status,
             "data-atlas-ticker": ticker,
             "data-atlas-context-digest": grounding.get("context_digest", ""),
+            "data-atlas-authority-digest": grounding.get("authority_digest", ""),
             "data-atlas-decision-status": grounding.get("canonical_decision_status", ""),
             "data-atlas-decision-digest": grounding.get("canonical_decision_digest", ""),
             "data-atlas-submission-id": grounding.get("submission_id", ""),
@@ -4745,7 +4746,7 @@ def render_chat_helper(full_df):
         _ask_started = time.monotonic()
         source = matched.get("Raw") or matched.get("raw")
         source = source if isinstance(source, dict) else dict(matched)
-        from services.customer_authority import bind_report_to_customer_authority, customer_authority
+        from services.customer_authority import bind_report_to_customer_authority, customer_authority, customer_authority_digest
         _saved_authority = customer_authority(source)
         st.markdown(f'<span data-atlas-qa="ask-ai-lifecycle" data-atlas-state="GROUNDING_RESOLVED" data-atlas-ticker="{html.escape(ticker)}" aria-hidden="true" style="display:none">ask-ai-grounding-resolved</span>', unsafe_allow_html=True)
         session_research = (
@@ -4773,6 +4774,7 @@ def render_chat_helper(full_df):
             st.session_state[_report_key] = report
         else:
             report = bind_report_to_customer_authority(report, canonical_row)
+        _ask_authority_digest = customer_authority_digest(report)
         _context_seconds = max(0.0, time.monotonic() - _ask_started)
         _llm_started = time.monotonic()
         st.markdown(f'<span data-atlas-qa="ask-ai-lifecycle" data-atlas-state="RESPONSE_GENERATING" data-atlas-ticker="{html.escape(ticker)}" aria-hidden="true" style="display:none">ask-ai-response-generating</span>', unsafe_allow_html=True)
@@ -4794,6 +4796,7 @@ def render_chat_helper(full_df):
                 "canonical_decision_status": result.get("canonical_decision_status"),
                 "canonical_decision_digest": result.get("canonical_decision_digest"),
                 "context_digest": _context_identity,
+                "authority_digest": _ask_authority_digest,
                 "submission_id": _ask_submission_id,
                 "question_digest": _ask_question_digest,
             },
@@ -4837,6 +4840,7 @@ def render_chat_helper(full_df):
             f'data-atlas-framework="{html.escape(str(result.get("framework_version") or "ASK_ATLAS_GROUNDED_V1"))}" '
             f'data-atlas-context-version="{html.escape(_ask_context_version)}" '
             f'data-atlas-context-digest="{html.escape(_ask_context_digest)}" '
+            f'data-atlas-authority-digest="{html.escape(_ask_authority_digest)}" '
             f'data-atlas-security-type="{html.escape(_ask_security_type)}" '
             f'data-atlas-decision-status="{html.escape(_ask_decision_status)}" '
             f'data-atlas-decision-digest="{html.escape(_ask_decision_digest)}" '
@@ -28008,11 +28012,13 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
         st.caption(_research_context_caption)
         try:
             from agents.runtime_qa_architecture import encode_context_summary, sanitize_research_context
+            from services.customer_authority import customer_authority_digest
             _qa_context = merged.get("research_context") if isinstance(merged.get("research_context"), dict) else {}
             _qa_summary = sanitize_research_context(_qa_context)
             from engines.ask_atlas_engine import canonical_ask_decision
             _qa_decision_status = str(canonical_ask_decision({"research_context": _qa_context}).get("status") or "DATA_UNAVAILABLE")
             _qa_encoded = encode_context_summary(_qa_context)
+            _qa_authority_digest = customer_authority_digest(merged)
             _qa_context_ready = bool(
                 _qa_summary.get("context_version") == "RESEARCH_CONTEXT_V1"
                 and str(_qa_summary.get("ticker") or "").upper() == ticker
@@ -28023,6 +28029,7 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
                 f'data-atlas-context-version="{html.escape(str(_qa_summary.get("context_version") or ""))}" '
                 f'data-atlas-decision-status="{html.escape(_qa_decision_status)}" '
                 f'data-atlas-decision-digest="{html.escape(str(_qa_summary.get("production_decision_digest") or ""))}" '
+                f'data-atlas-authority-digest="{html.escape(_qa_authority_digest)}" '
                 f'data-atlas-context-summary="{html.escape(_qa_encoded)}" aria-hidden="true" style="display:none">research-context-v1</span>',
                 unsafe_allow_html=True,
             )

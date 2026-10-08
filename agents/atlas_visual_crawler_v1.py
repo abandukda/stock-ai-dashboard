@@ -2355,13 +2355,14 @@ class AtlasVisualCrawler:
         return None, None
 
     async def _research_identity(self, page: Page, ticker: str) -> dict[str, str]:
-        identity = {"ticker": ticker, "context_digest": "", "decision_digest": ""}
+        identity = {"ticker": ticker, "context_digest": "", "decision_digest": "", "authority_digest": ""}
         for scope in _scopes(page):
             nodes = scope.locator('[data-atlas-qa="research-context-v1"][data-atlas-ticker]')
             for index in range(await nodes.count()):
                 node = nodes.nth(index)
                 if (await node.get_attribute("data-atlas-ticker") or "").upper() == ticker.upper():
                     identity["decision_digest"] = await node.get_attribute("data-atlas-decision-digest") or ""
+                    identity["authority_digest"] = await node.get_attribute("data-atlas-authority-digest") or ""
                     summary = await node.get_attribute("data-atlas-context-summary") or ""
                     identity["context_digest"] = stable_digest(decode_context_summary(summary)) if summary else ""
                     return identity
@@ -2408,7 +2409,7 @@ class AtlasVisualCrawler:
             metadata: dict[str, str] = {}
             if response_marker is not None and await response_marker.count():
                 for key in (
-                    "ticker", "context-digest", "decision-digest", "evidence-used",
+                    "ticker", "context-digest", "authority-digest", "decision-digest", "evidence-used",
                     "evidence-missing", "evidence-ids", "evidence-limitations",
                 ):
                     metadata[key] = await response_marker.get_attribute(f"data-atlas-{key}") or ""
@@ -2418,9 +2419,8 @@ class AtlasVisualCrawler:
             ticker_match = metadata.get("ticker", "").upper() == "NVDA"
             research_identity = self.research_contexts.get("NVDA", {})
             digest_match = bool(
-                metadata.get("context-digest") and
-                (not research_identity.get("context_digest") or
-                 metadata.get("context-digest") == research_identity.get("context_digest"))
+                metadata.get("authority-digest") and research_identity.get("authority_digest") and
+                metadata.get("authority-digest") == research_identity.get("authority_digest")
             )
             metadata_present = bool(
                 digest_match and (metadata.get("decision-digest") or research_identity.get("decision_digest")) and
@@ -2445,10 +2445,12 @@ class AtlasVisualCrawler:
             digest_state = "PASS" if digest_match else "FAIL"
             await self._record(
                 category="ASK_RECONCILIATION", page_name="Ask AI", interaction="context-digest",
-                expected="Ask context digest equals the rendered canonical Research context digest",
+                expected="Ask authority digest equals the rendered canonical Research authority digest",
                 observed=(
-                    f"state={digest_state}; ask_digest={metadata.get('context-digest') or 'MISSING'}; "
-                    f"research_digest={research_identity.get('context_digest') or 'MISSING'}; "
+                    f"state={digest_state}; ask_authority_digest={metadata.get('authority-digest') or 'MISSING'}; "
+                    f"research_authority_digest={research_identity.get('authority_digest') or 'MISSING'}; "
+                    f"ask_presentation_digest={metadata.get('context-digest') or 'MISSING'}; "
+                    f"research_presentation_digest={research_identity.get('context_digest') or 'MISSING'}; "
                     f"ticker={metadata.get('ticker') or 'MISSING'}"
                 ),
                 passed=digest_state == "PASS", elapsed=time.monotonic() - started,

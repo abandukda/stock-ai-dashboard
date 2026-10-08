@@ -4,7 +4,11 @@ from pathlib import Path
 import pytest
 
 from engines.ask_atlas_engine import ask_atlas
-from services.customer_authority import bind_report_to_customer_authority, customer_authority
+from services.customer_authority import (
+    bind_report_to_customer_authority,
+    customer_authority,
+    customer_authority_digest,
+)
 
 
 def _row(ticker="NVDA", *, allowed=True):
@@ -61,6 +65,39 @@ def test_withheld_ask_never_exposes_protected_fields():
     result = ask_atlas("What does ATLAS think about NVDA?", report)
     assert "does not currently publish" in result["answer"]
     assert "346.05" not in result["answer"]
+
+
+def test_authority_digest_ignores_presentation_context_but_not_protected_authority():
+    source = _row()
+    source["canonical_investment_evaluation"] = {"evidence_ids": ["ev-b", "ev-a"]}
+    first = bind_report_to_customer_authority({
+        "ticker": "NVDA",
+        "research_context": {"generated_at": "2026-10-08T10:00:00Z", "viewport": "desktop"},
+    }, source)
+    second = bind_report_to_customer_authority({
+        "ticker": "NVDA",
+        "research_context": {"generated_at": "2026-10-08T10:05:00Z", "viewport": "mobile"},
+    }, source)
+    assert customer_authority_digest(first) == customer_authority_digest(second)
+    assert first["customer_authority_identity"]["evidence_ids"] == ["ev-a", "ev-b"]
+
+    changed = _row()
+    changed["certified_customer_evaluation"]["decision"]["opportunity"] = 85.95
+    assert customer_authority_digest(first) != customer_authority_digest(changed)
+
+
+def test_bound_report_preserves_source_authority_identity_exactly():
+    source = _row()
+    source.update(publication_digest="publication", source_sha="source")
+    bound = bind_report_to_customer_authority({"ticker": "NVDA"}, source)
+    identity = bound["customer_authority_identity"]
+    assert identity == {
+        "ticker": "NVDA", "candidate_digest": "candidate",
+        "publication_digest": "publication", "source_sha": "source",
+        "evaluation_snapshot": "snapshot-NVDA", "action": "BUY_NOW",
+        "fair_value": 346.05, "opportunity": 85.96, "confidence": 87.46,
+        "evidence_ids": [],
+    }
 
 
 def test_production_runtime_rows_match_governed_expectations():

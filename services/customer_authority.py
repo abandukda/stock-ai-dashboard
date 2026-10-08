@@ -5,6 +5,8 @@ evaluation.  It never calculates or repairs protected investment fields.
 """
 from __future__ import annotations
 
+import hashlib
+import json
 from typing import Any, Mapping
 
 
@@ -75,12 +77,45 @@ def customer_authority(value: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def customer_authority_identity(value: Mapping[str, Any]) -> dict[str, Any]:
+    """Return the canonical protected customer-authority identity.
+
+    Presentation and enrichment metadata are deliberately excluded.  This
+    identity is suitable for proving that Research and Ask are bound to the
+    same certified decision without making viewport- or render-time fields
+    part of that proof.
+    """
+    embedded = _mapping(value.get("customer_authority_identity"))
+    authority = customer_authority(value)
+    source = embedded or authority
+    return {
+        "ticker": str(source.get("ticker") or authority.get("ticker") or "").strip().upper(),
+        "candidate_digest": str(source.get("candidate_digest") or authority.get("candidate_identity") or ""),
+        "publication_digest": str(source.get("publication_digest") or authority.get("publication_identity") or ""),
+        "source_sha": str(source.get("source_sha") or authority.get("source_identity") or ""),
+        "evaluation_snapshot": str(source.get("evaluation_snapshot") or authority.get("evaluation_snapshot") or ""),
+        "action": str(source.get("action") or authority.get("action") or ""),
+        "fair_value": source.get("fair_value", authority.get("fair_value")),
+        "opportunity": source.get("opportunity", authority.get("opportunity")),
+        "confidence": source.get("confidence", authority.get("confidence")),
+        "evidence_ids": sorted({str(item) for item in (source.get("evidence_ids") or authority.get("evidence_ids") or ()) if item}),
+    }
+
+
+def customer_authority_digest(value: Mapping[str, Any]) -> str:
+    payload = customer_authority_identity(value)
+    return hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")
+    ).hexdigest()
+
+
 def bind_report_to_customer_authority(report: Mapping[str, Any], source: Mapping[str, Any]) -> dict[str, Any]:
     """Bind an explanatory Research/Ask report to saved certified authority."""
     authority = customer_authority(source)
     bound = dict(report)
     bound["ticker"] = authority.get("ticker") or bound.get("ticker")
     bound["certified_customer_evaluation"] = authority.get("certified_customer_evaluation") or {}
+    bound["customer_authority_identity"] = customer_authority_identity(source)
     context = dict(_mapping(bound.get("research_context")))
     if authority.get("status") == "AVAILABLE":
         context["production_decision"] = {
@@ -103,4 +138,7 @@ def bind_report_to_customer_authority(report: Mapping[str, Any], source: Mapping
     return bound
 
 
-__all__ = ["bind_report_to_customer_authority", "certified_customer_evaluation", "customer_authority"]
+__all__ = [
+    "bind_report_to_customer_authority", "certified_customer_evaluation",
+    "customer_authority", "customer_authority_digest", "customer_authority_identity",
+]
