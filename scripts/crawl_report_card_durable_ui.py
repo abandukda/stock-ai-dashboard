@@ -8,12 +8,93 @@ import json
 import os
 from pathlib import Path
 import re
+import time
 from typing import Any
 
 from playwright.async_api import Page, async_playwright
 
 
 VIEWPORTS = {"desktop": {"width": 1440, "height": 1000}, "mobile": {"width": 390, "height": 844}}
+SETTLEMENT_TIMEOUT_SECONDS = 30.0
+SETTLEMENT_INTERVAL_SECONDS = 0.2
+
+
+async def _wait_for_stable_condition(
+    check: Any,
+    failure: str,
+    *,
+    timeout_seconds: float = SETTLEMENT_TIMEOUT_SECONDS,
+    interval_seconds: float = SETTLEMENT_INTERVAL_SECONDS,
+    stable_checks: int = 2,
+) -> None:
+    """Require a UI condition to remain true across consecutive bounded polls."""
+    deadline = time.monotonic() + timeout_seconds
+    consecutive = 0
+    while time.monotonic() < deadline:
+        if await check():
+            consecutive += 1
+            if consecutive >= stable_checks:
+                return
+        else:
+            consecutive = 0
+        await asyncio.sleep(interval_seconds)
+    raise AssertionError(failure)
+
+
+async def wait_for_report_card_overview_settled(page: Page, mode: str) -> None:
+    metric_labels = ("Signals", "Observations", "Open signals", "SPY comparisons")
+    copy_labels = (
+        "Ledger integrity", "Backup status", "Next eligible observation",
+        "Signal admission and observation detail",
+    )
+
+    async def settled() -> bool:
+        for label in metric_labels:
+            locator = page.get_by_text(label, exact=True).first
+            if not await locator.count() or not await locator.is_visible():
+                return False
+        text = (await page.locator("body").inner_text()).casefold()
+        return all(label.casefold() in text for label in copy_labels)
+
+    await _wait_for_stable_condition(
+        settled,
+        f"REPORT_CARD_OVERVIEW_VISIBLE_RENDER_NOT_SETTLED:{mode}",
+    )
+
+
+async def wait_for_report_card_signal_entry_settled(page: Page, mode: str) -> None:
+    async def settled() -> bool:
+        expander = page.locator('[data-testid="stExpander"]').first
+        button = page.get_by_role("button", name="View Signal Digest →").first
+        return (
+            await expander.count() > 0
+            and await expander.is_visible()
+            and await button.count() > 0
+            and await button.is_visible()
+        )
+
+    await _wait_for_stable_condition(
+        settled,
+        f"REPORT_CARD_SIGNAL_ENTRY_NOT_SETTLED:{mode}",
+    )
+
+
+DETAIL_SECTIONS = (
+    "ORIGINAL CERTIFIED SIGNAL", "CURRENT MARKET STATE", "Performance by registered horizon",
+    "ATLAS Signal Digest", "Original thesis and view-change conditions", "About ",
+    "Event timeline", "Evidence and audit identity", "What Drove the Move",
+)
+
+
+async def wait_for_report_card_detail_settled(page: Page, mode: str) -> None:
+    async def settled() -> bool:
+        text = await page.locator("body").inner_text()
+        return all(label in text for label in DETAIL_SECTIONS)
+
+    await _wait_for_stable_condition(
+        settled,
+        f"REPORT_CARD_SIGNAL_DETAIL_VISIBLE_RENDER_NOT_SETTLED:{mode}",
+    )
 
 
 async def login(page: Page, password: str) -> None:
@@ -68,6 +149,7 @@ async def run(output: Path) -> None:
             if await overview.get_attribute("data-atlas-report-card-view") != "OVERVIEW":
                 raise AssertionError(f"REPORT_CARD_OVERVIEW_VIEW_STATE_INVALID:{mode}")
             await page.get_by_text("Prospective Report Card", exact=True).wait_for(state="visible", timeout=30000)
+            await wait_for_report_card_overview_settled(page, mode)
             overview_facts = {
                 key: await overview.get_attribute(f"data-atlas-{key}")
                 for key in (
@@ -84,13 +166,10 @@ async def run(output: Path) -> None:
             links.append({"viewport": mode, "source": "Home", "label": "View Report Card",
                           "destination": "Internal Report Card", "status": "PASS"})
             report_text = await page.locator("body").inner_text()
-            for label in ("Prospective Report Card", "Signals", "Observations", "Open signals", "SPY comparisons",
-                          "Ledger integrity", "Backup status", "Next eligible observation", "Signal admission"):
-                if label.casefold() not in report_text.casefold():
-                    raise AssertionError(f"REPORT_CARD_FIELD_MISSING:{mode}:{label}")
             if "0.00%" in report_text and "Pending" not in report_text:
                 raise AssertionError(f"MISLEADING_ZERO_PERFORMANCE:{mode}")
             await shot(page, output, f"internal-report-card-{mode}", manifest)
+            await wait_for_report_card_signal_entry_settled(page, mode)
             expander = page.locator('[data-testid="stExpander"]').first
             if await expander.count():
                 await expander.click()
@@ -102,6 +181,7 @@ async def run(output: Path) -> None:
             await detail.wait_for(state="attached", timeout=30000)
             if await detail.get_attribute("data-atlas-report-card-view") != "DETAIL":
                 raise AssertionError(f"REPORT_CARD_DETAIL_VIEW_STATE_INVALID:{mode}")
+            await wait_for_report_card_detail_settled(page, mode)
             detail_facts = {
                 key: await detail.get_attribute(f"data-atlas-{key}")
                 for key in (
@@ -122,13 +202,6 @@ async def run(output: Path) -> None:
                 if detail_facts[key] not in {"AVAILABLE", "UNAVAILABLE", "PENDING"}:
                     raise AssertionError(f"REPORT_CARD_EVIDENCE_STATE_INVALID:{mode}:{key}")
             detail_text = await page.locator("body").inner_text()
-            for label in (
-                "ORIGINAL CERTIFIED SIGNAL", "CURRENT MARKET STATE", "Performance by registered horizon",
-                "ATLAS Signal Digest", "Original thesis and view-change conditions", "About ",
-                "Event timeline", "Evidence and audit identity", "What Drove the Move",
-            ):
-                if label not in detail_text:
-                    raise AssertionError(f"REPORT_CARD_SIGNAL_DETAIL_MISSING:{mode}:{label}")
             if "CONTEXTUAL_NON_SCORING" not in detail_text:
                 raise AssertionError(f"REPORT_CARD_SIGNAL_CONTEXT_CLASSIFICATION_NOT_VISIBLE:{mode}")
             overflow = await page.evaluate("document.documentElement.scrollWidth > document.documentElement.clientWidth + 1")
@@ -141,10 +214,24 @@ async def run(output: Path) -> None:
             }""")
             await page.wait_for_timeout(250)
             await shot(page, output, f"signal-detail-{mode}", manifest)
+            about = page.locator('[data-testid="stExpander"]').filter(has_text=re.compile(r"^About ")).first
+            if await about.count():
+                await about.click()
+
+                async def company_profile_settled() -> bool:
+                    company = about.get_by_text("Company", exact=True)
+                    return await company.count() > 0 and await company.is_visible()
+
+                await _wait_for_stable_condition(
+                    company_profile_settled,
+                    f"REPORT_CARD_COMPANY_PROFILE_NOT_SETTLED:{mode}",
+                )
+                await shot(page, output, f"about-company-{mode}", manifest)
             await page.get_by_role("button", name="← Back to Report Card").click()
             await overview.wait_for(state="attached", timeout=30000)
             if await overview.get_attribute("data-atlas-report-card-view") != "OVERVIEW":
                 raise AssertionError(f"REPORT_CARD_BACK_VIEW_STATE_INVALID:{mode}")
+            await wait_for_report_card_overview_settled(page, mode)
             await select_route(page, "Home")
             await page.locator('[data-atlas-qa="home-performance-tracking"]').wait_for(timeout=30000)
             await page.get_by_role("button", name="View Report Card", exact=True).click()
@@ -152,6 +239,7 @@ async def run(output: Path) -> None:
             await overview.wait_for(state="attached", timeout=30000)
             if await overview.get_attribute("data-atlas-report-card-view") != "OVERVIEW":
                 raise AssertionError(f"REPORT_CARD_REENTRY_VIEW_STATE_INVALID:{mode}")
+            await wait_for_report_card_overview_settled(page, mode)
             await select_route(page, "Home")
             links.append({"viewport": mode, "source": "Internal Report Card", "label": "Home",
                           "destination": "Home", "status": "PASS"})

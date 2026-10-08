@@ -1,6 +1,10 @@
+import asyncio
 from copy import deepcopy
 from pathlib import Path
 
+import pytest
+
+from scripts.crawl_report_card_durable_ui import _wait_for_stable_condition
 from services.report_card_signal_detail import CONTEXT_CLASSIFICATION, build_signal_detail
 from ui.internal_report_card import (
     REPORT_CARD_SELECTED_SIGNAL_KEY,
@@ -127,7 +131,7 @@ def test_autonomous_crawler_opens_and_certifies_signal_detail():
     crawler = Path("scripts/crawl_report_card_durable_ui.py").read_text(encoding="utf-8")
     assert 'name="View Signal Digest →"' in crawler
     assert 'data-atlas-qa="report-card-signal-detail"' in crawler
-    assert "REPORT_CARD_SIGNAL_DETAIL_MISSING" in crawler
+    assert "REPORT_CARD_SIGNAL_DETAIL_VISIBLE_RENDER_NOT_SETTLED" in crawler
     assert "REPORT_CARD_SIGNAL_CONTEXT_CLASSIFICATION_MISSING" in crawler
     assert "REPORT_CARD_SIGNAL_HORIZONTAL_OVERFLOW" in crawler
     assert 'name="← Back to Report Card"' in crawler
@@ -135,10 +139,53 @@ def test_autonomous_crawler_opens_and_certifies_signal_detail():
     assert 'name="View Report Card", exact=True' in crawler
     assert 'data-atlas-qa="report-card-overview"' in Path("ui/internal_report_card.py").read_text(encoding="utf-8")
     assert 'page.locator(\'[data-atlas-qa="report-card-overview"]\')' in crawler
-    assert 'get_by_text("Signals", exact=True)' not in crawler
+    assert 'get_by_text(label, exact=True)' in crawler
     assert "ATLAS_REPORT_CARD_SIGNAL_DIGEST_CERTIFIED" in crawler
     assert 'data-atlas-report-card-view' in crawler
     assert 'REPORT_CARD_REENTRY_VIEW_STATE_INVALID' in crawler
+
+
+def test_settlement_waits_for_two_stable_checks_after_incremental_render():
+    states = iter((False, True, False, True, True))
+    calls = 0
+
+    async def check():
+        nonlocal calls
+        calls += 1
+        return next(states)
+
+    asyncio.run(_wait_for_stable_condition(
+        check, "unexpected", timeout_seconds=1, interval_seconds=0, stable_checks=2,
+    ))
+    assert calls == 5
+
+
+def test_settlement_uses_specific_visible_render_failure_when_content_never_appears():
+    async def never():
+        return False
+
+    with pytest.raises(AssertionError, match="REPORT_CARD_OVERVIEW_VISIBLE_RENDER_NOT_SETTLED"):
+        asyncio.run(_wait_for_stable_condition(
+            never,
+            "REPORT_CARD_OVERVIEW_VISIBLE_RENDER_NOT_SETTLED:desktop",
+            timeout_seconds=0.001,
+            interval_seconds=0,
+        ))
+
+
+def test_crawler_settlement_contract_covers_overview_entry_detail_and_both_viewports():
+    crawler = Path("scripts/crawl_report_card_durable_ui.py").read_text(encoding="utf-8")
+    for contract in (
+        "wait_for_report_card_overview_settled", "wait_for_report_card_signal_entry_settled",
+        "wait_for_report_card_detail_settled", "REPORT_CARD_SIGNAL_ENTRY_NOT_SETTLED",
+        "REPORT_CARD_SIGNAL_DETAIL_VISIBLE_RENDER_NOT_SETTLED", "REPORT_CARD_COMPANY_PROFILE_NOT_SETTLED",
+    ):
+        assert contract in crawler
+    assert crawler.index('"desktop"') < crawler.index('"mobile"')
+    assert "overview_facts" in crawler
+    assert "data-atlas-signal-count" not in crawler  # read through the semantic marker attribute helper
+    assert 'f"data-atlas-{key}"' in crawler
+    assert 'f"about-company-{mode}"' in crawler
 
 
 def test_signal_detail_semantic_marker_carries_existing_authority_and_evidence_states():
