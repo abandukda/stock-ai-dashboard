@@ -303,9 +303,11 @@ def _canonical_streamlit_url(url: str, *, allow_local_exact_candidate: bool = Fa
     host = (parts.hostname or "").lower()
     local_exact_candidate = (
         allow_local_exact_candidate
-        and os.getenv("ATLAS_EXACT_CANDIDATE_QA", "").strip().lower() in {"1", "true", "yes"}
-        and host in {"127.0.0.1", "localhost"}
+        and host in {"127.0.0.1", "localhost", "::1"}
+        and parts.scheme in {"http", "https"}
         and parts.port == 8501
+        and parts.username is None
+        and parts.password is None
     )
     invalid_reason = ""
     if host == "share.streamlit.io" or (host.endswith("streamlit.io") and path.startswith("/app/")):
@@ -1361,7 +1363,12 @@ def research_performance_classification(*, canonical_ready: bool, render_complet
     return "QA_WAIT_DEFECT"
 
 
-async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
+async def run_runtime_qa_v3(
+    *,
+    url: str,
+    output_dir: Path,
+    exact_candidate_localhost: bool = False,
+) -> dict[str, Any]:
     output_dir.mkdir(parents=True, exist_ok=True)
     started = time.monotonic()
     architecture = architecture_preflight(".")
@@ -1443,6 +1450,7 @@ async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
             authentication = await asyncio.wait_for(
                 _open_and_authenticate(
                     page, url, output_dir, expected_sha=deployed_source_sha,
+                    allow_local_exact_candidate=exact_candidate_localhost,
                 ),
                 timeout=300,
             )
@@ -1936,13 +1944,22 @@ def main() -> None:
     parser.add_argument("--url", default=DEFAULT_URL)
     parser.add_argument("--output", default="audit_results")
     parser.add_argument("--mode", choices=("full", "targeted_preflight"), default="full")
+    parser.add_argument(
+        "--exact-candidate-localhost",
+        action="store_true",
+        help="Allow only a loopback:8501 exact-candidate runtime; production validation remains the default.",
+    )
     args = parser.parse_args()
-    result = asyncio.run(
-        (run_targeted_preflight_v3 if args.mode == "targeted_preflight" else run_runtime_qa_v3)(
+    if args.mode == "targeted_preflight":
+        if args.exact_candidate_localhost:
+            parser.error("--exact-candidate-localhost is supported only by full exact-candidate Runtime QA")
+        result = asyncio.run(run_targeted_preflight_v3(url=args.url, output_dir=Path(args.output)))
+    else:
+        result = asyncio.run(run_runtime_qa_v3(
             url=args.url,
             output_dir=Path(args.output),
-        )
-    )
+            exact_candidate_localhost=args.exact_candidate_localhost,
+        ))
     if args.mode == "targeted_preflight":
         if result.get("status") != "TARGETED_PREFLIGHT_PASS":
             raise SystemExit(2)

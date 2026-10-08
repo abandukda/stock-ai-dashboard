@@ -308,7 +308,7 @@ jobs:
           curl --retry 30 --retry-delay 2 --retry-connrefused -fsS http://127.0.0.1:8501/_stcore/health
       - name: Crawl interactions and capture deterministic screenshots
         run: |
-          python3 agents/atlas_runtime_qa_v3.py --url http://127.0.0.1:8501 --output "$ATLAS_QA_OUTPUT/browser"
+          python3 agents/atlas_runtime_qa_v3.py --url http://127.0.0.1:8501 --output "$ATLAS_QA_OUTPUT/browser" --exact-candidate-localhost
       - name: Bind browser evidence to governed authority
         run: python3 scripts/prepare_customer_experience_qa_evidence.py --root "$ATLAS_QA_OUTPUT"
       - name: Consolidate exact-authority certification
@@ -352,7 +352,7 @@ jobs:
             echo $! > "$RUNNER_TEMP/atlas-streamlit.pid"
             curl --retry 30 --retry-delay 2 --retry-connrefused -fsS http://127.0.0.1:8501/_stcore/health
             mv "$ATLAS_QA_OUTPUT/browser" "$ATLAS_QA_OUTPUT/browser-before-attempt-$attempt"
-            python3 agents/atlas_runtime_qa_v3.py --url http://127.0.0.1:8501 --output "$ATLAS_QA_OUTPUT/browser" || true
+            python3 agents/atlas_runtime_qa_v3.py --url http://127.0.0.1:8501 --output "$ATLAS_QA_OUTPUT/browser" --exact-candidate-localhost || true
             python3 scripts/prepare_customer_experience_qa_evidence.py --root "$ATLAS_QA_OUTPUT"
             if python3 agents/atlas_customer_experience_autonomous_qa.py --candidate-sha "$(git rev-parse HEAD)" --mode certify_and_repair --max-repair-attempts "$MAX_REPAIR_ATTEMPTS" --authority "$ATLAS_QA_OUTPUT/authority_manifest.json" --browser-report "$ATLAS_QA_OUTPUT/browser/atlas_runtime_qa_v3.json" --screenshot-manifest "$ATLAS_QA_OUTPUT/screenshot_manifest.json" --output "$ATLAS_QA_OUTPUT/final"; then
               if ! git push origin "HEAD:refs/heads/$REVIEW_BRANCH"; then
