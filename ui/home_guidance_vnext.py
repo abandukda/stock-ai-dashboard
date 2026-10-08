@@ -1384,13 +1384,15 @@ def _render_groups(story: Mapping[str, Any], *, emit_interactive) -> None:
             emit_interactive()
     if len(actionable) > 5:
         with st.expander(f"View all certified opportunities ({len(actionable)})", expanded=False):
-            for card in actionable:
+            for index, card in enumerate(actionable):
+                ticker = str(card.get("ticker") or "UNKNOWN")
                 st.markdown(
-                    f'**{html.escape(str(card.get("ticker") or "UNKNOWN"))}** · '
+                    f'**{html.escape(ticker)}** · '
                     f'{html.escape(str(card.get("company") or ""))} · '
                     f'Opportunity {_score(card.get("opportunity"))} · '
                     f'Confidence {_score(card.get("decision_confidence"), suffix="%")}'
                 )
+                _open_research(ticker, f"home_all_certified_{index}_{ticker}", compact=True)
     if not actionable:
         emit_interactive()
     _section_marker("worth_watching")

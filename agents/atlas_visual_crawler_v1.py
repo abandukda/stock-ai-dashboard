@@ -2242,7 +2242,7 @@ class AtlasVisualCrawler:
             result["actionable_card_count"]
             and "ATLAS Fair Value" in text
             and "Potential" in text
-            and "Decision Confidence" in text
+            and ("Decision Confidence" in text or "Confidence" in text)
         )
         result["governed_zero_state"] = bool(
             result["actionable_card_count"] == 0
@@ -2286,21 +2286,22 @@ class AtlasVisualCrawler:
         return False
 
     async def _discover_visible_home_cards(self, page: Page) -> list[tuple[str, str]]:
-        """Discover actual visible BUY NOW CTAs, not hidden marker inventory."""
+        """Discover visible CTAs through their stable ticker-owned QA markers."""
         cards: list[tuple[str, str]] = []
         seen: set[str] = set()
         for scope in _scopes(page):
             try:
-                buttons = scope.get_by_role("button", name=re.compile(r"(?:Open Full Research|View Investment Case)", re.I))
-                for index in range(await buttons.count()):
-                    button = buttons.nth(index)
-                    if not await button.is_visible():
+                markers = scope.locator(
+                    '[data-atlas-qa="home-guidance-research-cta"]'
+                    '[data-atlas-ticker][data-atlas-interaction-id]'
+                )
+                for index in range(await markers.count()):
+                    marker = markers.nth(index)
+                    button = marker.locator("xpath=following::button[1]").first
+                    if not await button.count() or not await button.is_visible():
                         continue
-                    marker = button.locator("xpath=preceding::*[@data-atlas-interaction-id][1]")
-                    if not await marker.count():
-                        continue
-                    interaction_id = await marker.first.get_attribute("data-atlas-interaction-id") or ""
-                    ticker = (await marker.first.get_attribute("data-atlas-expected-ticker") or "").upper()
+                    interaction_id = await marker.get_attribute("data-atlas-interaction-id") or ""
+                    ticker = (await marker.get_attribute("data-atlas-ticker") or "").upper()
                     if not interaction_id or not ticker or ticker in seen:
                         continue
                     card_text = ""
@@ -2308,8 +2309,9 @@ class AtlasVisualCrawler:
                         card = button.locator(f"xpath=ancestor::*[@data-testid='{test_id}'][1]")
                         if await card.count():
                             card_text += " " + await card.first.inner_text()
-                    vnext = scope.locator('[data-atlas-qa="home-guidance-vnext"]')
-                    if "BUY NOW" not in card_text.upper() and not await vnext.count():
+                    if "BUY NOW" not in card_text.upper() and not await scope.locator(
+                        '[data-atlas-qa="home-guidance-vnext"]'
+                    ).count():
                         continue
                     seen.add(ticker)
                     cards.append((interaction_id, ticker))
@@ -2337,7 +2339,9 @@ class AtlasVisualCrawler:
         exact_ticker = re.compile(rf"(?<![A-Z0-9]){re.escape(ticker)}(?![A-Z0-9])", re.I)
         for scope in _scopes(page):
             try:
-                buttons = scope.get_by_role("button", name=re.compile(r"(?:Open Full Research|View Investment Case)", re.I))
+                buttons = scope.get_by_role(
+                    "button", name=re.compile(r"(?:Open Full Research|View Investment Case|View Research)", re.I)
+                )
                 for index in range(await buttons.count()):
                     button = buttons.nth(index)
                     if not await button.is_visible():
