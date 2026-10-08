@@ -28,6 +28,12 @@ def _render_signal_detail(detail: Mapping[str, Any]) -> None:
     profile = detail["company_profile"]
     ticker = html.escape(str(detail.get("ticker") or ""))
     company = html.escape(str(detail.get("company_name") or ticker))
+    digest_sections = {str(item.get("title") or ""): item for item in detail.get("digest") or ()}
+    contextual_available = any(item.get("status") == "AVAILABLE" for item in digest_sections.values())
+    earnings_status = str((digest_sections.get("Earnings and management") or {}).get("status") or "UNAVAILABLE")
+    news_status = "AVAILABLE" if contextual_available else "UNAVAILABLE"
+    profile_status = "AVAILABLE" if profile.get("source") not in (None, "", "UNAVAILABLE") else "UNAVAILABLE"
+    performance_status = "AVAILABLE" if any(item.get("status") == "AVAILABLE" for item in detail.get("performance") or ()) else "PENDING"
     st.markdown("""<style>
     .atlas-signal-detail{display:grid;gap:.8rem}.atlas-signal-detail-head{display:flex;justify-content:space-between;gap:1rem;align-items:flex-start;padding:1rem 1.1rem;border:1px solid rgba(94,234,212,.22);border-radius:16px;background:linear-gradient(145deg,rgba(15,23,42,.94),rgba(20,35,50,.88))}
     .atlas-signal-detail-head small,.atlas-detail-label{color:#77d7c4;letter-spacing:.1em;font-size:.68rem;font-weight:700}.atlas-signal-detail-head h2{margin:.18rem 0;font-size:1.45rem}.atlas-signal-detail-head p{margin:0;color:#9eabba;font-size:.8rem}.atlas-live-state{text-align:right}.atlas-live-state b{display:block;color:#e7edf5}.atlas-live-state span{font-size:.72rem;color:#8c9bad}
@@ -39,6 +45,14 @@ def _render_signal_detail(detail: Mapping[str, Any]) -> None:
         f'<div class="atlas-signal-detail" data-atlas-qa="report-card-signal-detail" '
         f'data-atlas-signal-id="{html.escape(str(detail.get("signal_id") or ""))}" '
         f'data-atlas-ticker="{ticker}" data-atlas-snapshot="{html.escape(str(original.get("evaluation_snapshot_id") or ""))}" '
+        f'data-atlas-action="{html.escape(str(original.get("action") or ""))}" '
+        f'data-atlas-fair-value="{html.escape(str(original.get("atlas_fair_value") or ""))}" '
+        f'data-atlas-opportunity="{html.escape(str(original.get("opportunity") or ""))}" '
+        f'data-atlas-confidence="{html.escape(str(original.get("confidence") or ""))}" '
+        f'data-atlas-candidate-digest="{html.escape(str(original.get("candidate_digest") or ""))}" '
+        f'data-atlas-publication-digest="{html.escape(str(original.get("publication_digest") or ""))}" '
+        f'data-atlas-contextual-evidence="{news_status}" data-atlas-earnings-evidence="{earnings_status}" '
+        f'data-atlas-company-profile="{profile_status}" data-atlas-performance-evidence="{performance_status}" '
         f'data-atlas-context-classification="{detail["context_classification"]}">'
         '<section class="atlas-signal-detail-head"><div><small>ORIGINAL CERTIFIED SIGNAL</small>'
         f'<h2>{ticker} · {company}</h2><p>{html.escape(str(original.get("timestamp") or "Unavailable"))}</p></div>'
@@ -138,6 +152,19 @@ def render_internal_report_card(ledger_path: Path, *, authorized: bool) -> Mappi
     b.metric("Observations", report["observation_count"])
     c.metric("Open signals", report["open_signal_count"])
     d.metric("SPY comparisons", report["spy_comparison_count"])
+    st.markdown(
+        f'<span data-atlas-qa="report-card-overview" '
+        f'data-atlas-signal-count="{int(report["signal_count"])}" '
+        f'data-atlas-observation-count="{int(report["observation_count"])}" '
+        f'data-atlas-open-signal-count="{int(report["open_signal_count"])}" '
+        f'data-atlas-spy-comparison-count="{int(report["spy_comparison_count"])}" '
+        f'data-atlas-ledger-integrity="{html.escape(str(report["integrity"]))}" '
+        f'data-atlas-backup-status="{html.escape(str(report["last_backup_status"]))}" '
+        f'data-atlas-activation-timestamp="{html.escape(str(report["activation_timestamp"] or ""))}" '
+        f'data-atlas-next-observation="{html.escape(str(report["next_eligible_observation"]))}" '
+        'aria-hidden="true" style="display:none">report-card-overview</span>',
+        unsafe_allow_html=True,
+    )
     st.markdown(
         '<div class="atlas-source-chips"><span class="atlas-certification-chip">Append-only ledger</span>'
         f'<span class="atlas-source-chip">Activated {report["activation_timestamp"]}</span>'

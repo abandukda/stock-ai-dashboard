@@ -120,3 +120,19 @@ def test_autonomous_crawler_opens_and_certifies_signal_detail():
     assert "REPORT_CARD_SIGNAL_CONTEXT_CLASSIFICATION_MISSING" in crawler
     assert "REPORT_CARD_SIGNAL_HORIZONTAL_OVERFLOW" in crawler
     assert 'name="← Back to Report Card"' in crawler
+    assert 'data-atlas-qa="report-card-overview"' in Path("ui/internal_report_card.py").read_text(encoding="utf-8")
+    assert 'page.locator(\'[data-atlas-qa="report-card-overview"]\')' in crawler
+    assert 'get_by_text("Signals", exact=True)' not in crawler
+    assert "ATLAS_REPORT_CARD_SIGNAL_DIGEST_CERTIFIED" in crawler
+
+
+def test_signal_detail_semantic_marker_carries_existing_authority_and_evidence_states():
+    ui = Path("ui/internal_report_card.py").read_text(encoding="utf-8")
+    for attribute in (
+        "data-atlas-signal-id", "data-atlas-ticker", "data-atlas-snapshot",
+        "data-atlas-action", "data-atlas-fair-value", "data-atlas-opportunity",
+        "data-atlas-confidence", "data-atlas-candidate-digest", "data-atlas-publication-digest",
+        "data-atlas-contextual-evidence", "data-atlas-earnings-evidence",
+        "data-atlas-company-profile", "data-atlas-performance-evidence",
+    ):
+        assert attribute in ui

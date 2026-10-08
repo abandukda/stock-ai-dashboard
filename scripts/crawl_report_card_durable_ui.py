@@ -62,8 +62,22 @@ async def run(output: Path) -> None:
             await shot(page, output, f"authorized-home-performance-{mode}", manifest)
             await page.get_by_role("button", name="View Report Card").click()
             await page.locator('[data-atlas-qa="internal-report-card"]').wait_for(state="attached", timeout=30000)
+            overview = page.locator('[data-atlas-qa="report-card-overview"]')
+            await overview.wait_for(state="attached", timeout=30000)
             await page.get_by_text("Prospective Report Card", exact=True).wait_for(state="visible", timeout=30000)
-            await page.get_by_text("Signals", exact=True).wait_for(state="visible", timeout=30000)
+            overview_facts = {
+                key: await overview.get_attribute(f"data-atlas-{key}")
+                for key in (
+                    "signal-count", "observation-count", "open-signal-count",
+                    "spy-comparison-count", "ledger-integrity", "backup-status",
+                    "activation-timestamp", "next-observation",
+                )
+            }
+            for key in ("signal-count", "observation-count", "open-signal-count", "spy-comparison-count"):
+                if overview_facts[key] in (None, "") or not str(overview_facts[key]).isdigit():
+                    raise AssertionError(f"REPORT_CARD_OVERVIEW_MARKER_INVALID:{mode}:{key}")
+            if overview_facts["ledger-integrity"] != "PASS":
+                raise AssertionError(f"REPORT_CARD_LEDGER_INTEGRITY_FAILED:{mode}")
             links.append({"viewport": mode, "source": "Home", "label": "View Report Card",
                           "destination": "Internal Report Card", "status": "PASS"})
             report_text = await page.locator("body").inner_text()
@@ -83,6 +97,25 @@ async def run(output: Path) -> None:
             await digest_button.click()
             detail = page.locator('[data-atlas-qa="report-card-signal-detail"]')
             await detail.wait_for(state="attached", timeout=30000)
+            detail_facts = {
+                key: await detail.get_attribute(f"data-atlas-{key}")
+                for key in (
+                    "signal-id", "ticker", "snapshot", "action", "fair-value", "opportunity",
+                    "confidence", "candidate-digest", "publication-digest", "context-classification",
+                    "contextual-evidence", "earnings-evidence", "company-profile", "performance-evidence",
+                )
+            }
+            for key in (
+                "signal-id", "ticker", "snapshot", "action", "fair-value", "opportunity",
+                "confidence", "candidate-digest", "publication-digest",
+            ):
+                if detail_facts[key] in (None, ""):
+                    raise AssertionError(f"REPORT_CARD_SIGNAL_IDENTITY_MISSING:{mode}:{key}")
+            if detail_facts["context-classification"] != "CONTEXTUAL_NON_SCORING":
+                raise AssertionError(f"REPORT_CARD_SIGNAL_CONTEXT_CLASSIFICATION_MISSING:{mode}")
+            for key in ("contextual-evidence", "earnings-evidence", "company-profile", "performance-evidence"):
+                if detail_facts[key] not in {"AVAILABLE", "UNAVAILABLE", "PENDING"}:
+                    raise AssertionError(f"REPORT_CARD_EVIDENCE_STATE_INVALID:{mode}:{key}")
             detail_text = await page.locator("body").inner_text()
             for label in (
                 "ORIGINAL CERTIFIED SIGNAL", "CURRENT MARKET STATE", "Performance by registered horizon",
@@ -92,9 +125,7 @@ async def run(output: Path) -> None:
                 if label not in detail_text:
                     raise AssertionError(f"REPORT_CARD_SIGNAL_DETAIL_MISSING:{mode}:{label}")
             if "CONTEXTUAL_NON_SCORING" not in detail_text:
-                raise AssertionError(f"REPORT_CARD_SIGNAL_CONTEXT_CLASSIFICATION_MISSING:{mode}")
-            if await detail.get_attribute("data-atlas-signal-id") in (None, ""):
-                raise AssertionError(f"REPORT_CARD_SIGNAL_ID_MISSING:{mode}")
+                raise AssertionError(f"REPORT_CARD_SIGNAL_CONTEXT_CLASSIFICATION_NOT_VISIBLE:{mode}")
             overflow = await page.evaluate("document.documentElement.scrollWidth > document.documentElement.clientWidth + 1")
             if overflow:
                 raise AssertionError(f"REPORT_CARD_SIGNAL_HORIZONTAL_OVERFLOW:{mode}")
@@ -128,6 +159,12 @@ async def run(output: Path) -> None:
     (output / "link_crawl.json").write_text(json.dumps({"status": "PASS", "links": links}, indent=2), encoding="utf-8")
     (output / "access_control.json").write_text(json.dumps(access, indent=2), encoding="utf-8")
     (output / "browser_logs.json").write_text(json.dumps(browser_logs, indent=2), encoding="utf-8")
+    (output / "signal_digest_certification.json").write_text(json.dumps({
+        "status": "ATLAS_REPORT_CARD_SIGNAL_DIGEST_CERTIFIED",
+        "viewports": sorted(VIEWPORTS),
+        "provider_calls": 0,
+        "ledger_mutation": "NONE",
+    }, indent=2), encoding="utf-8")
 
 
 def main() -> int:
