@@ -10,9 +10,10 @@ from typing import Any
 from services.prospective_report_card import _digest
 from services.report_card import HORIZONS
 from services.report_card_governance import public_report_allowed
+from services.report_card_signal_detail import build_signal_detail, load_certified_authority
 
 
-def build_internal_report_card(path: Path, *, authorized: bool) -> dict[str, Any]:
+def build_internal_report_card(path: Path, *, authorized: bool, authority_root: Path | None = None) -> dict[str, Any]:
     if not authorized:
         raise PermissionError("INTERNAL_REPORT_CARD_ACCESS_REQUIRED")
     if public_report_allowed():
@@ -41,6 +42,8 @@ def build_internal_report_card(path: Path, *, authorized: bool) -> dict[str, Any
     observed = {(row["parent_id"], int(row["payload"]["horizon_trading_days"])): row["payload"] for row in observations}
     table = []
     signal_details = []
+    enriched_signal_details = []
+    authority_rows = load_certified_authority(authority_root)
     for signal in signals:
         payload = signal["payload"]
         observation_count = sum(row["parent_id"] == signal["record_id"] for row in observations)
@@ -69,6 +72,7 @@ def build_internal_report_card(path: Path, *, authorized: bool) -> dict[str, Any
                                               if item.get("corporate_action_status")), "Not yet observed"),
             "open": latest_action in (None, "", "BUY_NOW"),
         })
+        enriched_signal_details.append(build_signal_detail(payload, signal_observations, authority_rows=authority_rows))
         for horizon in HORIZONS:
             item = observed.get((signal["record_id"], horizon))
             table.append({
@@ -110,6 +114,7 @@ def build_internal_report_card(path: Path, *, authorized: bool) -> dict[str, Any
         "admission_defects": admission_defects,
         "coverage": coverage, "mean_return": sum(returns) / len(returns) if returns else None,
         "median_return": median(returns) if returns else None, "rows": table, "signals": signal_details,
+        "signal_details": enriched_signal_details,
         "registered_horizons": list(HORIZONS),
         "next_eligible_observation": metadata.get("next_eligible_observation", "Determined by governed trading-session calendar"),
         "last_backup_status": metadata.get("last_backup_status", "Verify from protected backup workflow"),

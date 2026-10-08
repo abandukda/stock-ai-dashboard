@@ -1451,6 +1451,17 @@ def _render_internal_performance_tracking(*, authorized_internal: bool) -> None:
     if st.button("View Report Card", key="home_view_internal_report_card", type="secondary"):
         st.session_state["v79_pending_page"] = "Internal Report Card"
         st.rerun()
+    signal_columns = st.columns(min(3, max(1, len(report["signals"]))))
+    for index, signal in enumerate(report["signals"][:3]):
+        with signal_columns[index]:
+            if st.button(
+                f'Open {signal["ticker"]} signal →',
+                key=f'home_report_card_signal_{signal["signal_id"]}',
+                type="tertiary",
+            ):
+                st.session_state["report_card_selected_signal_id"] = signal["signal_id"]
+                st.session_state["v79_pending_page"] = "Internal Report Card"
+                st.rerun()
 
 
 def _render_market_today(story: Mapping[str, Any]) -> None:

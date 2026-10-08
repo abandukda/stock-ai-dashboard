@@ -61,13 +61,15 @@ async def run(output: Path) -> None:
                     raise AssertionError(f"HOME_PERFORMANCE_FIELD_MISSING:{mode}:{label}")
             await shot(page, output, f"authorized-home-performance-{mode}", manifest)
             await page.get_by_role("button", name="View Report Card").click()
-            await page.locator('[data-atlas-qa="internal-report-card"]').wait_for(timeout=30000)
+            await page.locator('[data-atlas-qa="internal-report-card"]').wait_for(state="attached", timeout=30000)
+            await page.get_by_text("Prospective Report Card", exact=True).wait_for(state="visible", timeout=30000)
+            await page.get_by_text("Signals", exact=True).wait_for(state="visible", timeout=30000)
             links.append({"viewport": mode, "source": "Home", "label": "View Report Card",
                           "destination": "Internal Report Card", "status": "PASS"})
             report_text = await page.locator("body").inner_text()
             for label in ("Prospective Report Card", "Signals", "Observations", "Open signals", "SPY comparisons",
                           "Ledger integrity", "Backup status", "Next eligible observation", "Signal admission"):
-                if label not in report_text:
+                if label.casefold() not in report_text.casefold():
                     raise AssertionError(f"REPORT_CARD_FIELD_MISSING:{mode}:{label}")
             if "0.00%" in report_text and "Pending" not in report_text:
                 raise AssertionError(f"MISLEADING_ZERO_PERFORMANCE:{mode}")
@@ -76,7 +78,35 @@ async def run(output: Path) -> None:
             if await expander.count():
                 await expander.click()
                 await page.wait_for_timeout(400)
+            digest_button = page.get_by_role("button", name="View Signal Digest →").first
+            await digest_button.wait_for(state="visible", timeout=30000)
+            await digest_button.click()
+            detail = page.locator('[data-atlas-qa="report-card-signal-detail"]')
+            await detail.wait_for(state="attached", timeout=30000)
+            detail_text = await page.locator("body").inner_text()
+            for label in (
+                "ORIGINAL CERTIFIED SIGNAL", "CURRENT MARKET STATE", "Performance by registered horizon",
+                "ATLAS Signal Digest", "Original thesis and view-change conditions", "About ",
+                "Event timeline", "Evidence and audit identity", "What Drove the Move",
+            ):
+                if label not in detail_text:
+                    raise AssertionError(f"REPORT_CARD_SIGNAL_DETAIL_MISSING:{mode}:{label}")
+            if "CONTEXTUAL_NON_SCORING" not in detail_text:
+                raise AssertionError(f"REPORT_CARD_SIGNAL_CONTEXT_CLASSIFICATION_MISSING:{mode}")
+            if await detail.get_attribute("data-atlas-signal-id") in (None, ""):
+                raise AssertionError(f"REPORT_CARD_SIGNAL_ID_MISSING:{mode}")
+            overflow = await page.evaluate("document.documentElement.scrollWidth > document.documentElement.clientWidth + 1")
+            if overflow:
+                raise AssertionError(f"REPORT_CARD_SIGNAL_HORIZONTAL_OVERFLOW:{mode}")
+            await page.evaluate("""() => {
+                window.scrollTo(0, 0);
+                const main = document.querySelector('[data-testid="stMain"]');
+                if (main) main.scrollTo(0, 0);
+            }""")
+            await page.wait_for_timeout(250)
             await shot(page, output, f"signal-detail-{mode}", manifest)
+            await page.get_by_role("button", name="← Back to Report Card").click()
+            await page.locator('[data-atlas-qa="internal-report-card"]').wait_for(state="attached", timeout=30000)
             await select_route(page, "Home")
             links.append({"viewport": mode, "source": "Internal Report Card", "label": "Home",
                           "destination": "Home", "status": "PASS"})

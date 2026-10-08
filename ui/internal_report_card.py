@@ -1,6 +1,7 @@
 """Admin-only read-only internal prospective Report Card UI."""
 from __future__ import annotations
 
+import html
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -13,8 +14,107 @@ def _percent(value: Any) -> str:
     return "Pending" if value is None else f"{float(value) * 100:.2f}%"
 
 
+def _money(value: Any) -> str:
+    return "Unavailable" if value is None else f"${float(value):,.2f}"
+
+
+def _score(value: Any) -> str:
+    return "Unavailable" if value is None else f"{float(value):.2f}"
+
+
+def _render_signal_detail(detail: Mapping[str, Any]) -> None:
+    original = detail["original_signal"]
+    current = detail["current_market_state"]
+    profile = detail["company_profile"]
+    ticker = html.escape(str(detail.get("ticker") or ""))
+    company = html.escape(str(detail.get("company_name") or ticker))
+    st.markdown("""<style>
+    .atlas-signal-detail{display:grid;gap:.8rem}.atlas-signal-detail-head{display:flex;justify-content:space-between;gap:1rem;align-items:flex-start;padding:1rem 1.1rem;border:1px solid rgba(94,234,212,.22);border-radius:16px;background:linear-gradient(145deg,rgba(15,23,42,.94),rgba(20,35,50,.88))}
+    .atlas-signal-detail-head small,.atlas-detail-label{color:#77d7c4;letter-spacing:.1em;font-size:.68rem;font-weight:700}.atlas-signal-detail-head h2{margin:.18rem 0;font-size:1.45rem}.atlas-signal-detail-head p{margin:0;color:#9eabba;font-size:.8rem}.atlas-live-state{text-align:right}.atlas-live-state b{display:block;color:#e7edf5}.atlas-live-state span{font-size:.72rem;color:#8c9bad}
+    .atlas-signal-metrics{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:.45rem}.atlas-signal-metrics article{padding:.72rem;border:1px solid rgba(148,163,184,.16);border-radius:12px;background:rgba(15,23,42,.7)}.atlas-signal-metrics small{display:block;color:#8998aa;font-size:.7rem}.atlas-signal-metrics b{display:block;margin-top:.18rem;color:#edf3f8;font-size:.95rem}
+    .atlas-context-flag{display:inline-flex;padding:.2rem .42rem;border-radius:999px;background:rgba(148,163,184,.1);color:#91a1b3;font-size:.62rem;letter-spacing:.06em}.atlas-profile-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.5rem}.atlas-profile-grid div{padding:.6rem;border-radius:10px;background:rgba(30,41,59,.45)}.atlas-profile-grid small,.atlas-profile-grid b{display:block}.atlas-profile-grid small{color:#8e9bad;font-size:.68rem}.atlas-profile-grid b{margin-top:.18rem;font-size:.86rem}
+    @media(max-width:760px){.atlas-signal-detail-head{display:grid}.atlas-live-state{text-align:left}.atlas-signal-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.atlas-profile-grid{grid-template-columns:1fr}.atlas-signal-detail-head h2{font-size:1.25rem}}
+    </style>""", unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="atlas-signal-detail" data-atlas-qa="report-card-signal-detail" '
+        f'data-atlas-signal-id="{html.escape(str(detail.get("signal_id") or ""))}" '
+        f'data-atlas-ticker="{ticker}" data-atlas-snapshot="{html.escape(str(original.get("evaluation_snapshot_id") or ""))}" '
+        f'data-atlas-context-classification="{detail["context_classification"]}">'
+        '<section class="atlas-signal-detail-head"><div><small>ORIGINAL CERTIFIED SIGNAL</small>'
+        f'<h2>{ticker} · {company}</h2><p>{html.escape(str(original.get("timestamp") or "Unavailable"))}</p></div>'
+        f'<div class="atlas-live-state"><small>CURRENT MARKET STATE</small><b>{_money(current.get("price"))}</b>'
+        f'<span>{html.escape(str(current.get("status") or "UNAVAILABLE"))} · not a live quote</span>'
+        f'<span>vs reference: {_percent(current.get("distance_to_reference_pct") / 100 if current.get("distance_to_reference_pct") is not None else None)} · '
+        f'vs Fair Value: {_percent(current.get("distance_to_fair_value_pct") / 100 if current.get("distance_to_fair_value_pct") is not None else None)}</span></div></section>'
+        '<section class="atlas-signal-metrics">'
+        f'<article><small>Original Action</small><b>{html.escape(str(original.get("action") or "Unavailable"))}</b></article>'
+        f'<article><small>Reference Price</small><b>{_money(original.get("reference_price"))}</b></article>'
+        f'<article><small>ATLAS Fair Value</small><b>{_money(original.get("atlas_fair_value"))}</b></article>'
+        f'<article><small>Opportunity</small><b>{_score(original.get("opportunity"))}</b></article>'
+        f'<article><small>Confidence</small><b>{_score(original.get("confidence"))}</b></article>'
+        f'<article><small>Observations</small><b>{sum(x["status"] == "AVAILABLE" for x in detail["performance"])}</b></article>'
+        '</section></div>', unsafe_allow_html=True,
+    )
+
+    st.subheader("Performance by registered horizon")
+    st.dataframe([{
+        "Horizon": f'{item["horizon_sessions"]} sessions',
+        "Status": "Pending" if item["status"] == "PENDING" else item["status"],
+        "Observed price": _money(item["observed_price"]) if item["observed_price"] is not None else "Pending",
+        "Signal return": _percent(item["stock_return"]),
+        "SPY return": _percent(item["spy_return"]),
+        "Relative performance": _percent(item["excess_return"]),
+        "Corporate action": item["corporate_action_status"],
+    } for item in detail["performance"]], width="stretch", hide_index=True)
+
+    st.subheader("ATLAS Signal Digest")
+    for section in detail["digest"]:
+        st.markdown(f'**{section["title"]}**  \n{section["text"]}')
+        st.markdown(f'<span class="atlas-context-flag">{section["context_classification"]}</span>', unsafe_allow_html=True)
+
+    st.subheader("Original thesis and view-change conditions")
+    thesis = detail["original_thesis"]
+    st.markdown("\n".join(f"- {item}" for item in thesis) if thesis else "No approved thesis narrative is available.")
+    conditions = detail["view_change_conditions"]
+    st.markdown("**Conditions that could change the view**")
+    st.markdown("\n".join(f"- {item}" for item in conditions) if conditions else "No approved structured conditions are available.")
+
+    with st.expander(f'About {detail.get("company_name") or detail.get("ticker")}', expanded=False):
+        items = (
+            ("Company", profile.get("company_name")), ("Sector", profile.get("sector")),
+            ("Industry", profile.get("industry")), ("Market cap", _money(profile.get("market_cap"))),
+            ("Leadership", profile.get("leadership")), ("Headquarters", profile.get("headquarters")),
+            ("Founded", profile.get("founded")), ("Employees", profile.get("employees")),
+            ("Source", profile.get("source")), ("Source timestamp", profile.get("source_timestamp")),
+            ("Freshness", profile.get("freshness")),
+        )
+        st.markdown('<div class="atlas-profile-grid">' + "".join(
+            f'<div><small>{html.escape(label)}</small><b>{html.escape(str(value if value not in (None, "") else "Unavailable"))}</b></div>'
+            for label, value in items
+        ) + '</div>', unsafe_allow_html=True)
+    with st.expander("Event timeline", expanded=False):
+        st.info(detail["event_timeline_status"])
+    with st.expander("Evidence and audit identity", expanded=False):
+        st.markdown(
+            f'**Authority:** {detail["authority_status"]}  \n'
+            f'**Candidate:** `{original.get("candidate_digest")}`  \n'
+            f'**Publication:** `{original.get("publication_digest")}`  \n'
+            f'**Evaluation snapshot:** `{original.get("evaluation_snapshot_id")}`  \n'
+            f'**Generation:** {detail["generation_mode"]}  \n'
+            f'**Context classification:** `{detail["context_classification"]}`'
+        )
+    st.subheader("What Drove the Move")
+    st.info(detail["move_attribution"]["text"])
+    st.markdown("**Positive drivers**")
+    st.markdown("\n".join(f'- {item}' for item in detail["move_attribution"]["positive_drivers"]) or "- Not attributable from approved evidence.")
+    st.markdown("**Negative drivers**")
+    st.markdown("\n".join(f'- {item}' for item in detail["move_attribution"]["negative_drivers"]) or "- Not attributable from approved evidence.")
+    st.markdown("**Uncertain / not attributable**")
+    st.markdown("\n".join(f'- {item}' for item in detail["move_attribution"]["uncertain_or_not_attributable"]))
+
+
 def render_internal_report_card(ledger_path: Path, *, authorized: bool) -> Mapping[str, Any]:
-    report = build_internal_report_card(ledger_path, authorized=authorized)
+    report = build_internal_report_card(ledger_path, authorized=authorized, authority_root=Path("."))
     st.markdown('<span data-atlas-qa="internal-report-card" data-atlas-customer-visible="false" '
                 'aria-hidden="true" style="display:none">internal-report-card</span>', unsafe_allow_html=True)
     st.markdown(
@@ -24,6 +124,15 @@ def render_internal_report_card(ledger_path: Path, *, authorized: bool) -> Mappi
         'Descriptive research operations only — Not a public performance claim.</p></div>',
         unsafe_allow_html=True,
     )
+    selected_id = st.session_state.get("report_card_selected_signal_id")
+    selected = next((item for item in report["signal_details"] if item["signal_id"] == selected_id), None)
+    if selected is not None:
+        if st.button("← Back to Report Card", key="report_card_back_to_overview"):
+            st.session_state.pop("report_card_selected_signal_id", None)
+            st.rerun()
+        _render_signal_detail(selected)
+        return report
+
     a, b, c, d = st.columns(4)
     a.metric("Signals", report["signal_count"])
     b.metric("Observations", report["observation_count"])
@@ -76,6 +185,9 @@ def render_internal_report_card(ledger_path: Path, *, authorized: bool) -> Mappi
                     "Observed at": item["observed_at"] or "Not yet observed",
                 })
             st.dataframe(rows, width="stretch", hide_index=True)
+            if st.button("View Signal Digest →", key=f'report_card_signal_{signal["signal_id"]}'):
+                st.session_state["report_card_selected_signal_id"] = signal["signal_id"]
+                st.rerun()
     st.caption("Sample sizes are shown per horizon. Missing and not-yet-matured observations remain explicit.")
     return report
 
