@@ -3,30 +3,38 @@ name: ATLAS Internal Prospective Report Card
 on:
   workflow_dispatch:
     inputs:
+      operation:
+        description: Non-mutating storage validation or prospective capture
+        required: true
+        default: validate_storage
+        type: choice
+        options:
+          - validate_storage
+          - capture
       source_run_id:
         description: Certified publication source run
-        required: true
+        required: false
         type: string
       artifact_name:
         description: Exact certified publication artifact name
-        required: true
+        required: false
         type: string
       publication_filename:
         description: Exact certified publication file inside the artifact
-        required: true
+        required: false
         default: market_full_scan.json
         type: choice
         options:
           - market_full_scan.json
           - full_evaluation_pool.json
       expected_candidate_digest:
-        required: true
+        required: false
         type: string
       expected_publication_digest:
-        required: true
+        required: false
         type: string
       expected_source_sha:
-        required: true
+        required: false
         type: string
       activate_internal_capture:
         description: Explicitly activate internal prospective capture
@@ -44,9 +52,8 @@ concurrency:
 
 jobs:
   capture:
-    if: ${{ inputs.activate_internal_capture }}
     environment: atlas-internal-report-card
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: [self-hosted, Linux, X64, atlas-worker-1]
     timeout-minutes: 20
     env:
       ATLAS_REPORT_CARD_DURABLE_ROOT: ${{ vars.ATLAS_REPORT_CARD_DURABLE_ROOT }}
@@ -65,7 +72,28 @@ jobs:
           case "$ATLAS_REPORT_CARD_DURABLE_ROOT" in "$GITHUB_WORKSPACE"*|"$RUNNER_TEMP"*) exit 1;; esac
           case "$ATLAS_REPORT_CARD_BACKUP_ROOT" in "$GITHUB_WORKSPACE"*|"$RUNNER_TEMP"*) exit 1;; esac
 
+      - name: Validate real durable storage without operational activation
+        if: ${{ inputs.operation == 'validate_storage' }}
+        shell: bash
+        run: |
+          python scripts/validate_report_card_storage.py \
+            --primary-root "$ATLAS_REPORT_CARD_DURABLE_ROOT" \
+            --backup-root "$ATLAS_REPORT_CARD_BACKUP_ROOT" \
+            --output audit_results/report_card_storage_validation.json
+
+      - name: Require explicit capture authorization and identity
+        if: ${{ inputs.operation == 'capture' }}
+        shell: bash
+        run: |
+          test "${{ inputs.activate_internal_capture }}" = "true"
+          test -n "${{ inputs.source_run_id }}"
+          test -n "${{ inputs.artifact_name }}"
+          test -n "${{ inputs.expected_candidate_digest }}"
+          test -n "${{ inputs.expected_publication_digest }}"
+          test -n "${{ inputs.expected_source_sha }}"
+
       - name: Download exact certified publication
+        if: ${{ inputs.operation == 'capture' }}
         uses: actions/download-artifact@v4
         with:
           github-token: ${{ github.token }}
@@ -75,6 +103,7 @@ jobs:
           path: audit_results/report_card_source
 
       - name: Resolve one manifest and one certified publication
+        if: ${{ inputs.operation == 'capture' }}
         id: source
         shell: bash
         run: |
@@ -86,6 +115,7 @@ jobs:
           echo "publication=${publications[0]}" >> "$GITHUB_OUTPUT"
 
       - name: Capture prospective signals and verify backup recovery
+        if: ${{ inputs.operation == 'capture' }}
         shell: bash
         run: |
           activation_timestamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -101,6 +131,7 @@ jobs:
             --output audit_results/internal_report_card_capture.json
 
       - name: Assert internal-only zero-provider boundary
+        if: ${{ inputs.operation == 'capture' }}
         shell: bash
         run: |
           python - <<'PY'
@@ -124,6 +155,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: atlas-internal-report-card-audit-${{ github.run_id }}
-          path: audit_results/internal_report_card_capture.json
+          path: |
+            audit_results/internal_report_card_capture.json
+            audit_results/report_card_storage_validation.json
           retention-days: 30
           if-no-files-found: error

@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 import json
 import os
 from pathlib import Path
+import tempfile
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -64,6 +65,32 @@ def main(argv: list[str] | None = None) -> int:
     if not isinstance(rows, list):
         raise TypeError("PUBLICATION_ROWS_MUST_BE_LIST")
 
+    # Exercise the exact capture contract against an ephemeral ledger first.  No
+    # operational activation boundary may exist until at least one row passes
+    # identity, publication, freshness, security, and price-provenance gates.
+    with tempfile.TemporaryDirectory(prefix="atlas-report-card-preflight-") as directory:
+        preflight_ledger = ProspectiveLedger(Path(directory) / "preflight.sqlite3")
+        preflight_ledger.activate(activation_timestamp=args.activation_timestamp, now=now)
+        preflight = capture_certified_publication(
+            ledger=preflight_ledger, manifest=manifest, rows=rows, observed_at=now,
+            maximum_evidence_age=timedelta(hours=args.maximum_evidence_age_hours),
+        )
+    if preflight.captured == 0:
+        report = {
+            "status": "NO_ELIGIBLE_SIGNAL", "activation_timestamp": None,
+            "captured": 0, "idempotent": 0, "rejected": preflight.rejected,
+            "signal_ids": [], "reasons": preflight.reasons,
+            "ledger_path": str(ledger_path), "backup_path": None,
+            "ledger_tip_digest": None, "provider_calls": 0, "reacquisition": "none",
+            "customer_report_card_visible": False, "dashboard": None,
+            "preflight": "PASS_NO_ELIGIBLE_SIGNAL",
+        }
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        os.chmod(args.output, 0o600)
+        print(json.dumps(report, sort_keys=True))
+        return 0
+
     ledger = ProspectiveLedger(ledger_path)
     activation = ledger.activate(activation_timestamp=args.activation_timestamp, now=now)
     result = capture_certified_publication(
@@ -78,6 +105,7 @@ def main(argv: list[str] | None = None) -> int:
         "ledger_path": str(ledger_path), "backup_path": str(backup),
         "ledger_tip_digest": ledger.verify(), "provider_calls": 0, "reacquisition": "none",
         "customer_report_card_visible": False, "dashboard": internal_dashboard(ledger, authorized=True),
+        "preflight": "PASS_ELIGIBLE_SIGNAL",
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")

@@ -4,6 +4,8 @@ from datetime import datetime, timedelta, timezone
 import json
 from pathlib import Path
 import sqlite3
+import subprocess
+import sys
 
 import pytest
 
@@ -186,3 +188,24 @@ def test_capture_does_not_mutate_decision_or_production_input(ledger):
     assert stored["atlas_fair_value"] == 150.0 and stored["expected_return"] == 50.0
     assert json.dumps(original, sort_keys=True) == before
     assert result.captured == 1
+
+
+def test_cli_stale_publication_does_not_create_operational_activation(tmp_path):
+    manifest_path = tmp_path / "manifest.json"
+    publication_path = tmp_path / "publication.json"
+    output = tmp_path / "output.json"
+    manifest_path.write_text(json.dumps(manifest()), encoding="utf-8")
+    publication_path.write_text(json.dumps([row(evidence_at=NOW - timedelta(days=5))]), encoding="utf-8")
+    ledger_path = tmp_path / "durable" / "ledger.sqlite3"
+    subprocess.run([
+        sys.executable, "scripts/run_internal_prospective_report_card.py",
+        "--manifest", str(manifest_path), "--publication", str(publication_path),
+        "--ledger", str(ledger_path), "--backup-root", str(tmp_path / "backup"),
+        "--activation-timestamp", datetime.now(timezone.utc).isoformat(),
+        "--expected-candidate-digest", CANDIDATE, "--expected-publication-digest", PUBLICATION,
+        "--expected-source-sha", SOURCE, "--output", str(output),
+    ], check=True)
+    report = json.loads(output.read_text(encoding="utf-8"))
+    assert report["status"] == "NO_ELIGIBLE_SIGNAL"
+    assert report["activation_timestamp"] is None
+    assert not ledger_path.exists()
