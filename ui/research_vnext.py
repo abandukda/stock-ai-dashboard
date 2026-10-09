@@ -28,14 +28,15 @@ from services.vnext_presentation_contract import (
     RESEARCH_WITHHELD_PRIMARY_COPY,
     RESEARCH_WITHHELD_SUPPORTING_COPY,
 )
+from services.customer_authority import customer_authority
 
 
 RESEARCH_VNEXT_SECTIONS: Final = (
-    "ATLAS View",
-    "ATLAS Fair Value",
-    "Live Market & Trade",
-    "Additional Context",
-    "Decision Evidence",
+    "Decision",
+    "Fundamentals & Valuation",
+    "Technical & Trade State",
+    "Catalysts & Sentiment",
+    "Risk & Evidence",
 )
 
 
@@ -55,7 +56,8 @@ def _trust_tier(label: str, copy: str) -> None:
 
 
 def _certified_field(report: Mapping[str, Any], name: str) -> Any:
-    field = safe_mapping(safe_mapping(report.get("certified_customer_evaluation")).get("fields")).get(name)
+    certified = safe_mapping(customer_authority(report).get("certified_customer_evaluation"))
+    field = safe_mapping(certified.get("fields")).get(name)
     envelope = safe_mapping(field)
     if str(envelope.get("certification_status") or "").upper() in {
         "CERTIFIED", "CERTIFIED_HIGH_UNCERTAINTY", "PUBLISHED", "AVAILABLE",
@@ -66,10 +68,10 @@ def _certified_field(report: Mapping[str, Any], name: str) -> Any:
 
 def _certified_decision_authority(report: Mapping[str, Any]) -> Mapping[str, Any]:
     """Return the customer-publishable certified decision, or no authority."""
-    certified = safe_mapping(report.get("certified_customer_evaluation"))
-    if certified.get("customer_publication_allowed") is not True:
+    authority = customer_authority(report)
+    if authority.get("status") != "AVAILABLE":
         return {}
-    return safe_mapping(certified.get("decision"))
+    return safe_mapping(safe_mapping(authority.get("certified_customer_evaluation")).get("decision"))
 
 
 def _score_display(value: Any) -> str:
@@ -1152,6 +1154,26 @@ def _render_full_investment_case(report: Mapping[str, Any]) -> None:
         st.caption(f"Deep-dive report for {ticker}; AI explains bounded evidence and does not invent ATLAS decisions.")
 
 
+def _render_grounded_atlas_summary(report: Mapping[str, Any]) -> None:
+    from services.customer_ai_summary import build_research_summary
+    summary = build_research_summary(report)
+    st.markdown('<span data-atlas-qa="research-ai-summary" data-atlas-ai-role="explanation-only" '
+                'data-atlas-authority="certified-atlas" style="display:none">research-ai-summary</span>',
+                unsafe_allow_html=True)
+    st.markdown("## ATLAS Summary")
+    st.caption("CERTIFIED ATLAS FACTS · AI-GENERATED EXPLANATION · No independent recommendation authority")
+    if summary["status"] != "AVAILABLE":
+        st.info("ATLAS Summary unavailable because the required certified evidence is not published.")
+        return
+    for label, value in summary["sections"].items():
+        st.markdown(f"**{label}**")
+        if isinstance(value, list):
+            st.write("\n".join(f"- {item}" for item in value) or "Evidence unavailable.")
+        else:
+            st.write(value)
+    st.caption("Evidence IDs: " + (", ".join(summary["evidence_ids"]) or "Bound to the certified evaluation envelope"))
+
+
 def _render_risk_evidence(report: Mapping[str, Any], view: Mapping[str, Any], legacy: Mapping[str, Callable[..., Any]]) -> None:
     ticker = str(report.get("ticker") or "UNKNOWN")
     _section_marker("Risk & Evidence", ticker)
@@ -1312,7 +1334,7 @@ def _render_ask_cta(report: Mapping[str, Any]) -> None:
 
 
 def render_research_vnext(report: Mapping[str, Any], *, legacy: Mapping[str, Callable[..., Any]]) -> None:
-    """Render five decision-oriented sections from the canonical report."""
+    """Render the single governed customer Research V2 stock experience."""
     ticker = str(report.get("ticker") or "UNKNOWN").upper()
     view = build_research_decision_view(report)
     certified_customer = safe_mapping(report.get("certified_customer_evaluation"))
@@ -1327,6 +1349,7 @@ def render_research_vnext(report: Mapping[str, Any], *, legacy: Mapping[str, Cal
         'aria-hidden="true" style="display:none">research-vnext</span>',
         unsafe_allow_html=True,
     )
+    st.markdown('<div class="atlas-kicker">Certified equity research</div>', unsafe_allow_html=True)
     if certified_customer and certified_customer.get("customer_publication_allowed") is not True:
         fields = safe_mapping(certified_customer.get("fields"))
         price = safe_mapping(fields.get("price")).get("value")
@@ -1347,6 +1370,9 @@ def render_research_vnext(report: Mapping[str, Any], *, legacy: Mapping[str, Cal
             st.metric("Certified Market Price", CanonicalNumberFormatter.price(price).display)
         st.caption("Only independently certified facts are shown until the complete evaluation reconciles.")
         return
+    from ui.customer_research_v2 import render_customer_research_v2
+    render_customer_research_v2(report, ask_cta=_render_ask_cta)
+    return
     st.markdown(
         """
         <style>
@@ -1402,9 +1428,11 @@ def render_research_vnext(report: Mapping[str, Any], *, legacy: Mapping[str, Cal
         """,
         unsafe_allow_html=True,
     )
+    _render_decision(report, view)
+    _render_grounded_atlas_summary(report)
     tabs = st.tabs(list(RESEARCH_VNEXT_SECTIONS))
     with tabs[0]:
-        _render_decision(report, view)
+        st.caption("The certified decision and grounded summary are displayed above.")
     with tabs[1]:
         _render_fundamentals(report, legacy)
     with tabs[2]:

@@ -168,8 +168,8 @@ AVAILABILITY_SEMANTICS: Final = (
 )
 
 CURRENT_RESEARCH_TABS: Final = (
-    "ATLAS View", "ATLAS Fair Value", "Live Market & Trade",
-    "Additional Context", "Decision Evidence",
+    "Decision", "Fundamentals & Valuation", "Technical & Trade State",
+    "Catalysts & Sentiment", "Risk & Evidence",
 )
 
 CURRENT_ACTIVE_PAGES: Final = (

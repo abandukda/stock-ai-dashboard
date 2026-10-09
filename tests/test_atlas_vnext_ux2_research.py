@@ -47,6 +47,17 @@ if {ticker!r} == "CRC":
     report["atlas_fair_value"] = None
     report["atlas_expected_return_pct"] = None
     report["guidance_summary"]["unavailable_evidence"] = ["Atlas FV", "Confidence"]
+report["certified_customer_evaluation"] = {{
+    "ticker": {ticker!r}, "customer_publication_allowed": True,
+    "decision": {{"action": {verdict!r}, "opportunity": report.get("opportunity_score") or 40.0,
+                 "decision_confidence": report.get("confidence_pct") or 40.0}},
+    "fields": {{
+        "price": {{"value": report.get("current_price"), "certification_status": "CERTIFIED"}},
+        "atlas_fair_value": {{"value": report.get("atlas_fair_value") or 120.0, "certification_status": "CERTIFIED"}},
+        "atlas_upside_pct": {{"value": report.get("atlas_expected_return_pct") or 20.0, "certification_status": "CERTIFIED"}},
+    }},
+    "digests": {{"evaluation_snapshot_id": "snapshot-{ticker}"}},
+}}
 render_research_vnext(report, legacy={{"meta": meta, "metric_grid": metric_grid, "interpretation": interpretation, "valuation": valuation, "analyst": analyst, "trade_plan": trade_plan, "price_chart": price_chart, "policy": policy}})
 '''
     return AppTest.from_string(source, default_timeout=20).run()
@@ -216,9 +227,9 @@ def test_certified_fair_value_and_upside_remain_distinct_from_opportunity():
     app = _render_certified_decision_app(report)
     metrics = {metric.label: metric.value for metric in app.metric}
     assert metrics["ATLAS Fair Value"] == "$338.82"
-    assert metrics["Potential"] == "+49.1%"
+    assert metrics["Fair Value gap"] == "+49.10%"
     assert metrics["Opportunity"] == "86.68"
-    assert metrics["Decision Confidence"] == "88.54%"
+    assert metrics["Confidence"] == "88.54%"
 
 
 def test_absent_certified_customer_evaluation_preserves_current_fallback(monkeypatch):
@@ -327,14 +338,12 @@ def test_representative_structural_views_do_not_mutate_or_invent(ticker):
     assert report == before
 
 
-def test_real_streamlit_high_evidence_renderer_has_five_sections_and_ask_cta():
+def test_real_streamlit_high_evidence_renderer_has_consolidated_research_v2_and_ask_cta():
     app = _render_app("NVDA", "BUY_NOW", 92.0)
     assert not app.exception
-    assert [tab.label for tab in app.tabs] == list(RESEARCH_VNEXT_SECTIONS)
+    assert not app.tabs
     assert any(button.label == "Ask ATLAS about this research" for button in app.button)
-    assert any(metric.label == "Confidence" and metric.value == "78.0%" for metric in app.metric)
-    # UX-3B intentionally limits the executive strip to five decision metrics;
-    # completeness remains visible in Evidence Health rather than as a sixth metric.
+    assert any(metric.label == "Confidence" and metric.value == "78.00%" for metric in app.metric)
     assert not any(metric.label == "Research Completeness" for metric in app.metric)
 
 
@@ -342,8 +351,8 @@ def test_real_streamlit_monitor_renderer_collapses_technical_scenario():
     app = _render_app("CRC", "MONITOR", 40.0)
     assert not app.exception
     assert any("Not currently actionable" in caption.value for caption in app.caption)
-    assert any("Why Now" in markdown.value for markdown in app.markdown)
-    assert any(expander.label == "Technical Scenario" for expander in app.expander)
+    assert any("ATLAS Research Summary" in markdown.value for markdown in app.markdown)
+    assert any(expander.label == "Evidence & Methodology" for expander in app.expander)
     assert not any(text.value == "Canonical actionable trade plan" for text in app.text)
     assert not any(metric.label == "Confidence" and metric.value == "Unavailable" for metric in app.metric)
 

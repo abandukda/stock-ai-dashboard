@@ -4583,6 +4583,12 @@ def render_research_any_ticker(full_df, recovery_df, watch_df, prescreen_df, etf
 
 
 def render_chat_helper(full_df):
+    st.markdown(
+        '<span data-atlas-qa="ask-atlas-vnext" data-atlas-customer-surface="true" '
+        'aria-hidden="true" style="display:none">ask-atlas-vnext</span>',
+        unsafe_allow_html=True,
+    )
+    st.markdown('<div class="atlas-kicker">Certified research assistant</div>', unsafe_allow_html=True)
     st.subheader("Ask ATLAS — Continue the Decision Story")
     st.caption("Ask about the canonical Research context. Ask can explain existing evidence and decisions, but cannot calculate a new recommendation, value, expected return, or trade plan.")
     st.markdown(
@@ -4616,8 +4622,11 @@ def render_chat_helper(full_df):
             "data-atlas-status": status,
             "data-atlas-ticker": ticker,
             "data-atlas-context-digest": grounding.get("context_digest", ""),
+            "data-atlas-authority-digest": grounding.get("authority_digest", ""),
             "data-atlas-decision-status": grounding.get("canonical_decision_status", ""),
             "data-atlas-decision-digest": grounding.get("canonical_decision_digest", ""),
+            "data-atlas-submission-id": grounding.get("submission_id", ""),
+            "data-atlas-question-digest": grounding.get("question_digest", ""),
         }
         encoded = " ".join(f'{key}="{html.escape(str(value or ""))}"' for key, value in attrs.items())
         return f'<span data-atlas-qa="ask-ai-response" {encoded} aria-hidden="true" style="display:none">ask-ai-{html.escape(status)}</span>'
@@ -4672,7 +4681,13 @@ def render_chat_helper(full_df):
         _grounding = st.session_state.get("ask_ai_grounding") or {}
         st.markdown(_ask_completion_marker(status, ticker, _grounding), unsafe_allow_html=True)
         if status == "complete" and st.session_state["ask_ai_response"]:
-            st.markdown(st.session_state["ask_ai_response"])
+            st.markdown("> **ATLAS analyst response**\n>\n> " + str(st.session_state["ask_ai_response"]).replace("\n", "\n> "))
+            st.markdown(
+                '<div class="atlas-source-chips"><span class="atlas-source-chip">Certified ATLAS View</span>'
+                '<span class="atlas-source-chip">Certified Evaluation</span>'
+                '<span class="atlas-source-chip">Governed evidence</span></div>',
+                unsafe_allow_html=True,
+            )
             st.markdown("### Supporting evidence")
             st.write(", ".join(_customer_evidence_label(item) for item in (_grounding.get("evidence_used") or [])) or "No supporting evidence family was registered.")
             st.markdown("### Missing evidence & limitations")
@@ -4685,6 +4700,9 @@ def render_chat_helper(full_df):
         return
 
     q = question.lower().strip()
+    st.session_state["ask_ai_submission_sequence"] = int(st.session_state.get("ask_ai_submission_sequence") or 0) + 1
+    _ask_submission_id = f"ask-{st.session_state['ask_ai_submission_sequence']}"
+    _ask_question_digest = hashlib.sha256(question.strip().encode("utf-8")).hexdigest()
     if full_df.empty:
         st.session_state.update(ask_ai_status="error", ask_ai_ticker="", ask_ai_response="", ask_ai_error="No scan data loaded.")
         st.markdown('<span data-atlas-qa="ask-ai-response" data-atlas-status="error" data-atlas-ticker="" aria-hidden="true" style="display:none">ask-ai-error</span>', unsafe_allow_html=True)
@@ -4719,7 +4737,7 @@ def render_chat_helper(full_df):
     ticker = matched.get("Ticker") or matched.get("ticker")
     ticker = str(ticker).upper().strip()
     st.session_state.update(ask_ai_status="loading", ask_ai_ticker=ticker, ask_ai_response="", ask_ai_error="")
-    st.markdown(f'<span data-atlas-qa="ask-ai-response" data-atlas-status="loading" data-atlas-ticker="{html.escape(ticker)}" aria-hidden="true" style="display:none">ask-ai-loading</span>', unsafe_allow_html=True)
+    st.markdown(f'<span data-atlas-qa="ask-ai-lifecycle" data-atlas-state="SUBMITTED" data-atlas-ticker="{html.escape(ticker)}" aria-hidden="true" style="display:none">ask-ai-submitted</span>', unsafe_allow_html=True)
     st.markdown(f"### {ticker} Atlas AI Response")
 
     try:
@@ -4727,14 +4745,21 @@ def render_chat_helper(full_df):
         from engines.atlas_research_builder_v2 import build_atlas_research_v2
         _ask_started = time.monotonic()
         source = matched.get("Raw") or matched.get("raw")
+        source = source if isinstance(source, dict) else dict(matched)
+        from services.customer_authority import bind_report_to_customer_authority, customer_authority, customer_authority_digest
+        _saved_authority = customer_authority(source)
+        st.markdown(f'<span data-atlas-qa="ask-ai-lifecycle" data-atlas-state="GROUNDING_RESOLVED" data-atlas-ticker="{html.escape(ticker)}" aria-hidden="true" style="display:none">ask-ai-grounding-resolved</span>', unsafe_allow_html=True)
         session_research = (
             st.session_state.get(f"atlas_canonical_research_row_{ticker}")
             or st.session_state.get(f"v8054_live_row_{ticker}")
             or st.session_state.get(f"v8053_live_row_{ticker}")
         )
-        if not isinstance(session_research, dict) or session_research.get("error"):
+        if (_saved_authority.get("status") != "AVAILABLE"
+                and (not isinstance(session_research, dict) or session_research.get("error"))):
             session_research = build_live_research_row(ticker, force_refresh=False)
-        canonical_row = dict(session_research) if isinstance(session_research, dict) and not session_research.get("error") else (dict(source) if isinstance(source, dict) else dict(matched))
+        canonical_row = dict(source) if _saved_authority.get("status") == "AVAILABLE" else (
+            dict(session_research) if isinstance(session_research, dict) and not session_research.get("error") else dict(source)
+        )
         # Preserve the exact canonical Research row that the customer saw.
         # Scan-table aliases must never overwrite RESEARCH_CONTEXT_V1 decision authority.
         canonical_row["ticker"] = ticker
@@ -4745,9 +4770,14 @@ def render_chat_helper(full_df):
         _context_rebuilt = not isinstance(report, dict)
         if _context_rebuilt:
             report = build_atlas_research_v2(canonical_row)
+            report = bind_report_to_customer_authority(report, canonical_row)
             st.session_state[_report_key] = report
+        else:
+            report = bind_report_to_customer_authority(report, canonical_row)
+        _ask_authority_digest = customer_authority_digest(report)
         _context_seconds = max(0.0, time.monotonic() - _ask_started)
         _llm_started = time.monotonic()
+        st.markdown(f'<span data-atlas-qa="ask-ai-lifecycle" data-atlas-state="RESPONSE_GENERATING" data-atlas-ticker="{html.escape(ticker)}" aria-hidden="true" style="display:none">ask-ai-response-generating</span>', unsafe_allow_html=True)
         result = ask_atlas(question, report)
         _llm_seconds = max(0.0, time.monotonic() - _llm_started)
         response = str(result.get("answer") or "").strip()
@@ -4766,6 +4796,9 @@ def render_chat_helper(full_df):
                 "canonical_decision_status": result.get("canonical_decision_status"),
                 "canonical_decision_digest": result.get("canonical_decision_digest"),
                 "context_digest": _context_identity,
+                "authority_digest": _ask_authority_digest,
+                "submission_id": _ask_submission_id,
+                "question_digest": _ask_question_digest,
             },
         )
         evidence_used = len(result.get("evidence_used") or result.get("sources_used") or [])
@@ -4797,6 +4830,7 @@ def render_chat_helper(full_df):
         )
         st.markdown(
             f'<span data-atlas-qa="ask-ai-response" data-atlas-status="complete" '
+            f'data-atlas-lifecycle="RESPONSE_COMPLETE" '
             f'data-atlas-ticker="{html.escape(ticker)}" data-atlas-section="{html.escape(str(result.get("section") or "overview"))}" '
             f'data-atlas-evidence-used="{evidence_used}" data-atlas-evidence-missing="{evidence_missing}" '
             f'data-atlas-evidence-ids="{html.escape(_ask_evidence_ids)}" '
@@ -4806,9 +4840,12 @@ def render_chat_helper(full_df):
             f'data-atlas-framework="{html.escape(str(result.get("framework_version") or "ASK_ATLAS_GROUNDED_V1"))}" '
             f'data-atlas-context-version="{html.escape(_ask_context_version)}" '
             f'data-atlas-context-digest="{html.escape(_ask_context_digest)}" '
+            f'data-atlas-authority-digest="{html.escape(_ask_authority_digest)}" '
             f'data-atlas-security-type="{html.escape(_ask_security_type)}" '
             f'data-atlas-decision-status="{html.escape(_ask_decision_status)}" '
             f'data-atlas-decision-digest="{html.escape(_ask_decision_digest)}" '
+            f'data-atlas-submission-id="{html.escape(_ask_submission_id)}" '
+            f'data-atlas-question-digest="{html.escape(_ask_question_digest)}" '
             f'data-atlas-response-length="{len(response)}" aria-hidden="true" style="display:none">ask-ai-complete</span>',
             unsafe_allow_html=True,
         )
@@ -4820,7 +4857,14 @@ def render_chat_helper(full_df):
             f'aria-hidden="true" style="display:none">ask-performance</span>',
             unsafe_allow_html=True,
         )
-        st.markdown(response)
+        st.markdown(f"#### Asked: {html.escape(question.strip())}")
+        st.markdown("> **ATLAS analyst response**\n>\n> " + response.replace("\n", "\n> "))
+        st.markdown(
+            '<div class="atlas-source-chips"><span class="atlas-source-chip">Certified ATLAS View</span>'
+            '<span class="atlas-source-chip">Certified Evaluation</span>'
+            '<span class="atlas-source-chip">Governed evidence</span></div>',
+            unsafe_allow_html=True,
+        )
         st.markdown("### Supporting evidence")
         st.write(", ".join(_customer_evidence_label(item) for item in (result.get("evidence_used") or result.get("sources_used") or [])) or "No supporting evidence family was registered.")
         st.markdown("### Missing evidence & limitations")
@@ -16934,6 +16978,39 @@ def render_v505_portfolio_analyzer(full_df, top_df, recovery_df, watch_df, presc
     st.subheader("📂 Portfolio Intelligence")
     st.caption("Analyze your holdings for portfolio quality, risk, diversification, trim candidates, and replacement ideas.")
 
+    if os.getenv("ATLAS_QA_MODE", "").strip().lower() in {"1", "true", "yes"}:
+        _qa_states = (
+            ("NVDA", "HOLD", "INTACT", "ATTRACTIVE", "CONFIRMED", "HIGH", False, "THESIS_INTACT"),
+            ("MSFT", "HOLD_NO_ADD", "INTACT", "FULLY_VALUED", "CONFIRMED", "HIGH", False, "VALUATION_DISCIPLINE"),
+            ("AVT", "TRIM", "WEAKENING", "OVERVALUED", "DETERIORATING", "MEDIUM", True, "RISK_BUDGET_EXCEEDED"),
+            ("CSCO", "EXIT", "BROKEN", "OVERVALUED", "BROKEN", "HIGH", True, "THESIS_INVALIDATED"),
+            ("CTS", "SUSPENDED", "UNRESOLVED", "UNAVAILABLE", "UNAVAILABLE", "LOW", True, "DATA_CERTAINTY_INSUFFICIENT"),
+            ("DIOD", "REVIEW", "CHANGED", "FAIR", "MIXED", "MEDIUM", True, "MATERIAL_EVIDENCE_CHANGE"),
+        )
+        st.markdown(
+            '<span data-atlas-qa="position-management-contract" data-atlas-methodology-version="ATLAS_POSITION_MANAGEMENT_SHADOW_V1_1" '
+            'data-atlas-rule-table-version="ATLAS_POSITION_RULE_TABLE_V1_1" data-atlas-classification="QA_SHADOW_ONLY" '
+            'aria-hidden="true" style="display:none">position-management-contract</span>',
+            unsafe_allow_html=True,
+        )
+        st.info("Shadow QA presentation only — no portfolio instructions are written to a durable ledger.")
+        for _ticker, _instruction, _thesis, _valuation, _technical, _certainty, _review, _reason in _qa_states:
+            _label = _instruction.replace("_", " — ") if _instruction == "HOLD_NO_ADD" else _instruction.replace("_", " ")
+            st.markdown(
+                f'<div data-atlas-qa="position-management-state" data-atlas-ticker="{html.escape(_ticker)}" '
+                f'data-atlas-position-instruction="{html.escape(_instruction)}" data-atlas-thesis-state="{html.escape(_thesis)}" '
+                f'data-atlas-valuation-state="{html.escape(_valuation)}" data-atlas-technical-state="{html.escape(_technical)}" '
+                f'data-atlas-data-certainty="{html.escape(_certainty)}" data-atlas-review-flag="{str(_review).lower()}" '
+                f'data-atlas-reason-codes="{html.escape(_reason)}" '
+                'data-atlas-methodology-version="ATLAS_POSITION_MANAGEMENT_SHADOW_V1_1" '
+                'data-atlas-rule-table-version="ATLAS_POSITION_RULE_TABLE_V1_1" data-atlas-classification="QA_SHADOW_ONLY" '
+                'style="border:1px solid rgba(45,212,191,.28);border-radius:12px;padding:.75rem 1rem;margin:.5rem 0;overflow-wrap:anywhere">'
+                f'<strong>{html.escape(_ticker)} · {html.escape(_label)}</strong><br>'
+                f'<small>Thesis {_thesis} · Valuation {_valuation} · Technical {_technical} · Data certainty {_certainty}</small><br>'
+                f'<small>{"Review required" if _review else "No review flag"} · {_reason.replace("_", " ").title()}</small></div>',
+                unsafe_allow_html=True,
+            )
+
     default_text = "NVDA\nMSFT\nAVGO\nAMZN\nCRWD"
     text = st.text_area(
         "Enter tickers, one per line. Optional: add target weight like `NVDA 10%`.",
@@ -27968,11 +28045,13 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
         st.caption(_research_context_caption)
         try:
             from agents.runtime_qa_architecture import encode_context_summary, sanitize_research_context
+            from services.customer_authority import customer_authority_digest
             _qa_context = merged.get("research_context") if isinstance(merged.get("research_context"), dict) else {}
             _qa_summary = sanitize_research_context(_qa_context)
             from engines.ask_atlas_engine import canonical_ask_decision
             _qa_decision_status = str(canonical_ask_decision({"research_context": _qa_context}).get("status") or "DATA_UNAVAILABLE")
             _qa_encoded = encode_context_summary(_qa_context)
+            _qa_authority_digest = customer_authority_digest(merged)
             _qa_context_ready = bool(
                 _qa_summary.get("context_version") == "RESEARCH_CONTEXT_V1"
                 and str(_qa_summary.get("ticker") or "").upper() == ticker
@@ -27983,6 +28062,7 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
                 f'data-atlas-context-version="{html.escape(str(_qa_summary.get("context_version") or ""))}" '
                 f'data-atlas-decision-status="{html.escape(_qa_decision_status)}" '
                 f'data-atlas-decision-digest="{html.escape(str(_qa_summary.get("production_decision_digest") or ""))}" '
+                f'data-atlas-authority-digest="{html.escape(_qa_authority_digest)}" '
                 f'data-atlas-context-summary="{html.escape(_qa_encoded)}" aria-hidden="true" style="display:none">research-context-v1</span>',
                 unsafe_allow_html=True,
             )
@@ -28342,6 +28422,7 @@ from ui.developer_center import render_developer_center
 from ui.earnings_vnext import render_earnings_vnext
 from ui.full_scan_vnext import render_full_scan_vnext
 from ui.recovery_vnext import render_recovery_vnext
+from ui.watchlist_vnext import render_watchlist_vnext
 
 
 def _emit_page_certification_marker(page_name, source_df):
@@ -28388,16 +28469,44 @@ def main():
         st.session_state["atlas_widget_trace_run_sequence"] = int(st.session_state.get("atlas_widget_trace_run_sequence") or 0) + 1
     _research_widget_trace("script_run_entry", active_route=st.session_state.get("v784_single_nav"))
     render_v59_design_system(); render_v65_design_system(); render_v70_design_system(); render_v72_design_system(); render_v73_design_system(); render_v74_design_system(); v775_design_system(); v793_design_system(); v8055_inject_research_css()
-    pages=["Home","Today's Opportunities","Volume Intelligence","Atlas Core Holdings","Research Any Ticker","Earnings Intelligence","Full Ranked Scan","Portfolio Intelligence","Watchlist Intelligence","Recovery","ETFs","Political Intelligence","Ask AI","Developer Center"]
+    from ui.atlas_design_system import inject_atlas_design_system
+    inject_atlas_design_system()
+    from services.customer_navigation_contract import (
+        CUSTOMER_NAV_CONTRACT_VERSION,
+        CUSTOMER_ROUTES,
+        migrate_navigation_state,
+        role_category,
+    )
+    customer_pages = list(CUSTOMER_ROUTES)
+    internal_pages = ["Today's Opportunities", "Volume Intelligence", "Atlas Core Holdings", "Full Ranked Scan", "Portfolio Intelligence", "Recovery", "ETFs", "Political Intelligence", "Developer Center"]
+    pages = list(customer_pages)
+    if not is_viewer():
+        pages.extend(internal_pages)
     _internal_report_card_enabled = (
         not is_viewer()
         and os.getenv("ATLAS_INTERNAL_REPORT_CARD_UI_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"}
     )
     if _internal_report_card_enabled:
         pages.append("Internal Report Card")
+    migrate_navigation_state(st.session_state, allowed_routes=pages)
     selected_page=render_v73_top_nav(pages)
+    selected_route = {
+        "Research": "Research Any Ticker", "Earnings": "Earnings Intelligence",
+        "Watchlist": "Watchlist Intelligence", "Ask ATLAS": "Ask AI",
+    }.get(selected_page, selected_page)
+    _internal_available = [page for page in pages if page not in customer_pages]
+    st.markdown(
+        '<span data-atlas-qa="customer-navigation-contract" '
+        f'data-atlas-contract-version="{html.escape(CUSTOMER_NAV_CONTRACT_VERSION)}" '
+        f'data-atlas-role-category="{html.escape(role_category(viewer=is_viewer()))}" '
+        f'data-atlas-customer-routes="{html.escape("|".join(customer_pages))}" '
+        f'data-atlas-internal-routes="{html.escape("|".join(_internal_available))}" '
+        f'data-atlas-active-route="{html.escape(selected_page)}" '
+        'aria-hidden="true" style="display:none">customer-navigation-contract</span>',
+        unsafe_allow_html=True,
+    )
     _research_widget_trace("route_selected", selected_page=selected_page)
-    if selected_page in {"Research Any Ticker", "Internal Report Card"}:
+    if selected_route in {"Research Any Ticker", "Internal Report Card"}:
         # Research owns its form lifecycle before any cross-surface bootstrap.
         # Its saved-record resolver loads only the submitted ticker after the
         # form trigger has been consumed; exact-candidate mode uses the bounded
@@ -28424,14 +28533,14 @@ def main():
         etf_df=load_file(ETF_SCAN_FILE)
         _home_runtime_trace("etf_load_completed", rows=len(etf_df))
     source_df=top_df if top_df is not None and not top_df.empty else full_df.head(25)
-    _emit_page_identity_marker(selected_page)
+    _emit_page_identity_marker(selected_route)
     # Reserve the tape's established visual position, but do not let its
     # optional live-provider refresh block the selected route's primary
     # controls and PAGE_INTERACTIVE lifecycle marker.  Filling a Streamlit
     # container after the route renderer preserves the layout while allowing
     # navigation and customer interaction to settle first.
-    _market_tape_slot = st.container() if selected_page != "Home" else None
-    if selected_page=="Home":
+    _market_tape_slot = st.container() if selected_route != "Home" else None
+    if selected_route=="Home":
         _home_runtime_trace("home_route_dispatch_started")
         v810_render_dynamic_home(full_df,source_df,recovery_df)
         _home_runtime_trace("home_route_dispatch_completed")
@@ -28451,12 +28560,12 @@ def main():
         v810_render_core_page(full_df)
         from services.session_stability import emit_page_interactive
         emit_page_interactive(st, "Atlas Core Holdings")
-    elif selected_page=="Research Any Ticker": render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df)
-    elif selected_page=="Earnings Intelligence": render_earnings_vnext(full_df, open_research=v784_open_research)
+    elif selected_route=="Research Any Ticker": render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df)
+    elif selected_route=="Earnings Intelligence": render_earnings_vnext(full_df, open_research=v784_open_research)
     elif selected_page=="Full Ranked Scan":
             render_full_scan_vnext(full_df, open_research=v784_open_research)
     elif selected_page=="Portfolio Intelligence": render_v505_portfolio_analyzer(full_df,top_df,recovery_df,watch_df,prescreen_df,etf_df)
-    elif selected_page=="Watchlist Intelligence": render_v506_watchlist_intelligence(full_df,top_df,recovery_df,watch_df,prescreen_df,etf_df)
+    elif selected_route=="Watchlist Intelligence": render_watchlist_vnext(full_df, read_watchlist_symbols(), open_research=v784_open_research)
     elif selected_page=="Recovery":
         render_recovery_vnext(recovery_df, open_research=v784_open_research)
     elif selected_page=="ETFs":
@@ -28464,7 +28573,7 @@ def main():
         from services.session_stability import emit_page_interactive
         emit_page_interactive(st, "ETFs")
     elif selected_page=="Political Intelligence": render_v58_political_intelligence(full_df)
-    elif selected_page=="Ask AI": render_chat_helper(full_df)
+    elif selected_route=="Ask AI": render_chat_helper(full_df)
     elif selected_page=="Internal Report Card":
         from ui.internal_report_card import render_internal_report_card
         _durable_root = Path(os.environ["ATLAS_REPORT_CARD_DURABLE_ROOT"])
@@ -28478,7 +28587,7 @@ def main():
         )
     if _market_tape_slot is not None:
         with _market_tape_slot:
-            if selected_page in {"Ask AI", "Earnings Intelligence", "Recovery"}:
+            if selected_route in {"Ask AI", "Earnings Intelligence", "Recovery"}:
                 # Preserve market context without letting optional tape cards
                 # dominate the primary mobile decision interaction.
                 with st.expander("Market context", expanded=False):
@@ -28486,7 +28595,7 @@ def main():
             else:
                 render_v72_market_tape(always_show=False)
     # Settlement is emitted only after the selected route completes rendering.
-    _emit_page_certification_marker(selected_page, source_df)
+    _emit_page_certification_marker(selected_route, source_df)
 
 
 # ============================================================
@@ -33341,7 +33450,9 @@ def v810_render_dynamic_home(full_df=None, top_df=None, recovery_df=None):
         emit_page_interactive(st, "Home")
         _home_runtime_trace("home_interactive_emitted")
     _home_runtime_trace("home_render_started")
-    render_home_guidance_vnext(story, emit_interactive=_home_guidance_interactive)
+    render_home_guidance_vnext(
+        story, emit_interactive=_home_guidance_interactive, authorized_internal=not is_viewer(),
+    )
     _home_runtime_trace("home_render_completed")
     # Optional Twelve Data work is intentionally after PAGE_INTERACTIVE. A
     # completed result is consumed on the next rerun; the first shell never

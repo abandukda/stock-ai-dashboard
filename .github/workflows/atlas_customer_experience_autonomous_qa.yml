@@ -1,0 +1,464 @@
+name: ATLAS Customer Experience Autonomous QA
+
+on:
+  'push':
+    branches:
+      - codex/customer-experience-vnext
+  workflow_dispatch:
+    inputs:
+      candidate_sha:
+        description: Exact review candidate SHA
+        required: true
+        type: string
+      mode:
+        description: Certification policy
+        required: true
+        default: certify_only
+        type: choice
+        options: [certify_only, certify_and_repair]
+      max_repair_attempts:
+        description: Bounded repair attempts (0-2)
+        required: true
+        default: "2"
+        type: string
+      baseline_sha:
+        description: Optional accepted semantic baseline SHA
+        required: false
+        type: string
+      runtime_source_run:
+        description: Optional governed runtime artifact source run
+        required: false
+        type: string
+      runtime_artifact_identity:
+        description: Optional exact governed runtime artifact name
+        required: false
+        type: string
+  pull_request:
+    branches: [main]
+    paths:
+      - "app.py"
+      - "ui/**"
+      - "agents/**"
+      - "services/**"
+      - "tests/**"
+      - ".github/workflows/atlas_customer_experience_autonomous_qa.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: atlas-customer-experience-qa-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  policy-and-self-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.candidate_sha || github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt pytest pyyaml
+      - name: Enforce candidate and repair policy
+        env:
+          EXPECTED_SHA: ${{ inputs.candidate_sha || github.event.pull_request.head.sha || github.sha }}
+          MODE: ${{ github.event_name == 'push' && 'certify_and_repair' || inputs.mode || 'certify_only' }}
+          MAX_REPAIR_ATTEMPTS: ${{ inputs.max_repair_attempts || '2' }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test "$MAX_REPAIR_ATTEMPTS" -ge 0
+          test "$MAX_REPAIR_ATTEMPTS" -le 2
+          if [ "$MODE" = "certify_and_repair" ]; then
+            case "${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}" in codex/*) ;; *) exit 74 ;; esac
+          fi
+      - name: Offline autonomous QA self-tests
+        run: python3 -m pytest -q tests/test_customer_experience_autonomous_qa.py tests/test_customer_navigation_contract.py tests/test_customer_required_phase_orchestration.py
+      - name: Static validation
+        run: |
+          python3 -m py_compile agents/customer_experience_qa_contracts.py agents/customer_experience_qa_validators.py agents/customer_experience_qa_repairs.py agents/atlas_customer_experience_autonomous_qa.py agents/atlas_visual_crawler_v1.py scripts/prepare_customer_experience_qa_evidence.py scripts/prepare_report_card_qa_fixture.py scripts/acquire_research_v2_qa_context.py services/customer_navigation_contract.py services/customer_research_v2.py
+          python3 -c "import yaml; yaml.safe_load(open('.github/workflows/atlas_customer_experience_autonomous_qa.yml'))"
+
+  governed-browser-certification:
+    needs: policy-and-self-test
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 110
+    permissions:
+      contents: write
+    env:
+      ATLAS_QA_PROVIDER_CALLS_ALLOWED: "0"
+      ATLAS_CUSTOMER_REPORT_CARD_ENABLED: "false"
+      ATLAS_QA_OUTPUT: audit_results/customer_experience_qa
+      ATLAS_AUDIT_PASSWORD: ${{ secrets.ATLAS_AUDIT_PASSWORD }}
+      APP_PASSWORD: ${{ secrets.ATLAS_AUDIT_PASSWORD }}
+      GUEST_PASSWORD: atlas-viewer-qa-local
+      ATLAS_INTERNAL_QA_PASSWORD: ${{ secrets.ATLAS_AUDIT_PASSWORD }}
+      ATLAS_VIEWER_QA_PASSWORD: atlas-viewer-qa-local
+      ATLAS_INTERNAL_REPORT_CARD_UI_ENABLED: "true"
+      ATLAS_REPORT_CARD_DURABLE_ROOT: ${{ github.workspace }}/audit_results/report-card-qa-primary
+      ATLAS_REPORT_CARD_BACKUP_ROOT: ${{ github.workspace }}/audit_results/report-card-qa-backup
+      PYTHONPATH: .
+      ATLAS_QA_MODE: "1"
+      ATLAS_WALL_STREET_CONTEXT_ENABLED: "true"
+      ATLAS_RESEARCH_V2_CHART_ENABLED: "true"
+      ATLAS_RESEARCH_V2_BENCHMARK_ENABLED: "true"
+      ATLAS_RESEARCH_V2_NEWS_ENABLED: "true"
+      ATLAS_RESEARCH_V2_COMPANY_ENABLED: "true"
+      ATLAS_RESEARCH_V2_SUMMARY_ENABLED: "true"
+      ATLAS_RESEARCH_V2_QA_ENRICHMENT: ${{ github.workspace }}/audit_results/customer_experience_qa/research_v2_licensed_context.json
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'push' && github.sha || inputs.candidate_sha }}
+          fetch-depth: 0
+      - name: Resolve governed execution context
+        id: context
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          DISPATCH_MODE: ${{ inputs.mode }}
+          DISPATCH_MAX_REPAIRS: ${{ inputs.max_repair_attempts }}
+          DISPATCH_BASELINE_SHA: ${{ inputs.baseline_sha }}
+          DISPATCH_SOURCE_RUN: ${{ inputs.runtime_source_run }}
+          DISPATCH_ARTIFACT: ${{ inputs.runtime_artifact_identity }}
+          GOVERNED_BASELINE_SHA: ${{ vars.ATLAS_ACCEPTED_CUSTOMER_QA_BASELINE_SHA }}
+        run: |
+          candidate_sha=$(git rev-parse HEAD)
+          subject=$(git log -1 --pretty=%s)
+          generation=0
+          case "$subject" in
+            *"[atlas-cx-auto-repair 1/2]"*) generation=1 ;;
+            *"[atlas-cx-auto-repair 2/2]"*) generation=2 ;;
+          esac
+          if [ "$EVENT_NAME" = "push" ]; then
+            mode=certify_and_repair
+            requested_repairs=2
+            source_run=37216506983
+            artifact=atlas-finnhub-full-universe-final-37216506983
+            baseline_sha="$GOVERNED_BASELINE_SHA"
+          else
+            mode="$DISPATCH_MODE"
+            requested_repairs="$DISPATCH_MAX_REPAIRS"
+            source_run="$DISPATCH_SOURCE_RUN"
+            artifact="$DISPATCH_ARTIFACT"
+            baseline_sha="${DISPATCH_BASELINE_SHA:-$GOVERNED_BASELINE_SHA}"
+          fi
+          remaining=$((2 - generation))
+          if [ "$requested_repairs" -gt "$remaining" ]; then requested_repairs="$remaining"; fi
+          if [ "$generation" -ge 2 ]; then mode=certify_only; requested_repairs=0; fi
+          test "$requested_repairs" -ge 0
+          test "$requested_repairs" -le 2
+          {
+            echo "candidate_sha=$candidate_sha"
+            echo "mode=$mode"
+            echo "max_repair_attempts=$requested_repairs"
+            echo "baseline_sha=$baseline_sha"
+            echo "source_run=$source_run"
+            echo "artifact=$artifact"
+            echo "repair_generation=$generation"
+          } >> "$GITHUB_OUTPUT"
+          mkdir -p audit_results/customer_experience_qa
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt playwright pyyaml
+      - run: python3 -m playwright install --with-deps chromium
+      - name: Require exact governed runtime handoff
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN: ${{ steps.context.outputs.source_run }}
+          ARTIFACT_NAME: ${{ steps.context.outputs.artifact }}
+        run: |
+          test -n "$SOURCE_RUN"
+          test -n "$ARTIFACT_NAME"
+          mkdir -p audit_results/governed_runtime_handoff
+          gh run download "$SOURCE_RUN" --name "$ARTIFACT_NAME" --dir audit_results/governed_runtime_handoff
+      - name: Download exact certified backend handoff
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BACKEND_RUN_ID: "37468858158"
+          BACKEND_ARTIFACT_ID: "11415988048"
+          BACKEND_ARTIFACT_NAME: atlas-release-full-backend-37468858158
+          BACKEND_ARTIFACT_DIGEST: sha256:9068856fe969fe1ab0c32c6b4fcb65a55c8bf0c1d14004fba6eed2c14d81e83b
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$BACKEND_ARTIFACT_ID" > "$RUNNER_TEMP/backend-artifact.json"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          artifact=json.loads((Path(os.environ["RUNNER_TEMP"])/"backend-artifact.json").read_text())
+          expected={
+              "id":int(os.environ["BACKEND_ARTIFACT_ID"]),
+              "name":os.environ["BACKEND_ARTIFACT_NAME"],
+              "digest":os.environ["BACKEND_ARTIFACT_DIGEST"],
+              "expired":False,
+          }
+          mismatches=[key for key, value in expected.items() if artifact.get(key) != value]
+          run=(artifact.get("workflow_run") or {}).get("id")
+          if run != int(os.environ["BACKEND_RUN_ID"]): mismatches.append("workflow_run.id")
+          if mismatches: raise SystemExit("BACKEND_HANDOFF_IDENTITY_MISMATCH:"+",".join(mismatches))
+          PY
+          mkdir -p audit_results/full_qa/backend
+          gh run download "$BACKEND_RUN_ID" --name "$BACKEND_ARTIFACT_NAME" --dir audit_results/full_qa/backend
+      - name: Resolve governed handoff identities
+        id: handoff
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          root=Path("audit_results/governed_runtime_handoff")
+          manifests=list(root.rglob("publication_manifest.json"))
+          if len(manifests) != 1:
+              raise SystemExit(f"PUBLICATION_MANIFEST_AMBIGUOUS:{len(manifests)}")
+          manifest=json.loads(manifests[0].read_text())
+          def identity_values(node, keys):
+              found=set()
+              if isinstance(node, dict):
+                  for key, value in node.items():
+                      if key in keys and isinstance(value, str) and len(value)==64:
+                          found.add(value)
+                      found.update(identity_values(value, keys))
+              elif isinstance(node, list):
+                  for value in node: found.update(identity_values(value, keys))
+              return found
+          candidates=identity_values(manifest, {"candidate_digest", "candidate_id"})
+          publications=identity_values(manifest, {"publication_digest", "publication_bundle_digest"})
+          sources=identity_values(manifest, {"source_sha", "candidate_source_sha"})
+          values={
+              "bundle":manifests[0].parent,
+              "evidence_snapshot":manifest.get("generated_at"),
+              "universe":(manifest.get("executor_candidate_identity") or {}).get("universe_sha256"),
+          }
+          expectations=list(root.rglob("runtime_projection_expectations_*.json"))
+          if not expectations:
+              expectations=list(Path("certification").glob("runtime_projection_expectations_*.json"))
+              expectations=[path for path in expectations if json.loads(path.read_text()).get("identity",{}).get("candidate_digest") in candidates]
+          if len(expectations) != 1:
+              raise SystemExit(f"RUNTIME_EXPECTATIONS_AMBIGUOUS:{len(expectations)}")
+          expectation_identity=json.loads(expectations[0].read_text()).get("identity", {})
+          expected_candidate=expectation_identity.get("candidate_digest")
+          expected_publication=expectation_identity.get("publication_digest")
+          expected_source=expectation_identity.get("source_sha")
+          if candidates != {expected_candidate}:
+              raise SystemExit("RUNTIME_EXPECTATIONS_CANDIDATE_MISMATCH")
+          if publications and publications != {expected_publication}:
+              raise SystemExit("RUNTIME_EXPECTATIONS_PUBLICATION_MISMATCH")
+          if sources and sources != {expected_source}:
+              raise SystemExit("RUNTIME_EXPECTATIONS_SOURCE_MISMATCH")
+          values.update({
+              "candidate":expected_candidate,
+              "publication":expected_publication,
+              "source":expected_source,
+          })
+          values["expectations_dir"]=expectations[0].parent
+          output=Path("audit_results/customer_experience_qa")
+          output.mkdir(parents=True, exist_ok=True)
+          (output/"handoff_identity_resolution.json").write_text(json.dumps({
+              "candidate_values":sorted(candidates), "publication_values":sorted(publications),
+              "source_values":sorted(sources), "expectations":[str(path) for path in expectations],
+          }, indent=2)+"\n")
+          if not all(values.values()):
+              raise SystemExit("PUBLICATION_IDENTITY_INCOMPLETE")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+              for key, value in values.items(): out.write(f"{key}={value}\n")
+          PY
+      - name: Verify exact certified backend handoff
+        id: backend
+        env:
+          EXPECTED_CANDIDATE: ${{ steps.handoff.outputs.candidate }}
+          EXPECTED_PUBLICATION: ${{ steps.handoff.outputs.publication }}
+          EXPECTED_SOURCE: ${{ steps.handoff.outputs.source }}
+          EXPECTED_SNAPSHOT: ${{ steps.handoff.outputs.evidence_snapshot }}
+          EXPECTED_UNIVERSE: ${{ steps.handoff.outputs.universe }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          paths=list(Path("audit_results/full_qa/backend").rglob("backend_handoff.json"))
+          if len(paths) != 1: raise SystemExit(f"BACKEND_HANDOFF_AMBIGUOUS:{len(paths)}")
+          handoff=json.loads(paths[0].read_text())
+          expected={
+              "schema":"ATLAS_RELEASE_FULL_BACKEND_HANDOFF_V1",
+              "status":"PASS",
+              "candidate_digest":os.environ["EXPECTED_CANDIDATE"],
+              "publication_digest":os.environ["EXPECTED_PUBLICATION"],
+              "source_sha":os.environ["EXPECTED_SOURCE"],
+              "evidence_snapshot_at":os.environ["EXPECTED_SNAPSHOT"],
+              "universe_sha256":os.environ["EXPECTED_UNIVERSE"],
+              "provider_calls":0,
+              "reacquisition":"none",
+              "dataset_gate":"PASS",
+              "dataset_certification_status":"PASS",
+              "publication_gate_status":"PASS",
+          }
+          mismatches=[key for key, value in expected.items() if handoff.get(key) != value]
+          if mismatches: raise SystemExit("BACKEND_HANDOFF_IDENTITY_MISMATCH:"+",".join(mismatches))
+          with open(os.environ["GITHUB_OUTPUT"], "a") as out: out.write(f"path={paths[0]}\n")
+          PY
+      - name: Materialize bounded zero-provider runtime
+        run: |
+          mkdir -p audit_results/full_qa/runtime audit_results/customer_experience_qa
+          PYTHONPATH=. python3 scripts/run_bounded_release_smoke.py \
+            --bundle "${{ steps.handoff.outputs.bundle }}" \
+            --report-root audit_results/governed_runtime_handoff \
+            --runtime-dir audit_results/full_qa/runtime \
+            --output audit_results/customer_experience_qa/bounded_runtime.json \
+            --backend-handoff "${{ steps.backend.outputs.path }}" \
+            --expected-candidate-digest "${{ steps.handoff.outputs.candidate }}" \
+            --expected-publication-digest "${{ steps.handoff.outputs.publication }}" \
+            --expected-source-sha "${{ steps.handoff.outputs.source }}" \
+            --runtime-expectations-dir "${{ steps.handoff.outputs.expectations_dir }}"
+      - name: Acquire bounded licensed Research V2 QA context
+        env:
+          FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+          ATLAS_FINNHUB_LICENSE_CLASS: LICENSED_GOVERNED_QA_ONLY
+        run: |
+          python3 scripts/acquire_research_v2_qa_context.py \
+            --tickers NVDA,MSFT,AVT \
+            --output "$ATLAS_RESEARCH_V2_QA_ENRICHMENT"
+          python3 - <<'PY'
+          import json, os
+          report=json.load(open(os.environ["ATLAS_RESEARCH_V2_QA_ENRICHMENT"]))
+          assert report["scope"] == "QA_ONLY"
+          assert report["provider_calls"] == 22
+          assert sorted(report["tickers"]) == ["AVT", "MSFT", "NVDA"]
+          PY
+      - name: Launch exact candidate
+        env:
+          ATLAS_QA_MODE: "1"
+          ATLAS_REPORT_CARD_CUSTOMER_VISIBLE: "false"
+        run: |
+          python3 scripts/prepare_report_card_qa_fixture.py \
+            --primary-root "$ATLAS_REPORT_CARD_DURABLE_ROOT" \
+            --backup-root "$ATLAS_REPORT_CARD_BACKUP_ROOT"
+          python3 -m streamlit run app.py --server.headless true --server.port 8501 > "$RUNNER_TEMP/atlas-streamlit.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/atlas-streamlit.pid"
+          curl --retry 30 --retry-delay 2 --retry-connrefused -fsS http://127.0.0.1:8501/_stcore/health
+      - name: Required-first customer surface certification
+        id: required_browser
+        continue-on-error: true
+        env:
+          ATLAS_EXACT_CANDIDATE_QA: "true"
+        run: |
+          python3 agents/atlas_visual_crawler_v1.py \
+            --url http://127.0.0.1:8501 \
+            --root audit_results/full_qa/runtime \
+            --output "$ATLAS_QA_OUTPUT/browser/required" \
+            --phase required
+      - name: Required authorized and customer-OFF Report Card certification
+        id: required_report_card
+        continue-on-error: true
+        run: |
+          python3 scripts/crawl_report_card_durable_ui.py \
+            --output-dir "$ATLAS_QA_OUTPUT/browser/report-card"
+      - name: Bind required browser evidence to governed authority
+        if: always()
+        run: python3 scripts/prepare_customer_experience_qa_evidence.py --root "$ATLAS_QA_OUTPUT"
+      - name: Consolidate exact-authority certification
+        id: certify
+        continue-on-error: true
+        env:
+          CANDIDATE_SHA: ${{ steps.context.outputs.candidate_sha }}
+          BASELINE_SHA: ${{ steps.context.outputs.baseline_sha }}
+          MODE: ${{ steps.context.outputs.mode }}
+          MAX_REPAIR_ATTEMPTS: ${{ steps.context.outputs.max_repair_attempts }}
+        run: |
+          python3 agents/atlas_customer_experience_autonomous_qa.py \
+            --candidate-sha "$CANDIDATE_SHA" \
+            --baseline-sha "$BASELINE_SHA" \
+            --mode "$MODE" \
+            --max-repair-attempts "$MAX_REPAIR_ATTEMPTS" \
+            --authority "$ATLAS_QA_OUTPUT/authority_manifest.json" \
+            --browser-report "$ATLAS_QA_OUTPUT/browser/customer_required_phase.json" \
+            --screenshot-manifest "$ATLAS_QA_OUTPUT/screenshot_manifest.json" \
+            --output "$ATLAS_QA_OUTPUT/final"
+      - name: Bounded ephemeral repair and recertification
+        if: steps.certify.outcome == 'failure' && steps.context.outputs.mode == 'certify_and_repair' && steps.context.outputs.max_repair_attempts != '0'
+        env:
+          MAX_REPAIR_ATTEMPTS: ${{ steps.context.outputs.max_repair_attempts }}
+          START_GENERATION: ${{ steps.context.outputs.repair_generation }}
+          REVIEW_BRANCH: codex/customer-experience-vnext
+        run: |
+          for attempt in $(seq 1 "$MAX_REPAIR_ATTEMPTS"); do
+            generation=$((START_GENERATION + attempt))
+            python3 agents/customer_experience_qa_repairs.py --plan "$ATLAS_QA_OUTPUT/final/repair_plan.json" --output "$ATLAS_QA_OUTPUT/final/repair-attempt-$attempt.json"
+            git diff --check
+            git diff --binary --output="$ATLAS_QA_OUTPUT/final/repair-attempt-$attempt.patch"
+            git config user.name "atlas-customer-qa"
+            git config user.email "atlas-customer-qa@users.noreply.github.com"
+            git add -u
+            git diff --cached --quiet && break
+            git commit -m "Repair customer QA findings [atlas-cx-auto-repair $generation/2]"
+            git show --binary --format=email HEAD --output="$ATLAS_QA_OUTPUT/final/repair-attempt-$attempt.commit.patch"
+            kill "$(cat "$RUNNER_TEMP/atlas-streamlit.pid")" || true
+            python3 -m streamlit run app.py --server.headless true --server.port 8501 > "$RUNNER_TEMP/atlas-streamlit.log" 2>&1 &
+            echo $! > "$RUNNER_TEMP/atlas-streamlit.pid"
+            curl --retry 30 --retry-delay 2 --retry-connrefused -fsS http://127.0.0.1:8501/_stcore/health
+            mv "$ATLAS_QA_OUTPUT/browser/required" "$ATLAS_QA_OUTPUT/browser/required-before-attempt-$attempt"
+            ATLAS_EXACT_CANDIDATE_QA=true python3 agents/atlas_visual_crawler_v1.py --url http://127.0.0.1:8501 --root audit_results/full_qa/runtime --output "$ATLAS_QA_OUTPUT/browser/required" --phase required || true
+            python3 scripts/crawl_report_card_durable_ui.py --output-dir "$ATLAS_QA_OUTPUT/browser/report-card" || true
+            python3 scripts/prepare_customer_experience_qa_evidence.py --root "$ATLAS_QA_OUTPUT"
+            if python3 agents/atlas_customer_experience_autonomous_qa.py --candidate-sha "$(git rev-parse HEAD)" --mode certify_and_repair --max-repair-attempts "$MAX_REPAIR_ATTEMPTS" --authority "$ATLAS_QA_OUTPUT/authority_manifest.json" --browser-report "$ATLAS_QA_OUTPUT/browser/customer_required_phase.json" --screenshot-manifest "$ATLAS_QA_OUTPUT/screenshot_manifest.json" --output "$ATLAS_QA_OUTPUT/final"; then
+              if ! git push origin "HEAD:refs/heads/$REVIEW_BRANCH"; then
+                python3 -c "import json; p='$ATLAS_QA_OUTPUT/final/atlas_customer_experience_qa.json'; r=json.load(open(p)); r['auto_repair_write_permission']='UNAVAILABLE'; r['final_state']='AUTO_REPAIR_WRITE_PERMISSION_UNAVAILABLE'; open(p,'w').write(json.dumps(r,indent=2,sort_keys=True)+'\n')"
+              fi
+              break
+            fi
+          done
+      - name: Supplementary non-blocking visual findings
+        if: steps.certify.outcome == 'success'
+        continue-on-error: true
+        env:
+          ATLAS_EXACT_CANDIDATE_QA: "true"
+        run: |
+          python3 agents/atlas_visual_crawler_v1.py \
+            --url http://127.0.0.1:8501 \
+            --root audit_results/full_qa/runtime \
+            --output "$ATLAS_QA_OUTPUT/browser/supplementary" \
+            --phase supplementary
+      - name: Record exact tested SHA lineage
+        env:
+          TRIGGERING_SHA: ${{ steps.context.outputs.candidate_sha }}
+          START_GENERATION: ${{ steps.context.outputs.repair_generation }}
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess
+          from pathlib import Path
+          path=Path(os.environ["ATLAS_QA_OUTPUT"])/"final"/"atlas_customer_experience_qa.json"
+          report=json.loads(path.read_text())
+          tested=subprocess.check_output(["git","rev-parse","HEAD"], text=True).strip()
+          triggering=os.environ["TRIGGERING_SHA"]
+          report["sha_lineage"]={
+              "triggering_sha": triggering,
+              "tested_sha": tested,
+              "repair_parent_sha": subprocess.check_output(["git","rev-parse","HEAD^"], text=True).strip() if tested != triggering else None,
+              "repair_commit_sha": tested if tested != triggering else None,
+              "starting_repair_generation": int(os.environ["START_GENERATION"]),
+          }
+          path.write_text(json.dumps(report, indent=2, sort_keys=True)+"\n")
+          PY
+      - name: Require final green certification
+        run: python3 -c "import json; r=json.load(open('$ATLAS_QA_OUTPUT/final/atlas_customer_experience_qa.json')); assert r['status']=='PASS', r['failures']"
+      - name: Assert no provider use or durable Report Card mutation
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          report=json.loads(Path("audit_results/customer_experience_qa/final/atlas_customer_experience_qa.json").read_text())
+          assert report["provider_boundary"] == {"calls": 0, "reacquisition": "none"}
+          assert report["customer_report_card"] == "OFF"
+          PY
+      - name: Collect browser logs
+        if: always()
+        run: cp "$RUNNER_TEMP/atlas-streamlit.log" "$ATLAS_QA_OUTPUT/streamlit.log" || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atlas-customer-experience-qa-${{ steps.context.outputs.candidate_sha }}
+          path: audit_results/customer_experience_qa
+          if-no-files-found: error
+          retention-days: 30

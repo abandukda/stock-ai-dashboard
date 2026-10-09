@@ -142,6 +142,25 @@ def test_research_field_extractor_uses_ticker_scoped_action_and_metric_nodes():
     assert '"ATLAS FAIR VALUE": "atlas_fair_value"' in block
     assert '"OPPORTUNITY": "opportunity"' in block
     assert '"DECISION CONFIDENCE": "decision_confidence"' in block
+    assert 'research-v2-stock-header' in block
+    assert '"CONFIDENCE": "decision_confidence"' in block
+
+
+def test_research_v2_crawler_contract_uses_semantic_markers_without_removing_legacy_contract():
+    source = SOURCE.read_text(encoding="utf-8")
+    assert 'RESEARCH_V2_VERSION = "ATLAS_CUSTOMER_RESEARCH_V2_P0"' in source
+    for marker in (
+        "stock-header", "since-signal", "chart-root", "summary",
+        "analyst-module", "risks", "view-change-conditions", "what-changed",
+        "fundamentals", "catalysts", "about-company", "evidence-methodology",
+    ):
+        assert f'"{marker}"' in source
+    assert "declared_architecture or v2_architecture" in source
+    assert 'architecture.get("version") != RESEARCH_V2_VERSION' in source
+    assert "expected_tabs=RESEARCH_VNEXT_SECTION_LABELS" in source
+    assert "_research_v2_section_screenshots" in source
+    for section in ("price-chart", "ai-summary", "wall-street", "risks", "fundamentals", "catalysts", "about-company"):
+        assert f'("{section}",' in source
 
 
 def test_visual_crawler_has_complete_non_blocking_product_scope():
@@ -150,10 +169,56 @@ def test_visual_crawler_has_complete_non_blocking_product_scope():
     assert set(MOBILE_PAGES) == {
         "Home", "Research Any Ticker", "Today's Opportunities", "Ask AI",
         "Political Intelligence", "Earnings Intelligence", "Full Ranked Scan",
-        "Recovery",
+        "Portfolio Intelligence", "Recovery",
     }
     assert GLOBAL_FATALS == {"APP_UNREACHABLE", "AUTHENTICATION_FAILED", "BROWSER_DIED"}
     assert RESEARCH_COMPLETION_TIMEOUT_SECONDS >= 90
+
+
+def test_full_product_closure_reacquires_expanders_and_certifies_position_states():
+    source = SOURCE.read_text(encoding="utf-8")
+    expander = source.split("async def _click_expanders", 1)[1].split(
+        "async def _position_management_contract", 1
+    )[0]
+    assert "async def reacquire" in expander
+    assert "EXPANDER_NOT_REACQUIRED_BEFORE_CLOSE" in expander
+    assert "consecutive >= 2" in expander
+    assert "initial_collapsed and expanded and collapsed" in expander
+    assert "canonical_expander_label(await candidate.inner_text()) == name" in expander
+    assert 'state="open-immediate"' in expander
+    assert 'state="open-settled"' in expander
+    assert 'state="close-immediate"' in expander
+    assert 'state="close-settled"' in expander
+    assert 'data-atlas-qa="position-management-state"' in source
+    for state in ("HOLD", "HOLD_NO_ADD", "TRIM", "EXIT", "SUSPENDED", "REVIEW"):
+        assert f'"{state}"' in source
+
+
+def test_expander_label_and_semantic_state_are_stable_across_streamlit_icons():
+    from agents.atlas_visual_crawler_v1 import canonical_expander_label, expander_semantic_state
+
+    assert canonical_expander_label("keyboard_arrow_right\n\nMarket context") == "Market context"
+    assert canonical_expander_label("keyboard_arrow_down Market context") == "Market context"
+    assert expander_semantic_state({
+        "icon": "keyboard_arrow_right", "content_inert": True, "content_visible": False,
+    }) == "COLLAPSED"
+    assert expander_semantic_state({
+        "icon": "keyboard_arrow_down", "content_inert": False, "content_visible": True,
+    }) == "EXPANDED"
+    assert expander_semantic_state({
+        "details_open": True, "icon": "keyboard_arrow_right",
+        "content_inert": True, "content_visible": False,
+    }) == "COLLAPSED"
+
+
+def test_supplementary_ask_rebuilds_research_authority_before_reconciliation():
+    source = SOURCE.read_text(encoding="utf-8")
+    desktop = source.split("async def _supplementary_desktop_page", 1)[1].split(
+        "async def _required_mobile", 1
+    )[0]
+    assert "for ticker in REQUIRED_RESEARCH_TICKERS" in desktop
+    assert 'self.research_contexts.get(ticker, {}).get("authority_digest")' in desktop
+    assert 'await self._submit_research(page, ticker, tabs=False, viewport="desktop")' in desktop
 
 
 def test_artifacts_are_complete_and_sanitized(tmp_path, monkeypatch):
@@ -372,10 +437,11 @@ def test_research_and_home_require_actual_visible_controls_and_exact_ticker():
     assert "top15" in source
     assert "marker.scroll_into_view_if_needed" not in source
     assert "visible_cta=true" in source
-    assert 'name=re.compile(r"(?:Open Full Research|View Investment Case)"' in source
+    assert 'name=re.compile(r"(?:Open Full Research|View Investment Case|View Research)"' in source
     assert "exact_ticker.search" in source
     assert "_discover_visible_home_cards" in source
-    assert "preceding::*[@data-atlas-interaction-id][1]" in source
+    assert 'f\'[data-atlas-interaction-id="{preferred_id}"]\'' in source
+    assert 'marker.locator("xpath=following::button[1]")' in source
     assert "await self._exact_research_ticker(page, ticker)" in source
     assert "prior in text" not in source
     assert set(RESEARCH_VNEXT_SECTIONS) == {
@@ -596,8 +662,8 @@ def test_route_generation_recovery_requires_current_visible_healthy_page():
 def test_browser_session_is_shared_between_desktop_and_mobile():
     source = SOURCE.read_text(encoding="utf-8")
     assert source.count("await browser.new_context") == 1
-    assert "self._required_desktop(page), timeout=225" in source
-    assert "self._required_mobile(page), timeout=105" in source
+    assert "self._required_desktop(page), timeout=285" in source
+    assert "self._required_mobile(page), timeout=135" in source
     assert "await self._supplementary_desktop(page)" in source
     assert "await self._supplementary_mobile(page)" in source
     assert "await page.set_viewport_size(MOBILE)" in source
@@ -707,16 +773,12 @@ def test_published_research_still_requires_sections_and_ask_cta():
 def test_published_research_rejects_declared_count_when_required_tab_content_is_broken():
     complete_tabs = set(RESEARCH_VNEXT_SECTION_LABELS)
     assert complete_tabs == {
-        "ATLAS View", "ATLAS Fair Value", "Live Market & Trade",
-        "Additional Context", "Decision Evidence",
-    }
-    assert not complete_tabs.intersection({
         "Decision", "Fundamentals & Valuation", "Technical & Trade State",
         "Catalysts & Sentiment", "Risk & Evidence",
-    })
+    }
     assert _research_declared_architecture(5, complete_tabs) is True
     broken_tabs = complete_tabs - {RESEARCH_VNEXT_SECTION_LABELS[-1]}
-    # The root still claims five sections, but required Decision Evidence
+    # The root still claims five sections, but a required semantic section
     # semantic control is absent: certification must fail closed.
     assert _research_declared_architecture(5, broken_tabs) is False
     assert _terminal(
@@ -792,7 +854,9 @@ def test_completed_research_rejects_rendered_exception(monkeypatch, tmp_path):
 
 def test_visual_crawler_certifies_full_scan_vnext_on_desktop_and_mobile():
     source = SOURCE.read_text(encoding="utf-8")
-    assert '"Full Ranked Scan", "Recovery"' in source
+    assert '"Full Ranked Scan"' in source
+    assert '"Portfolio Intelligence"' in source
+    assert '"Recovery"' in source
     assert "_full_scan_vnext_contract" in source
     assert "_full_scan_candidate_journeys" in source
     assert 'data-atlas-full-scan-version="ATLAS_FULL_SCAN_VNEXT_V1"' in source

@@ -388,7 +388,10 @@ class FinnhubShadowAdapter:
             return {"name": payload.get("name"), "exchange": payload.get("exchange"),
                     "industry": payload.get("finnhubIndustry"), "country": payload.get("country"),
                     "currency": payload.get("currency"), "estimate_currency": payload.get("estimateCurrency"),
-                    "shares_outstanding_millions": payload.get("shareOutstanding")}
+                    "shares_outstanding_millions": payload.get("shareOutstanding"),
+                    "market_capitalization_millions": payload.get("marketCapitalization"),
+                    "ipo_date": payload.get("ipo"), "web_url": payload.get("weburl"),
+                    "logo_url": payload.get("logo"), "phone": payload.get("phone")}
         if capability == "financial_statements" and isinstance(payload, Mapping):
             normalized_reports = []
             for report in records(payload):

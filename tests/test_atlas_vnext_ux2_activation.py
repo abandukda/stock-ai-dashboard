@@ -30,6 +30,18 @@ import ui.research_report_v2 as legacy
 from tests.test_atlas_vnext_ux2_research import report_fixture
 
 report = report_fixture(ticker={ticker!r}, verdict={"MONITOR" if monitor else "BUY_NOW"!r}, completeness={40.0 if monitor else 92.0!r})
+report["candidate_digest"] = "candidate"
+report["publication_digest"] = "publication"
+report["source_sha"] = "source"
+report["certified_customer_evaluation"] = {{
+    "ticker": {ticker!r}, "customer_publication_allowed": True,
+    "decision": {{"action": {"MONITOR" if monitor else "BUY_NOW"!r}, "opportunity": report.get("opportunity_score"), "decision_confidence": report.get("confidence_pct")}},
+    "fields": {{
+        "price": {{"value": 100.0, "certification_status": "CERTIFIED", "source": "FIXTURE", "as_of": "2026-10-09T20:00:00Z", "evidence_ids": ["price:1"]}},
+        "atlas_fair_value": {{"value": report.get("atlas_fair_value"), "certification_status": "CERTIFIED", "source": "FIXTURE", "as_of": "2026-10-09T20:00:00Z", "evidence_ids": ["fv:1"]}},
+    }},
+    "digests": {{"evaluation_snapshot_id": "snapshot-{ticker}"}},
+}}
 if {monitor!r}:
     report["opportunity_score"] = None
     report["confidence_pct"] = None
@@ -48,13 +60,15 @@ app.render_detail({{"ticker": {ticker!r}, "research_context": {{"evidence_famili
 
 def _assert_five_section_dom(app_test: AppTest, ticker: str) -> None:
     assert not app_test.exception
-    labels = [tab.label for tab in app_test.tabs]
-    assert labels == SECTIONS
-    assert not (set(labels) & LEGACY_TABS)
     html = "\n".join(str(markdown.value) for markdown in app_test.markdown)
-    assert 'data-atlas-version="ATLAS_RESEARCH_VNEXT_UX2"' in html
+    # Research V2 uses a progressive five-section document rather than the
+    # retired tab widget.  Structured section markers are the stable contract.
+    assert not app_test.tabs
+    assert 'data-atlas-version="ATLAS_CUSTOMER_RESEARCH_V2_P0"' in html
     assert f'data-atlas-ticker="{ticker}"' in html
     assert 'data-atlas-section-count="5"' in html
+    for section in SECTIONS:
+        assert section in html
     assert 'data-atlas-qa="research-ask-cta"' in html
 
 
@@ -67,6 +81,18 @@ from tests.test_atlas_vnext_ux2_research import report_fixture
 import app
 
 report = report_fixture(ticker={ticker!r})
+report["candidate_digest"] = "candidate"
+report["publication_digest"] = "publication"
+report["source_sha"] = "source"
+report["certified_customer_evaluation"] = {{
+    "ticker": {ticker!r}, "customer_publication_allowed": True,
+    "decision": {{"action": "BUY_NOW", "opportunity": report.get("opportunity_score"), "decision_confidence": report.get("confidence_pct")}},
+    "fields": {{
+        "price": {{"value": 100.0, "certification_status": "CERTIFIED", "source": "FIXTURE", "as_of": "2026-10-09T20:00:00Z", "evidence_ids": ["price:1"]}},
+        "atlas_fair_value": {{"value": report.get("atlas_fair_value"), "certification_status": "CERTIFIED", "source": "FIXTURE", "as_of": "2026-10-09T20:00:00Z", "evidence_ids": ["fv:1"]}},
+    }},
+    "digests": {{"evaluation_snapshot_id": "snapshot-{ticker}"}},
+}}
 builder.build_atlas_research_v2 = lambda row: report
 legacy._load_policy_enrichment = lambda symbol, row: {{"metrics": {{}}}}
 legacy._load_ai_valuation = lambda symbol, row: {{}}
@@ -93,8 +119,8 @@ def test_final_active_app_render_graph_exposes_exactly_five_sections(mobile: boo
 def test_final_active_app_monitor_is_non_actionable_and_five_section():
     app_test = _active_app("CRC", monitor=True)
     _assert_five_section_dom(app_test, "CRC")
-    assert "Monitor — Not currently actionable" in "\n".join(
-        str(item.value) for item in app_test.markdown
+    assert "Not currently actionable" in "\n".join(
+        str(item.value) for item in (*app_test.markdown, *app_test.caption)
     )
 
 

@@ -44,22 +44,55 @@ VISUAL_CRAWLER_VERSION = "ATLAS_VISUAL_CRAWLER_V1_1"
 RESEARCH_COMPLETION_TIMEOUT_SECONDS = 90
 REQUIRED_PHASE_TIMEOUT_SECONDS = 480
 REQUIRED_PHASE_BUDGET = {
-    "authentication_and_deployment": {"timeout_seconds": 90, "retries": 0},
-    "home_desktop": {"timeout_seconds": 45, "retries": 0},
-    "research_desktop_nvda": {"timeout_seconds": 60, "retries": 0},
-    "research_desktop_msft": {"timeout_seconds": 60, "retries": 0},
-    "research_desktop_avt": {"timeout_seconds": 60, "retries": 0},
-    "home_mobile": {"timeout_seconds": 45, "retries": 0},
-    "research_mobile_nvda": {"timeout_seconds": 60, "retries": 0},
+    "authentication_and_deployment": {"timeout_seconds": 60, "retries": 0},
+    "home_desktop": {"timeout_seconds": 90, "retries": 0},
+    "research_desktop_nvda": {"timeout_seconds": 45, "retries": 0},
+    "research_desktop_msft": {"timeout_seconds": 45, "retries": 0},
+    "research_desktop_avt": {"timeout_seconds": 45, "retries": 0},
+    "earnings_watchlist_ask_desktop": {"timeout_seconds": 60, "retries": 0},
+    "home_mobile": {"timeout_seconds": 30, "retries": 0},
+    "research_mobile_nvda": {"timeout_seconds": 45, "retries": 0},
+    "earnings_watchlist_ask_mobile": {"timeout_seconds": 60, "retries": 0},
 }
 RESEARCH_VNEXT_SECTIONS = (
     "decision", "fundamentals-and-valuation", "technical-and-trade-state",
     "catalysts-and-sentiment", "risk-and-evidence",
 )
 RESEARCH_VNEXT_SECTION_LABELS = (
-    "ATLAS View", "ATLAS Fair Value", "Live Market & Trade",
-    "Additional Context", "Decision Evidence",
+    "Decision", "Fundamentals & Valuation", "Technical & Trade State",
+    "Catalysts & Sentiment", "Risk & Evidence",
 )
+RESEARCH_V2_VERSION = "ATLAS_CUSTOMER_RESEARCH_V2_P0"
+RESEARCH_V2_MARKERS = (
+    "stock-header", "since-signal", "chart-root", "summary",
+    "analyst-module", "risks", "view-change-conditions", "what-changed",
+    "fundamentals", "catalysts", "about-company", "evidence-methodology",
+)
+
+EXPANDER_ICON_TOKENS = {
+    "keyboard_arrow_right", "keyboard_arrow_down", "expand_more", "expand_less",
+}
+
+
+def canonical_expander_label(value: str) -> str:
+    """Return the stable customer label without Streamlit's dynamic icon text."""
+    tokens = [
+        token.strip() for token in re.split(r"\s+", str(value or ""))
+        if token.strip() and token.strip() not in EXPANDER_ICON_TOKENS
+    ]
+    return " ".join(tokens)
+
+
+def expander_semantic_state(dom: dict[str, Any]) -> str:
+    """Classify the customer-visible state, including Streamlit close animation."""
+    icon = str(dom.get("icon") or "").strip()
+    content_visible = bool(dom.get("content_visible"))
+    content_inert = bool(dom.get("content_inert"))
+    if content_visible and not content_inert and icon not in {"keyboard_arrow_right", "expand_more"}:
+        return "EXPANDED"
+    if (content_inert or not content_visible) and icon not in {"keyboard_arrow_down", "expand_less"}:
+        return "COLLAPSED"
+    return "TRANSITIONING"
 
 
 def research_route_ownership_satisfied(
@@ -178,13 +211,17 @@ MOBILE = {"width": 390, "height": 844}
 GLOBAL_FATALS = {"APP_UNREACHABLE", "AUTHENTICATION_FAILED", "BROWSER_DIED"}
 MOBILE_PAGES = (
     "Home", "Research Any Ticker", "Today's Opportunities", "Ask AI",
-    "Political Intelligence", "Earnings Intelligence", "Full Ranked Scan", "Recovery",
+    "Political Intelligence", "Earnings Intelligence", "Full Ranked Scan", "Portfolio Intelligence", "Recovery",
 )
 REQUIRED_RESEARCH_TICKERS = ("NVDA", "MSFT", "AVT")
 REQUIRED_PAGE_VIEWPORTS = frozenset({
     ("Home", "desktop"), ("Home", "mobile"),
     ("Research Any Ticker", "desktop"), ("Research Any Ticker", "mobile"),
+    ("Earnings Intelligence", "desktop"), ("Earnings Intelligence", "mobile"),
+    ("Watchlist Intelligence", "desktop"), ("Watchlist Intelligence", "mobile"),
+    ("Ask AI", "desktop"), ("Ask AI", "mobile"),
 })
+REQUIRED_CUSTOMER_ROUTES = ("Home", "Research", "Earnings", "Watchlist", "Ask ATLAS")
 PRIMARY_VISIBLE_SIGNALS = {
     "Home": ("Atlas Morning Decision", "Home"),
     "Today's Opportunities": ("Today's Opportunities", "Opportunity"),
@@ -665,6 +702,7 @@ class AtlasVisualCrawler:
         publication_allowed: bool | None = None
         declared_section_count = 0
         tab_labels: set[str] = set()
+        v2_markers: set[str] = set()
         for scope in _scopes(page):
             try:
                 roots = scope.locator(f'[data-atlas-qa="research-vnext"][data-atlas-ticker="{ticker}"]')
@@ -680,6 +718,18 @@ class AtlasVisualCrawler:
                         declared_section_count = 0
                     if allowed in {"true", "false"}:
                         publication_allowed = allowed == "true"
+                v2_root = scope.locator(
+                    f'[data-atlas-qa="research-v2-root"][data-atlas-ticker="{ticker}"]'
+                )
+                if await v2_root.count():
+                    version = await v2_root.last.get_attribute("data-atlas-version") or ""
+                    publication_allowed = True
+                    for marker in RESEARCH_V2_MARKERS:
+                        node = scope.locator(
+                            f'[data-atlas-qa="research-v2-{marker}"][data-atlas-ticker="{ticker}"]'
+                        )
+                        if await node.count():
+                            v2_markers.add(marker)
                 nodes = scope.locator(f'[data-atlas-qa="research-vnext-section"][data-atlas-ticker="{ticker}"]')
                 for index in range(await nodes.count()):
                     sections.add(await nodes.nth(index).get_attribute("data-atlas-section") or "")
@@ -707,14 +757,16 @@ class AtlasVisualCrawler:
         declared_architecture = _research_declared_architecture(
             declared_section_count, tab_labels,
         )
+        v2_architecture = version == RESEARCH_V2_VERSION and set(RESEARCH_V2_MARKERS) <= v2_markers
         return {
             "version": version, "sections": sorted(sections),
             # Streamlit lazily mounts tab bodies.  The renderer-owned count and
             # all five live tab controls certify architecture without requiring
             # five mutually exclusive tab panels to coexist in the DOM.
-            "all_sections": declared_architecture,
+            "all_sections": declared_architecture or v2_architecture,
             "declared_section_count": declared_section_count,
             "tab_labels": sorted(tab_labels),
+            "v2_markers": sorted(v2_markers),
             "monitor": monitor, "ask_cta": ask_cta,
             "certification_incomplete": certification_incomplete,
             "withheld_terminal": withheld_terminal,
@@ -742,7 +794,7 @@ class AtlasVisualCrawler:
         }
         architecture = await self._research_vnext_contract(page, expected)
         result.update({
-            "vnext": architecture["version"] == RESEARCH_VNEXT_VERSION,
+            "vnext": architecture["version"] in {RESEARCH_VNEXT_VERSION, RESEARCH_V2_VERSION},
             "five_sections": bool(architecture["all_sections"]),
             "ask_cta": bool(architecture["ask_cta"]),
             "certification_incomplete": bool(architecture.get("certification_incomplete")),
@@ -807,10 +859,15 @@ class AtlasVisualCrawler:
         result["rendered_exception"] = await _has_rendered_exception(page)
         visible_text = await _visible_text(page)
         normalized_text = re.sub(r"\s+", " ", visible_text).upper()
+        legacy_decision_evidence = "ATLAS VIEW" in normalized_text and "ATLAS RATING:" in normalized_text
+        v2_decision_evidence = (
+            architecture.get("version") == RESEARCH_V2_VERSION
+            and "CERTIFIED ATLAS RESEARCH" in normalized_text
+            and "stock-header" in architecture.get("v2_markers", ())
+        )
         published_decision_evidence = bool(
             architecture.get("publication_allowed") is True
-            and "ATLAS VIEW" in normalized_text
-            and "ATLAS RATING:" in normalized_text
+            and (legacy_decision_evidence or v2_decision_evidence)
             and any(label in normalized_text for label in (
                 "BUY NOW", "BUILD A POSITION", "WAIT FOR A BETTER ENTRY",
                 "WAIT FOR CONFIRMATION", "WATCH", "AVOID",
@@ -856,9 +913,28 @@ class AtlasVisualCrawler:
             "ATLAS FAIR VALUE": "atlas_fair_value",
             "OPPORTUNITY": "opportunity",
             "DECISION CONFIDENCE": "decision_confidence",
+            "CONFIDENCE": "decision_confidence",
         }
         for scope in _scopes(page):
             try:
+                header = scope.locator(
+                    f'[data-atlas-qa="research-v2-stock-header"][data-atlas-ticker="{ticker}"]'
+                )
+                if await header.count():
+                    node = header.last
+                    action_value = normalize_research_action(
+                        await node.get_attribute("data-atlas-action") or ""
+                    )
+                    if action_value:
+                        fields["action"] = action_value
+                    for attribute, key in (
+                        ("data-atlas-fair-value", "atlas_fair_value"),
+                        ("data-atlas-opportunity", "opportunity"),
+                        ("data-atlas-confidence", "decision_confidence"),
+                    ):
+                        value = await node.get_attribute(attribute) or ""
+                        if value:
+                            fields[key] = value
                 action = scope.locator(f'[class*="st-key-vnext_decision_action_{ticker}"]')
                 for index in range(await action.count()):
                     node = action.nth(index)
@@ -887,6 +963,34 @@ class AtlasVisualCrawler:
                 continue
         return fields
 
+    async def _research_v2_section_screenshots(self, page: Page, ticker: str, viewport: str) -> list[str]:
+        """Preserve the intended V2 experience section-by-section for human QA."""
+        captures: list[str] = []
+        sections = (
+            ("above-fold", "CERTIFIED ATLAS RESEARCH"),
+            ("price-chart", "Price / Performance"),
+            ("ai-summary", "ATLAS Research Summary"),
+            ("wall-street", "ATLAS vs Wall Street"),
+            ("risks", "Risks / What Would Change the View"),
+            ("fundamentals", "Fundamentals Snapshot"),
+            ("catalysts", "Catalysts / Next Events"),
+            ("about-company", "About the Company"),
+        )
+        for slug, label in sections:
+            locator = page.get_by_text(label, exact=True).last
+            try:
+                if not await locator.count() or not await locator.is_visible():
+                    continue
+                await locator.scroll_into_view_if_needed(timeout=5000)
+                await page.wait_for_timeout(100)
+                captures.append(await self._shot(
+                    page, page_name="Research Any Ticker", interaction=f"v2-{ticker}-{slug}",
+                    state="visible", viewport=viewport, ticker=ticker,
+                ))
+            except Exception:
+                continue
+        return captures
+
     def _source_sha(self) -> str:
         return subprocess.check_output(
             ["git", "rev-parse", "HEAD"], cwd=self.root, text=True,
@@ -904,8 +1008,12 @@ class AtlasVisualCrawler:
             # The rendered state and viewport determine visual identity.  Do
             # not defeat deduplication merely because two traversal labels
             # reached byte-identical DOM.
+            # A visually identical DOM on a different governed surface is not
+            # interchangeable evidence. Keep a distinct artifact per page,
+            # viewport, ticker and interaction while still deduplicating exact
+            # retry captures of that same state.
             state_key = hashlib.sha256(
-                f"{viewport}|{state_digest}".encode("utf-8")
+                f"{page_name}|{interaction}|{state}|{ticker}|{viewport}|{state_digest}".encode("utf-8")
             ).hexdigest()
             prior = self._screenshot_states.get(state_key)
             if prior:
@@ -1045,6 +1153,75 @@ class AtlasVisualCrawler:
                 viewport=viewport, ticker=ticker,
             )
 
+    async def _settled_selected_tab_panel(
+        self, page: Page, name: str, *, timeout_seconds: float = 8.0,
+    ) -> Any:
+        """Reacquire a selected Streamlit tab panel until its semantic DOM is stable."""
+        deadline = time.monotonic() + timeout_seconds
+        prior_digest = ""
+        stable_checks = 0
+        while time.monotonic() < deadline:
+            tab = await self._fresh_visible_tab(page, name)
+            panel = None
+            selected = False
+            if tab is not None:
+                selected = (await tab.get_attribute("aria-selected")) == "true"
+            for scope in _scopes(page):
+                panels = scope.get_by_role("tabpanel")
+                for index in range(await panels.count()):
+                    candidate = panels.nth(index)
+                    if await candidate.is_visible():
+                        panel = candidate
+                        break
+                if panel is not None:
+                    break
+            loading = False
+            for selector in ('[data-testid="stSpinner"]', '[data-testid="stStatusWidget"]'):
+                nodes = page.locator(selector)
+                for index in range(await nodes.count()):
+                    if await nodes.nth(index).is_visible():
+                        loading = True
+                        break
+                if loading:
+                    break
+            if selected and panel is not None and not loading:
+                text = re.sub(r"\s+", " ", await panel.inner_text()).strip()
+                if text:
+                    digest = hashlib.sha256(
+                        f"{name}|{text}|{await panel.inner_html()}".encode("utf-8")
+                    ).hexdigest()
+                    stable_checks = stable_checks + 1 if digest == prior_digest else 1
+                    prior_digest = digest
+                    if stable_checks >= 2:
+                        return panel
+            else:
+                stable_checks = 0
+                prior_digest = ""
+            await page.wait_for_timeout(150)
+        raise TimeoutError(f"TAB_PANEL_NOT_SEMANTICALLY_SETTLED:{name}")
+
+    async def _shot_selected_tab_panel(
+        self, page: Page, *, name: str, page_name: str, interaction: str,
+        state: str, viewport: str, ticker: str,
+    ) -> str:
+        """Capture a reacquired stable panel and require real nonempty evidence."""
+        last_error: Exception | None = None
+        for _attempt in range(2):
+            try:
+                panel = await self._settled_selected_tab_panel(page, name)
+                relative = await self._shot_locator(
+                    panel, page_name=page_name, interaction=interaction, state=state,
+                    viewport=viewport, ticker=ticker,
+                )
+                target = self.output_dir / relative if relative else None
+                if target is None or not target.is_file() or target.stat().st_size <= 0:
+                    raise RuntimeError("TAB_SCREENSHOT_EVIDENCE_EMPTY")
+                return relative
+            except Exception as exc:
+                last_error = exc
+        assert last_error is not None
+        raise last_error
+
     async def _exception_identity(self, page: Page) -> dict[str, str]:
         for scope in _scopes(page):
             try:
@@ -1100,6 +1277,8 @@ class AtlasVisualCrawler:
             return (page_name, viewport) in REQUIRED_PAGE_VIEWPORTS
         if page_name == "Home":
             return viewport in {"desktop", "mobile"}
+        if page_name in {"Earnings Intelligence", "Watchlist Intelligence", "Ask AI"}:
+            return viewport in {"desktop", "mobile"}
         if page_name != "Research Any Ticker":
             return False
         normalized = ticker.upper()
@@ -1132,6 +1311,30 @@ class AtlasVisualCrawler:
             "missing_research_tickers": missing_research,
             "failure_count": len(failures),
         }
+
+    async def _customer_navigation_contract(self, page: Page) -> None:
+        """Fail closed unless the authenticated shell exposes the exact VNext routes."""
+        started = time.monotonic()
+        marker = page.locator('[data-atlas-qa="customer-navigation-contract"]').last
+        await marker.wait_for(state="attached", timeout=30000)
+        version = await marker.get_attribute("data-atlas-contract-version") or ""
+        role = await marker.get_attribute("data-atlas-role-category") or ""
+        routes = tuple(filter(None, (await marker.get_attribute("data-atlas-customer-routes") or "").split("|")))
+        active = await marker.get_attribute("data-atlas-active-route") or ""
+        passed = (
+            version == "ATLAS_CUSTOMER_NAV_VNEXT_1"
+            and role in {"customer_viewer", "internal_admin"}
+            and routes == REQUIRED_CUSTOMER_ROUTES
+            and active in REQUIRED_CUSTOMER_ROUTES
+        )
+        await self._record(
+            category="GLOBAL", page_name="GLOBAL", interaction="customer-navigation-authority",
+            expected="Exact Home/Research/Earnings/Watchlist/Ask ATLAS navigation contract",
+            observed=f"version={version}; role={role}; routes={routes}; active={active}",
+            passed=passed, elapsed=time.monotonic() - started, severity="P1",
+        )
+        if not passed:
+            raise GlobalCrawlFailure("CUSTOMER_NAVIGATION_AUTHORITY_FAILED")
 
     async def _visible_primary(self, page: Page, page_name: str) -> tuple[bool, str]:
         text = await _visible_text(page)
@@ -1620,15 +1823,21 @@ class AtlasVisualCrawler:
 
     async def _current_route_visible(self, page: Page, page_name: str) -> bool:
         """Prefer the current radio selection over stale lifecycle nodes from old reruns."""
+        customer_label = {
+            "Research Any Ticker": "Research",
+            "Earnings Intelligence": "Earnings",
+            "Watchlist Intelligence": "Watchlist",
+            "Ask AI": "Ask ATLAS",
+        }.get(page_name, page_name)
         for scope in _scopes(page):
             try:
-                radio = scope.get_by_role("radio", name=page_name, exact=True)
+                radio = scope.get_by_role("radio", name=customer_label, exact=True)
                 if await radio.count() and await radio.first.is_checked():
                     return True
             except Exception:
                 continue
         text = await _visible_text(page)
-        return page_name.lower() in text.lower()
+        return customer_label.lower() in text.lower()
 
     async def _research_route_owned(self, page: Page) -> bool:
         """Prove the live primary DOM belongs to the selected Research route."""
@@ -1701,13 +1910,14 @@ class AtlasVisualCrawler:
                         continue
                 after_text = await _visible_text(page)
                 exception = await _has_rendered_exception(page)
-                # Capture the complete selected surface. Streamlit regenerates
-                # tab-panel IDs across reruns, so retaining a panel locator solely
-                # for the screenshot can fail after the tab has rendered correctly.
-                after = await self._shot(
-                    page, page_name=page_name, interaction=f"tab-{name}",
-                    state="after", viewport=viewport, ticker=ticker,
-                    complete_surface=True,
+                # A full stitched page capture per tab can exhaust the bounded
+                # Home-card traversal envelope. Reacquire the selected panel,
+                # require two stable semantic snapshots, and capture that exact
+                # evidence surface instead.
+                after = await self._shot_selected_tab_panel(
+                    page, name=name, page_name=page_name,
+                    interaction=f"tab-{name}", state="after",
+                    viewport=viewport, ticker=ticker,
                 )
                 changed = after_text != before_text or selected
                 panel_identity = await self._selected_tab_panel_has_content(page, name)
@@ -1778,36 +1988,116 @@ class AtlasVisualCrawler:
         return False
 
     async def _click_expanders(self, page: Page, *, page_name: str, viewport: str = "desktop") -> None:
-        candidates: list[tuple[str, Any]] = []
+        candidates: dict[str, Any] = {}
         for scope in _scopes(page):
             try:
                 nodes = scope.locator('[data-testid="stExpander"] summary, details summary')
                 for index in range(await nodes.count()):
                     node = nodes.nth(index)
                     if await node.is_visible():
-                        candidates.append(((await node.inner_text()).strip() or f"expander-{index + 1}", node))
+                        label = canonical_expander_label(await node.inner_text()) or f"expander-{index + 1}"
+                        candidates.setdefault(label, node)
             except Exception:
                 continue
-        for name, node in candidates:
+        for name, node in candidates.items():
             started = time.monotonic()
             before = await self._shot(page, page_name=page_name, interaction=f"expander-{name}", state="before", viewport=viewport)
             try:
-                await node.click(timeout=5000)
-                await page.wait_for_timeout(350)
-                expanded = await node.evaluate("el => el.getAttribute('aria-expanded') === 'true' || !!el.closest('details')?.open")
+                async def reacquire() -> Any | None:
+                    for scope in _scopes(page):
+                        summaries = scope.locator('[data-testid="stExpander"] summary, details summary')
+                        for summary_index in range(await summaries.count()):
+                            candidate = summaries.nth(summary_index)
+                            if (
+                                await candidate.is_visible()
+                                and canonical_expander_label(await candidate.inner_text()) == name
+                            ):
+                                return candidate
+                    return None
+
+                async def dom_state(current: Any) -> dict[str, Any]:
+                    return await current.evaluate(
+                        """el => {
+                            const details = el.closest('details');
+                            const content = details?.querySelector('[data-testid="stExpanderDetails"]');
+                            const icon = el.querySelector('[data-testid="stIconMaterial"]');
+                            const style = content ? getComputedStyle(content) : null;
+                            const rect = content?.getBoundingClientRect();
+                            const inert = !!content?.hasAttribute('inert');
+                            return {
+                                details_open: !!details?.open,
+                                content_inert: inert,
+                                content_visible: !!content && !inert && style?.display !== 'none'
+                                    && style?.visibility !== 'hidden' && !!rect && rect.height > 0,
+                                content_text: (content?.innerText || '').trim(),
+                                icon: (icon?.textContent || '').trim(),
+                            };
+                        }"""
+                    )
+
+                async def settled_state(expected: str) -> tuple[bool, dict[str, Any]]:
+                    consecutive = 0
+                    last: dict[str, Any] = {}
+                    deadline = time.monotonic() + 15
+                    while time.monotonic() < deadline:
+                        current = await reacquire()
+                        if current is None:
+                            consecutive = 0
+                        else:
+                            last = await dom_state(current)
+                            state = expander_semantic_state(last)
+                            customer_content = bool(str(last.get("content_text") or "").strip())
+                            matches = state == expected and (expected != "EXPANDED" or customer_content)
+                            consecutive = consecutive + 1 if matches else 0
+                            if consecutive >= 2:
+                                return True, last
+                        await page.wait_for_timeout(150)
+                    return False, last
+
+                initial_collapsed, initial_dom = await settled_state("COLLAPSED")
+                current = await reacquire()
+                if current is None:
+                    raise RuntimeError("EXPANDER_NOT_REACQUIRED_BEFORE_OPEN")
+                await current.click(timeout=5000)
+                open_immediate = await self._shot(
+                    page, page_name=page_name, interaction=f"expander-{name}",
+                    state="open-immediate", viewport=viewport,
+                )
+                expanded, expanded_dom = await settled_state("EXPANDED")
                 exception = await _has_rendered_exception(page)
-                after = await self._shot(page, page_name=page_name, interaction=f"expander-{name}", state="after", viewport=viewport)
+                open_settled = await self._shot(
+                    page, page_name=page_name, interaction=f"expander-{name}",
+                    state="open-settled", viewport=viewport,
+                )
                 collapsed = False
+                collapsed_dom: dict[str, Any] = {}
+                close_immediate = ""
+                close_settled = ""
                 if expanded:
-                    await node.click(timeout=3000)
-                    await page.wait_for_timeout(150)
-                    collapsed = await node.evaluate("el => el.getAttribute('aria-expanded') === 'false' || !el.closest('details')?.open")
+                    current = await reacquire()
+                    if current is None:
+                        raise RuntimeError("EXPANDER_NOT_REACQUIRED_BEFORE_CLOSE")
+                    await current.click(timeout=3000)
+                    close_immediate = await self._shot(
+                        page, page_name=page_name, interaction=f"expander-{name}",
+                        state="close-immediate", viewport=viewport,
+                    )
+                    collapsed, collapsed_dom = await settled_state("COLLAPSED")
+                    close_settled = await self._shot(
+                        page, page_name=page_name, interaction=f"expander-{name}",
+                        state="close-settled", viewport=viewport,
+                    )
                 await self._record(
                     category="EXPANDER", page_name=page_name, interaction=name,
                     expected="Required expander opens, exposes content, and closes",
-                    observed=f"expanded={expanded}; collapsed={collapsed}; exception={exception}",
-                    passed=expanded and collapsed and not exception, elapsed=time.monotonic() - started,
-                    viewport=viewport, screenshots=(before, after),
+                    observed=(f"initial_collapsed={initial_collapsed}; expanded={expanded}; collapsed={collapsed}; "
+                              f"initial_dom={initial_dom}; expanded_dom={expanded_dom}; "
+                              f"collapsed_dom={collapsed_dom}; exception={exception}"),
+                    passed=initial_collapsed and expanded and collapsed and not exception, elapsed=time.monotonic() - started,
+                    viewport=viewport,
+                    screenshots=tuple(path for path in (
+                        before, open_immediate, open_settled, close_immediate, close_settled,
+                    ) if path),
                     exception=await self._exception_identity(page) if exception else {},
                 )
             except Exception as exc:
@@ -1817,6 +2107,46 @@ class AtlasVisualCrawler:
                     passed=False, elapsed=time.monotonic() - started, viewport=viewport,
                     screenshots=(before,), severity="P2",
                 )
+
+    async def _position_management_contract(self, page: Page, *, viewport: str) -> None:
+        started = time.monotonic()
+        required_states = {"HOLD", "HOLD_NO_ADD", "TRIM", "EXIT", "SUSPENDED", "REVIEW"}
+        observed: dict[str, dict[str, str]] = {}
+        screenshots: list[str] = []
+        for scope in _scopes(page):
+            nodes = scope.locator('[data-atlas-qa="position-management-state"]')
+            for index in range(await nodes.count()):
+                node = nodes.nth(index)
+                state = (await node.get_attribute("data-atlas-position-instruction") or "").upper()
+                if state not in required_states:
+                    continue
+                attrs = {}
+                for key in (
+                    "ticker", "thesis-state", "valuation-state", "technical-state", "data-certainty",
+                    "review-flag", "reason-codes", "methodology-version", "rule-table-version", "classification",
+                ):
+                    attrs[key] = await node.get_attribute(f"data-atlas-{key}") or ""
+                observed[state] = attrs
+                if await node.is_visible():
+                    screenshots.append(await self._shot_locator(
+                        node, page_name="Portfolio Intelligence", interaction=f"position-{state.lower()}",
+                        state="visible", viewport=viewport, ticker=attrs["ticker"],
+                    ))
+        complete = required_states <= set(observed)
+        fields_complete = complete and all(
+            all(item.get(key) for key in (
+                "ticker", "thesis-state", "valuation-state", "technical-state", "data-certainty",
+                "review-flag", "reason-codes", "methodology-version", "rule-table-version", "classification",
+            )) for item in observed.values()
+        )
+        overflow = await page.evaluate("document.documentElement.scrollWidth > document.documentElement.clientWidth + 1")
+        await self._record(
+            category="POSITION_MANAGEMENT", page_name="Portfolio Intelligence",
+            interaction="shadow-state-contract", expected="All six governed shadow instructions with complete semantic identity",
+            observed=f"states={sorted(observed)}; fields_complete={fields_complete}; horizontal_overflow={overflow}",
+            passed=complete and fields_complete and not overflow, elapsed=time.monotonic() - started,
+            viewport=viewport, screenshots=tuple(screenshots), severity="P1", required=False,
+        )
 
     async def _supporting_evidence(self, page: Page, *, page_name: str, viewport: str = "desktop") -> None:
         """Inspect visible evidence and exercise one declared Research drill-down."""
@@ -2013,6 +2343,8 @@ class AtlasVisualCrawler:
                 )
                 passed = passed and architecture_passed
             after = await self._shot(page, page_name="Research Any Ticker", interaction=f"submit-{ticker}", state="after", viewport=viewport, ticker=ticker, complete_surface=ticker != "INVALID123")
+            if passed and ticker == "NVDA" and architecture.get("version") == RESEARCH_V2_VERSION:
+                await self._research_v2_section_screenshots(page, ticker, viewport)
             for entry in reversed(self.manifest):
                 if entry.get("path") == after:
                     entry["research_terminal_state"] = completion.get("research_terminal_state")
@@ -2028,6 +2360,7 @@ class AtlasVisualCrawler:
             if (
                 passed and tabs and ticker != "INVALID123"
                 and not completion.get("certification_incomplete")
+                and architecture.get("version") != RESEARCH_V2_VERSION
             ):
                 # UX-2 is authoritative. Never rediscover/certify the preserved
                 # legacy twelve-tab presentation for an active Research result.
@@ -2076,9 +2409,20 @@ class AtlasVisualCrawler:
         )
         await self._open_buy_now_expander(page)
         unique = await self._discover_visible_home_cards(page)
-        indexes = sorted(set((0, len(unique) // 2, len(unique) - 1))) if unique else []
-        for index in indexes:
-            interaction_id, ticker = unique[index]
+        by_ticker = {ticker: (interaction_id, ticker) for interaction_id, ticker in unique}
+        if viewport == "desktop":
+            selected = [by_ticker[ticker] for ticker in ("NVDA", "MSFT", "CODA") if ticker in by_ticker]
+            missing = [ticker for ticker in ("NVDA", "MSFT", "CODA") if ticker not in by_ticker]
+            for ticker in missing:
+                await self._record(
+                    category="HOME_DRILLDOWN", page_name="Home", interaction=f"home-to-research-{ticker.lower()}",
+                    expected=f"Governed Home card exposes Research CTA for {ticker}",
+                    observed="required CTA not discovered", passed=False, elapsed=0.0,
+                    ticker=ticker, viewport=viewport, severity="P1",
+                )
+        else:
+            selected = [by_ticker.get("NVDA", unique[0] if unique else ("", "NVDA"))]
+        for interaction_id, ticker in selected:
             started = time.monotonic()
             before = ""
             operation = "resolve_visible_cta"
@@ -2189,7 +2533,7 @@ class AtlasVisualCrawler:
             result["actionable_card_count"]
             and "ATLAS Fair Value" in text
             and "Potential" in text
-            and "Decision Confidence" in text
+            and ("Decision Confidence" in text or "Confidence" in text)
         )
         result["governed_zero_state"] = bool(
             result["actionable_card_count"] == 0
@@ -2233,21 +2577,22 @@ class AtlasVisualCrawler:
         return False
 
     async def _discover_visible_home_cards(self, page: Page) -> list[tuple[str, str]]:
-        """Discover actual visible BUY NOW CTAs, not hidden marker inventory."""
+        """Discover visible CTAs through their stable ticker-owned QA markers."""
         cards: list[tuple[str, str]] = []
         seen: set[str] = set()
         for scope in _scopes(page):
             try:
-                buttons = scope.get_by_role("button", name=re.compile(r"(?:Open Full Research|View Investment Case)", re.I))
-                for index in range(await buttons.count()):
-                    button = buttons.nth(index)
-                    if not await button.is_visible():
+                markers = scope.locator(
+                    '[data-atlas-qa="home-guidance-research-cta"]'
+                    '[data-atlas-ticker][data-atlas-interaction-id]'
+                )
+                for index in range(await markers.count()):
+                    marker = markers.nth(index)
+                    button = marker.locator("xpath=following::button[1]").first
+                    if not await button.count() or not await button.is_visible():
                         continue
-                    marker = button.locator("xpath=preceding::*[@data-atlas-interaction-id][1]")
-                    if not await marker.count():
-                        continue
-                    interaction_id = await marker.first.get_attribute("data-atlas-interaction-id") or ""
-                    ticker = (await marker.first.get_attribute("data-atlas-expected-ticker") or "").upper()
+                    interaction_id = await marker.get_attribute("data-atlas-interaction-id") or ""
+                    ticker = (await marker.get_attribute("data-atlas-ticker") or "").upper()
                     if not interaction_id or not ticker or ticker in seen:
                         continue
                     card_text = ""
@@ -2255,8 +2600,9 @@ class AtlasVisualCrawler:
                         card = button.locator(f"xpath=ancestor::*[@data-testid='{test_id}'][1]")
                         if await card.count():
                             card_text += " " + await card.first.inner_text()
-                    vnext = scope.locator('[data-atlas-qa="home-guidance-vnext"]')
-                    if "BUY NOW" not in card_text.upper() and not await vnext.count():
+                    if "BUY NOW" not in card_text.upper() and not await scope.locator(
+                        '[data-atlas-qa="home-guidance-vnext"]'
+                    ).count():
                         continue
                     seen.add(ticker)
                     cards.append((interaction_id, ticker))
@@ -2284,7 +2630,9 @@ class AtlasVisualCrawler:
         exact_ticker = re.compile(rf"(?<![A-Z0-9]){re.escape(ticker)}(?![A-Z0-9])", re.I)
         for scope in _scopes(page):
             try:
-                buttons = scope.get_by_role("button", name=re.compile(r"(?:Open Full Research|View Investment Case)", re.I))
+                buttons = scope.get_by_role(
+                    "button", name=re.compile(r"(?:Open Full Research|View Investment Case|View Research)", re.I)
+                )
                 for index in range(await buttons.count()):
                     button = buttons.nth(index)
                     if not await button.is_visible():
@@ -2298,22 +2646,24 @@ class AtlasVisualCrawler:
         return None, None
 
     async def _research_identity(self, page: Page, ticker: str) -> dict[str, str]:
-        identity = {"ticker": ticker, "context_digest": "", "decision_digest": ""}
+        identity = {"ticker": ticker, "context_digest": "", "decision_digest": "", "authority_digest": ""}
         for scope in _scopes(page):
             nodes = scope.locator('[data-atlas-qa="research-context-v1"][data-atlas-ticker]')
             for index in range(await nodes.count()):
                 node = nodes.nth(index)
                 if (await node.get_attribute("data-atlas-ticker") or "").upper() == ticker.upper():
                     identity["decision_digest"] = await node.get_attribute("data-atlas-decision-digest") or ""
+                    identity["authority_digest"] = await node.get_attribute("data-atlas-authority-digest") or ""
                     summary = await node.get_attribute("data-atlas-context-summary") or ""
                     identity["context_digest"] = stable_digest(decode_context_summary(summary)) if summary else ""
                     return identity
         return identity
 
-    async def _ask(self, page: Page, *, viewport: str = "desktop") -> None:
+    async def _ask(self, page: Page, *, viewport: str = "desktop", ticker: str = "NVDA") -> None:
+        ticker = ticker.strip().upper()
         await self._page_visit(page, "Ask AI", viewport=viewport)
         started = time.monotonic()
-        before = await self._shot(page, page_name="Ask AI", interaction="grounded-question", state="before", viewport=viewport, ticker="NVDA")
+        before = await self._shot(page, page_name="Ask AI", interaction="grounded-question", state="before", viewport=viewport, ticker=ticker)
         try:
             control = None; button = None
             for scope in _scopes(page):
@@ -2324,7 +2674,7 @@ class AtlasVisualCrawler:
                     break
             if control is None or button is None:
                 raise RuntimeError("ASK_CONTROLS_MISSING")
-            await control.fill("Why does ATLAS like NVDA?")
+            await control.fill(f"Why does ATLAS like {ticker}?")
             await button.click()
             await page.wait_for_timeout(800)
             deadline = time.monotonic() + 30
@@ -2351,19 +2701,18 @@ class AtlasVisualCrawler:
             metadata: dict[str, str] = {}
             if response_marker is not None and await response_marker.count():
                 for key in (
-                    "ticker", "context-digest", "decision-digest", "evidence-used",
+                    "ticker", "context-digest", "authority-digest", "decision-digest", "evidence-used",
                     "evidence-missing", "evidence-ids", "evidence-limitations",
                 ):
                     metadata[key] = await response_marker.get_attribute(f"data-atlas-{key}") or ""
-            performance = page.locator('[data-atlas-qa="ask-performance"][data-atlas-ticker="NVDA"]')
+            performance = page.locator(f'[data-atlas-qa="ask-performance"][data-atlas-ticker="{ticker}"]')
             if await performance.count() and not metadata.get("context-digest"):
                 metadata["context-digest"] = await performance.last.get_attribute("data-atlas-context-digest") or ""
-            ticker_match = metadata.get("ticker", "").upper() == "NVDA"
-            research_identity = self.research_contexts.get("NVDA", {})
+            ticker_match = metadata.get("ticker", "").upper() == ticker
+            research_identity = self.research_contexts.get(ticker, {})
             digest_match = bool(
-                metadata.get("context-digest") and
-                (not research_identity.get("context_digest") or
-                 metadata.get("context-digest") == research_identity.get("context_digest"))
+                metadata.get("authority-digest") and research_identity.get("authority_digest") and
+                metadata.get("authority-digest") == research_identity.get("authority_digest")
             )
             metadata_present = bool(
                 digest_match and (metadata.get("decision-digest") or research_identity.get("decision_digest")) and
@@ -2376,22 +2725,28 @@ class AtlasVisualCrawler:
             evidence_metadata = metadata_present and visible_evidence
             unsupported_numeric = numeric_claims and not evidence_metadata
             raw_large_number = bool(re.search(r"(?<![\d,])(?:\d{10,}|\d{1,3}(?:,\d{3}){3,})(?![\d,])", text))
-            after = await self._shot(page, page_name="Ask AI", interaction="grounded-question", state="answer-and-evidence", viewport=viewport, ticker="NVDA", complete_surface=True)
+            after = await self._shot(page, page_name="Ask AI", interaction="grounded-question", state="answer-and-evidence", viewport=viewport, ticker=ticker, complete_surface=True)
             await self._record(
                 category="ASK", page_name="Ask AI", interaction="grounded-question",
                 expected="NVDA-grounded answer with visible evidence/context metadata",
                 observed=f"ticker_context={ticker_match}; context_digest={bool(metadata.get('context-digest'))}; decision_digest={bool(metadata.get('decision-digest'))}; evidence_metadata={evidence_metadata}; unsupported_numeric={unsupported_numeric}; exception={exception}",
                 passed=grounded and not unsupported_numeric and not exception, elapsed=time.monotonic() - started,
-                ticker="NVDA", viewport=viewport, screenshots=(before, after), severity="P1",
+                ticker=ticker, viewport=viewport, screenshots=(before, after), severity="P1",
                 exception=await self._exception_identity(page) if exception else {},
             )
-            digest_state = "PASS" if digest_match else ("FAIL" if metadata.get("context-digest") and research_identity.get("context_digest") else "NEEDS_REVIEW")
+            digest_state = "PASS" if digest_match else "FAIL"
             await self._record(
                 category="ASK_RECONCILIATION", page_name="Ask AI", interaction="context-digest",
-                expected="Ask context digest equals the rendered canonical Research context digest",
-                observed=f"state={digest_state}; ask_digest={bool(metadata.get('context-digest'))}; research_digest={bool(research_identity.get('context_digest'))}",
+                expected="Ask authority digest equals the rendered canonical Research authority digest",
+                observed=(
+                    f"state={digest_state}; ask_authority_digest={metadata.get('authority-digest') or 'MISSING'}; "
+                    f"research_authority_digest={research_identity.get('authority_digest') or 'MISSING'}; "
+                    f"ask_presentation_digest={metadata.get('context-digest') or 'MISSING'}; "
+                    f"research_presentation_digest={research_identity.get('context_digest') or 'MISSING'}; "
+                    f"ticker={metadata.get('ticker') or 'MISSING'}"
+                ),
                 passed=digest_state == "PASS", elapsed=time.monotonic() - started,
-                ticker="NVDA", viewport=viewport, screenshots=(after,), severity="P2",
+                ticker=ticker, viewport=viewport, screenshots=(after,), severity="P2",
                 status_override=digest_state,
             )
             await self._record(
@@ -2399,23 +2754,29 @@ class AtlasVisualCrawler:
                 expected="Large numeric evidence is customer-formatted",
                 observed=f"raw_large_numeric_value={raw_large_number}",
                 passed=not raw_large_number, elapsed=time.monotonic() - started,
-                ticker="NVDA", viewport=viewport, screenshots=(after,), severity="P2",
+                ticker=ticker, viewport=viewport, screenshots=(after,), severity="P2",
             )
         except Exception as exc:
             await self._record(
                 category="ASK", page_name="Ask AI", interaction="grounded-question",
                 expected="Ask control and grounded response", observed=type(exc).__name__,
-                passed=False, elapsed=time.monotonic() - started, ticker="NVDA",
+                passed=False, elapsed=time.monotonic() - started, ticker=ticker,
                 viewport=viewport, screenshots=(before,), severity="P1",
             )
 
     async def _required_desktop(self, page: Page) -> None:
         await page.set_viewport_size(DESKTOP)
-        await asyncio.wait_for(self._home_cards(page), timeout=45)
+        await asyncio.wait_for(self._home_cards(page), timeout=90)
         for ticker in REQUIRED_RESEARCH_TICKERS:
-            passed = await asyncio.wait_for(self._submit_research(page, ticker, tabs=False), timeout=60)
+            passed = await asyncio.wait_for(self._submit_research(page, ticker, tabs=True), timeout=45)
             if not passed:
                 raise GlobalCrawlFailure(f"REQUIRED_RESEARCH_FAILED_{ticker}")
+        if not await asyncio.wait_for(self._page_visit(page, "Earnings Intelligence"), timeout=20):
+            raise GlobalCrawlFailure("REQUIRED_EARNINGS_DESKTOP_FAILED")
+        await asyncio.wait_for(self._earnings_vnext_contract(page, viewport="desktop"), timeout=15)
+        if not await asyncio.wait_for(self._page_visit(page, "Watchlist Intelligence"), timeout=20):
+            raise GlobalCrawlFailure("REQUIRED_WATCHLIST_DESKTOP_FAILED")
+        await asyncio.wait_for(self._ask(page, viewport="desktop"), timeout=35)
 
     async def _supplementary_desktop(self, page: Page) -> None:
         await page.set_viewport_size(DESKTOP)
@@ -2442,18 +2803,29 @@ class AtlasVisualCrawler:
             if page_name == "Recovery":
                 await self._recovery_vnext_contract(page, viewport="desktop")
                 await self._recovery_candidate_journeys(page, viewport="desktop", drill_down=True)
+            if page_name == "Portfolio Intelligence":
+                await self._position_management_contract(page, viewport="desktop")
             if page_name in {"Earnings Intelligence", "Political Intelligence"}:
                 await self._click_expanders(page, page_name=page_name)
                 await self._supporting_evidence(page, page_name=page_name)
             if page_name == "Ask AI":
-                await self._ask(page)
+                for ticker in REQUIRED_RESEARCH_TICKERS:
+                    if not self.research_contexts.get(ticker, {}).get("authority_digest"):
+                        await self._submit_research(page, ticker, tabs=False, viewport="desktop")
+                    await self._ask(page, ticker=ticker)
 
     async def _required_mobile(self, page: Page) -> None:
         await page.set_viewport_size(MOBILE)
-        await asyncio.wait_for(self._home_cards(page, viewport="mobile"), timeout=45)
-        passed = await asyncio.wait_for(self._submit_research(page, "NVDA", tabs=False, viewport="mobile"), timeout=60)
+        await asyncio.wait_for(self._home_cards(page, viewport="mobile"), timeout=30)
+        passed = await asyncio.wait_for(self._submit_research(page, "NVDA", tabs=True, viewport="mobile"), timeout=45)
         if not passed:
             raise GlobalCrawlFailure("REQUIRED_RESEARCH_FAILED_NVDA_MOBILE")
+        if not await asyncio.wait_for(self._page_visit(page, "Earnings Intelligence", viewport="mobile"), timeout=20):
+            raise GlobalCrawlFailure("REQUIRED_EARNINGS_MOBILE_FAILED")
+        await asyncio.wait_for(self._earnings_vnext_contract(page, viewport="mobile"), timeout=15)
+        if not await asyncio.wait_for(self._page_visit(page, "Watchlist Intelligence", viewport="mobile"), timeout=20):
+            raise GlobalCrawlFailure("REQUIRED_WATCHLIST_MOBILE_FAILED")
+        await asyncio.wait_for(self._ask(page, viewport="mobile"), timeout=35)
 
     async def _supplementary_mobile(self, page: Page) -> None:
         await page.set_viewport_size(MOBILE)
@@ -2473,6 +2845,8 @@ class AtlasVisualCrawler:
     async def _supplementary_mobile_page(self, page: Page, page_name: str) -> None:
             await self._page_visit(page, page_name, viewport="mobile")
             if page_name == "Ask AI":
+                if not self.research_contexts.get("NVDA", {}).get("authority_digest"):
+                    await self._submit_research(page, "NVDA", tabs=False, viewport="mobile")
                 await self._ask(page, viewport="mobile")
             elif page_name == "Political Intelligence":
                 await self._click_expanders(page, page_name=page_name, viewport="mobile")
@@ -2484,6 +2858,8 @@ class AtlasVisualCrawler:
             elif page_name == "Recovery":
                 await self._recovery_vnext_contract(page, viewport="mobile")
                 await self._recovery_candidate_journeys(page, viewport="mobile", drill_down=False)
+            elif page_name == "Portfolio Intelligence":
+                await self._position_management_contract(page, viewport="mobile")
 
     async def run(self, *, phase: str = "all") -> dict[str, Any]:
         self.enforce_required_authority = phase in {"required", "all"}
@@ -2505,7 +2881,7 @@ class AtlasVisualCrawler:
                                 in {"1", "true", "yes"}
                             ),
                         ),
-                        timeout=90 if phase in {"required", "all"} else 300,
+                        timeout=60 if phase in {"required", "all"} else 300,
                     )
                 except Exception as exc:
                     shot = await self._shot(page, page_name="GLOBAL", interaction="authentication", state="failure")
@@ -2518,8 +2894,9 @@ class AtlasVisualCrawler:
                     )
                     raise GlobalCrawlFailure(category) from exc
                 if phase in {"required", "all"}:
-                    await asyncio.wait_for(self._required_desktop(page), timeout=225)
-                    await asyncio.wait_for(self._required_mobile(page), timeout=105)
+                    await self._customer_navigation_contract(page)
+                    await asyncio.wait_for(self._required_desktop(page), timeout=285)
+                    await asyncio.wait_for(self._required_mobile(page), timeout=135)
                     if self._required_completeness().get("status") != "PASS":
                         raise GlobalCrawlFailure("REQUIRED_PRODUCTION_CERTIFICATION_FAILED")
                 if phase in {"supplementary", "all"}:

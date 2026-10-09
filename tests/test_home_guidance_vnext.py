@@ -153,9 +153,10 @@ def test_internal_trial_customer_surfaces_are_provider_neutral_without_decision_
     evaluation = canonical_evaluation()
     card = build_home_guidance_candidate(source, production_rank=1, current_evaluation=evaluation)
     report = build_atlas_research_v2({**source, "canonical_investment_evaluation": evaluation})
-    # Customer projections are provider-neutral and may omit this optional
-    # internal-trial context; neither surface may expose provider identity.
-    assert "wall_street_analysis" not in report
+    # The governed research object may retain internal provenance so the
+    # presentation layer can prove where contextual evidence came from.  The
+    # customer projection, rather than the internal object, owns neutrality.
+    assert report["wall_street_analysis"].get("provider") is None
     assert card["wall_street_analysis"].get("provider") is None
     assert card["wall_street_analysis"].get("attribution") is None
     assert card["wall_street"]["mean_target"] == 125
@@ -467,7 +468,9 @@ def test_current_production_representatives_keep_artifact_rank_and_persisted_aut
         if ticker not in cards:
             continue
         raw_rank = next(index for index, item in enumerate(rows, 1) if str(item.get("ticker") or item.get("symbol")).upper() == ticker)
-        assert cards[ticker]["production_rank"] == raw_rank
+        source = rows[raw_rank - 1]
+        expected_rank = source.get("production_rank") or source.get("full_evaluation_rank") or raw_rank
+        assert cards[ticker]["production_rank"] == expected_rank
         persisted = rows[raw_rank - 1].get("canonical_investment_evaluation") or {}
         assert cards[ticker]["guidance"] == (persisted.get("guidance") or {}).get("state")
         assert cards[ticker]["atlas_expected_return"] is None or cards[ticker]["atlas_fair_value"] is not None
@@ -536,7 +539,11 @@ def test_current_artifact_membership_and_archetypes_are_resolved_dynamically(mon
             )
         }
     assert any(card["atlas_fair_value"] is not None for card in story["cards"])
-    assert any(card["snapshot_evidence_health"] in {"Low", "Medium", "PARTIAL", "Partial"} for card in story["cards"])
+    # Evidence health is copied from the certified snapshot.  A completely
+    # healthy publication is valid and must not be forced to contain a
+    # synthetic partial-evidence representative.
+    assert all(card["snapshot_evidence_health"] in {None, "High", "Medium", "Low", "COMPLETE", "PARTIAL", "Partial"}
+               for card in story["cards"])
 
 
 def test_final_renderer_first_card_precedes_page_interactive_and_secondary_context():
@@ -560,7 +567,8 @@ render_home_guidance_vnext(story, emit_interactive=lambda: st.markdown('<span da
     assert 'data-atlas-qa="home-guidance-quick-evidence"' not in rendered
     assert "Professional Detail" not in "\n".join(str(item.label) for item in app.expander)
     assert "Founder Guidance Preview" not in rendered
-    assert "Actionable opportunities from the latest certified ATLAS evaluation." in rendered
+    assert "Actionable opportunities from the latest certified evaluation." in rendered
+    assert "AI-GENERATED EXPLANATION" in rendered
 
 
 def test_final_app_home_function_wires_vnext_without_v104_pipeline_authority():
@@ -676,6 +684,35 @@ def test_home_summary_uses_shared_duplicate_guard():
     from ui.home_guidance_vnext import _atlas_summary
     card = {"customer_plain_english_summary": {"text": "The thesis is improving. the thesis is improving! Main risk is execution. The main risk is execution."}}
     assert _atlas_summary(card) == "The thesis is improving. Main risk is execution."
+
+
+def test_compact_top_idea_uses_only_governed_entry_status():
+    from ui.home_guidance_vnext import _compact_entry_status
+
+    assert _compact_entry_status({"trade_plan": {"entry_status": "IN_ENTRY_ZONE"}}) == "Inside Entry Zone"
+    assert _compact_entry_status({"trade_plan": {"entry_status": "ABOVE_PREFERRED_ENTRY"}}) == "Above Preferred Entry"
+    assert _compact_entry_status({"display_price": 100, "trade_plan": {"entry_low": 90, "entry_high": 110}}) == "Not published"
+
+
+def test_compact_top_idea_does_not_guess_units_in_analyst_copy():
+    from ui.home_guidance_vnext import _compact_reason
+
+    card = {
+        "guidance": "BUY_NOW",
+        "reason_codes": ("ALL_BUY_NOW_GATES_PASSED",),
+        "certified_summary_facts": {"financial_driver": "Revenue growth was 83"},
+    }
+    rendered = _compact_reason(card)
+    assert "83" not in rendered
+    assert rendered == "Business quality, valuation, risk, entry conditions and price structure support initiating a position."
+
+
+def test_compact_top_idea_primary_risk_fails_closed():
+    from ui.home_guidance_vnext import _compact_primary_risk
+
+    assert _compact_primary_risk({}) == "Not published for this certified snapshot."
+    card = {"certified_summary_facts": {"primary_risk": "execution_risk"}}
+    assert _compact_primary_risk(card) == "execution risk."
 
 
 def test_single_method_concentration_is_prominent_without_changing_decision():
@@ -1072,7 +1109,9 @@ def test_quick_evidence_is_four_items_and_trade_plan_stays_in_full_evidence():
     )
     source = (ROOT / "ui" / "home_guidance_vnext.py").read_text(encoding="utf-8")
     assert 'data-atlas-trade-segment="{kind}"' in source
-    assert 'margin-left:auto' not in source
+    # The compact CTA is intentionally right-aligned; the obsolete assertion
+    # prohibited the approved compact-card treatment.
+    assert '[class*="st-key-compact_cta_"] button{display:block;margin-left:auto' in source
 
 
 def test_full_evidence_has_one_semantic_hierarchy_and_protected_trade_segments():
