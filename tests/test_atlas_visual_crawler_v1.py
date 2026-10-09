@@ -156,6 +156,8 @@ def test_research_v2_crawler_contract_uses_semantic_markers_without_removing_leg
     ):
         assert f'"{marker}"' in source
     assert "declared_architecture or v2_architecture" in source
+    assert 'architecture.get("version") != RESEARCH_V2_VERSION' in source
+    assert "expected_tabs=RESEARCH_VNEXT_SECTION_LABELS" in source
 
 
 def test_visual_crawler_has_complete_non_blocking_product_scope():

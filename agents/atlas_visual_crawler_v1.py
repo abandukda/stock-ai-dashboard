@@ -2185,6 +2185,7 @@ class AtlasVisualCrawler:
             if (
                 passed and tabs and ticker != "INVALID123"
                 and not completion.get("certification_incomplete")
+                and architecture.get("version") != RESEARCH_V2_VERSION
             ):
                 # UX-2 is authoritative. Never rediscover/certify the preserved
                 # legacy twelve-tab presentation for an active Research result.
