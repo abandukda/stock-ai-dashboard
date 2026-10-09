@@ -186,7 +186,7 @@ MOBILE = {"width": 390, "height": 844}
 GLOBAL_FATALS = {"APP_UNREACHABLE", "AUTHENTICATION_FAILED", "BROWSER_DIED"}
 MOBILE_PAGES = (
     "Home", "Research Any Ticker", "Today's Opportunities", "Ask AI",
-    "Political Intelligence", "Earnings Intelligence", "Full Ranked Scan", "Recovery",
+    "Political Intelligence", "Earnings Intelligence", "Full Ranked Scan", "Portfolio Intelligence", "Recovery",
 )
 REQUIRED_RESEARCH_TICKERS = ("NVDA", "MSFT", "AVT")
 REQUIRED_PAGE_VIEWPORTS = frozenset({
@@ -1977,21 +1977,52 @@ class AtlasVisualCrawler:
             started = time.monotonic()
             before = await self._shot(page, page_name=page_name, interaction=f"expander-{name}", state="before", viewport=viewport)
             try:
-                await node.click(timeout=5000)
-                await page.wait_for_timeout(350)
-                expanded = await node.evaluate("el => el.getAttribute('aria-expanded') === 'true' || !!el.closest('details')?.open")
+                async def reacquire() -> Any | None:
+                    for scope in _scopes(page):
+                        summaries = scope.locator('[data-testid="stExpander"] summary, details summary')
+                        for summary_index in range(await summaries.count()):
+                            candidate = summaries.nth(summary_index)
+                            if await candidate.is_visible() and (await candidate.inner_text()).strip() == name:
+                                return candidate
+                    return None
+
+                async def settled_state(expected: bool) -> bool:
+                    consecutive = 0
+                    deadline = time.monotonic() + 15
+                    while time.monotonic() < deadline:
+                        current = await reacquire()
+                        if current is None:
+                            consecutive = 0
+                        else:
+                            state = await current.evaluate(
+                                "el => el.getAttribute('aria-expanded') === 'true' || !!el.closest('details')?.open"
+                            )
+                            consecutive = consecutive + 1 if bool(state) is expected else 0
+                            if consecutive >= 2:
+                                return True
+                        await page.wait_for_timeout(150)
+                    return False
+
+                initial_collapsed = await settled_state(False)
+                current = await reacquire()
+                if current is None:
+                    raise RuntimeError("EXPANDER_NOT_REACQUIRED_BEFORE_OPEN")
+                await current.click(timeout=5000)
+                expanded = await settled_state(True)
                 exception = await _has_rendered_exception(page)
                 after = await self._shot(page, page_name=page_name, interaction=f"expander-{name}", state="after", viewport=viewport)
                 collapsed = False
                 if expanded:
-                    await node.click(timeout=3000)
-                    await page.wait_for_timeout(150)
-                    collapsed = await node.evaluate("el => el.getAttribute('aria-expanded') === 'false' || !el.closest('details')?.open")
+                    current = await reacquire()
+                    if current is None:
+                        raise RuntimeError("EXPANDER_NOT_REACQUIRED_BEFORE_CLOSE")
+                    await current.click(timeout=3000)
+                    collapsed = await settled_state(False)
                 await self._record(
                     category="EXPANDER", page_name=page_name, interaction=name,
                     expected="Required expander opens, exposes content, and closes",
-                    observed=f"expanded={expanded}; collapsed={collapsed}; exception={exception}",
-                    passed=expanded and collapsed and not exception, elapsed=time.monotonic() - started,
+                    observed=f"initial_collapsed={initial_collapsed}; expanded={expanded}; collapsed={collapsed}; exception={exception}",
+                    passed=initial_collapsed and expanded and collapsed and not exception, elapsed=time.monotonic() - started,
                     viewport=viewport, screenshots=(before, after),
                     exception=await self._exception_identity(page) if exception else {},
                 )
@@ -2002,6 +2033,46 @@ class AtlasVisualCrawler:
                     passed=False, elapsed=time.monotonic() - started, viewport=viewport,
                     screenshots=(before,), severity="P2",
                 )
+
+    async def _position_management_contract(self, page: Page, *, viewport: str) -> None:
+        started = time.monotonic()
+        required_states = {"HOLD", "HOLD_NO_ADD", "TRIM", "EXIT", "SUSPENDED", "REVIEW"}
+        observed: dict[str, dict[str, str]] = {}
+        screenshots: list[str] = []
+        for scope in _scopes(page):
+            nodes = scope.locator('[data-atlas-qa="position-management-state"]')
+            for index in range(await nodes.count()):
+                node = nodes.nth(index)
+                state = (await node.get_attribute("data-atlas-position-instruction") or "").upper()
+                if state not in required_states:
+                    continue
+                attrs = {}
+                for key in (
+                    "ticker", "thesis-state", "valuation-state", "technical-state", "data-certainty",
+                    "review-flag", "reason-codes", "methodology-version", "rule-table-version", "classification",
+                ):
+                    attrs[key] = await node.get_attribute(f"data-atlas-{key}") or ""
+                observed[state] = attrs
+                if await node.is_visible():
+                    screenshots.append(await self._shot_locator(
+                        node, page_name="Portfolio Intelligence", interaction=f"position-{state.lower()}",
+                        state="visible", viewport=viewport, ticker=attrs["ticker"],
+                    ))
+        complete = required_states <= set(observed)
+        fields_complete = complete and all(
+            all(item.get(key) for key in (
+                "ticker", "thesis-state", "valuation-state", "technical-state", "data-certainty",
+                "review-flag", "reason-codes", "methodology-version", "rule-table-version", "classification",
+            )) for item in observed.values()
+        )
+        overflow = await page.evaluate("document.documentElement.scrollWidth > document.documentElement.clientWidth + 1")
+        await self._record(
+            category="POSITION_MANAGEMENT", page_name="Portfolio Intelligence",
+            interaction="shadow-state-contract", expected="All six governed shadow instructions with complete semantic identity",
+            observed=f"states={sorted(observed)}; fields_complete={fields_complete}; horizontal_overflow={overflow}",
+            passed=complete and fields_complete and not overflow, elapsed=time.monotonic() - started,
+            viewport=viewport, screenshots=tuple(screenshots), severity="P1", required=False,
+        )
 
     async def _supporting_evidence(self, page: Page, *, page_name: str, viewport: str = "desktop") -> None:
         """Inspect visible evidence and exercise one declared Research drill-down."""
@@ -2514,10 +2585,11 @@ class AtlasVisualCrawler:
                     return identity
         return identity
 
-    async def _ask(self, page: Page, *, viewport: str = "desktop") -> None:
+    async def _ask(self, page: Page, *, viewport: str = "desktop", ticker: str = "NVDA") -> None:
+        ticker = ticker.strip().upper()
         await self._page_visit(page, "Ask AI", viewport=viewport)
         started = time.monotonic()
-        before = await self._shot(page, page_name="Ask AI", interaction="grounded-question", state="before", viewport=viewport, ticker="NVDA")
+        before = await self._shot(page, page_name="Ask AI", interaction="grounded-question", state="before", viewport=viewport, ticker=ticker)
         try:
             control = None; button = None
             for scope in _scopes(page):
@@ -2528,7 +2600,7 @@ class AtlasVisualCrawler:
                     break
             if control is None or button is None:
                 raise RuntimeError("ASK_CONTROLS_MISSING")
-            await control.fill("Why does ATLAS like NVDA?")
+            await control.fill(f"Why does ATLAS like {ticker}?")
             await button.click()
             await page.wait_for_timeout(800)
             deadline = time.monotonic() + 30
@@ -2559,11 +2631,11 @@ class AtlasVisualCrawler:
                     "evidence-missing", "evidence-ids", "evidence-limitations",
                 ):
                     metadata[key] = await response_marker.get_attribute(f"data-atlas-{key}") or ""
-            performance = page.locator('[data-atlas-qa="ask-performance"][data-atlas-ticker="NVDA"]')
+            performance = page.locator(f'[data-atlas-qa="ask-performance"][data-atlas-ticker="{ticker}"]')
             if await performance.count() and not metadata.get("context-digest"):
                 metadata["context-digest"] = await performance.last.get_attribute("data-atlas-context-digest") or ""
-            ticker_match = metadata.get("ticker", "").upper() == "NVDA"
-            research_identity = self.research_contexts.get("NVDA", {})
+            ticker_match = metadata.get("ticker", "").upper() == ticker
+            research_identity = self.research_contexts.get(ticker, {})
             digest_match = bool(
                 metadata.get("authority-digest") and research_identity.get("authority_digest") and
                 metadata.get("authority-digest") == research_identity.get("authority_digest")
@@ -2579,13 +2651,13 @@ class AtlasVisualCrawler:
             evidence_metadata = metadata_present and visible_evidence
             unsupported_numeric = numeric_claims and not evidence_metadata
             raw_large_number = bool(re.search(r"(?<![\d,])(?:\d{10,}|\d{1,3}(?:,\d{3}){3,})(?![\d,])", text))
-            after = await self._shot(page, page_name="Ask AI", interaction="grounded-question", state="answer-and-evidence", viewport=viewport, ticker="NVDA", complete_surface=True)
+            after = await self._shot(page, page_name="Ask AI", interaction="grounded-question", state="answer-and-evidence", viewport=viewport, ticker=ticker, complete_surface=True)
             await self._record(
                 category="ASK", page_name="Ask AI", interaction="grounded-question",
                 expected="NVDA-grounded answer with visible evidence/context metadata",
                 observed=f"ticker_context={ticker_match}; context_digest={bool(metadata.get('context-digest'))}; decision_digest={bool(metadata.get('decision-digest'))}; evidence_metadata={evidence_metadata}; unsupported_numeric={unsupported_numeric}; exception={exception}",
                 passed=grounded and not unsupported_numeric and not exception, elapsed=time.monotonic() - started,
-                ticker="NVDA", viewport=viewport, screenshots=(before, after), severity="P1",
+                ticker=ticker, viewport=viewport, screenshots=(before, after), severity="P1",
                 exception=await self._exception_identity(page) if exception else {},
             )
             digest_state = "PASS" if digest_match else "FAIL"
@@ -2600,7 +2672,7 @@ class AtlasVisualCrawler:
                     f"ticker={metadata.get('ticker') or 'MISSING'}"
                 ),
                 passed=digest_state == "PASS", elapsed=time.monotonic() - started,
-                ticker="NVDA", viewport=viewport, screenshots=(after,), severity="P2",
+                ticker=ticker, viewport=viewport, screenshots=(after,), severity="P2",
                 status_override=digest_state,
             )
             await self._record(
@@ -2608,13 +2680,13 @@ class AtlasVisualCrawler:
                 expected="Large numeric evidence is customer-formatted",
                 observed=f"raw_large_numeric_value={raw_large_number}",
                 passed=not raw_large_number, elapsed=time.monotonic() - started,
-                ticker="NVDA", viewport=viewport, screenshots=(after,), severity="P2",
+                ticker=ticker, viewport=viewport, screenshots=(after,), severity="P2",
             )
         except Exception as exc:
             await self._record(
                 category="ASK", page_name="Ask AI", interaction="grounded-question",
                 expected="Ask control and grounded response", observed=type(exc).__name__,
-                passed=False, elapsed=time.monotonic() - started, ticker="NVDA",
+                passed=False, elapsed=time.monotonic() - started, ticker=ticker,
                 viewport=viewport, screenshots=(before,), severity="P1",
             )
 
@@ -2657,11 +2729,16 @@ class AtlasVisualCrawler:
             if page_name == "Recovery":
                 await self._recovery_vnext_contract(page, viewport="desktop")
                 await self._recovery_candidate_journeys(page, viewport="desktop", drill_down=True)
+            if page_name == "Portfolio Intelligence":
+                await self._position_management_contract(page, viewport="desktop")
             if page_name in {"Earnings Intelligence", "Political Intelligence"}:
                 await self._click_expanders(page, page_name=page_name)
                 await self._supporting_evidence(page, page_name=page_name)
             if page_name == "Ask AI":
-                await self._ask(page)
+                for ticker in REQUIRED_RESEARCH_TICKERS:
+                    if not self.research_contexts.get(ticker, {}).get("authority_digest"):
+                        await self._submit_research(page, ticker, tabs=False, viewport="desktop")
+                    await self._ask(page, ticker=ticker)
 
     async def _required_mobile(self, page: Page) -> None:
         await page.set_viewport_size(MOBILE)
@@ -2694,6 +2771,8 @@ class AtlasVisualCrawler:
     async def _supplementary_mobile_page(self, page: Page, page_name: str) -> None:
             await self._page_visit(page, page_name, viewport="mobile")
             if page_name == "Ask AI":
+                if not self.research_contexts.get("NVDA", {}).get("authority_digest"):
+                    await self._submit_research(page, "NVDA", tabs=False, viewport="mobile")
                 await self._ask(page, viewport="mobile")
             elif page_name == "Political Intelligence":
                 await self._click_expanders(page, page_name=page_name, viewport="mobile")
@@ -2705,6 +2784,8 @@ class AtlasVisualCrawler:
             elif page_name == "Recovery":
                 await self._recovery_vnext_contract(page, viewport="mobile")
                 await self._recovery_candidate_journeys(page, viewport="mobile", drill_down=False)
+            elif page_name == "Portfolio Intelligence":
+                await self._position_management_contract(page, viewport="mobile")
 
     async def run(self, *, phase: str = "all") -> dict[str, Any]:
         self.enforce_required_authority = phase in {"required", "all"}

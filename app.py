@@ -16978,6 +16978,39 @@ def render_v505_portfolio_analyzer(full_df, top_df, recovery_df, watch_df, presc
     st.subheader("📂 Portfolio Intelligence")
     st.caption("Analyze your holdings for portfolio quality, risk, diversification, trim candidates, and replacement ideas.")
 
+    if os.getenv("ATLAS_QA_MODE", "").strip().lower() in {"1", "true", "yes"}:
+        _qa_states = (
+            ("NVDA", "HOLD", "INTACT", "ATTRACTIVE", "CONFIRMED", "HIGH", False, "THESIS_INTACT"),
+            ("MSFT", "HOLD_NO_ADD", "INTACT", "FULLY_VALUED", "CONFIRMED", "HIGH", False, "VALUATION_DISCIPLINE"),
+            ("AVT", "TRIM", "WEAKENING", "OVERVALUED", "DETERIORATING", "MEDIUM", True, "RISK_BUDGET_EXCEEDED"),
+            ("CSCO", "EXIT", "BROKEN", "OVERVALUED", "BROKEN", "HIGH", True, "THESIS_INVALIDATED"),
+            ("CTS", "SUSPENDED", "UNRESOLVED", "UNAVAILABLE", "UNAVAILABLE", "LOW", True, "DATA_CERTAINTY_INSUFFICIENT"),
+            ("DIOD", "REVIEW", "CHANGED", "FAIR", "MIXED", "MEDIUM", True, "MATERIAL_EVIDENCE_CHANGE"),
+        )
+        st.markdown(
+            '<span data-atlas-qa="position-management-contract" data-atlas-methodology-version="ATLAS_POSITION_MANAGEMENT_SHADOW_V1_1" '
+            'data-atlas-rule-table-version="ATLAS_POSITION_RULE_TABLE_V1_1" data-atlas-classification="QA_SHADOW_ONLY" '
+            'aria-hidden="true" style="display:none">position-management-contract</span>',
+            unsafe_allow_html=True,
+        )
+        st.info("Shadow QA presentation only — no portfolio instructions are written to a durable ledger.")
+        for _ticker, _instruction, _thesis, _valuation, _technical, _certainty, _review, _reason in _qa_states:
+            _label = _instruction.replace("_", " — ") if _instruction == "HOLD_NO_ADD" else _instruction.replace("_", " ")
+            st.markdown(
+                f'<div data-atlas-qa="position-management-state" data-atlas-ticker="{html.escape(_ticker)}" '
+                f'data-atlas-position-instruction="{html.escape(_instruction)}" data-atlas-thesis-state="{html.escape(_thesis)}" '
+                f'data-atlas-valuation-state="{html.escape(_valuation)}" data-atlas-technical-state="{html.escape(_technical)}" '
+                f'data-atlas-data-certainty="{html.escape(_certainty)}" data-atlas-review-flag="{str(_review).lower()}" '
+                f'data-atlas-reason-codes="{html.escape(_reason)}" '
+                'data-atlas-methodology-version="ATLAS_POSITION_MANAGEMENT_SHADOW_V1_1" '
+                'data-atlas-rule-table-version="ATLAS_POSITION_RULE_TABLE_V1_1" data-atlas-classification="QA_SHADOW_ONLY" '
+                'style="border:1px solid rgba(45,212,191,.28);border-radius:12px;padding:.75rem 1rem;margin:.5rem 0;overflow-wrap:anywhere">'
+                f'<strong>{html.escape(_ticker)} · {html.escape(_label)}</strong><br>'
+                f'<small>Thesis {_thesis} · Valuation {_valuation} · Technical {_technical} · Data certainty {_certainty}</small><br>'
+                f'<small>{"Review required" if _review else "No review flag"} · {_reason.replace("_", " ").title()}</small></div>',
+                unsafe_allow_html=True,
+            )
+
     default_text = "NVDA\nMSFT\nAVGO\nAMZN\nCRWD"
     text = st.text_area(
         "Enter tickers, one per line. Optional: add target weight like `NVDA 10%`.",

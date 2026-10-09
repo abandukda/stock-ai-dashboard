@@ -169,10 +169,34 @@ def test_visual_crawler_has_complete_non_blocking_product_scope():
     assert set(MOBILE_PAGES) == {
         "Home", "Research Any Ticker", "Today's Opportunities", "Ask AI",
         "Political Intelligence", "Earnings Intelligence", "Full Ranked Scan",
-        "Recovery",
+        "Portfolio Intelligence", "Recovery",
     }
     assert GLOBAL_FATALS == {"APP_UNREACHABLE", "AUTHENTICATION_FAILED", "BROWSER_DIED"}
     assert RESEARCH_COMPLETION_TIMEOUT_SECONDS >= 90
+
+
+def test_full_product_closure_reacquires_expanders_and_certifies_position_states():
+    source = SOURCE.read_text(encoding="utf-8")
+    expander = source.split("async def _click_expanders", 1)[1].split(
+        "async def _position_management_contract", 1
+    )[0]
+    assert "async def reacquire" in expander
+    assert "EXPANDER_NOT_REACQUIRED_BEFORE_CLOSE" in expander
+    assert "consecutive >= 2" in expander
+    assert "initial_collapsed and expanded and collapsed" in expander
+    assert 'data-atlas-qa="position-management-state"' in source
+    for state in ("HOLD", "HOLD_NO_ADD", "TRIM", "EXIT", "SUSPENDED", "REVIEW"):
+        assert f'"{state}"' in source
+
+
+def test_supplementary_ask_rebuilds_research_authority_before_reconciliation():
+    source = SOURCE.read_text(encoding="utf-8")
+    desktop = source.split("async def _supplementary_desktop_page", 1)[1].split(
+        "async def _required_mobile", 1
+    )[0]
+    assert "for ticker in REQUIRED_RESEARCH_TICKERS" in desktop
+    assert 'self.research_contexts.get(ticker, {}).get("authority_digest")' in desktop
+    assert 'await self._submit_research(page, ticker, tabs=False, viewport="desktop")' in desktop
 
 
 def test_artifacts_are_complete_and_sanitized(tmp_path, monkeypatch):
@@ -812,7 +836,9 @@ def test_completed_research_rejects_rendered_exception(monkeypatch, tmp_path):
 
 def test_visual_crawler_certifies_full_scan_vnext_on_desktop_and_mobile():
     source = SOURCE.read_text(encoding="utf-8")
-    assert '"Full Ranked Scan", "Recovery"' in source
+    assert '"Full Ranked Scan"' in source
+    assert '"Portfolio Intelligence"' in source
+    assert '"Recovery"' in source
     assert "_full_scan_vnext_contract" in source
     assert "_full_scan_candidate_journeys" in source
     assert 'data-atlas-full-scan-version="ATLAS_FULL_SCAN_VNEXT_V1"' in source
