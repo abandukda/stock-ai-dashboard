@@ -291,10 +291,11 @@ def evaluate_shadow_position(*, thesis_state: ThesisState, valuation_state: Valu
 
 
 def episode_transition(*, current_action: str, prior_outside_count: int, scan_timestamp: str,
+                       first_out_of_buy_now_at: str | None = None,
                        hard_exit: bool = False, config: Mapping[str, Any] | None = None) -> dict[str, Any]:
     cfg = dict(config or load_methodology())
     if hard_exit:
-        return {"status": "ENDED", "first_out_of_buy_now_at": scan_timestamp,
+        return {"status": "ENDED", "first_out_of_buy_now_at": first_out_of_buy_now_at or scan_timestamp,
                 "confirmation_count": int(cfg["episode_end_confirmation_scans"]),
                 "confirmed_episode_end_at": scan_timestamp}
     if current_action == "BUY_NOW":
@@ -302,8 +303,9 @@ def episode_transition(*, current_action: str, prior_outside_count: int, scan_ti
                 "confirmed_episode_end_at": None}
     count = prior_outside_count + 1
     required = int(cfg["episode_end_confirmation_scans"])
+    first_out = first_out_of_buy_now_at or scan_timestamp
     return {"status": "ENDED" if count >= required else "PENDING_END",
-            "first_out_of_buy_now_at": scan_timestamp if prior_outside_count == 0 else None,
+            "first_out_of_buy_now_at": first_out,
             "confirmation_count": count,
             "confirmed_episode_end_at": scan_timestamp if count >= required else None}
 
