@@ -52,6 +52,32 @@ class PositionInstruction(StrEnum):
     SUSPENDED = "SUSPENDED"
 
 
+class ReasonCode(StrEnum):
+    THESIS_INTACT = "THESIS_INTACT"
+    THESIS_BROKEN_STRUCTURED_CONDITION = "THESIS_BROKEN_STRUCTURED_CONDITION"
+    THESIS_BROKEN_GUIDANCE = "THESIS_BROKEN_GUIDANCE"
+    THESIS_BROKEN_BALANCE_SHEET = "THESIS_BROKEN_BALANCE_SHEET"
+    THESIS_WEAKENED_ESTIMATES = "THESIS_WEAKENED_ESTIMATES"
+    VALUATION_ATTRACTIVE = "VALUATION_ATTRACTIVE"
+    VALUATION_FAIR = "VALUATION_FAIR"
+    VALUATION_STRETCHED = "VALUATION_STRETCHED"
+    VALUATION_ABOVE_UPPER_BAND = "VALUATION_ABOVE_UPPER_BAND"
+    VALUATION_CONFIDENCE_UNAVAILABLE = "VALUATION_CONFIDENCE_UNAVAILABLE"
+    VALUATION_PERSISTENCE_PENDING = "VALUATION_PERSISTENCE_PENDING"
+    TECHNICAL_HEALTHY = "TECHNICAL_HEALTHY"
+    TECHNICAL_DETERIORATION = "TECHNICAL_DETERIORATION"
+    TECHNICAL_BREAK = "TECHNICAL_BREAK"
+    DATA_UNCERTAIN = "DATA_UNCERTAIN"
+    EVENT_REVIEW_PENDING = "EVENT_REVIEW_PENDING"
+    VALUATION_BASIS_CHANGED = "VALUATION_BASIS_CHANGED"
+    CURRENT_ACTION_BUY_NOW = "CURRENT_ACTION_BUY_NOW"
+    CURRENT_ACTION_BUILD = "CURRENT_ACTION_BUILD"
+    ADD_BLOCKED_BY_ACTION = "ADD_BLOCKED_BY_ACTION"
+    ADD_BLOCKED_BY_REVIEW = "ADD_BLOCKED_BY_REVIEW"
+    PROTECTED_ADD_RISK_GATE = "PROTECTED_ADD_RISK_GATE"
+    UNDEFINED_RULE_COMBINATION = "UNDEFINED_RULE_COMBINATION"
+
+
 def load_methodology(path: Path = CONFIG_PATH) -> dict[str, Any]:
     config = json.loads(path.read_text(encoding="utf-8"))
     required = {"methodology_version", "rule_table_version", "valuation_persistence_scans",
@@ -70,7 +96,7 @@ class FairValueBand:
     lower: float
     base: float
     upper: float
-    confidence: float
+    confidence: float | None
     methodology_version: str
 
     def __post_init__(self) -> None:
@@ -113,7 +139,13 @@ def classify_valuation(price: Any, band: FairValueBand | None) -> ValuationState
         current = float(price)
     except (TypeError, ValueError):
         return ValuationState.UNAVAILABLE
-    if band is None or current <= 0:
+    if band is None or current <= 0 or band.confidence is None:
+        return ValuationState.UNAVAILABLE
+    try:
+        confidence = float(band.confidence)
+    except (TypeError, ValueError):
+        return ValuationState.UNAVAILABLE
+    if not 0 <= confidence <= 100:
         return ValuationState.UNAVAILABLE
     if current < band.lower:
         return ValuationState.ATTRACTIVE
@@ -140,10 +172,13 @@ def evaluate_shadow_position(*, thesis_state: ThesisState, valuation_state: Valu
                              current_action: str, scan_timestamp: str,
                              persistence: PersistenceState | None = None,
                              review_reason_codes: Sequence[str] = (), valuation_basis_changed: bool = False,
-                             protected_add_blocked: bool = False,
+                             protected_add_blocked: bool = False, valuation_confidence_available: bool = True,
                              config: Mapping[str, Any] | None = None) -> ShadowDecision:
     cfg = dict(config or load_methodology())
-    reviews = {str(item) for item in review_reason_codes if item}
+    try:
+        reviews = {ReasonCode(str(item)).value for item in review_reason_codes if item}
+    except ValueError as exc:
+        raise ValueError("UNKNOWN_POSITION_REASON_CODE") from exc
     reasons: list[str] = []
     instruction = PositionInstruction.SUSPENDED
     add_eligible = False
@@ -151,69 +186,95 @@ def evaluate_shadow_position(*, thesis_state: ThesisState, valuation_state: Valu
     certainty = data_certainty
     if valuation_basis_changed:
         certainty = DataCertainty.REVIEW_REQUIRED
-        reviews.add("VALUATION_BASIS_CHANGED")
-    if thesis_state == ThesisState.UNAVAILABLE or valuation_state == ValuationState.UNAVAILABLE or technical_state == TechnicalState.UNAVAILABLE:
+        reviews.add(ReasonCode.VALUATION_BASIS_CHANGED.value)
+    if ReasonCode.EVENT_REVIEW_PENDING.value in reviews:
         certainty = DataCertainty.REVIEW_REQUIRED
-        reviews.add("DATA_UNCERTAIN")
+    if not valuation_confidence_available:
+        valuation_state = ValuationState.UNAVAILABLE
+        certainty = DataCertainty.REVIEW_REQUIRED
+        reviews.add(ReasonCode.VALUATION_CONFIDENCE_UNAVAILABLE.value)
+    if thesis_state == ThesisState.UNAVAILABLE or technical_state == TechnicalState.UNAVAILABLE:
+        certainty = DataCertainty.REVIEW_REQUIRED
+        reviews.add(ReasonCode.DATA_UNCERTAIN.value)
+    if valuation_state == ValuationState.UNAVAILABLE and thesis_state != ThesisState.BROKEN:
+        certainty = DataCertainty.REVIEW_REQUIRED
+        if valuation_confidence_available:
+            reviews.add(ReasonCode.DATA_UNCERTAIN.value)
 
     next_persistence = persistence or PersistenceState()
     protected_valuation = valuation_state.value in set(cfg["transitions_requiring_persistence"])
-    if protected_valuation:
+    if protected_valuation and thesis_state != ThesisState.BROKEN:
         next_persistence = advance_persistence(
             trigger=valuation_state.value, scan_timestamp=scan_timestamp, previous=persistence,
             required_scans=int(cfg["valuation_persistence_scans"]),
         )
         if next_persistence.confirmed_at is None:
             certainty = DataCertainty.REVIEW_REQUIRED
-            reviews.add("VALUATION_PERSISTENCE_PENDING")
+            reviews.add(ReasonCode.VALUATION_PERSISTENCE_PENDING.value)
 
     # Lexicographic precedence: certainty, thesis break, valuation, technical,
     # then discovery Action solely for derived ADD eligibility.
     if certainty != DataCertainty.CERTIFIED:
         instruction = PositionInstruction.SUSPENDED
-        reasons.append("DATA_CERTAINTY_REVIEW_REQUIRED")
+        reasons.extend(sorted(reviews or {ReasonCode.DATA_UNCERTAIN.value}))
     elif thesis_state == ThesisState.BROKEN:
         instruction = PositionInstruction.EXIT
-        reasons.append("THESIS_BROKEN")
+        reasons.append(ReasonCode.THESIS_BROKEN_STRUCTURED_CONDITION.value)
     elif thesis_state == ThesisState.WEAKENED:
         if valuation_state in {ValuationState.ATTRACTIVE, ValuationState.FAIR}:
             instruction = PositionInstruction.HOLD_NO_ADD
-            reasons.extend(("THESIS_WEAKENED", f"VALUATION_{valuation_state.value}"))
+            reasons.extend((ReasonCode.THESIS_WEAKENED_ESTIMATES.value, ReasonCode(f"VALUATION_{valuation_state.value}").value))
         elif valuation_state in {ValuationState.STRETCHED, ValuationState.ABOVE_FV}:
             instruction = PositionInstruction.TRIM
-            reasons.extend(("THESIS_WEAKENED", f"VALUATION_{valuation_state.value}"))
+            value_reason = (ReasonCode.VALUATION_ABOVE_UPPER_BAND if valuation_state == ValuationState.ABOVE_FV
+                            else ReasonCode.VALUATION_STRETCHED)
+            reasons.extend((ReasonCode.THESIS_WEAKENED_ESTIMATES.value, value_reason.value))
     elif thesis_state == ThesisState.INTACT:
         if valuation_state in {ValuationState.ATTRACTIVE, ValuationState.FAIR}:
             if technical_state == TechnicalState.HEALTHY:
                 instruction = PositionInstruction.HOLD
-                reasons.extend(("THESIS_INTACT", f"VALUATION_{valuation_state.value}", "TECHNICAL_HEALTHY"))
+                reasons.extend((ReasonCode.THESIS_INTACT.value, ReasonCode(f"VALUATION_{valuation_state.value}").value,
+                                ReasonCode.TECHNICAL_HEALTHY.value))
                 add_eligible = current_action in set(cfg["add_eligible_actions"]) and not protected_add_blocked
                 if add_eligible:
-                    reasons.append(f"CURRENT_ACTION_{current_action}")
+                    reasons.append((ReasonCode.CURRENT_ACTION_BUY_NOW if current_action == "BUY_NOW"
+                                    else ReasonCode.CURRENT_ACTION_BUILD).value)
+                else:
+                    reasons.append(ReasonCode.ADD_BLOCKED_BY_ACTION.value)
             elif technical_state in {TechnicalState.DETERIORATING, TechnicalState.BROKEN}:
                 instruction = PositionInstruction.HOLD_NO_ADD
-                reviews.add("TECHNICAL_BREAK" if technical_state == TechnicalState.BROKEN else "TECHNICAL_DETERIORATION")
-                reasons.extend(("THESIS_INTACT", f"VALUATION_{valuation_state.value}", f"TECHNICAL_{technical_state.value}"))
+                technical_reason = (ReasonCode.TECHNICAL_BREAK if technical_state == TechnicalState.BROKEN
+                                    else ReasonCode.TECHNICAL_DETERIORATION)
+                reviews.add(technical_reason.value)
+                reasons.extend((ReasonCode.THESIS_INTACT.value, ReasonCode(f"VALUATION_{valuation_state.value}").value,
+                                technical_reason.value))
         elif valuation_state == ValuationState.STRETCHED:
             instruction = PositionInstruction.HOLD_NO_ADD if technical_state == TechnicalState.HEALTHY else PositionInstruction.TRIM
-            reasons.extend(("THESIS_INTACT", "VALUATION_STRETCHED", f"TECHNICAL_{technical_state.value}"))
+            technical_reason = (ReasonCode.TECHNICAL_HEALTHY if technical_state == TechnicalState.HEALTHY
+                                else ReasonCode.TECHNICAL_BREAK if technical_state == TechnicalState.BROKEN
+                                else ReasonCode.TECHNICAL_DETERIORATION)
+            reasons.extend((ReasonCode.THESIS_INTACT.value, ReasonCode.VALUATION_STRETCHED.value,
+                            technical_reason.value))
+            if technical_state != TechnicalState.HEALTHY:
+                reviews.add(technical_reason.value)
         elif valuation_state == ValuationState.ABOVE_FV:
             instruction = PositionInstruction.TRIM
-            reasons.extend(("THESIS_INTACT", "VALUATION_ABOVE_UPPER_BAND"))
+            reasons.extend((ReasonCode.THESIS_INTACT.value, ReasonCode.VALUATION_ABOVE_UPPER_BAND.value))
 
     if not reasons:
         instruction = PositionInstruction.SUSPENDED
-        reviews.add("UNDEFINED_RULE_COMBINATION")
-        reasons.append("FAIL_CLOSED_UNDEFINED_COMBINATION")
+        reviews.add(ReasonCode.UNDEFINED_RULE_COMBINATION.value)
+        reasons.append(ReasonCode.UNDEFINED_RULE_COMBINATION.value)
     if protected_add_blocked:
         add_eligible = False
-        reasons.append("PROTECTED_ADD_RISK_GATE")
+        reasons.append(ReasonCode.PROTECTED_ADD_RISK_GATE.value)
 
     inputs = {
         "thesis_state": thesis_state.value, "valuation_state": valuation_state.value,
         "technical_state": technical_state.value, "data_certainty": certainty.value,
         "current_action": current_action, "scan_timestamp": scan_timestamp,
         "valuation_basis_changed": valuation_basis_changed, "protected_add_blocked": protected_add_blocked,
+        "valuation_confidence_available": valuation_confidence_available,
         "persistence": asdict(next_persistence), "review_reason_codes": sorted(reviews),
         "methodology_version": cfg["methodology_version"], "rule_table_version": cfg["rule_table_version"],
     }
@@ -254,6 +315,6 @@ def reentry_allowed(*, prior_episode_confirmed_ended: bool, consecutive_regular_
             consecutive_regular_sessions_outside_buy_now >= int(cfg["reentry_hysteresis_regular_sessions"]))
 
 
-__all__ = ["DataCertainty", "FairValueBand", "PersistenceState", "PositionInstruction", "ShadowDecision",
+__all__ = ["DataCertainty", "FairValueBand", "PersistenceState", "PositionInstruction", "ReasonCode", "ShadowDecision",
            "TechnicalState", "ThesisState", "ValuationState", "advance_persistence", "classify_valuation",
            "episode_transition", "evaluate_shadow_position", "load_methodology", "reentry_allowed"]

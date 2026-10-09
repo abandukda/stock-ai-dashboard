@@ -1,6 +1,7 @@
 {
-  "methodology_version": "ATLAS_POSITION_MANAGEMENT_SHADOW_V1",
-  "rule_table_version": "ATLAS_POSITION_RULE_TABLE_V1",
+  "methodology_version": "ATLAS_POSITION_MANAGEMENT_SHADOW_V1_1",
+  "rule_table_version": "ATLAS_POSITION_RULE_TABLE_V1_1",
+  "effective_from": "2026-10-08T00:00:00+00:00",
   "status": "PREREGISTERED_SHADOW_ONLY",
   "customer_visible": false,
   "eligible_signal_actions": ["BUY_NOW"],
@@ -16,6 +17,7 @@
   "episode_end_confirmation_scans": 5,
   "reentry_hysteresis_regular_sessions": 5,
   "transitions_requiring_persistence": ["STRETCHED", "ABOVE_FV"],
+  "valuation_confidence_required": true,
   "hard_exit_condition_types": [
     "CATASTROPHIC_BALANCE_SHEET_DETERIORATION",
     "STRUCTURED_ACCOUNTING_GOVERNANCE_EVENT",

@@ -1,4 +1,9 @@
-# ATLAS Position Management V1 — shadow preregistration
+# ATLAS Position Management V1.1 — shadow preregistration
+
+V1.1 replaces the never-activated V1 contract. It adds mandatory valuation-confidence
+gating, preserves certified hard-thesis-break precedence over valuation persistence,
+promotes governed pending-event review to the certainty gate, and introduces a closed,
+versioned reason-code vocabulary. No V1 observations are migrated or synthesized.
 
 This methodology is internal, prospective, descriptive research. It does not
 change discovery Actions, certified values, publication eligibility, the Signal
