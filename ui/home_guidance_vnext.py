@@ -1437,14 +1437,32 @@ def _render_internal_performance_tracking(*, authorized_internal: bool) -> None:
         report = build_internal_report_card(Path(root) / "report-card.sqlite3", authorized=True)
     except (FileNotFoundError, PermissionError, ValueError):
         return
+    performance_state = str(report["home_performance_state"])
+    performance_value = report["home_performance_value"]
+    performance_observed_through = report["home_performance_observed_through"]
+    if performance_state == "OBSERVED" and isinstance(performance_value, (int, float)):
+        performance_attribute = f"{float(performance_value):.12g}"
+        performance_label = f"Signal Return {float(performance_value):+.1%}"
+        if performance_observed_through:
+            performance_label += f" · Observed through {performance_observed_through}"
+    elif performance_state == "UNAVAILABLE":
+        performance_attribute = performance_label = "UNAVAILABLE"
+        performance_label = "Performance Unavailable"
+    else:
+        performance_state = "PENDING"
+        performance_attribute = "PENDING"
+        performance_label = "Performance Pending"
     st.markdown(
-        '<section class="atlas-home-performance" data-atlas-qa="home-performance-tracking">'
+        '<section class="atlas-home-performance" data-atlas-qa="home-performance-tracking" '
+        f'data-atlas-performance-state="{performance_state}" '
+        f'data-atlas-performance-value="{performance_attribute}">'
         '<header><div><small>INTERNAL · PROSPECTIVE</small><h2>Performance Tracking</h2></div>'
         f'<strong>{report["integrity"]}</strong></header><div class="atlas-home-performance-grid">'
         f'<span><small>Signals</small><b>{report["signal_count"]}</b></span>'
         f'<span><small>Observations</small><b>{report["observation_count"]}</b></span>'
         f'<span><small>SPY coverage</small><b>{report["spy_comparison_count"]}</b></span>'
         f'<span><small>Next observation</small><b>{html.escape(str(report["next_eligible_observation"]))}</b></span>'
+        f'<span><small>Signal Return</small><b>{html.escape(performance_label)}</b></span>'
         '</div><footer>Customer visibility OFF · Signal tracking, not a funded model portfolio · Append-only ledger</footer></section>', unsafe_allow_html=True,
     )
     st.markdown('<span data-atlas-interaction-id="home-report-card-view" data-atlas-interaction-type="DRILL_DOWN" '

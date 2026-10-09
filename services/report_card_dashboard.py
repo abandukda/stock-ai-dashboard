@@ -97,6 +97,26 @@ def build_internal_report_card(path: Path, *, authorized: bool, authority_root: 
             })
     available = [row for row in table if row["status"] == "AVAILABLE"]
     returns = [float(row["stock_return"]) for row in available]
+    unavailable = [
+        row for row in table
+        if row["status"] not in {"AVAILABLE", "NOT_MATURED_OR_NOT_OBSERVED"}
+    ]
+    if returns:
+        performance_state = "OBSERVED"
+        performance_value: float | None = sum(returns) / len(returns)
+        performance_observed_through = max(
+            str(row["observed_at"])
+            for row in available
+            if row.get("observed_at")
+        )
+    elif unavailable:
+        performance_state = "UNAVAILABLE"
+        performance_value = None
+        performance_observed_through = None
+    else:
+        performance_state = "PENDING"
+        performance_value = None
+        performance_observed_through = None
     open_tickers = [str(item["ticker"] or "") for item in signal_details if item["open"]]
     duplicated_open_episodes = sorted({ticker for ticker in open_tickers if ticker and open_tickers.count(ticker) > 1})
     admission_defects = [f"REPEATED_BUY_NOW_EPISODE_DUPLICATED:{ticker}" for ticker in duplicated_open_episodes]
@@ -121,6 +141,9 @@ def build_internal_report_card(path: Path, *, authorized: bool, authority_root: 
         "admission_defects": admission_defects,
         "coverage": coverage, "mean_return": sum(returns) / len(returns) if returns else None,
         "median_return": median(returns) if returns else None, "rows": table, "signals": signal_details,
+        "home_performance_state": performance_state,
+        "home_performance_value": performance_value,
+        "home_performance_observed_through": performance_observed_through,
         "signal_details": enriched_signal_details,
         "registered_horizons": list(HORIZONS),
         "next_eligible_observation": metadata.get("next_eligible_observation", "Determined by governed trading-session calendar"),
