@@ -141,6 +141,15 @@ def test_report_card_state_marker_exposes_normalized_route_and_selection():
     assert 'data-atlas-last-transition=' in ui
 
 
+def test_home_report_card_crawler_waits_for_cta_and_validates_performance_state():
+    crawler = Path("scripts/crawl_report_card_durable_ui.py").read_text(encoding="utf-8")
+
+    assert 'name="View Report Card", exact=True).wait_for' in crawler
+    assert 'performance_state not in {"OBSERVED", "PENDING", "UNAVAILABLE"}' in crawler
+    assert 'performance_value == "None"' in crawler
+    assert 'elif performance_value != performance_state' in crawler
+
+
 def test_autonomous_crawler_opens_and_certifies_signal_detail():
     crawler = Path("scripts/crawl_report_card_durable_ui.py").read_text(encoding="utf-8")
     assert 'name="View Signal Digest →"' in crawler

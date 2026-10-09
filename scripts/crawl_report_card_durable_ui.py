@@ -197,7 +197,26 @@ async def run(output: Path) -> None:
             page = await context.new_page()
             page.on("console", lambda message: browser_logs.append({"type": message.type, "text": message.text}))
             await login(page, admin)
-            await page.locator('[data-atlas-qa="home-performance-tracking"]').wait_for(timeout=60000)
+            performance = page.locator('[data-atlas-qa="home-performance-tracking"]')
+            await performance.wait_for(timeout=60000)
+            await page.get_by_role("button", name="View Report Card", exact=True).wait_for(
+                state="visible", timeout=30000
+            )
+            performance_state = await performance.get_attribute("data-atlas-performance-state")
+            performance_value = await performance.get_attribute("data-atlas-performance-value")
+            if performance_state not in {"OBSERVED", "PENDING", "UNAVAILABLE"}:
+                raise AssertionError(f"HOME_PERFORMANCE_FIELD_INVALID:{mode}:{performance_state}")
+            if not performance_value or performance_value == "None":
+                raise AssertionError(f"HOME_PERFORMANCE_FIELD_INVALID:{mode}:{performance_value}")
+            if performance_state == "OBSERVED":
+                try:
+                    float(performance_value)
+                except ValueError as exc:
+                    raise AssertionError(
+                        f"HOME_PERFORMANCE_FIELD_INVALID:{mode}:{performance_value}"
+                    ) from exc
+            elif performance_value != performance_state:
+                raise AssertionError(f"HOME_PERFORMANCE_FIELD_INVALID:{mode}:{performance_value}")
             body = await page.locator("body").inner_text()
             for label in ("Performance Tracking", "Signals", "Observations", "SPY coverage", "Next observation", "View Report Card"):
                 if label not in body:
