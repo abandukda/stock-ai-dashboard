@@ -116,3 +116,10 @@ def test_customer_flags_remain_off():
     assert flags["customer_position_management"] is False
     assert flags["trim_exit"] is False
 
+
+def test_renderer_exposes_certified_header_fields_for_structured_browser_qa():
+    source = __import__("pathlib").Path("ui/customer_research_v2.py").read_text(encoding="utf-8")
+    assert '"stock-header", ticker' in source
+    assert 'fair_value=h["fair_value"]' in source
+    assert 'opportunity=h["opportunity"]' in source
+    assert 'confidence=h["confidence"]' in source

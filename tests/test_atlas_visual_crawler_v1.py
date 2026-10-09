@@ -142,6 +142,20 @@ def test_research_field_extractor_uses_ticker_scoped_action_and_metric_nodes():
     assert '"ATLAS FAIR VALUE": "atlas_fair_value"' in block
     assert '"OPPORTUNITY": "opportunity"' in block
     assert '"DECISION CONFIDENCE": "decision_confidence"' in block
+    assert 'research-v2-stock-header' in block
+    assert '"CONFIDENCE": "decision_confidence"' in block
+
+
+def test_research_v2_crawler_contract_uses_semantic_markers_without_removing_legacy_contract():
+    source = SOURCE.read_text(encoding="utf-8")
+    assert 'RESEARCH_V2_VERSION = "ATLAS_CUSTOMER_RESEARCH_V2_P0"' in source
+    for marker in (
+        "stock-header", "since-signal", "chart-root", "summary",
+        "analyst-module", "risks", "view-change-conditions", "what-changed",
+        "fundamentals", "catalysts", "about-company", "evidence-methodology",
+    ):
+        assert f'"{marker}"' in source
+    assert "declared_architecture or v2_architecture" in source
 
 
 def test_visual_crawler_has_complete_non_blocking_product_scope():
@@ -372,10 +386,11 @@ def test_research_and_home_require_actual_visible_controls_and_exact_ticker():
     assert "top15" in source
     assert "marker.scroll_into_view_if_needed" not in source
     assert "visible_cta=true" in source
-    assert 'name=re.compile(r"(?:Open Full Research|View Investment Case)"' in source
+    assert 'name=re.compile(r"(?:Open Full Research|View Investment Case|View Research)"' in source
     assert "exact_ticker.search" in source
     assert "_discover_visible_home_cards" in source
-    assert "preceding::*[@data-atlas-interaction-id][1]" in source
+    assert 'f\'[data-atlas-interaction-id="{preferred_id}"]\'' in source
+    assert 'marker.locator("xpath=following::button[1]")' in source
     assert "await self._exact_research_ticker(page, ticker)" in source
     assert "prior in text" not in source
     assert set(RESEARCH_VNEXT_SECTIONS) == {

@@ -62,6 +62,12 @@ RESEARCH_VNEXT_SECTION_LABELS = (
     "ATLAS View", "ATLAS Fair Value", "Live Market & Trade",
     "Additional Context", "Decision Evidence",
 )
+RESEARCH_V2_VERSION = "ATLAS_CUSTOMER_RESEARCH_V2_P0"
+RESEARCH_V2_MARKERS = (
+    "stock-header", "since-signal", "chart-root", "summary",
+    "analyst-module", "risks", "view-change-conditions", "what-changed",
+    "fundamentals", "catalysts", "about-company", "evidence-methodology",
+)
 
 
 def research_route_ownership_satisfied(
@@ -671,6 +677,7 @@ class AtlasVisualCrawler:
         publication_allowed: bool | None = None
         declared_section_count = 0
         tab_labels: set[str] = set()
+        v2_markers: set[str] = set()
         for scope in _scopes(page):
             try:
                 roots = scope.locator(f'[data-atlas-qa="research-vnext"][data-atlas-ticker="{ticker}"]')
@@ -686,6 +693,18 @@ class AtlasVisualCrawler:
                         declared_section_count = 0
                     if allowed in {"true", "false"}:
                         publication_allowed = allowed == "true"
+                v2_root = scope.locator(
+                    f'[data-atlas-qa="research-v2-root"][data-atlas-ticker="{ticker}"]'
+                )
+                if await v2_root.count():
+                    version = await v2_root.last.get_attribute("data-atlas-version") or ""
+                    publication_allowed = True
+                    for marker in RESEARCH_V2_MARKERS:
+                        node = scope.locator(
+                            f'[data-atlas-qa="research-v2-{marker}"][data-atlas-ticker="{ticker}"]'
+                        )
+                        if await node.count():
+                            v2_markers.add(marker)
                 nodes = scope.locator(f'[data-atlas-qa="research-vnext-section"][data-atlas-ticker="{ticker}"]')
                 for index in range(await nodes.count()):
                     sections.add(await nodes.nth(index).get_attribute("data-atlas-section") or "")
@@ -713,14 +732,16 @@ class AtlasVisualCrawler:
         declared_architecture = _research_declared_architecture(
             declared_section_count, tab_labels,
         )
+        v2_architecture = version == RESEARCH_V2_VERSION and set(RESEARCH_V2_MARKERS) <= v2_markers
         return {
             "version": version, "sections": sorted(sections),
             # Streamlit lazily mounts tab bodies.  The renderer-owned count and
             # all five live tab controls certify architecture without requiring
             # five mutually exclusive tab panels to coexist in the DOM.
-            "all_sections": declared_architecture,
+            "all_sections": declared_architecture or v2_architecture,
             "declared_section_count": declared_section_count,
             "tab_labels": sorted(tab_labels),
+            "v2_markers": sorted(v2_markers),
             "monitor": monitor, "ask_cta": ask_cta,
             "certification_incomplete": certification_incomplete,
             "withheld_terminal": withheld_terminal,
@@ -748,7 +769,7 @@ class AtlasVisualCrawler:
         }
         architecture = await self._research_vnext_contract(page, expected)
         result.update({
-            "vnext": architecture["version"] == RESEARCH_VNEXT_VERSION,
+            "vnext": architecture["version"] in {RESEARCH_VNEXT_VERSION, RESEARCH_V2_VERSION},
             "five_sections": bool(architecture["all_sections"]),
             "ask_cta": bool(architecture["ask_cta"]),
             "certification_incomplete": bool(architecture.get("certification_incomplete")),
@@ -813,10 +834,15 @@ class AtlasVisualCrawler:
         result["rendered_exception"] = await _has_rendered_exception(page)
         visible_text = await _visible_text(page)
         normalized_text = re.sub(r"\s+", " ", visible_text).upper()
+        legacy_decision_evidence = "ATLAS VIEW" in normalized_text and "ATLAS RATING:" in normalized_text
+        v2_decision_evidence = (
+            architecture.get("version") == RESEARCH_V2_VERSION
+            and "CERTIFIED ATLAS RESEARCH" in normalized_text
+            and "stock-header" in architecture.get("v2_markers", ())
+        )
         published_decision_evidence = bool(
             architecture.get("publication_allowed") is True
-            and "ATLAS VIEW" in normalized_text
-            and "ATLAS RATING:" in normalized_text
+            and (legacy_decision_evidence or v2_decision_evidence)
             and any(label in normalized_text for label in (
                 "BUY NOW", "BUILD A POSITION", "WAIT FOR A BETTER ENTRY",
                 "WAIT FOR CONFIRMATION", "WATCH", "AVOID",
@@ -862,9 +888,28 @@ class AtlasVisualCrawler:
             "ATLAS FAIR VALUE": "atlas_fair_value",
             "OPPORTUNITY": "opportunity",
             "DECISION CONFIDENCE": "decision_confidence",
+            "CONFIDENCE": "decision_confidence",
         }
         for scope in _scopes(page):
             try:
+                header = scope.locator(
+                    f'[data-atlas-qa="research-v2-stock-header"][data-atlas-ticker="{ticker}"]'
+                )
+                if await header.count():
+                    node = header.last
+                    action_value = normalize_research_action(
+                        await node.get_attribute("data-atlas-action") or ""
+                    )
+                    if action_value:
+                        fields["action"] = action_value
+                    for attribute, key in (
+                        ("data-atlas-fair-value", "atlas_fair_value"),
+                        ("data-atlas-opportunity", "opportunity"),
+                        ("data-atlas-confidence", "decision_confidence"),
+                    ):
+                        value = await node.get_attribute(attribute) or ""
+                        if value:
+                            fields[key] = value
                 action = scope.locator(f'[class*="st-key-vnext_decision_action_{ticker}"]')
                 for index in range(await action.count()):
                     node = action.nth(index)

@@ -55,7 +55,12 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
         f'<div class="atlas-r2-meta">Price as of {escape(str(h.get("price_timestamp") or "Unavailable"))} · '
         f'{escape(str(h.get("market_freshness") or "Unavailable"))}</div></section>', unsafe_allow_html=True,
     )
-    _marker("stock-header", ticker, action=h["action"], snapshot=page["identity"].get("evaluation_snapshot"))
+    _marker(
+        "stock-header", ticker,
+        action=h["action"], fair_value=h["fair_value"],
+        opportunity=h["opportunity"], confidence=h["confidence"],
+        snapshot=page["identity"].get("evaluation_snapshot"),
+    )
     cols = st.columns(6)
     cols[0].metric("Current Price", _money(h["price"]))
     cols[1].metric("Action", h["action"])
