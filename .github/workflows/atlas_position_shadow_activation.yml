@@ -1,0 +1,83 @@
+name: ATLAS Position Management Shadow Activation
+
+on:
+  workflow_dispatch:
+    inputs:
+      exact_sha:
+        description: Exact certified review SHA
+        required: true
+        type: string
+      source_run_id:
+        description: Run containing the certified prospective handoff
+        required: true
+        type: string
+      artifact_name:
+        description: Exact handoff artifact
+        required: true
+        type: string
+      allow_first_durable_append:
+        description: Human authorization for the first append
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  actions: read
+  contents: read
+concurrency:
+  group: atlas-position-shadow-activation
+  cancel-in-progress: false
+
+jobs:
+  activate:
+    if: github.ref == 'refs/heads/codex/position-management-v1-shadow'
+    environment: atlas-position-management-shadow
+    runs-on: [self-hosted, Linux, X64, atlas-worker-1]
+    timeout-minutes: 20
+    env:
+      ATLAS_POSITION_SHADOW_DURABLE_ROOT: ${{ vars.ATLAS_POSITION_SHADOW_DURABLE_ROOT }}
+      ATLAS_POSITION_SHADOW_BACKUP_ROOT: ${{ vars.ATLAS_POSITION_SHADOW_BACKUP_ROOT }}
+      ATLAS_REPORT_CARD_DURABLE_ROOT: ${{ vars.ATLAS_REPORT_CARD_DURABLE_ROOT }}
+      ATLAS_REPORT_CARD_BACKUP_ROOT: ${{ vars.ATLAS_REPORT_CARD_BACKUP_ROOT }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.exact_sha }}
+      - name: Require exact SHA and independent roots
+        shell: bash
+        run: |
+          test "$(git rev-parse HEAD)" = "${{ inputs.exact_sha }}"
+          test -n "$ATLAS_POSITION_SHADOW_DURABLE_ROOT"
+          test -n "$ATLAS_POSITION_SHADOW_BACKUP_ROOT"
+          test "$ATLAS_POSITION_SHADOW_DURABLE_ROOT" != "$ATLAS_POSITION_SHADOW_BACKUP_ROOT"
+          test "$ATLAS_POSITION_SHADOW_DURABLE_ROOT" != "$ATLAS_REPORT_CARD_DURABLE_ROOT"
+          test "$ATLAS_POSITION_SHADOW_BACKUP_ROOT" != "$ATLAS_REPORT_CARD_BACKUP_ROOT"
+          command -v python3
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.source_run_id }}
+          name: ${{ inputs.artifact_name }}
+          path: audit_results/position-shadow-source
+      - name: Resolve exactly one handoff
+        id: handoff
+        shell: bash
+        run: |
+          mapfile -t files < <(find audit_results/position-shadow-source -type f -name position_shadow_handoff.json)
+          test "${#files[@]}" -eq 1
+          echo "path=${files[0]}" >> "$GITHUB_OUTPUT"
+      - name: Two deterministic dry runs and optional first append
+        shell: bash
+        run: |
+          args=()
+          if test "${{ inputs.allow_first_durable_append }}" = "true"; then args+=(--allow-first-append); fi
+          python3 scripts/run_position_shadow_activation.py \
+            --handoff "${{ steps.handoff.outputs.path }}" \
+            --output audit_results/position-shadow-activation.json "${args[@]}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atlas-position-shadow-activation-${{ github.run_id }}
+          path: audit_results/position-shadow-activation.json
+          retention-days: 30
