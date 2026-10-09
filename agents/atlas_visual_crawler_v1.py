@@ -1055,6 +1055,75 @@ class AtlasVisualCrawler:
                 viewport=viewport, ticker=ticker,
             )
 
+    async def _settled_selected_tab_panel(
+        self, page: Page, name: str, *, timeout_seconds: float = 8.0,
+    ) -> Any:
+        """Reacquire a selected Streamlit tab panel until its semantic DOM is stable."""
+        deadline = time.monotonic() + timeout_seconds
+        prior_digest = ""
+        stable_checks = 0
+        while time.monotonic() < deadline:
+            tab = await self._fresh_visible_tab(page, name)
+            panel = None
+            selected = False
+            if tab is not None:
+                selected = (await tab.get_attribute("aria-selected")) == "true"
+            for scope in _scopes(page):
+                panels = scope.get_by_role("tabpanel")
+                for index in range(await panels.count()):
+                    candidate = panels.nth(index)
+                    if await candidate.is_visible():
+                        panel = candidate
+                        break
+                if panel is not None:
+                    break
+            loading = False
+            for selector in ('[data-testid="stSpinner"]', '[data-testid="stStatusWidget"]'):
+                nodes = page.locator(selector)
+                for index in range(await nodes.count()):
+                    if await nodes.nth(index).is_visible():
+                        loading = True
+                        break
+                if loading:
+                    break
+            if selected and panel is not None and not loading:
+                text = re.sub(r"\s+", " ", await panel.inner_text()).strip()
+                if text:
+                    digest = hashlib.sha256(
+                        f"{name}|{text}|{await panel.inner_html()}".encode("utf-8")
+                    ).hexdigest()
+                    stable_checks = stable_checks + 1 if digest == prior_digest else 1
+                    prior_digest = digest
+                    if stable_checks >= 2:
+                        return panel
+            else:
+                stable_checks = 0
+                prior_digest = ""
+            await page.wait_for_timeout(150)
+        raise TimeoutError(f"TAB_PANEL_NOT_SEMANTICALLY_SETTLED:{name}")
+
+    async def _shot_selected_tab_panel(
+        self, page: Page, *, name: str, page_name: str, interaction: str,
+        state: str, viewport: str, ticker: str,
+    ) -> str:
+        """Capture a reacquired stable panel and require real nonempty evidence."""
+        last_error: Exception | None = None
+        for _attempt in range(2):
+            try:
+                panel = await self._settled_selected_tab_panel(page, name)
+                relative = await self._shot_locator(
+                    panel, page_name=page_name, interaction=interaction, state=state,
+                    viewport=viewport, ticker=ticker,
+                )
+                target = self.output_dir / relative if relative else None
+                if target is None or not target.is_file() or target.stat().st_size <= 0:
+                    raise RuntimeError("TAB_SCREENSHOT_EVIDENCE_EMPTY")
+                return relative
+            except Exception as exc:
+                last_error = exc
+        assert last_error is not None
+        raise last_error
+
     async def _exception_identity(self, page: Page) -> dict[str, str]:
         for scope in _scopes(page):
             try:
@@ -1743,13 +1812,14 @@ class AtlasVisualCrawler:
                         continue
                 after_text = await _visible_text(page)
                 exception = await _has_rendered_exception(page)
-                # Capture the complete selected surface. Streamlit regenerates
-                # tab-panel IDs across reruns, so retaining a panel locator solely
-                # for the screenshot can fail after the tab has rendered correctly.
-                after = await self._shot(
-                    page, page_name=page_name, interaction=f"tab-{name}",
-                    state="after", viewport=viewport, ticker=ticker,
-                    complete_surface=True,
+                # A full stitched page capture per tab can exhaust the bounded
+                # Home-card traversal envelope. Reacquire the selected panel,
+                # require two stable semantic snapshots, and capture that exact
+                # evidence surface instead.
+                after = await self._shot_selected_tab_panel(
+                    page, name=name, page_name=page_name,
+                    interaction=f"tab-{name}", state="after",
+                    viewport=viewport, ticker=ticker,
                 )
                 changed = after_text != before_text or selected
                 panel_identity = await self._selected_tab_panel_has_content(page, name)
