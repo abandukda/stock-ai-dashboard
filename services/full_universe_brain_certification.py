@@ -94,16 +94,27 @@ def load_frozen_universe(path: Path) -> dict[str, Any]:
     mappings = payload.get("symbol_mappings") or {}
     if len(symbols) != int(payload.get("count") or -1) or len(set(symbols)) != len(symbols):
         raise ValueError("frozen universe count/identity is inconsistent")
-    stock_symbols, etf_symbols = [], []
-    for symbol in symbols:
-        mapping = mappings.get(symbol) if isinstance(mappings, Mapping) else None
-        source = str((mapping or {}).get("listing_source_endpoint") or "").lower()
-        (etf_symbols if source.startswith("etfs") else stock_symbols).append(symbol)
     summary = payload.get("governed_pre_acquisition_summary") or {}
-    if int(summary.get("us_stock_universe_count") or -1) != len(stock_symbols):
-        raise ValueError("frozen stock count does not match governed summary")
-    if int(summary.get("us_etf_universe_count") or -1) != len(etf_symbols):
-        raise ValueError("frozen ETF count does not match governed summary")
+    has_legacy_classification = bool(mappings) or bool(summary)
+    if has_legacy_classification:
+        if not isinstance(mappings, Mapping) or not mappings or not summary:
+            raise ValueError("frozen universe legacy classification is incomplete")
+        stock_symbols, etf_symbols = [], []
+        for symbol in symbols:
+            mapping = mappings.get(symbol)
+            if not isinstance(mapping, Mapping):
+                raise ValueError("frozen universe symbol mapping is incomplete")
+            source = str(mapping.get("listing_source_endpoint") or "").lower()
+            (etf_symbols if source.startswith("etfs") else stock_symbols).append(symbol)
+        if int(summary.get("us_stock_universe_count") or -1) != len(stock_symbols):
+            raise ValueError("frozen stock count does not match governed summary")
+        if int(summary.get("us_etf_universe_count") or -1) != len(etf_symbols):
+            raise ValueError("frozen ETF count does not match governed summary")
+    else:
+        # Current production artifacts are already filtered to the governed stock
+        # universe.  Absence of both legacy classification structures is the
+        # explicit stock-only envelope; a partial legacy envelope still fails above.
+        stock_symbols, etf_symbols = list(symbols), []
 
     exclusions = payload.get("eligibility", {}).get("exclusions") or ()
     classified = Counter(_reason_class(item.get("reason")) for item in exclusions if isinstance(item, Mapping))

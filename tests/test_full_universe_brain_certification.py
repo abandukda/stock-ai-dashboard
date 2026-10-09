@@ -24,13 +24,20 @@ def _record(ticker, action="RATING_NOT_PUBLISHED", state="RATING_NOT_PUBLISHED")
     }
 
 
-def test_frozen_production_universe_is_exactly_6033_stocks_and_41_etfs():
+def test_frozen_production_universe_is_exactly_6033_filtered_stocks():
     universe = load_frozen_universe(Path("total_market_universe.json"))
-    assert universe["governed_symbol_count"] == 6074
+    assert universe["governed_symbol_count"] == 6033
     assert universe["supported_equity_count"] == 6033
-    assert len(universe["excluded_governed_symbols"]) == 41
-    assert universe["security_class_counts"]["ETF"] == 41
-    assert universe["source_sha256"] == "e0d1e2ef9488fc69e8495174d91f5467b88fd8e0fa3718de2809a4c088766268"
+    assert universe["excluded_governed_symbols"] == []
+    assert universe["security_class_counts"]["ETF"] == 0
+    assert universe["source_sha256"] == "d35c01c48f0a2d51e0ea68d694ca22c4a5ff0b3a8b33964045557caee5e753d4"
+
+
+def test_partial_legacy_universe_classification_fails_closed(tmp_path):
+    path = tmp_path / "universe.json"
+    path.write_text('{"count":1,"symbols":["A"],"symbol_mappings":{"A":{}}}')
+    with pytest.raises(ValueError, match="legacy classification is incomplete"):
+        load_frozen_universe(path)
 
 
 def test_partial_run_fails_closed_and_cannot_mint_buy_now():
