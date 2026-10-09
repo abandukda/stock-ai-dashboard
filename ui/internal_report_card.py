@@ -2,12 +2,15 @@
 from __future__ import annotations
 
 import html
+import os
 from pathlib import Path
 from typing import Any, Mapping, MutableMapping, Sequence
 
 import streamlit as st
 
 from services.report_card_dashboard import build_internal_report_card
+from services.position_management_dashboard import build_shadow_position_dashboard
+from ui.internal_position_monitor import render_shadow_position_monitor, render_signal_shadow_context
 
 
 REPORT_CARD_VIEW_OVERVIEW = "OVERVIEW"
@@ -130,6 +133,13 @@ def _render_signal_detail(detail: Mapping[str, Any]) -> None:
     conditions = detail["view_change_conditions"]
     st.markdown("**Conditions that could change the view**")
     st.markdown("\n".join(f"- {item}" for item in conditions) if conditions else "No approved structured conditions are available.")
+    shadow_path = os.getenv("ATLAS_POSITION_SHADOW_LEDGER", "").strip()
+    shadow_item = None
+    if shadow_path and Path(shadow_path).is_file():
+        shadow_item = build_shadow_position_dashboard(Path(shadow_path), authorized=True)["latest_by_signal_id"].get(
+            str(detail.get("signal_id") or "")
+        )
+    render_signal_shadow_context(shadow_item)
 
     with st.expander(f'About {detail.get("company_name") or detail.get("ticker")}', expanded=False):
         items = (
@@ -258,6 +268,12 @@ def render_internal_report_card(ledger_path: Path, *, authorized: bool) -> Mappi
                 open_report_card_detail(st.session_state, signal["signal_id"])
                 st.rerun()
     st.caption("Sample sizes are shown per horizon. Missing and not-yet-matured observations remain explicit.")
+    shadow_path = os.getenv("ATLAS_POSITION_SHADOW_LEDGER", "").strip()
+    st.subheader("Shadow Position Monitoring")
+    if shadow_path and Path(shadow_path).is_file():
+        render_shadow_position_monitor(Path(shadow_path), authorized=authorized)
+    else:
+        st.info("Shadow position tracking is not yet prospectively activated. No historical states are backfilled.")
     return report
 
 
