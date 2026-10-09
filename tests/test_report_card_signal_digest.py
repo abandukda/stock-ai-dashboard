@@ -7,10 +7,12 @@ import pytest
 from scripts.crawl_report_card_durable_ui import _wait_for_stable_condition
 from services.report_card_signal_detail import CONTEXT_CLASSIFICATION, build_signal_detail
 from ui.internal_report_card import (
+    REPORT_CARD_LAST_TRANSITION_KEY,
     REPORT_CARD_SELECTED_SIGNAL_KEY,
     REPORT_CARD_VIEW_DETAIL,
     REPORT_CARD_VIEW_KEY,
     REPORT_CARD_VIEW_OVERVIEW,
+    back_to_report_card_overview,
     normalize_report_card_view_state,
     open_report_card_detail,
     open_report_card_overview,
@@ -132,7 +134,8 @@ def test_report_card_state_marker_exposes_normalized_route_and_selection():
     assert 'data-atlas-qa="report-card-state"' in ui
     assert 'data-atlas-view=' in ui
     assert 'data-atlas-selected-signal=' in ui
-    assert 'data-atlas-route="Internal Report Card"' in ui
+    assert 'data-atlas-route="internal-report-card"' in ui
+    assert 'data-atlas-last-transition=' in ui
 
 
 def test_autonomous_crawler_opens_and_certifies_signal_detail():
@@ -235,16 +238,21 @@ def test_signal_detail_semantic_marker_carries_existing_authority_and_evidence_s
 def test_fresh_report_card_session_defaults_to_overview():
     state = {}
     assert normalize_report_card_view_state(state, ["signal-nvda"]) == (REPORT_CARD_VIEW_OVERVIEW, None)
-    assert state == {REPORT_CARD_VIEW_KEY: REPORT_CARD_VIEW_OVERVIEW}
+    assert state == {
+        REPORT_CARD_VIEW_KEY: REPORT_CARD_VIEW_OVERVIEW,
+        REPORT_CARD_LAST_TRANSITION_KEY: "OVERVIEW_ENTRY",
+    }
 
 
 def test_overview_to_detail_requires_and_retains_exact_signal():
     state = {REPORT_CARD_VIEW_KEY: REPORT_CARD_VIEW_OVERVIEW}
     open_report_card_detail(state, "signal-nvda")
+    assert state[REPORT_CARD_LAST_TRANSITION_KEY] == "DETAIL_REQUESTED:signal-nvda"
     assert normalize_report_card_view_state(state, ["signal-nvda"]) == (
         REPORT_CARD_VIEW_DETAIL, "signal-nvda"
     )
     assert state[REPORT_CARD_SELECTED_SIGNAL_KEY] == "signal-nvda"
+    assert state[REPORT_CARD_LAST_TRANSITION_KEY] == "DETAIL_RENDERED:signal-nvda"
 
 
 def test_digest_control_registers_pre_render_state_callback_without_explicit_rerun():
@@ -271,9 +279,10 @@ def test_detail_back_to_overview_clears_selected_signal():
         REPORT_CARD_VIEW_KEY: REPORT_CARD_VIEW_DETAIL,
         REPORT_CARD_SELECTED_SIGNAL_KEY: "signal-nvda",
     }
-    open_report_card_overview(state)
+    back_to_report_card_overview(state)
     assert normalize_report_card_view_state(state, ["signal-nvda"]) == (REPORT_CARD_VIEW_OVERVIEW, None)
     assert REPORT_CARD_SELECTED_SIGNAL_KEY not in state
+    assert state[REPORT_CARD_LAST_TRANSITION_KEY] == "BACK_TO_OVERVIEW"
 
 
 def test_home_entry_overrides_retained_detail_state():
@@ -282,7 +291,10 @@ def test_home_entry_overrides_retained_detail_state():
         REPORT_CARD_SELECTED_SIGNAL_KEY: "signal-nvda",
     }
     open_report_card_overview(state)
-    assert state == {REPORT_CARD_VIEW_KEY: REPORT_CARD_VIEW_OVERVIEW}
+    assert state == {
+        REPORT_CARD_VIEW_KEY: REPORT_CARD_VIEW_OVERVIEW,
+        REPORT_CARD_LAST_TRANSITION_KEY: "OVERVIEW_ENTRY",
+    }
 
 
 def test_missing_mode_with_stale_selection_normalizes_to_overview():

@@ -72,7 +72,14 @@ def build_internal_report_card(path: Path, *, authorized: bool, authority_root: 
                                               if item.get("corporate_action_status")), "Not yet observed"),
             "open": latest_action in (None, "", "BUY_NOW"),
         })
-        enriched_signal_details.append(build_signal_detail(payload, signal_observations, authority_rows=authority_rows))
+        # The immutable ledger record ID is the prospective signal identity.
+        # It lives on the record envelope, not necessarily inside legacy
+        # payloads, so bind it explicitly before building the read-only detail
+        # projection. This must not mutate the stored payload.
+        detail_signal = {**payload, "signal_id": signal["record_id"]}
+        enriched_signal_details.append(
+            build_signal_detail(detail_signal, signal_observations, authority_rows=authority_rows)
+        )
         for horizon in HORIZONS:
             item = observed.get((signal["record_id"], horizon))
             table.append({

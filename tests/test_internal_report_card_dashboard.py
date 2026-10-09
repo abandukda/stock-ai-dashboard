@@ -47,6 +47,32 @@ def test_dashboard_access_and_missing_ledger_fail_closed(tmp_path):
         build_internal_report_card(tmp_path / "missing.sqlite3", authorized=True)
 
 
+def test_detail_projection_uses_immutable_record_id_when_payload_omits_signal_id(tmp_path):
+    item = ProspectiveLedger(tmp_path / "ledger.sqlite3")
+    item.activate(
+        activation_timestamp="2026-10-08T03:20:17+00:00",
+        now=datetime(2026, 10, 8, 3, 20, 17, tzinfo=timezone.utc),
+    )
+    item.append(
+        "SIGNAL",
+        "immutable-signal-nvda",
+        {
+            "semantic_identity": "episode-nvda",
+            "ticker": "NVDA",
+            "first_seen_at": "2026-10-08T03:20:18+00:00",
+            "reference_price": 233.99,
+            "canonical_recommendation": "BUY_NOW",
+            "withholding_status": "CUSTOMER_PUBLISHABLE",
+        },
+        created_at=datetime(2026, 10, 8, 3, 20, 18, tzinfo=timezone.utc),
+    )
+
+    report = build_internal_report_card(item.path, authorized=True)
+
+    assert report["signals"][0]["signal_id"] == "immutable-signal-nvda"
+    assert report["signal_details"][0]["signal_id"] == "immutable-signal-nvda"
+
+
 def test_app_exposes_report_card_only_behind_admin_env_gate():
     source = Path("app.py").read_text()
     assert 'ATLAS_INTERNAL_REPORT_CARD_UI_ENABLED' in source

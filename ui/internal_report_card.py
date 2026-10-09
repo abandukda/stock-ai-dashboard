@@ -14,6 +14,7 @@ REPORT_CARD_VIEW_OVERVIEW = "OVERVIEW"
 REPORT_CARD_VIEW_DETAIL = "DETAIL"
 REPORT_CARD_VIEW_KEY = "report_card_view_mode"
 REPORT_CARD_SELECTED_SIGNAL_KEY = "report_card_selected_signal_id"
+REPORT_CARD_LAST_TRANSITION_KEY = "report_card_last_transition"
 
 
 def normalize_report_card_view_state(
@@ -26,16 +27,25 @@ def normalize_report_card_view_state(
     selected_id = str(selected_id) if selected_id else None
 
     if mode == REPORT_CARD_VIEW_DETAIL and selected_id in valid_ids:
+        session_state[REPORT_CARD_LAST_TRANSITION_KEY] = f"DETAIL_RENDERED:{selected_id}"
         return REPORT_CARD_VIEW_DETAIL, selected_id
 
     session_state[REPORT_CARD_VIEW_KEY] = REPORT_CARD_VIEW_OVERVIEW
     session_state.pop(REPORT_CARD_SELECTED_SIGNAL_KEY, None)
+    session_state.setdefault(REPORT_CARD_LAST_TRANSITION_KEY, "OVERVIEW_ENTRY")
     return REPORT_CARD_VIEW_OVERVIEW, None
 
 
 def open_report_card_overview(session_state: MutableMapping[str, Any]) -> None:
     session_state[REPORT_CARD_VIEW_KEY] = REPORT_CARD_VIEW_OVERVIEW
     session_state.pop(REPORT_CARD_SELECTED_SIGNAL_KEY, None)
+    session_state[REPORT_CARD_LAST_TRANSITION_KEY] = "OVERVIEW_ENTRY"
+
+
+def back_to_report_card_overview(session_state: MutableMapping[str, Any]) -> None:
+    session_state[REPORT_CARD_VIEW_KEY] = REPORT_CARD_VIEW_OVERVIEW
+    session_state.pop(REPORT_CARD_SELECTED_SIGNAL_KEY, None)
+    session_state[REPORT_CARD_LAST_TRANSITION_KEY] = "BACK_TO_OVERVIEW"
 
 
 def open_report_card_detail(session_state: MutableMapping[str, Any], signal_id: str) -> None:
@@ -45,6 +55,7 @@ def open_report_card_detail(session_state: MutableMapping[str, Any], signal_id: 
         return
     session_state[REPORT_CARD_SELECTED_SIGNAL_KEY] = exact_id
     session_state[REPORT_CARD_VIEW_KEY] = REPORT_CARD_VIEW_DETAIL
+    session_state[REPORT_CARD_LAST_TRANSITION_KEY] = f"DETAIL_REQUESTED:{exact_id}"
 
 
 def _percent(value: Any) -> str:
@@ -184,15 +195,20 @@ def render_internal_report_card(ledger_path: Path, *, authorized: bool) -> Mappi
         f'<span data-atlas-qa="report-card-state" '
         f'data-atlas-view="{html.escape(view_mode)}" '
         f'data-atlas-selected-signal="{html.escape(selected_id or "")}" '
-        'data-atlas-route="Internal Report Card" aria-hidden="true" '
+        'data-atlas-route="internal-report-card" '
+        f'data-atlas-last-transition="{html.escape(str(st.session_state.get(REPORT_CARD_LAST_TRANSITION_KEY) or ""))}" '
+        'aria-hidden="true" '
         'style="display:none">report-card-state</span>',
         unsafe_allow_html=True,
     )
     selected = next((item for item in report["signal_details"] if item["signal_id"] == selected_id), None)
     if view_mode == REPORT_CARD_VIEW_DETAIL and selected is not None:
-        if st.button("← Back to Report Card", key="report_card_back_to_overview"):
-            open_report_card_overview(st.session_state)
-            st.rerun()
+        st.button(
+            "← Back to Report Card",
+            key="report_card_back_to_overview",
+            on_click=back_to_report_card_overview,
+            args=(st.session_state,),
+        )
         _render_signal_detail(selected)
         return report
 
@@ -273,7 +289,7 @@ def render_internal_report_card(ledger_path: Path, *, authorized: bool) -> Mappi
 
 
 __all__ = [
-    "REPORT_CARD_SELECTED_SIGNAL_KEY", "REPORT_CARD_VIEW_DETAIL", "REPORT_CARD_VIEW_KEY",
+    "REPORT_CARD_LAST_TRANSITION_KEY", "REPORT_CARD_SELECTED_SIGNAL_KEY", "REPORT_CARD_VIEW_DETAIL", "REPORT_CARD_VIEW_KEY",
     "REPORT_CARD_VIEW_OVERVIEW", "normalize_report_card_view_state", "open_report_card_detail",
-    "open_report_card_overview", "render_internal_report_card",
+    "open_report_card_overview", "back_to_report_card_overview", "render_internal_report_card",
 ]
