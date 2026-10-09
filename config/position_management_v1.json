@@ -1,0 +1,36 @@
+{
+  "methodology_version": "ATLAS_POSITION_MANAGEMENT_SHADOW_V1",
+  "rule_table_version": "ATLAS_POSITION_RULE_TABLE_V1",
+  "status": "PREREGISTERED_SHADOW_ONLY",
+  "customer_visible": false,
+  "eligible_signal_actions": ["BUY_NOW"],
+  "add_eligible_actions": ["BUY_NOW", "BUILD_A_POSITION"],
+  "valuation_band_method": "CERTIFIED_FAIR_VALUE_UNCERTAINTY_BAND",
+  "valuation_states": {
+    "ATTRACTIVE": "price is below the certified lower Fair Value bound",
+    "FAIR": "price is between the certified lower bound and certified base Fair Value, inclusive",
+    "STRETCHED": "price is above certified base Fair Value and no higher than the certified upper bound",
+    "ABOVE_FV": "price is above the certified upper Fair Value bound"
+  },
+  "valuation_persistence_scans": 2,
+  "episode_end_confirmation_scans": 5,
+  "reentry_hysteresis_regular_sessions": 5,
+  "transitions_requiring_persistence": ["STRETCHED", "ABOVE_FV"],
+  "hard_exit_condition_types": [
+    "CATASTROPHIC_BALANCE_SHEET_DETERIORATION",
+    "STRUCTURED_ACCOUNTING_GOVERNANCE_EVENT",
+    "DELISTING_GOING_CONCERN_RESTATEMENT",
+    "PERSISTENT_HIGH_CONFIDENCE_VALUE_DESTRUCTION",
+    "PREREGISTERED_CATASTROPHIC_CONDITION"
+  ],
+  "report_card_horizons": [1, 5, 21, 63, 126, 252],
+  "minimum_customer_validation": {
+    "prospective_months": 12,
+    "instruction_change_events_per_relevant_class": 100,
+    "distinct_scan_dates": 20,
+    "multiple_sectors": true,
+    "meaningful_market_drawdown": true,
+    "factor_sector_review": true,
+    "compliance_review": true
+  }
+}
