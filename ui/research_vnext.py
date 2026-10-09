@@ -1334,7 +1334,7 @@ def _render_ask_cta(report: Mapping[str, Any]) -> None:
 
 
 def render_research_vnext(report: Mapping[str, Any], *, legacy: Mapping[str, Callable[..., Any]]) -> None:
-    """Render five decision-oriented sections from the canonical report."""
+    """Render the single governed customer Research V2 stock experience."""
     ticker = str(report.get("ticker") or "UNKNOWN").upper()
     view = build_research_decision_view(report)
     certified_customer = safe_mapping(report.get("certified_customer_evaluation"))
@@ -1370,6 +1370,9 @@ def render_research_vnext(report: Mapping[str, Any], *, legacy: Mapping[str, Cal
             st.metric("Certified Market Price", CanonicalNumberFormatter.price(price).display)
         st.caption("Only independently certified facts are shown until the complete evaluation reconciles.")
         return
+    from ui.customer_research_v2 import render_customer_research_v2
+    render_customer_research_v2(report, ask_cta=_render_ask_cta)
+    return
     st.markdown(
         """
         <style>
