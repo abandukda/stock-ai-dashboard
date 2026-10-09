@@ -9,6 +9,11 @@ from pathlib import Path
 import sqlite3
 from typing import Any, Mapping
 
+from services.position_management import (
+    DataCertainty, PositionInstruction, ReasonCode, TechnicalState, ThesisState,
+    ValuationState, load_methodology,
+)
+
 
 SHADOW_SCHEMA_VERSION = "ATLAS_POSITION_MANAGEMENT_SHADOW_LEDGER_V1"
 
@@ -137,6 +142,34 @@ class ShadowPositionLedger(AppendOnlyStateLedger):
         missing = sorted(SHADOW_REQUIRED - set(payload))
         if missing:
             raise ValueError("SHADOW_RECORD_INCOMPLETE:" + ",".join(missing))
+        cfg = load_methodology()
+        for name in ("signal_id", "ticker", "candidate_digest", "publication_digest",
+                     "evaluation_snapshot", "source_sha", "inputs_digest"):
+            if not str(payload.get(name) or "").strip():
+                raise ValueError(f"SHADOW_IDENTITY_INVALID:{name}")
+        if payload["methodology_version"] != cfg["methodology_version"]:
+            raise ValueError("SHADOW_METHODOLOGY_VERSION_NOT_ACTIVE")
+        if payload["rule_table_version"] != cfg["rule_table_version"]:
+            raise ValueError("SHADOW_RULE_TABLE_VERSION_NOT_ACTIVE")
+        enum_fields = {
+            "thesis_state": ThesisState, "valuation_state": ValuationState,
+            "technical_state": TechnicalState, "data_certainty": DataCertainty,
+            "position_instruction": PositionInstruction,
+        }
+        for name, enum_type in enum_fields.items():
+            try:
+                enum_type(str(payload[name]))
+            except ValueError as exc:
+                raise ValueError(f"SHADOW_ENUM_INVALID:{name}") from exc
+        reasons = payload.get("reason_codes")
+        if not isinstance(reasons, (list, tuple)) or not reasons:
+            raise ValueError("SHADOW_REASON_CODES_REQUIRED")
+        for code in (*reasons, *(payload.get("review_reason_codes") or ())):
+            try:
+                ReasonCode(str(code))
+            except ValueError as exc:
+                raise ValueError("SHADOW_REASON_CODE_INVALID") from exc
+        _timestamp(str(payload["scan_timestamp"]))
         identity = {key: payload[key] for key in ("signal_id", "scan_timestamp", "methodology_version",
                                                    "evaluation_snapshot", "inputs_digest")}
         return self.append(record_id="shadow:" + _digest(identity), record_type="POSITION_STATE",
