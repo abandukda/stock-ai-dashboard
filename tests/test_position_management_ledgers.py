@@ -4,16 +4,18 @@ import pytest
 
 from services.position_management_ledgers import ShadowPositionLedger
 from services.position_universe_validation import UniverseValidationLedger
+from services.position_management import load_methodology
 
 
 ACTIVATION = "2026-10-08T20:00:00+00:00"
 SCAN = "2026-10-08T21:00:00+00:00"
+CFG = load_methodology()
 
 
 def shadow_payload():
     return {
         "signal_id": "signal-1", "ticker": "NVDA", "scan_timestamp": SCAN,
-        "methodology_version": "ATLAS_POSITION_MANAGEMENT_SHADOW_V1",
+        "methodology_version": CFG["methodology_version"],
         "candidate_digest": "candidate", "publication_digest": "publication",
         "evaluation_snapshot": "snapshot", "source_sha": "source",
         "thesis_state": "INTACT", "valuation_state": "FAIR", "technical_state": "HEALTHY",
@@ -21,19 +23,22 @@ def shadow_payload():
         "review_required": False, "review_reason_codes": [], "reason_codes": ["THESIS_INTACT"],
         "price": 100.0, "certified_fair_value": 110.0, "valuation_confidence": 80.0,
         "fair_value_band": {"lower": 90.0, "base": 110.0, "upper": 125.0},
-        "inputs_digest": "inputs", "rule_table_version": "ATLAS_POSITION_RULE_TABLE_V1",
+        "inputs_digest": "inputs", "rule_table_version": CFG["rule_table_version"],
         "customer_visible": False,
     }
 
 
 def universe_payload():
     return {
-        "ticker": "NVDA", "scan_timestamp": SCAN, "sector": "Technology",
+        "ticker": "NVDA", "scan_timestamp": SCAN, "scan_cohort_id": "cohort-20261008",
+        "sector": "Technology",
         "industry": "Semiconductors", "beta": 1.5, "market_cap_bucket": "MEGA",
+        "momentum": {"status": "AVAILABLE", "value": 0.12},
+        "volatility": {"status": "AVAILABLE", "value": 0.31},
         "current_action": "BUY_NOW", "valuation_state": "FAIR", "technical_state": "HEALTHY",
         "risk_state": "NORMAL", "candidate_digest": "candidate", "publication_digest": "publication",
         "evaluation_snapshot": "snapshot", "source_sha": "source",
-        "methodology_version": "ATLAS_POSITION_MANAGEMENT_SHADOW_V1",
+        "methodology_version": CFG["methodology_version"], "rule_table_version": CFG["rule_table_version"],
         "customer_visible": False, "delisted": False,
     }
 

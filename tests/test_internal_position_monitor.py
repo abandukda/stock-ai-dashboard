@@ -4,16 +4,18 @@ import pytest
 
 from services.position_management_dashboard import build_shadow_position_dashboard
 from services.position_management_ledgers import ShadowPositionLedger
+from services.position_management import load_methodology
 
 
 ACTIVATION = "2026-10-08T20:00:00+00:00"
 SCAN = "2026-10-08T21:00:00+00:00"
+CFG = load_methodology()
 
 
 def payload(signal_id="signal-1", ticker="NVDA"):
     return {
         "signal_id": signal_id, "ticker": ticker, "scan_timestamp": SCAN,
-        "methodology_version": "ATLAS_POSITION_MANAGEMENT_SHADOW_V1",
+        "methodology_version": CFG["methodology_version"],
         "candidate_digest": "candidate", "publication_digest": "publication",
         "evaluation_snapshot": "snapshot", "source_sha": "source", "thesis_state": "INTACT",
         "valuation_state": "FAIR", "technical_state": "HEALTHY", "data_certainty": "CERTIFIED",
@@ -21,7 +23,7 @@ def payload(signal_id="signal-1", ticker="NVDA"):
         "review_reason_codes": [], "reason_codes": ["THESIS_INTACT", "VALUATION_FAIR"],
         "price": 100.0, "certified_fair_value": 110.0, "valuation_confidence": 80.0,
         "fair_value_band": {"lower": 90, "base": 110, "upper": 125}, "inputs_digest": "inputs",
-        "rule_table_version": "ATLAS_POSITION_RULE_TABLE_V1", "customer_visible": False,
+        "rule_table_version": CFG["rule_table_version"], "customer_visible": False,
     }
 
 

@@ -36,6 +36,7 @@ def test_certified_fair_value_band_states_are_config_driven():
     assert classify_valuation(110, band) == ValuationState.STRETCHED
     assert classify_valuation(116, band) == ValuationState.ABOVE_FV
     assert classify_valuation(None, band) == ValuationState.UNAVAILABLE
+    assert classify_valuation(80, FairValueBand(90, 100, 115, None, "VALUATION_V1")) == ValuationState.UNAVAILABLE
     with pytest.raises(ValueError, match="FAIR_VALUE_BAND_INVALID"):
         FairValueBand(110, 100, 115, 80, "VALUATION_V1")
 
@@ -96,8 +97,10 @@ def test_axes_are_independent_and_reasoned():
 def test_episode_end_and_reentry_hysteresis_are_separate():
     pending = episode_transition(current_action="WATCH", prior_outside_count=0, scan_timestamp=NOW, config=CFG)
     assert pending["status"] == "PENDING_END"
-    ended = episode_transition(current_action="WATCH", prior_outside_count=4, scan_timestamp=NOW, config=CFG)
+    ended = episode_transition(current_action="WATCH", prior_outside_count=4, scan_timestamp=NOW,
+                               first_out_of_buy_now_at=pending["first_out_of_buy_now_at"], config=CFG)
     assert ended["status"] == "ENDED"
+    assert ended["first_out_of_buy_now_at"] == pending["first_out_of_buy_now_at"]
     assert not reentry_allowed(prior_episode_confirmed_ended=True,
                                consecutive_regular_sessions_outside_buy_now=4,
                                current_action="BUY_NOW", config=CFG)
