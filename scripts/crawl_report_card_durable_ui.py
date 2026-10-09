@@ -106,7 +106,7 @@ async def open_report_card_signal_expander(page: Page, mode: str) -> Any:
 DETAIL_SECTIONS = (
     "ORIGINAL CERTIFIED SIGNAL", "CURRENT MARKET STATE", "Performance by registered horizon",
     "ATLAS Signal Digest", "Original thesis and view-change conditions", "About ",
-    "Event timeline", "Evidence and audit identity", "What Drove the Move",
+    "Event timeline", "Evidence and audit identity", "Performance Context",
 )
 
 
@@ -194,12 +194,29 @@ async def run(output: Path) -> None:
                 raise AssertionError(f"MISLEADING_ZERO_PERFORMANCE:{mode}")
             await shot(page, output, f"internal-report-card-{mode}", manifest)
             await wait_for_report_card_signal_entry_settled(page, mode)
-            await open_report_card_signal_expander(page, mode)
+            expander = await open_report_card_signal_expander(page, mode)
             digest_button = page.get_by_role("button", name="View Signal Digest →").first
             await digest_button.wait_for(state="visible", timeout=30000)
+            identity_match = re.search(r"Signal ID:\s*([^\s]+)", await expander.inner_text())
+            if identity_match is None:
+                raise AssertionError(f"REPORT_CARD_SIGNAL_IDENTITY_MISSING_BEFORE_CLICK:{mode}")
+            clicked_signal_id = identity_match.group(1).strip("`")
             await digest_button.click()
+            state = page.locator('[data-atlas-qa="report-card-state"]')
+            await state.wait_for(state="attached", timeout=30000)
+            state_view = await state.get_attribute("data-atlas-view")
+            state_signal = await state.get_attribute("data-atlas-selected-signal")
+            if state_view != "DETAIL":
+                raise AssertionError(f"REPORT_CARD_DETAIL_REQUEST_RESET_TO_OVERVIEW:{mode}:{state_view}")
+            if state_signal != clicked_signal_id:
+                raise AssertionError(
+                    f"REPORT_CARD_DETAIL_SELECTED_SIGNAL_LOST:{mode}:{clicked_signal_id}:{state_signal}"
+                )
             detail = page.locator('[data-atlas-qa="report-card-signal-detail"]')
-            await detail.wait_for(state="attached", timeout=30000)
+            try:
+                await detail.wait_for(state="attached", timeout=30000)
+            except Exception as exc:
+                raise AssertionError(f"REPORT_CARD_DETAIL_RENDER_FAILED_AFTER_VALID_STATE:{mode}") from exc
             if await detail.get_attribute("data-atlas-report-card-view") != "DETAIL":
                 raise AssertionError(f"REPORT_CARD_DETAIL_VIEW_STATE_INVALID:{mode}")
             await wait_for_report_card_detail_settled(page, mode)

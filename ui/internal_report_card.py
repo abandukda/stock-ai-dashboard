@@ -155,7 +155,7 @@ def _render_signal_detail(detail: Mapping[str, Any]) -> None:
             f'**Generation:** {detail["generation_mode"]}  \n'
             f'**Context classification:** `{detail["context_classification"]}`'
         )
-    st.subheader("What Drove the Move")
+    st.subheader("Performance Context")
     st.info(detail["move_attribution"]["text"])
     st.markdown("**Positive drivers**")
     st.markdown("\n".join(f'- {item}' for item in detail["move_attribution"]["positive_drivers"]) or "- Not attributable from approved evidence.")
@@ -179,6 +179,14 @@ def render_internal_report_card(ledger_path: Path, *, authorized: bool) -> Mappi
     view_mode, selected_id = normalize_report_card_view_state(
         st.session_state,
         [item["signal_id"] for item in report["signal_details"]],
+    )
+    st.markdown(
+        f'<span data-atlas-qa="report-card-state" '
+        f'data-atlas-view="{html.escape(view_mode)}" '
+        f'data-atlas-selected-signal="{html.escape(selected_id or "")}" '
+        'data-atlas-route="Internal Report Card" aria-hidden="true" '
+        'style="display:none">report-card-state</span>',
+        unsafe_allow_html=True,
     )
     selected = next((item for item in report["signal_details"] if item["signal_id"] == selected_id), None)
     if view_mode == REPORT_CARD_VIEW_DETAIL and selected is not None:
@@ -254,9 +262,12 @@ def render_internal_report_card(ledger_path: Path, *, authorized: bool) -> Mappi
                     "Observed at": item["observed_at"] or "Not yet observed",
                 })
             st.dataframe(rows, width="stretch", hide_index=True)
-            if st.button("View Signal Digest →", key=f'report_card_signal_{signal["signal_id"]}'):
-                open_report_card_detail(st.session_state, signal["signal_id"])
-                st.rerun()
+            st.button(
+                "View Signal Digest →",
+                key=f'report_card_signal_{signal["signal_id"]}',
+                on_click=open_report_card_detail,
+                args=(st.session_state, signal["signal_id"]),
+            )
     st.caption("Sample sizes are shown per horizon. Missing and not-yet-matured observations remain explicit.")
     return report
 

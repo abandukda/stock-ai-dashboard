@@ -117,7 +117,7 @@ def test_internal_signal_detail_ui_and_home_deep_link_contracts_are_registered()
     home = Path("ui/home_guidance_vnext.py").read_text(encoding="utf-8")
     for marker in (
         'data-atlas-qa="report-card-signal-detail"', "ORIGINAL CERTIFIED SIGNAL",
-        "CURRENT MARKET STATE", "ATLAS Signal Digest", "What Drove the Move",
+        "CURRENT MARKET STATE", "ATLAS Signal Digest", "Performance Context",
         "Performance by registered horizon", "← Back to Report Card",
     ):
         assert marker in ui
@@ -125,6 +125,14 @@ def test_internal_signal_detail_ui_and_home_deep_link_contracts_are_registered()
     assert "open_report_card_overview(st.session_state)" in home
     assert "on_click=_open_report_card_overview" in home
     assert "Open {signal[\"ticker\"]} signal" in home
+
+
+def test_report_card_state_marker_exposes_normalized_route_and_selection():
+    ui = Path("ui/internal_report_card.py").read_text(encoding="utf-8")
+    assert 'data-atlas-qa="report-card-state"' in ui
+    assert 'data-atlas-view=' in ui
+    assert 'data-atlas-selected-signal=' in ui
+    assert 'data-atlas-route="Internal Report Card"' in ui
 
 
 def test_autonomous_crawler_opens_and_certifies_signal_detail():
@@ -143,6 +151,9 @@ def test_autonomous_crawler_opens_and_certifies_signal_detail():
     assert "ATLAS_REPORT_CARD_SIGNAL_DIGEST_CERTIFIED" in crawler
     assert 'data-atlas-report-card-view' in crawler
     assert 'REPORT_CARD_REENTRY_VIEW_STATE_INVALID' in crawler
+    assert "REPORT_CARD_DETAIL_REQUEST_RESET_TO_OVERVIEW" in crawler
+    assert "REPORT_CARD_DETAIL_SELECTED_SIGNAL_LOST" in crawler
+    assert "REPORT_CARD_DETAIL_RENDER_FAILED_AFTER_VALID_STATE" in crawler
 
 
 def test_settlement_waits_for_two_stable_checks_after_incremental_render():
@@ -234,6 +245,25 @@ def test_overview_to_detail_requires_and_retains_exact_signal():
         REPORT_CARD_VIEW_DETAIL, "signal-nvda"
     )
     assert state[REPORT_CARD_SELECTED_SIGNAL_KEY] == "signal-nvda"
+
+
+def test_digest_control_registers_pre_render_state_callback_without_explicit_rerun():
+    ui = Path("ui/internal_report_card.py").read_text(encoding="utf-8")
+    control = ui[ui.index('"View Signal Digest →"'):]
+    control = control[:control.index("st.caption")]
+    assert "on_click=open_report_card_detail" in control
+    assert "args=(st.session_state, signal[\"signal_id\"])" in control
+    assert "st.rerun()" not in control
+
+
+def test_digest_callback_state_survives_next_render_normalization():
+    state = {REPORT_CARD_VIEW_KEY: REPORT_CARD_VIEW_OVERVIEW}
+    # Streamlit executes widget callbacks before the next script-body render.
+    open_report_card_detail(state, "signal-nvda")
+    assert normalize_report_card_view_state(state, ["signal-nvda", "signal-msft"]) == (
+        REPORT_CARD_VIEW_DETAIL,
+        "signal-nvda",
+    )
 
 
 def test_detail_back_to_overview_clears_selected_signal():
