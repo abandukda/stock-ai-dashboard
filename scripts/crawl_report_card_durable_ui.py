@@ -121,6 +121,43 @@ async def wait_for_report_card_detail_settled(page: Page, mode: str) -> None:
     )
 
 
+async def wait_for_report_card_detail_state(page: Page, mode: str, expected_signal_id: str) -> None:
+    """Wait for final normalized DETAIL state, never the pre-rerun marker."""
+    observed: dict[str, str | None] = {}
+
+    async def settled() -> bool:
+        state = page.locator('[data-atlas-qa="report-card-state"]')
+        if not await state.count():
+            return False
+        observed["view"] = await state.get_attribute("data-atlas-view")
+        observed["signal"] = await state.get_attribute("data-atlas-selected-signal")
+        observed["route"] = await state.get_attribute("data-atlas-route")
+        observed["transition"] = await state.get_attribute("data-atlas-last-transition")
+        return (
+            observed["view"] == "DETAIL"
+            and observed["signal"] == expected_signal_id
+            and observed["route"] == "internal-report-card"
+            and observed["transition"] == f"DETAIL_RENDERED:{expected_signal_id}"
+        )
+
+    try:
+        await _wait_for_stable_condition(settled, "unused")
+    except AssertionError as exc:
+        if observed.get("view") == "OVERVIEW":
+            raise AssertionError(
+                f'REPORT_CARD_DETAIL_REQUEST_RESET_TO_OVERVIEW:{mode}:{observed.get("transition")}'
+            ) from exc
+        if observed.get("view") == "DETAIL" and not observed.get("signal"):
+            raise AssertionError(f"REPORT_CARD_DETAIL_SELECTED_SIGNAL_LOST:{mode}") from exc
+        if observed.get("view") == "DETAIL" and observed.get("signal") != expected_signal_id:
+            raise AssertionError(
+                f'REPORT_CARD_DETAIL_SELECTED_SIGNAL_LOST:{mode}:{expected_signal_id}:{observed.get("signal")}'
+            ) from exc
+        raise AssertionError(
+            f'REPORT_CARD_DETAIL_RENDER_FAILED_AFTER_VALID_STATE:{mode}:{observed}'
+        ) from exc
+
+
 async def login(page: Page, password: str) -> None:
     await page.goto("http://127.0.0.1:8501", wait_until="domcontentloaded")
     field = page.locator('input[type="password"]')
@@ -202,16 +239,7 @@ async def run(output: Path) -> None:
                 raise AssertionError(f"REPORT_CARD_SIGNAL_IDENTITY_MISSING_BEFORE_CLICK:{mode}")
             clicked_signal_id = identity_match.group(1).strip("`")
             await digest_button.click()
-            state = page.locator('[data-atlas-qa="report-card-state"]')
-            await state.wait_for(state="attached", timeout=30000)
-            state_view = await state.get_attribute("data-atlas-view")
-            state_signal = await state.get_attribute("data-atlas-selected-signal")
-            if state_view != "DETAIL":
-                raise AssertionError(f"REPORT_CARD_DETAIL_REQUEST_RESET_TO_OVERVIEW:{mode}:{state_view}")
-            if state_signal != clicked_signal_id:
-                raise AssertionError(
-                    f"REPORT_CARD_DETAIL_SELECTED_SIGNAL_LOST:{mode}:{clicked_signal_id}:{state_signal}"
-                )
+            await wait_for_report_card_detail_state(page, mode, clicked_signal_id)
             detail = page.locator('[data-atlas-qa="report-card-signal-detail"]')
             try:
                 await detail.wait_for(state="attached", timeout=30000)

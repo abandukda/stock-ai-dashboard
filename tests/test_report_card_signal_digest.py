@@ -4,7 +4,10 @@ from pathlib import Path
 
 import pytest
 
-from scripts.crawl_report_card_durable_ui import _wait_for_stable_condition
+from scripts.crawl_report_card_durable_ui import (
+    _wait_for_stable_condition,
+    wait_for_report_card_detail_state,
+)
 from services.report_card_signal_detail import CONTEXT_CLASSIFICATION, build_signal_detail
 from ui.internal_report_card import (
     REPORT_CARD_LAST_TRANSITION_KEY,
@@ -191,7 +194,8 @@ def test_crawler_settlement_contract_covers_overview_entry_detail_and_both_viewp
     crawler = Path("scripts/crawl_report_card_durable_ui.py").read_text(encoding="utf-8")
     for contract in (
         "wait_for_report_card_overview_settled", "wait_for_report_card_signal_entry_settled",
-        "open_report_card_signal_expander", "wait_for_report_card_detail_settled",
+        "open_report_card_signal_expander", "wait_for_report_card_detail_state",
+        "wait_for_report_card_detail_settled",
         "REPORT_CARD_SIGNAL_ENTRY_NOT_SETTLED", "REPORT_CARD_SIGNAL_EXPANDER_NOT_SETTLED",
         "REPORT_CARD_SIGNAL_DETAIL_VISIBLE_RENDER_NOT_SETTLED", "REPORT_CARD_COMPANY_PROFILE_NOT_SETTLED",
     ):
@@ -201,6 +205,21 @@ def test_crawler_settlement_contract_covers_overview_entry_detail_and_both_viewp
     assert "data-atlas-signal-count" not in crawler  # read through the semantic marker attribute helper
     assert 'f"data-atlas-{key}"' in crawler
     assert 'f"about-company-{mode}"' in crawler
+
+
+def test_detail_state_wait_uses_final_transition_marker_and_exact_signal():
+    crawler = Path("scripts/crawl_report_card_durable_ui.py").read_text(encoding="utf-8")
+    helper = crawler[
+        crawler.index("async def wait_for_report_card_detail_state"):
+        crawler.index("async def login")
+    ]
+    assert 'data-atlas-last-transition' in helper
+    assert 'DETAIL_RENDERED:{expected_signal_id}' in helper
+    assert 'data-atlas-route' in helper
+    assert 'internal-report-card' in helper
+    assert "REPORT_CARD_DETAIL_REQUEST_RESET_TO_OVERVIEW" in helper
+    assert "REPORT_CARD_DETAIL_SELECTED_SIGNAL_LOST" in helper
+    assert "REPORT_CARD_DETAIL_RENDER_FAILED_AFTER_VALID_STATE" in helper
 
 
 def test_crawler_opens_signal_expander_before_waiting_for_digest_button():
