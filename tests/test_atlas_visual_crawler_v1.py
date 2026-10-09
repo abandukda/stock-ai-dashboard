@@ -184,9 +184,31 @@ def test_full_product_closure_reacquires_expanders_and_certifies_position_states
     assert "EXPANDER_NOT_REACQUIRED_BEFORE_CLOSE" in expander
     assert "consecutive >= 2" in expander
     assert "initial_collapsed and expanded and collapsed" in expander
+    assert "canonical_expander_label(await candidate.inner_text()) == name" in expander
+    assert 'state="open-immediate"' in expander
+    assert 'state="open-settled"' in expander
+    assert 'state="close-immediate"' in expander
+    assert 'state="close-settled"' in expander
     assert 'data-atlas-qa="position-management-state"' in source
     for state in ("HOLD", "HOLD_NO_ADD", "TRIM", "EXIT", "SUSPENDED", "REVIEW"):
         assert f'"{state}"' in source
+
+
+def test_expander_label_and_semantic_state_are_stable_across_streamlit_icons():
+    from agents.atlas_visual_crawler_v1 import canonical_expander_label, expander_semantic_state
+
+    assert canonical_expander_label("keyboard_arrow_right\n\nMarket context") == "Market context"
+    assert canonical_expander_label("keyboard_arrow_down Market context") == "Market context"
+    assert expander_semantic_state({
+        "icon": "keyboard_arrow_right", "content_inert": True, "content_visible": False,
+    }) == "COLLAPSED"
+    assert expander_semantic_state({
+        "icon": "keyboard_arrow_down", "content_inert": False, "content_visible": True,
+    }) == "EXPANDED"
+    assert expander_semantic_state({
+        "details_open": True, "icon": "keyboard_arrow_right",
+        "content_inert": True, "content_visible": False,
+    }) == "COLLAPSED"
 
 
 def test_supplementary_ask_rebuilds_research_authority_before_reconciliation():

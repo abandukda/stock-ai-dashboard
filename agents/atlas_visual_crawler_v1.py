@@ -69,6 +69,31 @@ RESEARCH_V2_MARKERS = (
     "fundamentals", "catalysts", "about-company", "evidence-methodology",
 )
 
+EXPANDER_ICON_TOKENS = {
+    "keyboard_arrow_right", "keyboard_arrow_down", "expand_more", "expand_less",
+}
+
+
+def canonical_expander_label(value: str) -> str:
+    """Return the stable customer label without Streamlit's dynamic icon text."""
+    tokens = [
+        token.strip() for token in re.split(r"\s+", str(value or ""))
+        if token.strip() and token.strip() not in EXPANDER_ICON_TOKENS
+    ]
+    return " ".join(tokens)
+
+
+def expander_semantic_state(dom: dict[str, Any]) -> str:
+    """Classify the customer-visible state, including Streamlit close animation."""
+    icon = str(dom.get("icon") or "").strip()
+    content_visible = bool(dom.get("content_visible"))
+    content_inert = bool(dom.get("content_inert"))
+    if content_visible and not content_inert and icon not in {"keyboard_arrow_right", "expand_more"}:
+        return "EXPANDED"
+    if (content_inert or not content_visible) and icon not in {"keyboard_arrow_down", "expand_less"}:
+        return "COLLAPSED"
+    return "TRANSITIONING"
+
 
 def research_route_ownership_satisfied(
     *, route_selected: bool, heading_visible: bool,
@@ -1963,17 +1988,18 @@ class AtlasVisualCrawler:
         return False
 
     async def _click_expanders(self, page: Page, *, page_name: str, viewport: str = "desktop") -> None:
-        candidates: list[tuple[str, Any]] = []
+        candidates: dict[str, Any] = {}
         for scope in _scopes(page):
             try:
                 nodes = scope.locator('[data-testid="stExpander"] summary, details summary')
                 for index in range(await nodes.count()):
                     node = nodes.nth(index)
                     if await node.is_visible():
-                        candidates.append(((await node.inner_text()).strip() or f"expander-{index + 1}", node))
+                        label = canonical_expander_label(await node.inner_text()) or f"expander-{index + 1}"
+                        candidates.setdefault(label, node)
             except Exception:
                 continue
-        for name, node in candidates:
+        for name, node in candidates.items():
             started = time.monotonic()
             before = await self._shot(page, page_name=page_name, interaction=f"expander-{name}", state="before", viewport=viewport)
             try:
@@ -1982,48 +2008,96 @@ class AtlasVisualCrawler:
                         summaries = scope.locator('[data-testid="stExpander"] summary, details summary')
                         for summary_index in range(await summaries.count()):
                             candidate = summaries.nth(summary_index)
-                            if await candidate.is_visible() and (await candidate.inner_text()).strip() == name:
+                            if (
+                                await candidate.is_visible()
+                                and canonical_expander_label(await candidate.inner_text()) == name
+                            ):
                                 return candidate
                     return None
 
-                async def settled_state(expected: bool) -> bool:
+                async def dom_state(current: Any) -> dict[str, Any]:
+                    return await current.evaluate(
+                        """el => {
+                            const details = el.closest('details');
+                            const content = details?.querySelector('[data-testid="stExpanderDetails"]');
+                            const icon = el.querySelector('[data-testid="stIconMaterial"]');
+                            const style = content ? getComputedStyle(content) : null;
+                            const rect = content?.getBoundingClientRect();
+                            const inert = !!content?.hasAttribute('inert');
+                            return {
+                                details_open: !!details?.open,
+                                content_inert: inert,
+                                content_visible: !!content && !inert && style?.display !== 'none'
+                                    && style?.visibility !== 'hidden' && !!rect && rect.height > 0,
+                                content_text: (content?.innerText || '').trim(),
+                                icon: (icon?.textContent || '').trim(),
+                            };
+                        }"""
+                    )
+
+                async def settled_state(expected: str) -> tuple[bool, dict[str, Any]]:
                     consecutive = 0
+                    last: dict[str, Any] = {}
                     deadline = time.monotonic() + 15
                     while time.monotonic() < deadline:
                         current = await reacquire()
                         if current is None:
                             consecutive = 0
                         else:
-                            state = await current.evaluate(
-                                "el => el.getAttribute('aria-expanded') === 'true' || !!el.closest('details')?.open"
-                            )
-                            consecutive = consecutive + 1 if bool(state) is expected else 0
+                            last = await dom_state(current)
+                            state = expander_semantic_state(last)
+                            customer_content = bool(str(last.get("content_text") or "").strip())
+                            matches = state == expected and (expected != "EXPANDED" or customer_content)
+                            consecutive = consecutive + 1 if matches else 0
                             if consecutive >= 2:
-                                return True
+                                return True, last
                         await page.wait_for_timeout(150)
-                    return False
+                    return False, last
 
-                initial_collapsed = await settled_state(False)
+                initial_collapsed, initial_dom = await settled_state("COLLAPSED")
                 current = await reacquire()
                 if current is None:
                     raise RuntimeError("EXPANDER_NOT_REACQUIRED_BEFORE_OPEN")
                 await current.click(timeout=5000)
-                expanded = await settled_state(True)
+                open_immediate = await self._shot(
+                    page, page_name=page_name, interaction=f"expander-{name}",
+                    state="open-immediate", viewport=viewport,
+                )
+                expanded, expanded_dom = await settled_state("EXPANDED")
                 exception = await _has_rendered_exception(page)
-                after = await self._shot(page, page_name=page_name, interaction=f"expander-{name}", state="after", viewport=viewport)
+                open_settled = await self._shot(
+                    page, page_name=page_name, interaction=f"expander-{name}",
+                    state="open-settled", viewport=viewport,
+                )
                 collapsed = False
+                collapsed_dom: dict[str, Any] = {}
+                close_immediate = ""
+                close_settled = ""
                 if expanded:
                     current = await reacquire()
                     if current is None:
                         raise RuntimeError("EXPANDER_NOT_REACQUIRED_BEFORE_CLOSE")
                     await current.click(timeout=3000)
-                    collapsed = await settled_state(False)
+                    close_immediate = await self._shot(
+                        page, page_name=page_name, interaction=f"expander-{name}",
+                        state="close-immediate", viewport=viewport,
+                    )
+                    collapsed, collapsed_dom = await settled_state("COLLAPSED")
+                    close_settled = await self._shot(
+                        page, page_name=page_name, interaction=f"expander-{name}",
+                        state="close-settled", viewport=viewport,
+                    )
                 await self._record(
                     category="EXPANDER", page_name=page_name, interaction=name,
                     expected="Required expander opens, exposes content, and closes",
-                    observed=f"initial_collapsed={initial_collapsed}; expanded={expanded}; collapsed={collapsed}; exception={exception}",
+                    observed=(f"initial_collapsed={initial_collapsed}; expanded={expanded}; collapsed={collapsed}; "
+                              f"initial_dom={initial_dom}; expanded_dom={expanded_dom}; "
+                              f"collapsed_dom={collapsed_dom}; exception={exception}"),
                     passed=initial_collapsed and expanded and collapsed and not exception, elapsed=time.monotonic() - started,
-                    viewport=viewport, screenshots=(before, after),
+                    viewport=viewport,
+                    screenshots=tuple(path for path in (
+                        before, open_immediate, open_settled, close_immediate, close_settled,
+                    ) if path),
                     exception=await self._exception_identity(page) if exception else {},
                 )
             except Exception as exc:
