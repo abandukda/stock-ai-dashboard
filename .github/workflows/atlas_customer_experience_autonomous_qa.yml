@@ -80,7 +80,7 @@ jobs:
         run: python3 -m pytest -q tests/test_customer_experience_autonomous_qa.py tests/test_customer_navigation_contract.py tests/test_customer_required_phase_orchestration.py
       - name: Static validation
         run: |
-          python3 -m py_compile agents/customer_experience_qa_contracts.py agents/customer_experience_qa_validators.py agents/customer_experience_qa_repairs.py agents/atlas_customer_experience_autonomous_qa.py agents/atlas_visual_crawler_v1.py scripts/prepare_customer_experience_qa_evidence.py scripts/prepare_report_card_qa_fixture.py services/customer_navigation_contract.py
+          python3 -m py_compile agents/customer_experience_qa_contracts.py agents/customer_experience_qa_validators.py agents/customer_experience_qa_repairs.py agents/atlas_customer_experience_autonomous_qa.py agents/atlas_visual_crawler_v1.py scripts/prepare_customer_experience_qa_evidence.py scripts/prepare_report_card_qa_fixture.py scripts/acquire_research_v2_qa_context.py services/customer_navigation_contract.py services/customer_research_v2.py
           python3 -c "import yaml; yaml.safe_load(open('.github/workflows/atlas_customer_experience_autonomous_qa.yml'))"
 
   governed-browser-certification:
@@ -103,6 +103,14 @@ jobs:
       ATLAS_REPORT_CARD_DURABLE_ROOT: ${{ github.workspace }}/audit_results/report-card-qa-primary
       ATLAS_REPORT_CARD_BACKUP_ROOT: ${{ github.workspace }}/audit_results/report-card-qa-backup
       PYTHONPATH: .
+      ATLAS_QA_MODE: "1"
+      ATLAS_WALL_STREET_CONTEXT_ENABLED: "true"
+      ATLAS_RESEARCH_V2_CHART_ENABLED: "true"
+      ATLAS_RESEARCH_V2_BENCHMARK_ENABLED: "true"
+      ATLAS_RESEARCH_V2_NEWS_ENABLED: "true"
+      ATLAS_RESEARCH_V2_COMPANY_ENABLED: "true"
+      ATLAS_RESEARCH_V2_SUMMARY_ENABLED: "true"
+      ATLAS_RESEARCH_V2_QA_ENRICHMENT: ${{ github.workspace }}/audit_results/customer_experience_qa/research_v2_licensed_context.json
     steps:
       - uses: actions/checkout@v4
         with:
@@ -304,6 +312,21 @@ jobs:
             --expected-publication-digest "${{ steps.handoff.outputs.publication }}" \
             --expected-source-sha "${{ steps.handoff.outputs.source }}" \
             --runtime-expectations-dir "${{ steps.handoff.outputs.expectations_dir }}"
+      - name: Acquire bounded licensed Research V2 QA context
+        env:
+          FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+          ATLAS_FINNHUB_LICENSE_CLASS: LICENSED_GOVERNED_QA_ONLY
+        run: |
+          python3 scripts/acquire_research_v2_qa_context.py \
+            --tickers NVDA,MSFT,AVT \
+            --output "$ATLAS_RESEARCH_V2_QA_ENRICHMENT"
+          python3 - <<'PY'
+          import json, os
+          report=json.load(open(os.environ["ATLAS_RESEARCH_V2_QA_ENRICHMENT"]))
+          assert report["scope"] == "QA_ONLY"
+          assert report["provider_calls"] == 22
+          assert sorted(report["tickers"]) == ["AVT", "MSFT", "NVDA"]
+          PY
       - name: Launch exact candidate
         env:
           ATLAS_QA_MODE: "1"

@@ -938,6 +938,34 @@ class AtlasVisualCrawler:
                 continue
         return fields
 
+    async def _research_v2_section_screenshots(self, page: Page, ticker: str, viewport: str) -> list[str]:
+        """Preserve the intended V2 experience section-by-section for human QA."""
+        captures: list[str] = []
+        sections = (
+            ("above-fold", "CERTIFIED ATLAS RESEARCH"),
+            ("price-chart", "Price / Performance"),
+            ("ai-summary", "ATLAS Research Summary"),
+            ("wall-street", "ATLAS vs Wall Street"),
+            ("risks", "Risks / What Would Change the View"),
+            ("fundamentals", "Fundamentals Snapshot"),
+            ("catalysts", "Catalysts / Next Events"),
+            ("about-company", "About the Company"),
+        )
+        for slug, label in sections:
+            locator = page.get_by_text(label, exact=True).last
+            try:
+                if not await locator.count() or not await locator.is_visible():
+                    continue
+                await locator.scroll_into_view_if_needed(timeout=5000)
+                await page.wait_for_timeout(100)
+                captures.append(await self._shot(
+                    page, page_name="Research Any Ticker", interaction=f"v2-{ticker}-{slug}",
+                    state="visible", viewport=viewport, ticker=ticker,
+                ))
+            except Exception:
+                continue
+        return captures
+
     def _source_sha(self) -> str:
         return subprocess.check_output(
             ["git", "rev-parse", "HEAD"], cwd=self.root, text=True,
@@ -2170,6 +2198,8 @@ class AtlasVisualCrawler:
                 )
                 passed = passed and architecture_passed
             after = await self._shot(page, page_name="Research Any Ticker", interaction=f"submit-{ticker}", state="after", viewport=viewport, ticker=ticker, complete_surface=ticker != "INVALID123")
+            if passed and ticker == "NVDA" and architecture.get("version") == RESEARCH_V2_VERSION:
+                await self._research_v2_section_screenshots(page, ticker, viewport)
             for entry in reversed(self.manifest):
                 if entry.get("path") == after:
                     entry["research_terminal_state"] = completion.get("research_terminal_state")

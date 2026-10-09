@@ -102,7 +102,11 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
             st.line_chart(rows.dropna(subset=[date_key, close_key]).set_index(date_key)[close_key], height=300)
         else:
             st.info("Price history is unavailable under the governed display contract.")
-        st.caption("SPY comparison is unavailable until commercial display rights are confirmed.")
+        spy = chart.get("spy_comparison") or {}
+        if spy.get("status") == "AVAILABLE":
+            st.caption("Normalized SPY comparison is available in this governed licensed QA experience.")
+        else:
+            st.caption("SPY comparison unavailable for this evidence bundle.")
 
     st.markdown("## ATLAS Research Summary")
     _marker("summary", ticker, classification="CERTIFIED_ATLAS")
@@ -120,8 +124,22 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
 
     st.markdown("## ATLAS vs Wall Street")
     _marker("analyst-module", ticker, status=page["wall_street"]["status"])
-    if page["wall_street"]["status"] != "AVAILABLE":
-        st.info("Wall Street context is unavailable until source, freshness, and commercial display rights are confirmed.")
+    wall = page["wall_street"]
+    if wall["status"] == "UNAVAILABLE" or wall["status"] == "DISABLED":
+        st.info("Wall Street context is unavailable for this evidence bundle.")
+    else:
+        a = st.columns(4)
+        a[0].metric("Consensus", wall.get("consensus") or "Unavailable")
+        a[1].metric("Buy", wall.get("buy_count") if wall.get("buy_count") is not None else "Unavailable")
+        a[2].metric("Hold", wall.get("hold_count") if wall.get("hold_count") is not None else "Unavailable")
+        a[3].metric("Sell", wall.get("sell_count") if wall.get("sell_count") is not None else "Unavailable")
+        b = st.columns(5)
+        b[0].metric("Current Price", _money(h["price"]))
+        b[1].metric("Wall St. Low", _money(wall.get("target_low")))
+        b[2].metric("Wall St. Average", _money(wall.get("target_average")))
+        b[3].metric("Wall St. High", _money(wall.get("target_high")))
+        b[4].metric("ATLAS Fair Value", _money(h["fair_value"]))
+        st.caption(f'{wall.get("analyst_count") or "Unavailable"} analysts · as of {wall.get("as_of") or "Unavailable"} · contextual and non-scoring')
 
     st.markdown("## Risks / What Would Change the View")
     _marker("risks", ticker)
@@ -136,7 +154,12 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
 
     st.markdown("## What Changed Recently")
     _marker("what-changed", ticker, status=page["recent_changes"]["status"])
-    st.info("Not enough evidence")
+    if page["recent_changes"]["items"]:
+        for item in page["recent_changes"]["items"]:
+            st.markdown(f'**{item.get("headline") or "Company update"}**  ')
+            st.caption(f'{item.get("article_publisher") or "Source unavailable"} · {item.get("article_timestamp") or "Date unavailable"}')
+    else:
+        st.info("Not enough evidence")
 
     st.markdown("## Fundamentals Snapshot")
     _marker("fundamentals", ticker, count=len(page["fundamentals"]))
@@ -144,16 +167,37 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
         for fact in page["fundamentals"][:6]:
             st.metric(fact["fact_name"], fact["display_value"])
     else:
-        st.info("Not enough evidence")
+        fundamentals = page.get("qa_fundamentals") or {}
+        metrics = [
+            ("Revenue growth", fundamentals.get("revenue_growth_ttm_yoy"), "%"),
+            ("Operating margin", fundamentals.get("operating_margin_ttm"), "%"),
+            ("Forward P/E", fundamentals.get("pe_ttm"), "×"),
+            ("Market cap", fundamentals.get("market_capitalization"), "$"),
+        ]
+        visible = [(label, value, unit) for label, value, unit in metrics if value is not None]
+        if visible:
+            cols = st.columns(len(visible))
+            for col, (label, value, unit) in zip(cols, visible):
+                display = f'${float(value)/1_000_000_000:,.1f}B' if unit == "$" else f'{float(value):,.2f}{unit}'
+                col.metric(label, display)
+        else:
+            st.info("Not enough evidence")
 
     st.markdown("## Catalysts / Next Events")
     _marker("catalysts", ticker, status=page["catalysts"]["status"])
-    st.info("Not enough evidence")
+    events = page["catalysts"].get("events") or []
+    if events:
+        for item in events:
+            st.write(f'**Earnings** · {item.get("date") or "Date unavailable"}')
+    elif not page["catalysts"].get("items"):
+        st.info("Not enough evidence")
 
     st.markdown("## About the Company")
     _marker("about-company", ticker, status=page["about"]["status"])
-    st.write(f'{page["company"]} · {page["about"].get("sector") or "Sector unavailable"}')
-    st.caption("A governed business description is not available for this snapshot.")
+    profile = page["about"].get("profile") or {}
+    st.write(f'{page["about"].get("company") or page["company"]} · {page["about"].get("industry") or page["about"].get("sector") or "Industry unavailable"}')
+    details = [str(value) for value in (profile.get("exchange"), profile.get("country"), profile.get("ipo_date")) if value]
+    st.caption(" · ".join(details) if details else "Additional governed company details are unavailable for this snapshot.")
 
     _marker("evidence-methodology", ticker)
     with st.expander("Evidence & Methodology", expanded=False):

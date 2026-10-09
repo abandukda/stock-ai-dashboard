@@ -117,6 +117,43 @@ def test_customer_flags_remain_off():
     assert flags["trim_exit"] is False
 
 
+def test_qa_enrichment_renders_partial_modules_without_changing_authority(monkeypatch, tmp_path):
+    source = report(); before = deepcopy(source)
+    def record(payload, family):
+        return {"payload": payload, "provenance": {"provider": "FINNHUB", "raw_evidence_id": f"evidence:{family}", "capture_timestamp": "2026-10-09T15:00:00Z"}}
+    bundle = {"tickers": {"NVDA": {
+        "recommendations": record({"periods": [{"period": "2026-10-01", "strong_buy": 10, "buy": 8, "hold": 3, "sell": 1, "strong_sell": 0}]}, "recommendations"),
+        "price_targets": record({"target_low": 180, "target_mean": 240, "target_high": 300, "last_updated": "2026-10-08"}, "targets"),
+        "company_profile": record({"name": "NVIDIA Corporation", "industry": "Semiconductors", "country": "US"}, "profile"),
+        "basic_financials": record({"revenue_growth_ttm_yoy": 83, "operating_margin_ttm": 61}, "fundamentals"),
+        "company_news": record({"articles": [{"headline": "NVIDIA reports results", "article_publisher": "Issuer", "article_timestamp": 1}]}, "news"),
+        "historical_ohlcv": record({"timestamps": [1], "close": [186.09], "completed_session_flags": [True]}, "history"),
+        "spy_historical_ohlcv": record({"timestamps": [1], "close": [600], "completed_session_flags": [True]}, "spy"),
+    }}}
+    path = tmp_path / "qa.json"; path.write_text(__import__("json").dumps(bundle))
+    monkeypatch.setenv("ATLAS_QA_MODE", "1")
+    monkeypatch.setenv("ATLAS_RESEARCH_V2_QA_ENRICHMENT", str(path))
+    monkeypatch.setenv("ATLAS_WALL_STREET_CONTEXT_ENABLED", "true")
+    result = build_customer_research_v2(source)
+    assert result["header"]["fair_value"] == 346.05
+    assert result["header"]["opportunity"] == 85.96
+    assert result["wall_street"]["status"] == "AVAILABLE"
+    assert result["wall_street"]["analyst_count"] == 22
+    assert result["chart"]["status"] == "AVAILABLE"
+    assert result["chart"]["spy_comparison"]["status"] == "AVAILABLE"
+    assert result["about"]["status"] == "AVAILABLE"
+    assert result["recent_changes"]["status"] == "AVAILABLE"
+    assert source == before
+
+
+def test_qa_enrichment_is_never_loaded_outside_qa(monkeypatch, tmp_path):
+    path = tmp_path / "qa.json"
+    path.write_text('{"tickers":{"NVDA":{"company_profile":{"payload":{"name":"Wrong"},"provenance":{"raw_evidence_id":"x"}}}}}')
+    monkeypatch.delenv("ATLAS_QA_MODE", raising=False)
+    monkeypatch.setenv("ATLAS_RESEARCH_V2_QA_ENRICHMENT", str(path))
+    assert build_customer_research_v2(report())["about"]["status"] == "UNAVAILABLE"
+
+
 def test_renderer_exposes_certified_header_fields_for_structured_browser_qa():
     source = __import__("pathlib").Path("ui/customer_research_v2.py").read_text(encoding="utf-8")
     assert '"stock-header", ticker' in source

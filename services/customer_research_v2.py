@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import os
 import re
+import json
+from pathlib import Path
 from dataclasses import dataclass, asdict
 from typing import Any, Iterable, Mapping
 
@@ -35,6 +37,37 @@ def _field(certified: Mapping[str, Any], name: str) -> Mapping[str, Any]:
 
 def _display_action(value: Any) -> str:
     return str(value or UNAVAILABLE).replace("_", " ").strip().upper()
+
+
+def _qa_enrichment(ticker: str) -> Mapping[str, Any]:
+    """Load an explicitly QA-scoped licensed context bundle.
+
+    The sidecar is never consulted outside ATLAS_QA_MODE and cannot replace
+    certified decision authority.  It exists solely to exercise the intended
+    contextual customer experience with provenance-bearing test evidence.
+    """
+    if os.getenv("ATLAS_QA_MODE", "").lower() not in {"1", "true", "yes", "on"}:
+        return {}
+    path = os.getenv("ATLAS_RESEARCH_V2_QA_ENRICHMENT", "").strip()
+    if not path:
+        return {}
+    try:
+        payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    rows = _map(payload).get("tickers")
+    return _map(_map(rows).get(ticker))
+
+
+def _module(record: Any) -> Mapping[str, Any]:
+    value = _map(record)
+    provenance = _map(value.get("provenance"))
+    return value if provenance.get("raw_evidence_id") and value.get("payload") is not None else {}
+
+
+def _module_status(*records: Mapping[str, Any]) -> str:
+    present = [bool(record and _map(record.get("payload"))) for record in records]
+    return "AVAILABLE" if present and all(present) else "PARTIAL" if any(present) else "UNAVAILABLE"
 
 
 @dataclass(frozen=True)
@@ -104,11 +137,24 @@ def _signal_projection(report: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
-def _chart_projection(report: Mapping[str, Any], signal: Mapping[str, Any]) -> dict[str, Any]:
+def _chart_projection(report: Mapping[str, Any], signal: Mapping[str, Any], enrichment: Mapping[str, Any]) -> dict[str, Any]:
     technical = _map(_map(report.get("sections")).get("technical"))
     provenance = _map(technical.get("history_provenance"))
     rows = [dict(item) for item in _seq(technical.get("history")) if isinstance(item, Mapping)]
-    governed = bool(rows and provenance.get("source") and provenance.get("evidence_ids"))
+    stock = _module(enrichment.get("historical_ohlcv"))
+    spy = _module(enrichment.get("spy_historical_ohlcv"))
+    if not rows and stock:
+        payload = _map(stock.get("payload"))
+        timestamps, closes = _seq(payload.get("timestamps")), _seq(payload.get("close"))
+        complete = _seq(payload.get("completed_session_flags"))
+        rows = [
+            {"timestamp": timestamp, "adjusted_close": close}
+            for index, (timestamp, close) in enumerate(zip(timestamps, closes))
+            if index >= len(complete) or complete[index]
+        ]
+        provenance = _map(stock.get("provenance"))
+    governed = bool(rows and (provenance.get("source") or provenance.get("provider")) and
+                    (provenance.get("evidence_ids") or provenance.get("raw_evidence_id")))
     if not governed:
         return {"status": "UNAVAILABLE", "message": "Price history is unavailable under the governed display contract."}
     return {
@@ -118,7 +164,11 @@ def _chart_projection(report: Mapping[str, Any], signal: Mapping[str, Any]) -> d
         "signal_marker": {
             "date": signal.get("signal_date"), "price": signal.get("reference_price"), "label": "ATLAS signal"
         } if signal.get("status") == "AVAILABLE" else None,
-        "spy_comparison": {"status": "DISABLED", "reason": "COMMERCIAL_DISPLAY_RIGHTS_UNCONFIRMED"},
+        "spy_comparison": {
+            "status": "AVAILABLE" if spy and _seq(_map(spy.get("payload")).get("close")) else
+                      "DISABLED" if not enrichment else "UNAVAILABLE",
+            "series": _map(spy.get("payload")), "provenance": _map(spy.get("provenance")),
+        },
     }
 
 
@@ -135,6 +185,7 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
     price, fair_value = price_env.get("value"), fv_env.get("value")
     gap = ((float(fair_value) / float(price)) - 1.0) * 100 if price not in (None, 0) and fair_value is not None else upside_env.get("value")
     ticker = str(authority["ticker"])
+    enrichment = _qa_enrichment(ticker)
     company = str(report.get("company") or ticker)
     facts = [item for item in (
         _fact("Current Price", price_env, f"${float(price):,.2f}" if price is not None else UNAVAILABLE),
@@ -147,6 +198,25 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
     likes = [str(item) for item in _seq(intelligence.get("why_atlas_supports_it")) if str(item).strip()][:3]
     signal = _signal_projection(report)
     wall_street_enabled = os.getenv("ATLAS_WALL_STREET_CONTEXT_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"}
+    recommendations = _module(enrichment.get("recommendations"))
+    targets = _module(enrichment.get("price_targets"))
+    profile = _module(enrichment.get("company_profile"))
+    financials = _module(enrichment.get("basic_financials"))
+    news = _module(enrichment.get("company_news"))
+    events = _module(enrichment.get("earnings_calendar"))
+    target_payload = _map(targets.get("payload"))
+    rec_periods = _seq(_map(recommendations.get("payload")).get("periods"))
+    latest_rec = _map(rec_periods[0]) if rec_periods else {}
+    buy_count = sum(int(latest_rec.get(key) or 0) for key in ("strong_buy", "buy"))
+    sell_count = sum(int(latest_rec.get(key) or 0) for key in ("sell", "strong_sell"))
+    analyst_count = sum(int(latest_rec.get(key) or 0) for key in ("strong_buy", "buy", "hold", "sell", "strong_sell")) if latest_rec else None
+    consensus = None
+    if latest_rec:
+        consensus = max(
+            ((key, int(latest_rec.get(key) or 0)) for key in ("strong_buy", "buy", "hold", "sell", "strong_sell")),
+            key=lambda item: item[1],
+        )[0].replace("_", " ").title()
+    wall_status = _module_status(recommendations, targets) if wall_street_enabled else "DISABLED"
     summary = {
         "bottom_line": f"The certified ATLAS Action for {ticker} is {_display_action(authority['action'])}.",
         "why": likes or [NOT_ENOUGH], "what_changed": [NOT_ENOUGH],
@@ -155,6 +225,18 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
         "why_might_be_wrong": list(dict.fromkeys(str(item) for item in _seq(report.get("enricher_errors")) if str(item).strip()))[:2] or [NOT_ENOUGH],
         "watch_next": [str(item) for item in _seq(conditions.get("strengthen")) if str(item).strip()][:1] or [NOT_ENOUGH],
     }
+    wall_street = ({
+        "status": wall_status, "classification": CONTEXTUAL,
+        "consensus": consensus, "recommendation_period": latest_rec.get("period"), "buy_count": buy_count if latest_rec else None,
+        "hold_count": latest_rec.get("hold"), "sell_count": sell_count if latest_rec else None,
+        "analyst_count": analyst_count, "target_average": target_payload.get("target_mean"),
+        "target_high": target_payload.get("target_high"), "target_low": target_payload.get("target_low"),
+        "as_of": target_payload.get("last_updated") or _map(targets.get("provenance")).get("capture_timestamp"),
+        "reason": None,
+    } if wall_street_enabled else {
+        "status": "DISABLED", "classification": CONTEXTUAL,
+        "reason": "COMMERCIAL_DISPLAY_RIGHTS_UNCONFIRMED",
+    })
     return {
         "version": VERSION, "status": "AVAILABLE", "ticker": ticker, "company": company,
         "authority": dict(authority), "identity": identity,
@@ -164,14 +246,16 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
             "action": _display_action(authority["action"]), "fair_value": fair_value,
             "fair_value_gap_pct": gap, "opportunity": authority["opportunity"], "confidence": authority["confidence"],
         },
-        "signal": signal, "chart": _chart_projection(report, signal), "summary": summary,
-        "wall_street": {"status": "AVAILABLE" if wall_street_enabled else "DISABLED", "classification": CONTEXTUAL,
-                        "reason": None if wall_street_enabled else "COMMERCIAL_DISPLAY_RIGHTS_UNCONFIRMED"},
+        "signal": signal, "chart": _chart_projection(report, signal, enrichment), "summary": summary,
+        "wall_street": wall_street,
         "fundamentals": [asdict(card) for card in facts],
-        "recent_changes": {"status": "UNAVAILABLE", "items": [], "classification": CONTEXTUAL},
-        "catalysts": {"status": "UNAVAILABLE", "items": [], "classification": CONTEXTUAL},
-        "about": {"status": "PARTIAL", "company": company, "sector": report.get("sector"),
-                  "industry": report.get("industry"), "classification": CONTEXTUAL},
+        "recent_changes": {"status": _module_status(news), "items": _seq(_map(news.get("payload")).get("articles"))[:3], "classification": CONTEXTUAL},
+        "catalysts": {"status": _module_status(news, events), "items": _seq(_map(news.get("payload")).get("articles"))[:3],
+                      "events": _seq(_map(events.get("payload")).get("events"))[:3], "classification": CONTEXTUAL},
+        "about": {"status": _module_status(profile), "company": _map(profile.get("payload")).get("name") or company,
+                  "sector": report.get("sector"), "industry": _map(profile.get("payload")).get("industry") or report.get("industry"),
+                  "profile": dict(_map(profile.get("payload"))), "classification": CONTEXTUAL},
+        "qa_fundamentals": {"status": _module_status(financials), **dict(_map(financials.get("payload")))},
         "evidence": {"evaluation_snapshot_id": identity.get("evaluation_snapshot"),
                      "candidate_digest": identity.get("candidate_digest"),
                      "publication_digest": identity.get("publication_digest"),
