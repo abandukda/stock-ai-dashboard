@@ -252,7 +252,11 @@ def certify_record(row: Mapping[str, Any], *, now: datetime | None = None) -> di
         )
         if projection.get("customer_publication_allowed") is not True:
             result["certification_state"] = REVIEW_REQUIRED
-            result["blockers"] = list(dict.fromkeys([*result["blockers"], "CUSTOMER_PROJECTION_RECONCILIATION_FAILED"]))
+            result["blockers"] = list(dict.fromkeys([
+                *result["blockers"],
+                "CUSTOMER_PROJECTION_RECONCILIATION_FAILED",
+                *(projection.get("reconciliation_blockers") or ()),
+            ]))
             result["action_publication_eligible"] = False
             result["certified_action"] = None
             result["customer_publication_allowed"] = False

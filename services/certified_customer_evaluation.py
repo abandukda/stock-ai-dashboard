@@ -41,6 +41,43 @@ def _close(left: Any, right: Any, tolerance: float = 0.005) -> bool:
     return abs(a - b) <= max(0.01, abs(b) * tolerance)
 
 
+def _first_present(*values: Any) -> Any:
+    """Return the first explicit value, preserving valid numeric zeroes."""
+    return next((value for value in values if value is not None), None)
+
+
+def _weighted_model_fair_value(professional: Mapping[str, Any]) -> float | None:
+    """Reconstruct the unrounded fair value from certified published models.
+
+    The headline fair value is a presentation value rounded to two decimals,
+    while canonical expected return is rounded from the pre-display weighted
+    model value.  Stage B must compare like-for-like precision without changing
+    the customer-visible certified fair value.
+    """
+    weighted_value = 0.0
+    total_weight = 0.0
+    for raw_model in professional.get("models") or ():
+        model = _mapping(raw_model)
+        if model.get("status") != "PUBLISHED":
+            continue
+        value, weight = _num(model.get("value")), _num(model.get("weight"))
+        if value is None or weight is None or weight <= 0:
+            continue
+        weighted_value += value * weight
+        total_weight += weight
+    return weighted_value / total_weight if total_weight > 0 else None
+
+
+def _rounded_percentage_matches(reported: Any, reconstructed: Any) -> bool:
+    """Match the registered one-decimal percentage serialization contract."""
+    expected, actual = _num(reported), _num(reconstructed)
+    return bool(
+        expected is not None
+        and actual is not None
+        and math.isclose(expected, round(actual, 1), rel_tol=0.0, abs_tol=1e-9)
+    )
+
+
 def _field(name: str, value: Any, *, status: str, source: Any = None,
            evidence_ids: Any = (), as_of: Any = None, period: Any = None,
            period_type: Any = None, basis: Any = None, currency: Any = None,
@@ -254,7 +291,11 @@ def build_certified_customer_evaluation(row: Mapping[str, Any], *, now: datetime
             limitations=("Certified price and forward EPS are required.",),
         )
 
-    fv = atlas_valuation.get("fair_value") or atlas_valuation.get("base_fair_value") or valuation.get("published_fair_value")
+    fv = _first_present(
+        atlas_valuation.get("fair_value"),
+        atlas_valuation.get("base_fair_value"),
+        valuation.get("published_fair_value"),
+    )
     upside = atlas_valuation.get("expected_return")
     if upside is None:
         upside = atlas_valuation.get("expected_return_pct") or atlas_valuation.get("upside_pct")
@@ -265,10 +306,20 @@ def build_certified_customer_evaluation(row: Mapping[str, Any], *, now: datetime
         as_of=valuation_as_of, period=valuation.get("forecast_period"), basis="RECONCILED_METHODS",
         currency="USD", unit="PER_SHARE", snapshot_id=snapshot_id)
     price = _num(fields["price"]["value"])
-    rebuilt_upside = ((float(fields["atlas_fair_value"]["value"]) / price) - 1) * 100 if price and fields["atlas_fair_value"]["value"] is not None else None
+    professional = _mapping(atlas_valuation.get("professional_valuation_v2"))
+    reconstruction_fv = _weighted_model_fair_value(professional)
+    rebuilt_upside = (
+        ((reconstruction_fv / price) - 1) * 100
+        if price and reconstruction_fv is not None
+        else None
+    )
     if upside is None:
         upside = rebuilt_upside
-    upside_status = valuation_state if rebuilt_upside is not None and _close(upside, rebuilt_upside, 0.01) else "REVIEW_REQUIRED"
+    upside_status = (
+        valuation_state
+        if rebuilt_upside is not None and _rounded_percentage_matches(upside, rebuilt_upside)
+        else "REVIEW_REQUIRED"
+    )
     fields["atlas_upside_pct"] = _field("atlas_upside_pct", upside, status=upside_status,
         source=valuation.get("version") or atlas_valuation.get("methodology_version"), evidence_ids=valuation_ids,
         as_of=valuation_as_of, basis="FAIR_VALUE_OVER_CERTIFIED_PRICE", unit="PERCENT",
@@ -276,7 +327,6 @@ def build_certified_customer_evaluation(row: Mapping[str, Any], *, now: datetime
     if upside_status not in PUBLISHABLE:
         valuation_state = "REVIEW_REQUIRED"
 
-    professional = _mapping(atlas_valuation.get("professional_valuation_v2"))
     warnings = tuple(str(item) for item in (valuation.get("warnings") or ()))
     model_weights = _mapping(professional.get("model_weights") or valuation.get("model_weights"))
     extraordinary_certified = (
@@ -293,6 +343,16 @@ def build_certified_customer_evaluation(row: Mapping[str, Any], *, now: datetime
             fields[name]["certification_status"] = "REVIEW_REQUIRED"
             fields[name]["limitations"] = ("Extraordinary valuation could not pass enhanced reconstruction and corroboration.",)
         valuation_state = "REVIEW_REQUIRED"
+
+    reconciliation_blockers = []
+    reconciliation_blockers.extend(
+        f"STAGE_B_ACCOUNTING_RECONCILIATION_FAILED_{name.upper()}"
+        for name in dependency_mismatches
+    )
+    if upside_status not in PUBLISHABLE:
+        reconciliation_blockers.append("STAGE_B_UPSIDE_RECONCILIATION_FAILED")
+    if extraordinary_block:
+        reconciliation_blockers.append("EXTRAORDINARY_VALUATION_UNCORROBORATED")
 
     action = _mapping(evaluation.get("guidance")).get("state")
     decision_safe = (
@@ -408,6 +468,7 @@ def build_certified_customer_evaluation(row: Mapping[str, Any], *, now: datetime
         "volume": volume if _mapping(components.get("volume")).get("state") in PUBLISHABLE else {},
         "wall_street_analysis": certified_street, "digests": digests,
         "accounting_reconstruction": recon, "accounting_mismatches": tuple(accounting_mismatches),
+        "reconciliation_blockers": tuple(dict.fromkeys(reconciliation_blockers)),
         "customer_publication_allowed": bool(decision_safe),
         "customer_message": None if decision_safe else "ATLAS cannot certify a complete investment rating for this ticker right now because some required financial evidence could not be reconciled.",
     }
