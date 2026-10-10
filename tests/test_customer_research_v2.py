@@ -224,9 +224,21 @@ def test_renderer_uses_customer_safe_labels_and_escapes_currency():
     assert 'metric("Evidence confidence"' in source
     assert 'metric("Confidence", _pct' not in source
     assert '("TTM P/E", fundamentals.get("pe_ttm")' in source
-    assert "replace('$', r'\\$')" in source
+    assert "_escape_markdown_currency(item)" in source
     assert "**Why this rating**" in source
     assert "**What could go wrong**" in source
+
+
+def test_markdown_currency_escape_preserves_governed_debt_cash_text(monkeypatch):
+    from ui.customer_research_v2 import _escape_markdown_currency, _list
+
+    rendered: list[str] = []
+    monkeypatch.setattr("ui.customer_research_v2.st.markdown", rendered.append)
+    risk = "Total debt is $2.68B versus cash of $192M."
+
+    assert _escape_markdown_currency(risk) == r"Total debt is \$2.68B versus cash of \$192M."
+    _list([risk])
+    assert rendered == [r"- Total debt is \$2.68B versus cash of \$192M."]
 
 
 def test_qa_enrichment_is_never_loaded_outside_qa(monkeypatch, tmp_path):
