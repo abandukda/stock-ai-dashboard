@@ -21,6 +21,11 @@ def _pct(value: Any, *, signed: bool = False) -> str:
     return f"{float(value):+,.2f}%" if signed else f"{float(value):,.2f}%"
 
 
+def _escape_markdown_currency(value: Any) -> str:
+    """Preserve governed text while preventing Markdown dollar-math parsing."""
+    return str(value).replace("$", "\\$")
+
+
 def _marker(name: str, ticker: str, **attrs: Any) -> None:
     attributes = " ".join(
         f'data-atlas-{escape(str(key).replace("_", "-"))}="{escape(str(value))}"'
@@ -36,7 +41,7 @@ def _marker(name: str, ticker: str, **attrs: Any) -> None:
 def _list(items: list[str]) -> None:
     # Streamlit Markdown treats dollar-delimited text as math. Escape currency
     # so governed debt/cash values remain readable and numerically unchanged.
-    st.markdown("\n".join(f"- {str(item).replace('$', r'\$')}" for item in items))
+    st.markdown("\n".join(f"- {_escape_markdown_currency(item)}" for item in items))
 
 
 def _dates(values: pd.Series) -> pd.Series:
