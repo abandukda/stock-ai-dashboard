@@ -34,7 +34,9 @@ def _marker(name: str, ticker: str, **attrs: Any) -> None:
 
 
 def _list(items: list[str]) -> None:
-    st.markdown("\n".join(f"- {item}" for item in items))
+    # Streamlit Markdown treats dollar-delimited text as math. Escape currency
+    # so governed debt/cash values remain readable and numerically unchanged.
+    st.markdown("\n".join(f"- {str(item).replace('$', r'\$')}" for item in items))
 
 
 def _dates(values: pd.Series) -> pd.Series:
@@ -65,6 +67,7 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
         st.warning("ATLAS does not have a customer-publishable certified view for this security.")
         return
     h = page["header"]
+    confidence_score = f'{float(h["confidence"]):.0f}/100'
     _marker("root", ticker, version=page["version"], authority="certified_customer_evaluation", section_count=5)
     st.markdown("""<style>
     .atlas-r2-head{padding:1rem 1.1rem;border:1px solid rgba(45,212,191,.25);border-radius:18px;background:linear-gradient(145deg,rgba(15,23,42,.96),rgba(18,39,51,.88));margin-bottom:.7rem}.atlas-r2-kicker{color:#61d8c3;font-size:.7rem;font-weight:800;letter-spacing:.13em}.atlas-r2-head h1{margin:.2rem 0;font-size:1.8rem}.atlas-r2-meta{color:#94a3b8;font-size:.78rem}.atlas-r2-grid{display:grid;grid-template-columns:1fr 1fr;gap:.7rem}.atlas-r2-panel{padding:.9rem;border:1px solid rgba(148,163,184,.16);border-radius:14px;background:rgba(15,23,42,.55)}
@@ -73,8 +76,9 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
     st.markdown(
         f'<section class="atlas-r2-head"><div class="atlas-r2-kicker">CERTIFIED ATLAS RESEARCH</div>'
         f'<h1>{escape(ticker)} · {escape(str(page["company"]))}</h1>'
-        f'<div class="atlas-r2-meta">Price as of {escape(str(h.get("price_timestamp") or "Unavailable"))} · '
-        f'{escape(str(h.get("market_freshness") or "Unavailable"))}</div></section>', unsafe_allow_html=True,
+        f'<div class="atlas-r2-meta">Evidence as of {escape(str(h.get("evidence_as_of") or "Date unavailable"))} · '
+        f'Evidence confidence: {escape(str(h.get("confidence_band") or "Unavailable"))} '
+        f'({escape(confidence_score)})</div></section>', unsafe_allow_html=True,
     )
     _marker(
         "stock-header", ticker,
@@ -88,7 +92,7 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
     cols[2].metric("ATLAS Fair Value", _money(h["fair_value"]))
     cols[3].metric("Fair Value gap", _pct(h["fair_value_gap_pct"], signed=True))
     cols[4].metric("Opportunity", f'{float(h["opportunity"]):.2f}')
-    cols[5].metric("Confidence", _pct(h["confidence"]))
+    cols[5].metric("Evidence confidence", f'{h["confidence_band"]} ({float(h["confidence"]):.0f}/100)')
     if h["fair_value_gap_pct"] is not None:
         direction = "above" if h["fair_value_gap_pct"] >= 0 else "below"
         st.caption(f'ATLAS Fair Value is {abs(float(h["fair_value_gap_pct"])):.2f}% {direction} the last certified close. This is not a guaranteed return.')
@@ -164,19 +168,19 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
         else:
             st.info("Price history is unavailable under the governed display contract.")
 
-    st.markdown("## ATLAS Research Summary")
+    st.markdown("## AI Investment Brief")
     _marker("summary", ticker, classification="CERTIFIED_ATLAS")
     summary = page["summary"]
-    st.markdown("**BOTTOM LINE**")
+    st.markdown("**Bottom line**")
     st.write(summary["bottom_line"])
-    st.markdown("**WHY ATLAS LIKES / DISLIKES IT**")
-    _list(summary["why"])
-    st.markdown('<div class="atlas-r2-grid">', unsafe_allow_html=True)
-    st.markdown("**WHY ATLAS MIGHT BE WRONG**")
-    _list(summary["why_might_be_wrong"])
-    st.markdown("**WATCH NEXT**")
+    st.markdown("**Why this rating**")
+    _list(summary["why_rating"])
+    st.markdown("**What's strong**")
+    _list(summary["strengths"])
+    st.markdown("**What could go wrong**")
+    _list(summary["risks"])
+    st.markdown("**What to watch**")
     _list(summary["watch_next"])
-    st.markdown('</div>', unsafe_allow_html=True)
 
     _marker("section", ticker, section_name="Fundamentals & Valuation")
     st.markdown("## Fundamentals & Valuation")
@@ -240,7 +244,7 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
         metrics = [
             ("Revenue growth", fundamentals.get("revenue_growth_ttm_yoy"), "%"),
             ("Operating margin", fundamentals.get("operating_margin_ttm"), "%"),
-            ("Forward P/E", fundamentals.get("pe_ttm"), "×"),
+            ("TTM P/E", fundamentals.get("pe_ttm"), "×"),
             ("Market cap", fundamentals.get("market_capitalization"), "$"),
         ]
         visible = [(label, value, unit) for label, value, unit in metrics if value is not None]

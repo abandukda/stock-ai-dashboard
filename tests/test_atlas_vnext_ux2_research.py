@@ -229,7 +229,7 @@ def test_certified_fair_value_and_upside_remain_distinct_from_opportunity():
     assert metrics["ATLAS Fair Value"] == "$338.82"
     assert metrics["Fair Value gap"] == "+49.10%"
     assert metrics["Opportunity"] == "86.68"
-    assert metrics["Confidence"] == "88.54%"
+    assert metrics["Evidence confidence"] == "High (89/100)"
 
 
 def test_absent_certified_customer_evaluation_preserves_current_fallback(monkeypatch):
@@ -343,7 +343,7 @@ def test_real_streamlit_high_evidence_renderer_has_consolidated_research_v2_and_
     assert not app.exception
     assert not app.tabs
     assert any(button.label == "Ask ATLAS about this research" for button in app.button)
-    assert any(metric.label == "Confidence" and metric.value == "78.00%" for metric in app.metric)
+    assert any(metric.label == "Evidence confidence" and metric.value == "Moderate (78/100)" for metric in app.metric)
     assert not any(metric.label == "Research Completeness" for metric in app.metric)
 
 
@@ -351,10 +351,10 @@ def test_real_streamlit_monitor_renderer_collapses_technical_scenario():
     app = _render_app("CRC", "MONITOR", 40.0)
     assert not app.exception
     assert any("Not currently actionable" in caption.value for caption in app.caption)
-    assert any("ATLAS Research Summary" in markdown.value for markdown in app.markdown)
+    assert any("AI Investment Brief" in markdown.value for markdown in app.markdown)
     assert any(expander.label == "Evidence & Methodology" for expander in app.expander)
     assert not any(text.value == "Canonical actionable trade plan" for text in app.text)
-    assert not any(metric.label == "Confidence" and metric.value == "Unavailable" for metric in app.metric)
+    assert not any(metric.label == "Evidence confidence" and metric.value == "Unavailable" for metric in app.metric)
 
 
 @pytest.mark.parametrize("ticker", ("SD", "NVDA"))
