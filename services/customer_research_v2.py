@@ -372,7 +372,15 @@ def _financial_trend_projection(financials: Mapping[str, Any]) -> dict[str, Any]
 def _six_pillar_projection(certified: Mapping[str, Any], report: Mapping[str, Any]) -> dict[str, Any]:
     pillars = _map(_map(certified.get("decision")).get("six_pillars"))
     weights = _map(report.get("six_pillar_weights") or _map(report.get("evaluation_contract")).get("six_pillar_weights"))
-    evidence_ids = tuple(sorted(str(item) for item in _seq(_map(report.get("canonical_investment_evaluation")).get("evidence_ids")) if item))
+    canonical_evidence_ids = _seq(
+        _map(report.get("canonical_investment_evaluation")).get("evidence_ids")
+    )
+    authority_evidence_ids = _seq(
+        _map(report.get("customer_authority_identity")).get("evidence_ids")
+    )
+    evidence_ids = tuple(sorted(
+        str(item) for item in (canonical_evidence_ids or authority_evidence_ids) if item
+    ))
     snapshot = _map(certified.get("digests")).get("evaluation_snapshot_id")
     if not pillars:
         return {"status": "UNAVAILABLE", "items": (), "message": "Certified six-pillar evidence is unavailable."}

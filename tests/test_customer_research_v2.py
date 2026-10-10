@@ -1,5 +1,8 @@
 from copy import deepcopy
+import json
+from pathlib import Path
 
+from services.customer_authority import bind_report_to_customer_authority
 from services.customer_research_v2 import FactCard, build_customer_research_v2, validate_grounded_text
 from ui.customer_research_v2 import _six_pillar_frame
 
@@ -109,6 +112,74 @@ def test_six_pillars_are_projected_without_recalculation_and_sorted_by_weight():
         ("valuation_quality", 91, 0.6), ("fundamental_quality", 84, 0.4),
     ]
     assert all(item["evidence_ids"] == ("evidence:decision",) for item in result["items"])
+
+
+def test_six_pillars_use_bound_customer_authority_evidence_when_wrapper_is_absent():
+    source = report()
+    bound = bind_report_to_customer_authority({}, source)
+    assert "canonical_investment_evaluation" not in bound
+    assert bound["customer_authority_identity"]["evidence_ids"] == ["evidence:decision"]
+
+    result = build_customer_research_v2(bound)
+
+    assert result["status"] == "AVAILABLE"
+    assert result["identity"]["evaluation_snapshot"] == "snapshot-nvda"
+    assert [(item["pillar"], item["certified_score"], item["weight"]) for item in result["six_pillars"]["items"]] == [
+        ("fundamental_quality", 84, None), ("valuation_quality", 91, None),
+    ]
+    assert all(item["evidence_ids"] == ("evidence:decision",) for item in result["six_pillars"]["items"])
+
+
+def test_six_pillars_prefer_wrapper_evidence_over_bound_authority_fallback():
+    source = report()
+    source["customer_authority_identity"] = {
+        **source.get("customer_authority_identity", {}),
+        "evidence_ids": ["evidence:fallback"],
+    }
+    result = build_customer_research_v2(source)["six_pillars"]
+    assert all(item["evidence_ids"] == ("evidence:decision",) for item in result["items"])
+
+
+def test_six_pillars_fail_closed_when_wrapper_and_authority_evidence_are_absent():
+    source = report()
+    source["canonical_investment_evaluation"]["evidence_ids"] = []
+    source["customer_authority_identity"] = {
+        **source.get("customer_authority_identity", {}), "evidence_ids": [],
+    }
+    result = build_customer_research_v2(source)["six_pillars"]
+    assert result["status"] == "UNAVAILABLE"
+    assert {item["reason"] for item in result["unavailable"]} == {"EVIDENCE_IDENTITY_UNAVAILABLE"}
+
+
+def test_retained_certified_publication_preserves_all_six_pillars_after_authority_binding():
+    rows = json.loads((Path(__file__).parents[1] / "market_full_scan.json").read_text(encoding="utf-8"))
+    if isinstance(rows, dict):
+        rows = rows.get("rows", [])
+    by_ticker = {str(row.get("ticker") or row.get("Ticker") or "").upper(): row for row in rows}
+
+    for ticker in ("NVDA", "MSFT", "AVT"):
+        source = by_ticker[ticker]
+        certified = source["certified_customer_evaluation"]
+        original_decision = deepcopy(certified["decision"])
+        original_snapshot = certified["digests"]["evaluation_snapshot_id"]
+        original_evidence = tuple(sorted(source["canonical_investment_evaluation"]["evidence_ids"]))
+        bound = bind_report_to_customer_authority({}, source)
+
+        result = build_customer_research_v2(bound)
+
+        assert result["status"] == "AVAILABLE"
+        assert result["six_pillars"]["status"] == "AVAILABLE"
+        assert len(result["six_pillars"]["items"]) == 6
+        assert {item["pillar"] for item in result["six_pillars"]["items"]} == set(original_decision["six_pillars"])
+        for item in result["six_pillars"]["items"]:
+            original = original_decision["six_pillars"][item["pillar"]]
+            assert item["certified_score"] == original["score"]
+            assert item["weight"] == original["pillar_weight"]
+            assert item["evidence_ids"] == tuple(sorted(original.get("evidence_ids") or original_evidence))
+            assert item["snapshot_identity"] == original_snapshot
+        assert bound["certified_customer_evaluation"]["decision"] == original_decision
+
+    assert "CRC" not in by_ticker
 
 
 def test_r1_brief_uses_distinct_period_labeled_certified_facts_and_no_boilerplate():
