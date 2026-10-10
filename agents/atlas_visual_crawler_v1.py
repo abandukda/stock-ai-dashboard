@@ -175,7 +175,10 @@ def classify_research_terminal_state(
         )
     if withheld_marker and publication_allowed is False:
         safe = (
-            RESEARCH_WITHHELD_PRIMARY_COPY in normalized
+            (
+                RESEARCH_WITHHELD_PRIMARY_COPY in normalized
+                or bool(re.search(r"A CERTIFIED ATLAS RATING IS NOT AVAILABLE FOR [A-Z0-9.\-]+\.", normalized))
+            )
             and RESEARCH_WITHHELD_SUPPORTING_COPY.upper() in normalized
             and not any(
             forbidden in normalized for forbidden in RESEARCH_WITHHELD_FORBIDDEN_TEXT
@@ -753,6 +756,9 @@ class AtlasVisualCrawler:
         chart_ownership = ""
         pillar_count = 0
         pillar_digest = ""
+        pillar_chart_series: dict[str, tuple[float, float | None]] = {}
+        pillar_table_series: dict[str, tuple[float, float | None]] = {}
+        withheld_message_visible = False
         for scope in _scopes(page):
             try:
                 roots = scope.locator(f'[data-atlas-qa="research-vnext"][data-atlas-ticker="{ticker}"]')
@@ -794,6 +800,24 @@ class AtlasVisualCrawler:
                         except (TypeError, ValueError):
                             pillar_count = 0
                         pillar_digest = await profile.last.get_attribute("data-atlas-digest") or ""
+                    for marker_name, target in (
+                        ("research-v2-pillar-chart-row", pillar_chart_series),
+                        ("research-v2-pillar-table-row", pillar_table_series),
+                    ):
+                        rows = scope.locator(
+                            f'[data-atlas-qa="{marker_name}"][data-atlas-ticker="{ticker}"]'
+                        )
+                        for index in range(await rows.count()):
+                            row = rows.nth(index)
+                            name = await row.get_attribute("data-atlas-pillar") or ""
+                            try:
+                                score = float(await row.get_attribute("data-atlas-score") or "nan")
+                                raw_weight = await row.get_attribute("data-atlas-weight") or ""
+                                weight = float(raw_weight) if raw_weight else None
+                            except (TypeError, ValueError):
+                                continue
+                            if name:
+                                target[name] = (score, weight)
                 nodes = scope.locator(f'[data-atlas-qa="research-vnext-section"][data-atlas-ticker="{ticker}"]')
                 for index in range(await nodes.count()):
                     sections.add(await nodes.nth(index).get_attribute("data-atlas-section") or "")
@@ -811,6 +835,12 @@ class AtlasVisualCrawler:
                     allowed = (await terminal.last.get_attribute("data-atlas-publication-allowed") or "").lower()
                     if allowed in {"true", "false"}:
                         publication_allowed = allowed == "true"
+                    message = scope.get_by_text(
+                        f"A certified ATLAS rating is not available for {ticker}.", exact=True,
+                    )
+                    withheld_message_visible = withheld_message_visible or bool(
+                        await message.count() and await message.last.is_visible()
+                    )
                 tabs = scope.get_by_role("tab")
                 for index in range(await tabs.count()):
                     tab = tabs.nth(index)
@@ -839,6 +869,13 @@ class AtlasVisualCrawler:
             "chart_ownership": chart_ownership,
             "pillar_count": pillar_count,
             "pillar_digest": pillar_digest,
+            "pillar_chart_series": pillar_chart_series,
+            "pillar_table_series": pillar_table_series,
+            "pillar_numeric_parity": bool(
+                len(pillar_chart_series) == 6
+                and pillar_chart_series == pillar_table_series
+            ),
+            "withheld_message_visible": withheld_message_visible,
             "decision_story": {
                 "decision-why", "decision-core-metrics", "why-atlas-likes-it",
                 "what-stops-atlas", "what-changes-the-thesis", "watching-next",
@@ -870,6 +907,10 @@ class AtlasVisualCrawler:
             "chart_ownership": architecture.get("chart_ownership"),
             "pillar_count": architecture.get("pillar_count"),
             "pillar_digest": architecture.get("pillar_digest"),
+            "pillar_chart_series": architecture.get("pillar_chart_series", {}),
+            "pillar_table_series": architecture.get("pillar_table_series", {}),
+            "pillar_numeric_parity": bool(architecture.get("pillar_numeric_parity")),
+            "withheld_message_visible": bool(architecture.get("withheld_message_visible")),
         })
         rendered_tickers: set[str] = set()
         provider_calls: list[int] = []
@@ -971,7 +1012,10 @@ class AtlasVisualCrawler:
                 and result.get("chart_ownership") == "PASS"
                 and result.get("pillar_count") == 6
                 and result.get("pillar_digest")
+                and result.get("pillar_numeric_parity")
             )
+        elif result["research_terminal_state"] == "RATING_NOT_PUBLISHED_COMPLETE":
+            result["complete"] = bool(result["complete"] and result.get("withheld_message_visible"))
         expected_fact = dict((self.expected_runtime.get("expected_facts") or {}).get(expected) or {})
         if expected_fact and self.enforce_required_authority:
             result["authority_failures"] = required_research_authority_failures(
@@ -1049,12 +1093,13 @@ class AtlasVisualCrawler:
         captures: list[str] = []
         sections = (
             ("above-fold", "CERTIFIED ATLAS RESEARCH"),
-            ("price-chart", "Price / Performance"),
-            ("ai-summary", "ATLAS Research Summary"),
+            ("price-chart", "Price history and SPY comparison"),
+            ("ai-summary", "AI Investment Brief"),
+            ("six-pillars", "Certified pillar coverage — 6 of 6"),
             ("wall-street", "ATLAS vs Wall Street"),
-            ("risks", "Risks / What Would Change the View"),
+            ("risks", "Risk & Evidence"),
             ("fundamentals", "Fundamentals Snapshot"),
-            ("catalysts", "Catalysts / Next Events"),
+            ("catalysts", "Catalysts & Sentiment"),
             ("about-company", "About the Company"),
         )
         for slug, label in sections:
@@ -1081,6 +1126,17 @@ class AtlasVisualCrawler:
         self, page: Page, *, page_name: str, interaction: str, state: str,
         viewport: str = "desktop", ticker: str = "", complete_surface: bool = False,
     ) -> str:
+        role = "unauthenticated"
+        try:
+            marker = page.locator('[data-atlas-qa="customer-navigation-contract"]').last
+            if await marker.count():
+                role = (await marker.get_attribute("data-atlas-role-category") or role).strip()
+            await page.add_style_tag(content=(
+                '[data-testid="stStatusWidget"], [data-testid="stToolbar"], '
+                '.stDeployButton { visibility:hidden !important; }'
+            ))
+        except Exception:
+            pass
         try:
             state_digest = await asyncio.wait_for(page.evaluate("""() => {
               const root = document.querySelector('[data-testid="stAppViewContainer"]') || document.body;
@@ -1102,14 +1158,14 @@ class AtlasVisualCrawler:
                 self.manifest.append({
                     "page": page_name, "interaction": interaction, "state": state,
                     "ticker": ticker, "viewport": viewport, "path": prior,
-                    "generated": True, "deduplicated": True,
+                    "authenticated_role": role, "generated": True, "deduplicated": True,
                     "capture": "reused_state", "segments": 0, "complete": True,
                 })
                 return prior
         except Exception:
             state_key = ""
         self._shot_number += 1
-        slug = re.sub(r"[^a-zA-Z0-9_-]+", "_", f"{self._shot_number:04d}_{viewport}_{page_name}_{interaction}_{state}")
+        slug = re.sub(r"[^a-zA-Z0-9_-]+", "_", f"{self._shot_number:04d}_{role}_{viewport}_{page_name}_{interaction}_{state}")
         path = self.screenshot_dir / f"{slug[:180]}.png"
         try:
             metadata: dict[str, Any] = {"capture": "viewport", "segments": 1, "complete": True}
@@ -1142,7 +1198,7 @@ class AtlasVisualCrawler:
             self.manifest.append({
                 "page": page_name, "interaction": interaction, "state": state,
                 "ticker": ticker, "viewport": viewport, "path": relative,
-                "generated": True, **metadata,
+                "authenticated_role": role, "generated": True, **metadata,
             })
             return relative
         except Exception as exc:
@@ -1151,7 +1207,7 @@ class AtlasVisualCrawler:
             self.manifest.append({
                 "page": page_name, "interaction": interaction, "state": state,
                 "ticker": ticker, "viewport": viewport, "path": "",
-                "generated": False,
+                "authenticated_role": role, "generated": False,
             })
             return ""
 
@@ -1416,6 +1472,27 @@ class AtlasVisualCrawler:
         )
         if not passed:
             raise GlobalCrawlFailure("CUSTOMER_NAVIGATION_AUTHORITY_FAILED")
+
+    async def _role_isolation_contract(self, page: Page, *, expected_role: str) -> None:
+        """Prove route authorization in the authenticated browser session."""
+        started = time.monotonic()
+        marker = page.locator('[data-atlas-qa="customer-navigation-contract"]').last
+        await marker.wait_for(state="attached", timeout=30000)
+        role = await marker.get_attribute("data-atlas-role-category") or ""
+        visible = await _visible_text(page)
+        forbidden = ("Developer Center", "Internal Report Card", "Performance Tracking")
+        passed = role == expected_role
+        if expected_role == "customer_viewer":
+            passed = passed and all(label not in visible for label in forbidden)
+        shot = await self._shot(page, page_name="GLOBAL", interaction=f"role-isolation-{expected_role}", state="authenticated")
+        await self._record(
+            category="GLOBAL", page_name="GLOBAL", interaction=f"role-isolation-{expected_role}",
+            expected=f"authenticated role={expected_role}; customer routes fail closed",
+            observed=f"role={role}; forbidden_visible={[label for label in forbidden if label in visible]}",
+            passed=passed, elapsed=time.monotonic() - started, screenshots=(shot,), severity="P1",
+        )
+        if not passed:
+            raise GlobalCrawlFailure("ROLE_ISOLATION_FAILED")
 
     async def _visible_primary(self, page: Page, page_name: str) -> tuple[bool, str]:
         text = await _visible_text(page)
@@ -2423,6 +2500,28 @@ class AtlasVisualCrawler:
                     severity="P1", screenshots=(),
                 )
                 passed = passed and architecture_passed
+                await page.evaluate("""() => {
+                  window.scrollTo(0, 0);
+                  for (const node of document.querySelectorAll('[data-testid="stAppViewContainer"], [data-testid="stMain"]')) node.scrollTop = 0;
+                }""")
+                await page.wait_for_timeout(150)
+                first_text = await _visible_text(page)
+                required_first = ("CERTIFIED ATLAS RESEARCH", "Last Certified Close", "ATLAS Fair Value", "Opportunity")
+                first_screen_pass = all(item.lower() in first_text.lower() for item in required_first)
+                overflow = await page.evaluate("() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 2")
+                first_shot = await self._shot(
+                    page, page_name="Research Any Ticker", interaction=f"first-screen-{ticker}",
+                    state="scroll-zero", viewport=viewport, ticker=ticker,
+                )
+                await self._record(
+                    category="RESEARCH_FIRST_SCREEN", page_name="Research Any Ticker",
+                    interaction="scroll-zero-decision-strip",
+                    expected="Action, certified close/date, Fair Value and Opportunity visible with no horizontal overflow",
+                    observed=f"required_visible={first_screen_pass}; overflow={overflow}",
+                    passed=first_screen_pass and not overflow, elapsed=time.monotonic() - started,
+                    ticker=ticker, viewport=viewport, screenshots=(first_shot,), severity="P1",
+                )
+                passed = passed and first_screen_pass and not overflow
             after = await self._shot(page, page_name="Research Any Ticker", interaction=f"submit-{ticker}", state="after", viewport=viewport, ticker=ticker, complete_surface=ticker != "INVALID123")
             if passed and architecture.get("version") == RESEARCH_V2_VERSION:
                 await self._research_v2_section_screenshots(page, ticker, viewport)
@@ -2971,10 +3070,31 @@ class AtlasVisualCrawler:
                     raise GlobalCrawlFailure(category) from exc
                 if phase in {"required", "all"}:
                     await self._customer_navigation_contract(page)
+                    await self._role_isolation_contract(page, expected_role="internal_admin")
                     await asyncio.wait_for(self._required_desktop(page), timeout=360)
                     await asyncio.wait_for(self._required_mobile(page), timeout=300)
                     if self._required_completeness().get("status") != "PASS":
                         raise GlobalCrawlFailure("REQUIRED_PRODUCTION_CERTIFICATION_FAILED")
+                    viewer_password = os.getenv("ATLAS_VIEWER_QA_PASSWORD", "").strip()
+                    if not viewer_password:
+                        raise GlobalCrawlFailure("VIEWER_QA_PASSWORD_MISSING")
+                    viewer_context = await browser.new_context(viewport=DESKTOP)
+                    try:
+                        viewer_page = await viewer_context.new_page()
+                        (self.output_dir / "viewer-auth").mkdir(parents=True, exist_ok=True)
+                        await _open_and_authenticate(
+                            viewer_page, self.url, self.output_dir / "viewer-auth",
+                            expected_sha=self.expected_deployed_source_sha,
+                            allow_local_exact_candidate=(
+                                os.getenv("ATLAS_EXACT_CANDIDATE_QA", "").strip().lower()
+                                in {"1", "true", "yes"}
+                            ),
+                            password_override=viewer_password,
+                        )
+                        await self._customer_navigation_contract(viewer_page)
+                        await self._role_isolation_contract(viewer_page, expected_role="customer_viewer")
+                    finally:
+                        await viewer_context.close()
                 if phase in {"supplementary", "all"}:
                     await self._supplementary_desktop(page)
                     await self._supplementary_mobile(page)

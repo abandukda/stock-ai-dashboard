@@ -680,9 +680,9 @@ async def _deployed_readiness_gate(
 
 
 async def _authenticate_and_confirm(
-    page: Page, output_dir: Path, *, expected_sha: str,
+    page: Page, output_dir: Path, *, expected_sha: str, password_override: str | None = None,
 ) -> dict[str, Any]:
-    password = (
+    password = (password_override or
         os.getenv("ATLAS_AUDIT_PASSWORD")
         or os.getenv("GUEST_PASSWORD")
         or os.getenv("VIEWER_PASSWORD")
@@ -798,6 +798,7 @@ async def _open_and_authenticate(
     *,
     expected_sha: str,
     allow_local_exact_candidate: bool = False,
+    password_override: str | None = None,
 ) -> dict[str, Any]:
     if allow_local_exact_candidate and not expected_sha:
         raise DeploymentTargetError({"reason": "EXACT_CANDIDATE_SHA_MISSING", "resolved_target_url": str(url or "")})
@@ -807,7 +808,7 @@ async def _open_and_authenticate(
         page, expected_sha=expected_sha, output_dir=output_dir,
     )
     authentication = await _authenticate_and_confirm(
-        page, output_dir, expected_sha=expected_sha,
+        page, output_dir, expected_sha=expected_sha, password_override=password_override,
     )
     authentication["deployment_readiness"] = readiness
     authentication["bootstrap_navigation"] = bootstrap

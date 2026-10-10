@@ -509,7 +509,9 @@ def test_renderer_exposes_certified_header_fields_for_structured_browser_qa():
     assert 'y_title="Normalized performance (start = 100)"' in source
     assert 'key=f"research-price-chart-{ticker}"' in source
     assert 'key=f"research-spy-chart-{ticker}"' in source
-    assert 'key=f"research-pillar-chart-{ticker}"' in source
+    assert 'data-atlas-qa="research-v2-pillar-chart-row"' in source
+    assert 'data-atlas-qa="research-v2-pillar-table-row"' in source
+    assert "display_rows = _six_pillar_display_rows" in source
     assert 'key=f"research-valuation-chart-{ticker}"' in source
     assert '"chart-ownership", ticker' in source
 

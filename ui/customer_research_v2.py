@@ -14,8 +14,8 @@ import streamlit as st
 from services.customer_research_v2 import build_customer_research_v2
 
 
-def _six_pillar_frame(pillars: Mapping[str, Any]) -> pd.DataFrame:
-    """Build a chart frame from the validated customer projection only."""
+def _six_pillar_display_rows(pillars: Mapping[str, Any]) -> tuple[dict[str, Any], ...]:
+    """Create one immutable, ticker-bound source for both chart and table."""
     rows = []
     for item in pillars.get("items") or ():
         score = item.get("certified_score")
@@ -38,6 +38,11 @@ def _six_pillar_frame(pillars: Mapping[str, Any]) -> pd.DataFrame:
                 "Governed weight (%)": weight_display,
             }
         )
+    return tuple(rows)
+
+
+def _six_pillar_frame(pillars: Mapping[str, Any]) -> pd.DataFrame:
+    rows = _six_pillar_display_rows(pillars)
     return pd.DataFrame(rows).set_index("Pillar") if rows else pd.DataFrame(columns=["Certified score", "Governed weight (%)"])
 
 
@@ -282,16 +287,41 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
         count=valid_count, digest=pillar_digest,
     )
     if pillars.get("status") in {"AVAILABLE", "PARTIAL"}:
-        frame = _six_pillar_frame(pillars)
+        display_rows = _six_pillar_display_rows(pillars)
+        frame = pd.DataFrame(display_rows).set_index("Pillar") if display_rows else pd.DataFrame()
         if frame.empty:
             st.info(pillars.get("message") or "Certified six-pillar evidence is unavailable.")
         else:
-            pillar_data = frame.reset_index()
-            st.vega_lite_chart(pillar_data, use_container_width=True, theme=None, key=f"research-pillar-chart-{ticker}", spec={
-                "height": max(180, 42 * len(pillar_data)), "mark": {"type": "bar", "cornerRadiusEnd": 5, "color": "#2dd4bf"},
-                "encoding": {"y": {"field": "Pillar", "type": "nominal", "sort": "-x", "axis": {"labelColor": "#cbd5e1", "title": None}}, "x": {"field": "Certified score", "type": "quantitative", "scale": {"domain": [0, 100]}, "axis": {"title": "Score", "labelColor": "#94a3b8", "titleColor": "#cbd5e1", "gridColor": "#1e293b"}}, "tooltip": [{"field": "Pillar"}, {"field": "Certified score", "format": ".1f"}]},
-                "config": {"background": "#08111f", "view": {"stroke": "#243244"}},
-            })
+            chart_rows = []
+            table_markers = []
+            for row in display_rows:
+                label = escape(str(row["Pillar"]))
+                slug = str(row["Pillar"]).lower().replace(" ", "-")
+                score = float(row["Certified score"])
+                weight = row["Governed weight (%)"]
+                weight_attr = "" if weight is None else f"{float(weight):.10g}"
+                chart_rows.append(
+                    f'<div class="atlas-pillar-row" data-atlas-qa="research-v2-pillar-chart-row" '
+                    f'data-atlas-ticker="{escape(ticker)}" data-atlas-pillar="{escape(slug)}" '
+                    f'data-atlas-score="{score:.10g}" data-atlas-weight="{weight_attr}">'
+                    f'<div class="atlas-pillar-label"><span>{label}</span><strong>{score:.1f}</strong></div>'
+                    f'<div class="atlas-pillar-track"><span style="width:{score:.6f}%"></span></div></div>'
+                )
+                table_markers.append(
+                    f'<span data-atlas-qa="research-v2-pillar-table-row" data-atlas-ticker="{escape(ticker)}" '
+                    f'data-atlas-pillar="{escape(slug)}" data-atlas-score="{score:.10g}" '
+                    f'data-atlas-weight="{weight_attr}" aria-hidden="true" style="display:none"></span>'
+                )
+            st.markdown(
+                '<style>.atlas-pillar-chart{padding:.8rem;border:1px solid #243244;border-radius:12px;'
+                'background:#08111f}.atlas-pillar-row{margin:.55rem 0}.atlas-pillar-label{display:flex;'
+                'justify-content:space-between;color:#cbd5e1;font-size:.82rem}.atlas-pillar-label strong{color:#f8fafc}'
+                '.atlas-pillar-track{height:13px;margin-top:.25rem;border-radius:7px;background:#172337;overflow:hidden}'
+                '.atlas-pillar-track span{display:block;height:100%;border-radius:7px;background:#2dd4bf}</style>'
+                f'<div class="atlas-pillar-chart" data-atlas-ticker="{escape(ticker)}">'
+                + "".join(chart_rows) + "</div>" + "".join(table_markers),
+                unsafe_allow_html=True,
+            )
             st.dataframe(
                 frame[["Certified score"]].style.format("{:.1f}"),
                 use_container_width=True,

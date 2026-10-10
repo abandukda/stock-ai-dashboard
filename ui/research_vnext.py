@@ -1373,7 +1373,7 @@ def render_research_vnext(report: Mapping[str, Any], *, legacy: Mapping[str, Cal
             'data-atlas-publication-allowed="false" aria-hidden="true" style="display:none">research-terminal</span>',
             unsafe_allow_html=True,
         )
-        st.markdown(f"## {RESEARCH_WITHHELD_PRIMARY_COPY}")
+        st.markdown(f"## A certified ATLAS rating is not available for {escape(ticker)}.")
         st.warning(RESEARCH_WITHHELD_SUPPORTING_COPY)
         if price is not None:
             st.metric("Certified Market Price", CanonicalNumberFormatter.price(price).display)

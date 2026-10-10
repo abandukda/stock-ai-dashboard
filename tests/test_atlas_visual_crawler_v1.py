@@ -697,7 +697,11 @@ def test_route_generation_recovery_requires_current_visible_healthy_page():
 
 def test_browser_session_is_shared_between_desktop_and_mobile():
     source = SOURCE.read_text(encoding="utf-8")
-    assert source.count("await browser.new_context") == 1
+    # One governed admin session is reused across desktop/mobile. A second,
+    # deliberately isolated context proves the customer-viewer authorization.
+    assert source.count("await browser.new_context") == 2
+    assert 'expected_role="customer_viewer"' in source
+    assert 'expected_role="internal_admin"' in source
     assert "self._required_desktop(page), timeout=360" in source
     assert "self._required_mobile(page), timeout=300" in source
     assert "await self._supplementary_desktop(page)" in source
@@ -762,6 +766,10 @@ def _completed_research_fixture(monkeypatch, tmp_path, *, statuses, exception=Fa
             "chart_ownership": "PASS",
             "pillar_count": 6,
             "pillar_digest": "fixture-certified-pillar-digest",
+            "pillar_numeric_parity": True,
+            "pillar_chart_series": {"valuation": {"score": 72.88, "weight": 20.0}},
+            "pillar_table_series": {"valuation": {"score": 72.88, "weight": 20.0}},
+            "withheld_message_visible": False,
         }
 
     async def rendered_exception(_page):
@@ -795,6 +803,13 @@ def _terminal(**overrides):
 
 def test_rating_not_published_is_an_explicit_completed_terminal_state():
     assert _terminal() == "RATING_NOT_PUBLISHED_COMPLETE"
+
+
+def test_ticker_specific_customer_safe_withheld_copy_is_terminal():
+    assert _terminal(visible_text=(
+        "A certified ATLAS rating is not available for CRC. "
+        "ATLAS does not have enough certified evidence to publish a rating for this snapshot."
+    )) == "RATING_NOT_PUBLISHED_COMPLETE"
 
 
 def test_published_research_still_requires_sections_and_ask_cta():

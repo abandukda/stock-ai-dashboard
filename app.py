@@ -4617,6 +4617,26 @@ def render_chat_helper(full_df):
         from engines.ask_atlas_engine import customer_evidence_label
         return customer_evidence_label(value)
 
+    def _customer_timestamp(value):
+        """Render governed timestamps as readable UTC dates, never raw ISO text."""
+        try:
+            parsed = dt.datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+            parsed = parsed.astimezone(dt.timezone.utc)
+            return parsed.strftime("%b %d, %Y · %H:%M UTC").replace(" 0", " ")
+        except (TypeError, ValueError):
+            return "Date unavailable"
+
+    def _customer_limitations(*groups):
+        """Deduplicate governed limitations and keep the customer summary concise."""
+        labels = []
+        for item in (value for group in groups for value in (group or [])):
+            label = _customer_evidence_label(item).strip()
+            if label and label not in labels:
+                labels.append(label)
+        if len(labels) > 4:
+            return labels[:3] + [f"{len(labels) - 3} additional optional evidence families are unavailable."]
+        return labels
+
     def _ask_completion_marker(status, ticker, grounding):
         attrs = {
             "data-atlas-status": status,
@@ -4649,7 +4669,7 @@ def render_chat_helper(full_df):
             _header_context = _header_row.get("research_context") if isinstance(_header_row.get("research_context"), dict) else {}
             _header_as_of = _header_context.get("generated_at") or _header_row.get("generated_at")
             if _header_as_of:
-                st.caption(f"Research as of {_header_as_of}")
+                st.caption(f"Research as of {_customer_timestamp(_header_as_of)}")
         except Exception:
             # The question flow remains available if a hot-reloaded worker has
             # not yet loaded the UX-3B presentation helper.
@@ -4691,10 +4711,10 @@ def render_chat_helper(full_df):
             st.markdown("### Supporting evidence")
             st.write(", ".join(_customer_evidence_label(item) for item in (_grounding.get("evidence_used") or [])) or "No supporting evidence family was registered.")
             st.markdown("### Missing evidence & limitations")
-            _missing = list(_grounding.get("evidence_missing") or []) + list(_grounding.get("evidence_limitations") or [])
-            st.write("\n".join(f"- {_customer_evidence_label(item)}" for item in _missing) or "No material limitation was registered.")
+            _missing = _customer_limitations(_grounding.get("evidence_missing"), _grounding.get("evidence_limitations"))
+            st.write("\n".join(f"- {item}" for item in _missing) or "No material limitation was registered.")
             if _grounding.get("as_of_date"):
-                st.caption(f"Evidence as of {_grounding['as_of_date']}")
+                st.caption(f"Evidence as of {_customer_timestamp(_grounding['as_of_date'])}")
         elif status == "error" and st.session_state["ask_ai_error"]:
             st.error(st.session_state["ask_ai_error"])
         return
@@ -4868,10 +4888,10 @@ def render_chat_helper(full_df):
         st.markdown("### Supporting evidence")
         st.write(", ".join(_customer_evidence_label(item) for item in (result.get("evidence_used") or result.get("sources_used") or [])) or "No supporting evidence family was registered.")
         st.markdown("### Missing evidence & limitations")
-        _visible_limitations = list(result.get("evidence_missing") or []) + list(result.get("evidence_limitations") or [])
-        st.write("\n".join(f"- {_customer_evidence_label(item)}" for item in _visible_limitations) or "No material limitation was registered.")
+        _visible_limitations = _customer_limitations(result.get("evidence_missing"), result.get("evidence_limitations"))
+        st.write("\n".join(f"- {item}" for item in _visible_limitations) or "No material limitation was registered.")
         if result.get("as_of_date"):
-            st.caption(f"Evidence as of {result['as_of_date']}")
+            st.caption(f"Evidence as of {_customer_timestamp(result['as_of_date'])}")
     except Exception as exc:
         message = f"Verified Atlas evidence for {ticker} is temporarily unavailable. No valuation or target was substituted."
         st.session_state.update(ask_ai_status="error", ask_ai_ticker=ticker, ask_ai_response="", ask_ai_error=message)
