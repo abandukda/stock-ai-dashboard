@@ -64,6 +64,17 @@ def _friendly_time(value: Any) -> str:
         return "Date unavailable"
 
 
+def _range_rows(frame: pd.DataFrame, selected: str) -> pd.DataFrame:
+    """Return a display-only date window without altering retained values."""
+    if frame.empty or selected == "1Y":
+        return frame
+    months = {"1M": 1, "3M": 3, "6M": 6}.get(selected)
+    if months is None:
+        return frame
+    cutoff = frame.index.max() - pd.DateOffset(months=months)
+    return frame.loc[frame.index >= cutoff]
+
+
 def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[[Mapping[str, Any]], None]) -> None:
     page = build_customer_research_v2(report)
     ticker = str(page.get("ticker") or "UNKNOWN")
@@ -135,6 +146,13 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
         if date_key and close_key:
             rows[date_key] = _dates(rows[date_key])
             stock_rows = rows.dropna(subset=[date_key, close_key]).set_index(date_key)[[close_key]].rename(columns={close_key: ticker})
+            selected_range = st.selectbox("Price range", ("1M", "3M", "6M", "1Y"), index=2, key=f"research-price-range-{ticker}")
+            stock_rows = _range_rows(stock_rows, selected_range)
+            fair_value = h.get("fair_value")
+            price_frame = stock_rows.copy()
+            if fair_value is not None:
+                price_frame["ATLAS Fair Value — certified snapshot"] = float(fair_value)
+            st.line_chart(price_frame, height=300, y_label="Price (USD/share)", x_label="Date")
             spy = chart.get("spy_comparison") or {}
             spy_rows = pd.DataFrame(spy.get("series") or [])
             if spy.get("status") == "AVAILABLE" and not spy_rows.empty:
@@ -145,7 +163,7 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
                     spy_rows = spy_rows.dropna(subset=[spy_date, spy_close]).set_index(spy_date)[[spy_close]].rename(columns={spy_close: "SPY"})
                     joined = stock_rows.join(spy_rows, how="inner").dropna()
                     if not joined.empty and float(joined.iloc[0][ticker]) and float(joined.iloc[0]["SPY"]):
-                        normalized = joined.divide(joined.iloc[0]).multiply(100.0)
+                        normalized = joined[[ticker, "SPY"]].divide(joined.iloc[0][[ticker, "SPY"]]).multiply(100.0)
                         _marker("spy-comparison-chart", ticker, status="AVAILABLE", unit="NORMALIZED_INDEX_100")
                         st.line_chart(normalized, height=320, y_label="Normalized performance (start = 100)", x_label="Date")
                         st.caption(_provenance_caption(spy.get("provenance") or {}))
@@ -157,9 +175,10 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
                     st.info("SPY comparison is unavailable because dated benchmark evidence is incomplete.")
             else:
                 _marker("spy-comparison-chart", ticker, status=spy.get("status") or "UNAVAILABLE")
-                st.line_chart(stock_rows, height=300, y_label="Price (USD/share)", x_label="Date")
                 st.caption("SPY comparison unavailable for this evidence bundle.")
             st.caption(_provenance_caption(chart.get("provenance") or {}))
+            if chart.get("corporate_action_status") == "UNADJUSTED_CLOSE_NO_RETURN_CLAIM":
+                st.caption("Historical closes are shown without an adjusted-return claim because corporate-action adjustment provenance is unavailable.")
 
             technical = chart.get("technical_indicators") or {}
             indicator_keys = [key for key in technical.get("keys") or () if key in rows]
@@ -186,6 +205,26 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
     _list(summary["risks"])
     st.markdown("**What to watch**")
     _list(summary["watch_next"])
+
+    st.markdown("### Six-pillar investment profile")
+    pillars = page.get("six_pillars") or {}
+    _marker("six-pillar-profile", ticker, status=pillars.get("status") or "UNAVAILABLE")
+    if pillars.get("status") == "AVAILABLE":
+        frame = pd.DataFrame([
+            {
+                "Pillar": str(item["pillar"]).replace("_", " ").title(),
+                "Certified score": float(item["score"]),
+                "Governed weight": float(item["weight"]) if item.get("weight") is not None else None,
+            }
+            for item in pillars["items"]
+        ]).set_index("Pillar")
+        st.bar_chart(frame[["Certified score"]], horizontal=True, height=260, x_label="Certified score", y_label="Pillar")
+        if pillars.get("weights_status") == "AVAILABLE":
+            st.dataframe(frame, use_container_width=True)
+        else:
+            st.caption("Governed pillar weights are unavailable in this snapshot; scores are shown without inferred weights.")
+    else:
+        st.info(pillars.get("message") or "Certified six-pillar evidence is unavailable.")
 
     _marker("section", ticker, section_name="Fundamentals & Valuation")
     st.markdown("## Fundamentals & Valuation")

@@ -58,7 +58,11 @@ def test_authorized_paid_core_record_is_promoted_to_certified_calculation():
     assert record.provenance.dataset_family == DatasetFamily.CANONICAL_QUANTITATIVE
     assert record.provenance.certification_status == CertificationStatus.CERTIFIED
     assert record.provenance.derived_use_permission == UsePermission.CERTIFIED_CALCULATION
-    assert record.provenance.display_permission == UsePermission.PROHIBITED
+    assert record.provenance.display_permission == UsePermission.DISPLAY_ONLY
+    assert record.provenance.commercial_display_allowed is True
+    assert record.provenance.raw_machine_readable_redistribution_allowed is False
+    assert record.provenance.contracted_endpoint == "/stock/metric"
+    assert record.provenance.market_scope == "US_EQUITY"
     assert AUTHORITY_VERSION in record.provenance.adapter_version
     assert require_certified_calculation(record)["market_capitalization"] == 1_000_000_000
 

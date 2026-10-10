@@ -18,6 +18,7 @@ from services.provider_domain_contracts import (
     CertificationStatus, DatasetFamily, GovernedRecord, UsePermission,
     require_certified_calculation,
 )
+from services.finnhub_enterprise_display_contract import display_authority
 
 
 AUTHORITY_VERSION = "FINNHUB_CANONICAL_AUTHORITY_V1_FIELD_SCOPED"
@@ -109,12 +110,20 @@ class FinnhubCanonicalAdapter:
             # Unavailable and entitlement records retain their exact fail-closed
             # provider status and are never promoted by the authority wrapper.
             return record
+        display = display_authority(capability)
         provenance = replace(
             record.provenance,
             dataset_family=DatasetFamily.CANONICAL_QUANTITATIVE,
             certification_status=CertificationStatus.CERTIFIED,
             derived_use_permission=UsePermission.CERTIFIED_CALCULATION,
-            display_permission=UsePermission.PROHIBITED,
+            display_permission=(display.display_permission if display else UsePermission.PROHIBITED),
+            contract_id=(display.contract_id if display else None),
+            contracted_endpoint=(display.endpoint if display else None),
+            market_scope=(display.market_scope if display else None),
+            commercial_display_allowed=bool(display),
+            raw_machine_readable_redistribution_allowed=False,
+            retention_policy=(display.retention if display else None),
+            termination_action=(display.termination_action if display else None),
             adapter_version=f"{record.provenance.adapter_version}+{AUTHORITY_VERSION}",
         )
         limitations = tuple(record.limitations) + tuple(contract.get("limitations") or ()) + (

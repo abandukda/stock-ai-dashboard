@@ -14,7 +14,8 @@ def _envelope(value, *, name, unit=None):
 def report():
     certified = {
         "ticker": "NVDA", "customer_publication_allowed": True,
-        "decision": {"action": "BUY_NOW", "opportunity": 85.96, "decision_confidence": 87.46},
+        "decision": {"action": "BUY_NOW", "opportunity": 85.96, "decision_confidence": 87.46,
+                     "six_pillars": {"valuation_quality": 91, "fundamental_quality": 84}},
         "fields": {
             "price": _envelope(186.09, name="price", unit="PER_SHARE"),
             "atlas_fair_value": _envelope(346.05, name="atlas_fair_value", unit="PER_SHARE"),
@@ -27,6 +28,7 @@ def report():
         "certified_customer_evaluation": certified,
         "publication_certification": {"publication_digest": "publication", "source_sha": "source"},
         "canonical_investment_evaluation": {"evidence_ids": ["evidence:decision"]},
+        "six_pillar_weights": {"valuation_quality": 0.6, "fundamental_quality": 0.4},
         "intelligence": {"why_atlas_supports_it": ["Certified valuation support."], "key_risks": ["Execution risk."]},
         "guidance_summary": {"thesis_change_conditions": {"invalidate": ["Certified evidence deteriorates."]}},
         "sections": {"technical": {"history": [], "history_provenance": {}}},
@@ -84,6 +86,39 @@ def test_chart_accepts_only_persisted_rows_with_source_and_evidence():
     chart = build_customer_research_v2(source)["chart"]
     assert chart["status"] == "AVAILABLE"
     assert chart["spy_comparison"]["status"] == "DISABLED"
+
+
+def test_retained_artifact_bars_require_lineage_and_never_claim_live_price():
+    source = report()
+    source["bars"] = [{"timestamp": 1, "close": 185.0}, {"timestamp": 2, "close": 186.09}]
+    source["evidence_ids"] = ["FINNHUB:HISTORICAL_OHLCV:NVDA:abc"]
+    source["run_identity"] = {"source_sha": "aa12ff9", "evidence_snapshot_at": "2026-10-04T20:00:00Z"}
+    result = build_customer_research_v2(source)
+    assert result["chart"]["status"] == "AVAILABLE"
+    assert result["chart"]["provenance"]["contracted_endpoint"] == "/stock/candle"
+    assert result["chart"]["provenance"]["raw_machine_readable_redistribution_allowed"] is False
+    assert result["chart"]["corporate_action_status"] == "UNADJUSTED_CLOSE_NO_RETURN_CLAIM"
+    assert result["header"]["price_label"] == "Last Certified Close"
+
+
+def test_six_pillars_are_projected_without_recalculation_and_sorted_by_weight():
+    result = build_customer_research_v2(report())["six_pillars"]
+    assert result["status"] == "AVAILABLE"
+    assert [(item["pillar"], item["score"], item["weight"]) for item in result["items"]] == [
+        ("valuation_quality", 91, 0.6), ("fundamental_quality", 84, 0.4),
+    ]
+    assert all(item["evidence_ids"] == ("evidence:decision",) for item in result["items"])
+
+
+def test_incomplete_retained_bar_is_not_customer_projected():
+    source = report()
+    source["bars"] = [
+        {"timestamp": "2026-10-07T20:00:00Z", "close": 185.0, "completed": True},
+        {"timestamp": "2026-10-08T18:00:00Z", "close": 999.0, "completed": False},
+    ]
+    source["evidence_ids"] = ["FINNHUB:HISTORICAL_OHLCV:NVDA:abc"]
+    source["run_identity"] = {"source_sha": "aa12ff9", "evidence_snapshot_at": "2026-10-08T18:00:00Z"}
+    assert build_customer_research_v2(source)["chart"]["series"] == [source["bars"][0]]
 
 
 def test_wall_street_is_disabled_by_default_and_contextual(monkeypatch):

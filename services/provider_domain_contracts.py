@@ -72,6 +72,13 @@ class ProvenanceEnvelope:
     supersedes: str | None = None
     superseded_by: str | None = None
     source_record_version: str | None = None
+    contract_id: str | None = None
+    contracted_endpoint: str | None = None
+    market_scope: str | None = None
+    commercial_display_allowed: bool = False
+    raw_machine_readable_redistribution_allowed: bool = False
+    retention_policy: str | None = None
+    termination_action: str | None = None
 
     def validate(self) -> None:
         required = (

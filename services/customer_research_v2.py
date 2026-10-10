@@ -224,6 +224,23 @@ def _chart_projection(report: Mapping[str, Any], signal: Mapping[str, Any], enri
     technical = _map(_map(report.get("sections")).get("technical"))
     provenance = _map(technical.get("history_provenance"))
     rows = [dict(item) for item in _seq(technical.get("history")) if isinstance(item, Mapping)]
+    if not rows:
+        rows = [
+            dict(item) for item in _seq(report.get("bars"))
+            if isinstance(item, Mapping) and item.get("completed", True) is True
+        ]
+        evidence_ids = tuple(str(item) for item in _seq(report.get("evidence_ids")) if item)
+        run_identity = _map(report.get("run_identity"))
+        if rows and evidence_ids and run_identity.get("source_sha"):
+            provenance = {
+                "source": "FINNHUB_CERTIFIED_RETAINED_ARTIFACT",
+                "evidence_ids": evidence_ids,
+                "capture_timestamp": run_identity.get("evidence_snapshot_at"),
+                "source_sha": run_identity.get("source_sha"),
+                "contracted_endpoint": "/stock/candle",
+                "commercial_display_allowed": True,
+                "raw_machine_readable_redistribution_allowed": False,
+            }
     stock = _module(enrichment.get("historical_ohlcv"))
     spy = _module(enrichment.get("spy_historical_ohlcv"))
     if not rows and stock:
@@ -269,6 +286,11 @@ def _chart_projection(report: Mapping[str, Any], signal: Mapping[str, Any], enri
             "keys": technical_keys,
             "message": None if technical_keys else "Certified technical-indicator history is unavailable for this snapshot.",
         },
+        "corporate_action_status": (
+            "ADJUSTMENT_PROVENANCE_AVAILABLE"
+            if provenance.get("corporate_action_adjustment_provenance")
+            else "UNADJUSTED_CLOSE_NO_RETURN_CLAIM"
+        ),
     }
 
 
@@ -288,6 +310,31 @@ def _financial_trend_projection(financials: Mapping[str, Any]) -> dict[str, Any]
             "message": "Certified multi-period earnings and financial history is unavailable for this snapshot.",
         }
     return {"status": "AVAILABLE", "series": series, "periods": tuple(periods), "provenance": dict(provenance)}
+
+
+def _six_pillar_projection(certified: Mapping[str, Any], report: Mapping[str, Any]) -> dict[str, Any]:
+    pillars = _map(_map(certified.get("decision")).get("six_pillars"))
+    weights = _map(report.get("six_pillar_weights") or _map(report.get("evaluation_contract")).get("six_pillar_weights"))
+    evidence_ids = tuple(sorted(str(item) for item in _seq(_map(report.get("canonical_investment_evaluation")).get("evidence_ids")) if item))
+    snapshot = _map(certified.get("digests")).get("evaluation_snapshot_id")
+    if not pillars:
+        return {"status": "UNAVAILABLE", "items": (), "message": "Certified six-pillar evidence is unavailable."}
+    items = []
+    for name, score in pillars.items():
+        if score is None:
+            continue
+        weight = weights.get(name)
+        items.append({
+            "pillar": str(name), "score": score, "weight": weight,
+            "evidence_ids": evidence_ids, "snapshot_timestamp": snapshot,
+            "publication_permission": "DISPLAY_ALLOWED",
+        })
+    items.sort(key=lambda item: (item["weight"] is None, -(float(item["weight"]) if item["weight"] is not None else 0), item["pillar"]))
+    return {
+        "status": "AVAILABLE" if items else "UNAVAILABLE", "items": tuple(items),
+        "weights_status": "AVAILABLE" if items and all(item["weight"] is not None for item in items) else "UNAVAILABLE",
+        "message": None if items else "Certified six-pillar evidence is unavailable.",
+    }
 
 
 def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
@@ -395,6 +442,7 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
             "confidence_band": _confidence_band(authority["confidence"]),
         },
         "signal": signal, "chart": _chart_projection(report, signal, enrichment), "summary": summary,
+        "six_pillars": _six_pillar_projection(certified, report),
         "wall_street": wall_street,
         "valuation_chart": valuation_chart,
         "financial_trend": _financial_trend_projection(financials),
