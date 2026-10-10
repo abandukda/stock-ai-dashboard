@@ -23,6 +23,13 @@ except Exception:
 
 
 def _compact_context(report: Mapping[str, Any]) -> dict[str, Any]:
+    # Research and Ask consume one customer-facing projection for protected
+    # values, freshness and contextual availability. Ask remains read-only and
+    # never calculates Action, Fair Value, Opportunity or Confidence.
+    from services.customer_research_v2 import build_customer_research_v2
+    customer_projection = build_customer_research_v2(report)
+    customer_header = customer_projection.get("header") if isinstance(customer_projection.get("header"), Mapping) else {}
+    customer_summary = customer_projection.get("summary") if isinstance(customer_projection.get("summary"), Mapping) else {}
     intelligence = report.get("intelligence") or build_executive_intelligence(report)
     sections = report.get("sections") or {}
     valuation = report.get("valuation_families") or valuation_families(report)
@@ -51,8 +58,12 @@ def _compact_context(report: Mapping[str, Any]) -> dict[str, Any]:
         "decision_digest": decision["digest"],
         "opportunity": decision["production_decision"].get("opportunity"),
         "conviction": decision["production_decision"].get("confidence"),
-        "current_price": report.get("current_price"),
-        "atlas_fair_value": valuation.get("atlas_fair_value"),
+        "current_price": customer_header.get("price") if customer_header else report.get("current_price"),
+        "price_label": customer_header.get("price_label") or "Last Certified Close",
+        "evidence_as_of": customer_header.get("evidence_as_of"),
+        "evidence_confidence": customer_header.get("confidence"),
+        "evidence_confidence_band": customer_header.get("confidence_band"),
+        "atlas_fair_value": customer_header.get("fair_value") if customer_header else valuation.get("atlas_fair_value"),
         "atlas_valuation_status": valuation.get("atlas_valuation_status"),
         "atlas_fv_upside_pct": valuation.get("atlas_fv_upside_pct"),
         "analyst_consensus": valuation.get("analyst_target_mean"),
@@ -82,10 +93,19 @@ def _compact_context(report: Mapping[str, Any]) -> dict[str, Any]:
         "earnings_intelligence": report.get("earnings_intelligence") or {},
         "earnings_history": (report.get("earnings_intelligence") or {}).get("history") or [],
         "market_context": report.get("market_context") or {},
-        "verified_company_news": (sections.get("news") or {}).get("data") or [],
+        "verified_company_news": ((customer_projection.get("recent_changes") or {}).get("items")
+                                  if customer_projection.get("status") == "AVAILABLE"
+                                  else (sections.get("news") or {}).get("data") or []),
         "political_summary": (sections.get("political") or {}).get("interpretation"),
         "news_summary": (sections.get("news") or {}).get("interpretation"),
-        "primary_risk": (intelligence.get("key_risks") or [""])[0],
+        "primary_risk": ((customer_summary.get("risks") or [""])[0]
+                         if customer_projection.get("status") == "AVAILABLE"
+                         else (intelligence.get("key_risks") or [""])[0]),
+        "customer_evidence_availability": {
+            "news": (customer_projection.get("recent_changes") or {}).get("status"),
+            "earnings": (customer_projection.get("catalysts") or {}).get("status"),
+            "analysts": (customer_projection.get("wall_street") or {}).get("status"),
+        } if customer_projection.get("status") == "AVAILABLE" else {},
         # Legacy committee narrative may carry a recommendation that is not
         # published by RESEARCH_CONTEXT_V1. Never present it to synthesis as
         # decision authority when the canonical decision is unavailable.

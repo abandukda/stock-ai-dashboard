@@ -1,6 +1,7 @@
 from services.customer_navigation_contract import (
     CUSTOMER_NAV_CONTRACT_VERSION,
     CUSTOMER_ROUTES,
+    internal_routes_allowed,
     migrate_navigation_state,
     role_category,
 )
@@ -39,3 +40,10 @@ def test_internal_route_remains_available_only_when_explicitly_allowed() -> None
     assert state["v784_single_nav"] == "Recovery"
     assert role_category(viewer=True) == "customer_viewer"
     assert role_category(viewer=False) == "internal_admin"
+
+
+def test_internal_routes_require_explicit_admin_role() -> None:
+    assert internal_routes_allowed("admin") is True
+    assert internal_routes_allowed("viewer") is False
+    assert internal_routes_allowed(None) is False
+    assert internal_routes_allowed("") is False

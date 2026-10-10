@@ -28474,16 +28474,18 @@ def main():
     from services.customer_navigation_contract import (
         CUSTOMER_NAV_CONTRACT_VERSION,
         CUSTOMER_ROUTES,
+        internal_routes_allowed,
         migrate_navigation_state,
         role_category,
     )
     customer_pages = list(CUSTOMER_ROUTES)
     internal_pages = ["Today's Opportunities", "Volume Intelligence", "Atlas Core Holdings", "Full Ranked Scan", "Portfolio Intelligence", "Recovery", "ETFs", "Political Intelligence", "Developer Center"]
     pages = list(customer_pages)
-    if not is_viewer():
+    _internal_authorized = internal_routes_allowed(get_user_role())
+    if _internal_authorized:
         pages.extend(internal_pages)
     _internal_report_card_enabled = (
-        not is_viewer()
+        _internal_authorized
         and os.getenv("ATLAS_INTERNAL_REPORT_CARD_UI_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"}
     )
     if _internal_report_card_enabled:
@@ -28498,7 +28500,7 @@ def main():
     st.markdown(
         '<span data-atlas-qa="customer-navigation-contract" '
         f'data-atlas-contract-version="{html.escape(CUSTOMER_NAV_CONTRACT_VERSION)}" '
-        f'data-atlas-role-category="{html.escape(role_category(viewer=is_viewer()))}" '
+        f'data-atlas-role-category="{html.escape(role_category(viewer=not _internal_authorized))}" '
         f'data-atlas-customer-routes="{html.escape("|".join(customer_pages))}" '
         f'data-atlas-internal-routes="{html.escape("|".join(_internal_available))}" '
         f'data-atlas-active-route="{html.escape(selected_page)}" '
@@ -28577,7 +28579,7 @@ def main():
     elif selected_page=="Internal Report Card":
         from ui.internal_report_card import render_internal_report_card
         _durable_root = Path(os.environ["ATLAS_REPORT_CARD_DURABLE_ROOT"])
-        render_internal_report_card(_durable_root / "report-card.sqlite3", authorized=not is_viewer())
+        render_internal_report_card(_durable_root / "report-card.sqlite3", authorized=_internal_authorized)
     elif selected_page=="Developer Center":
         _developer_pipeline = v104_pipeline_from_df(full_df)
         render_developer_center(
@@ -33451,7 +33453,7 @@ def v810_render_dynamic_home(full_df=None, top_df=None, recovery_df=None):
         _home_runtime_trace("home_interactive_emitted")
     _home_runtime_trace("home_render_started")
     render_home_guidance_vnext(
-        story, emit_interactive=_home_guidance_interactive, authorized_internal=not is_viewer(),
+        story, emit_interactive=_home_guidance_interactive, authorized_internal=(get_user_role() == "admin"),
     )
     _home_runtime_trace("home_render_completed")
     # Optional Twelve Data work is intentionally after PAGE_INTERACTIVE. A

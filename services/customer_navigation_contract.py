@@ -35,3 +35,8 @@ def migrate_navigation_state(
 
 def role_category(*, viewer: bool) -> str:
     return "customer_viewer" if viewer else "internal_admin"
+
+
+def internal_routes_allowed(role: object) -> bool:
+    """Fail closed: only an explicit admin role may receive internal routes."""
+    return str(role or "").strip().lower() == "admin"

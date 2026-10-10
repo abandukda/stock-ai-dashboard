@@ -125,6 +125,34 @@ def _real_risks(values: Iterable[Any]) -> list[str]:
     return output[:4]
 
 
+def _confidence_band(value: Any) -> str:
+    try:
+        score = float(value)
+    except (TypeError, ValueError):
+        return UNAVAILABLE
+    if score >= 85:
+        return "High"
+    if score >= 70:
+        return "Moderate"
+    return "Low"
+
+
+def _human_date(value: Any) -> str:
+    instant = _instant(value)
+    return instant.strftime("%b %-d, %Y") if instant else "Date unavailable"
+
+
+def _balance_sheet_risk(payload: Mapping[str, Any]) -> str | None:
+    debt = payload.get("total_debt")
+    cash = payload.get("cash") or payload.get("cash_and_equivalents")
+    try:
+        if debt is not None and cash is not None and float(debt) > float(cash):
+            return f"Total debt is ${float(debt) / 1_000_000_000:,.2f}B versus cash of ${float(cash) / 1_000_000:,.0f}M."
+    except (TypeError, ValueError):
+        return None
+    return None
+
+
 @dataclass(frozen=True)
 class FactCard:
     fact_name: str
@@ -310,6 +338,10 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
     news_items = _customer_news(news, ticker=ticker, company=company)
     certified_at = _instant(price_env.get("as_of"))
     future_events = _future_events(events, after=certified_at)
+    financial_payload = _map(financials.get("payload"))
+    balance_sheet_risk = _balance_sheet_risk(financial_payload)
+    if balance_sheet_risk and balance_sheet_risk not in risks:
+        risks = [balance_sheet_risk, *risks][:4]
     action_text = _display_action(authority["action"])
     valuation_text = (
         f" ATLAS Fair Value is {abs(gap):.1f}% {'above' if gap >= 0 else 'below'} the last certified close."
@@ -317,12 +349,14 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
     )
     summary = {
         "bottom_line": f"ATLAS rates {ticker} {action_text}.{valuation_text}",
-        "why": likes or [NOT_ENOUGH], "what_changed": [NOT_ENOUGH],
+        "why_rating": likes or [NOT_ENOUGH],
+        "strengths": likes or [NOT_ENOUGH],
         "risks": risks or [NOT_ENOUGH],
         "view_changes": [str(item) for key in ("strengthen", "weaken", "invalidate") for item in _seq(conditions.get(key)) if str(item).strip()][:6] or [NOT_ENOUGH],
         "why_might_be_wrong": list(dict.fromkeys(str(item) for item in _seq(report.get("enricher_errors")) if str(item).strip()))[:2] or [NOT_ENOUGH],
         "watch_next": [str(item) for item in _seq(conditions.get("strengthen")) if str(item).strip()][:1] or [NOT_ENOUGH],
     }
+    summary["why"] = summary["why_rating"]
     wall_street = ({
         "status": wall_status, "classification": CONTEXTUAL,
         "consensus": consensus, "recommendation_period": latest_rec.get("period"), "buy_count": buy_count if latest_rec else None,
@@ -355,8 +389,10 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
             "price": price, "price_timestamp": price_env.get("as_of"),
             "price_source": price_env.get("source"), "market_freshness": price_env.get("certification_status"),
             "price_label": "Last Certified Close",
+            "evidence_as_of": _human_date(price_env.get("as_of")),
             "action": _display_action(authority["action"]), "fair_value": fair_value,
             "fair_value_gap_pct": gap, "opportunity": authority["opportunity"], "confidence": authority["confidence"],
+            "confidence_band": _confidence_band(authority["confidence"]),
         },
         "signal": signal, "chart": _chart_projection(report, signal, enrichment), "summary": summary,
         "wall_street": wall_street,

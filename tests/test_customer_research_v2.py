@@ -42,9 +42,11 @@ def test_protected_authority_is_projected_exactly_without_recomputation(monkeypa
         "price": 186.09, "price_timestamp": "2026-10-08T20:00:00Z",
         "price_source": "GOVERNED_FIXTURE", "market_freshness": "CERTIFIED",
         "price_label": "Last Certified Close",
+        "evidence_as_of": "Oct 8, 2026",
         "action": "BUY NOW", "fair_value": 346.05,
         "fair_value_gap_pct": (346.05 / 186.09 - 1) * 100,
         "opportunity": 85.96, "confidence": 87.46,
+        "confidence_band": "High",
     }
     assert source == before
 
@@ -195,6 +197,36 @@ def test_research_copy_calls_certified_price_a_close_not_live_quote():
     result = build_customer_research_v2(report())
     assert result["header"]["price_label"] == "Last Certified Close"
     assert "last certified close" in result["summary"]["bottom_line"]
+
+
+def test_shared_customer_evidence_header_uses_score_not_percentage():
+    result = build_customer_research_v2(report())
+    assert result["header"]["confidence"] == 87.46
+    assert result["header"]["confidence_band"] == "High"
+    assert result["header"]["evidence_as_of"] == "Oct 8, 2026"
+
+
+def test_available_balance_sheet_facts_are_used_as_risk(monkeypatch, tmp_path):
+    source = report()
+    bundle = {"tickers": {"NVDA": {"basic_financials": {
+        "payload": {"total_debt": 2_680_000_000, "cash": 192_000_000},
+        "provenance": {"raw_evidence_id": "financials:balance"},
+    }}}}
+    path = tmp_path / "qa.json"; path.write_text(__import__("json").dumps(bundle))
+    monkeypatch.setenv("ATLAS_QA_MODE", "1")
+    monkeypatch.setenv("ATLAS_RESEARCH_V2_QA_ENRICHMENT", str(path))
+    risks = build_customer_research_v2(source)["summary"]["risks"]
+    assert risks[0] == "Total debt is $2.68B versus cash of $192M."
+
+
+def test_renderer_uses_customer_safe_labels_and_escapes_currency():
+    source = __import__("pathlib").Path("ui/customer_research_v2.py").read_text(encoding="utf-8")
+    assert 'metric("Evidence confidence"' in source
+    assert 'metric("Confidence", _pct' not in source
+    assert '("TTM P/E", fundamentals.get("pe_ttm")' in source
+    assert "replace('$', r'\\$')" in source
+    assert "**Why this rating**" in source
+    assert "**What could go wrong**" in source
 
 
 def test_qa_enrichment_is_never_loaded_outside_qa(monkeypatch, tmp_path):
