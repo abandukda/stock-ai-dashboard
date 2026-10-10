@@ -58,7 +58,10 @@ def _qa_enrichment(ticker: str) -> Mapping[str, Any]:
     except (OSError, ValueError):
         return {}
     rows = _map(payload).get("tickers")
-    return _map(_map(rows).get(ticker))
+    record = dict(_map(_map(rows).get(ticker)))
+    if record:
+        record["__atlas_ticker__"] = ticker
+    return record
 
 
 def _module(record: Any) -> Mapping[str, Any]:
@@ -457,7 +460,19 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
     price, fair_value = price_env.get("value"), fv_env.get("value")
     gap = ((float(fair_value) / float(price)) - 1.0) * 100 if price not in (None, 0) and fair_value is not None else upside_env.get("value")
     ticker = str(authority["ticker"])
+    requested_ticker = str(report.get("ticker") or report.get("Ticker") or "").strip().upper()
+    if requested_ticker != ticker:
+        return {
+            "version": VERSION, "status": "RATING_NOT_PUBLISHED", "ticker": requested_ticker or ticker,
+            "reason": "RESEARCH_AUTHORITY_TICKER_MISMATCH",
+        }
     enrichment = _qa_enrichment(ticker)
+    enrichment_ticker = str(enrichment.get("__atlas_ticker__") or ticker).strip().upper()
+    if enrichment and enrichment_ticker != ticker:
+        return {
+            "version": VERSION, "status": "RATING_NOT_PUBLISHED", "ticker": ticker,
+            "reason": "CONTEXTUAL_EVIDENCE_TICKER_MISMATCH",
+        }
     company = str(report.get("company") or ticker)
     facts = [item for item in (
         _fact("Current Price", price_env, f"${float(price):,.2f}" if price is not None else UNAVAILABLE),
@@ -539,7 +554,18 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
             "fair_value_gap_pct": gap, "opportunity": authority["opportunity"], "confidence": authority["confidence"],
             "confidence_band": _confidence_band(authority["confidence"]),
         },
-        "signal": signal, "chart": _chart_projection(report, signal, enrichment), "summary": summary,
+        "signal": signal,
+        "chart": {
+            **_chart_projection(report, signal, enrichment),
+            "ownership": {
+                "requested_ticker": requested_ticker,
+                "source_report_ticker": requested_ticker,
+                "certified_authority_ticker": ticker,
+                "chart_payload_ticker": ticker,
+                "displayed_ticker": ticker,
+            },
+        },
+        "summary": summary,
         "six_pillars": pillar_projection,
         "wall_street": wall_street,
         "valuation_chart": valuation_chart,

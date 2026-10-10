@@ -29,7 +29,6 @@ SURFACES = (
     "research_nvda",
     "research_msft",
     "research_avt",
-    "earnings",
     "watchlist",
     "ask_grounded",
     "internal_report_card",

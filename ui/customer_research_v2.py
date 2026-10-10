@@ -4,6 +4,8 @@ from __future__ import annotations
 from html import escape
 from typing import Any, Callable, Mapping
 from datetime import datetime
+import hashlib
+import json
 import math
 
 import pandas as pd
@@ -85,15 +87,17 @@ def _provenance_caption(provenance: Mapping[str, Any]) -> str:
     return f"Source: {str(source).replace('_', ' ').title()} · Evidence captured {_friendly_time(as_of)}"
 
 
-def _dark_line_chart(frame: pd.DataFrame, *, height: int, y_title: str) -> None:
+def _dark_line_chart(frame: pd.DataFrame, *, height: int, y_title: str, key: str) -> None:
+    series = [str(column) for column in frame.columns]
+    palette = ["#2dd4bf", "#60a5fa", "#f59e0b", "#a78bfa"]
     data = frame.reset_index().rename(columns={frame.index.name or "index": "Date"}).melt("Date", var_name="Series", value_name="Value")
-    st.vega_lite_chart(data, use_container_width=True, theme=None, spec={
+    st.vega_lite_chart(data, use_container_width=True, theme=None, key=key, spec={
         "height": height,
         "mark": {"type": "line", "strokeWidth": 2.2},
         "encoding": {
-            "x": {"field": "Date", "type": "temporal", "axis": {"title": "Date", "format": "%b %Y", "labelColor": "#94a3b8", "titleColor": "#cbd5e1", "gridColor": "#1e293b"}},
-            "y": {"field": "Value", "type": "quantitative", "axis": {"title": y_title, "labelColor": "#94a3b8", "titleColor": "#cbd5e1", "gridColor": "#1e293b"}},
-            "color": {"field": "Series", "type": "nominal", "scale": {"range": ["#2dd4bf", "#60a5fa", "#f59e0b", "#a78bfa"]}, "legend": {"labelColor": "#cbd5e1", "titleColor": "#cbd5e1"}},
+            "x": {"field": "Date", "type": "temporal", "axis": {"title": "Date", "format": "%b %Y", "tickCount": 6, "labelOverlap": "greedy", "labelColor": "#94a3b8", "titleColor": "#cbd5e1", "gridColor": "#1e293b"}},
+            "y": {"field": "Value", "type": "quantitative", "scale": {"zero": False, "nice": True}, "axis": {"title": y_title, "labelColor": "#94a3b8", "titleColor": "#cbd5e1", "gridColor": "#1e293b"}},
+            "color": {"field": "Series", "type": "nominal", "scale": {"domain": series, "range": palette[:len(series)]}, "legend": {"title": None, "labelLimit": 320, "labelColor": "#cbd5e1", "titleColor": "#cbd5e1"}},
             "tooltip": [{"field": "Date", "type": "temporal", "format": "%b %d, %Y"}, {"field": "Series"}, {"field": "Value", "format": ",.2f"}],
         },
         "config": {"background": "#08111f", "view": {"stroke": "#243244"}, "axis": {"domainColor": "#334155", "tickColor": "#334155"}},
@@ -178,6 +182,19 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
     st.markdown("### Price history and SPY comparison")
     _marker("chart-root", ticker, status=page["chart"]["status"])
     chart = page["chart"]
+    ownership = chart.get("ownership") or {}
+    owner_values = {
+        str(ownership.get(name) or "").strip().upper()
+        for name in (
+            "requested_ticker", "source_report_ticker", "certified_authority_ticker",
+            "chart_payload_ticker", "displayed_ticker",
+        )
+    }
+    ownership_valid = owner_values == {ticker}
+    _marker("chart-ownership", ticker, status="PASS" if ownership_valid else "FAIL", **ownership)
+    if not ownership_valid:
+        st.error("Research chart ownership could not be certified for this ticker.")
+        return
     if chart["status"] != "AVAILABLE":
         st.info(chart["message"])
     else:
@@ -193,7 +210,7 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
             price_frame = stock_rows.copy()
             if fair_value is not None:
                 price_frame["ATLAS Fair Value — certified snapshot"] = float(fair_value)
-            _dark_line_chart(price_frame, height=300, y_title="Price (USD/share)")
+            _dark_line_chart(price_frame, height=300, y_title="Price (USD/share)", key=f"research-price-chart-{ticker}")
             spy = chart.get("spy_comparison") or {}
             spy_rows = pd.DataFrame(spy.get("series") or [])
             if spy.get("status") == "AVAILABLE" and not spy_rows.empty:
@@ -206,7 +223,7 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
                     if not joined.empty and float(joined.iloc[0][ticker]) and float(joined.iloc[0]["SPY"]):
                         normalized = joined[[ticker, "SPY"]].divide(joined.iloc[0][[ticker, "SPY"]]).multiply(100.0)
                         _marker("spy-comparison-chart", ticker, status="AVAILABLE", unit="NORMALIZED_INDEX_100")
-                        _dark_line_chart(normalized, height=320, y_title="Normalized performance (start = 100)")
+                        _dark_line_chart(normalized, height=320, y_title="Normalized performance (start = 100)", key=f"research-spy-chart-{ticker}")
                         st.caption(_provenance_caption(spy.get("provenance") or {}))
                     else:
                         _marker("spy-comparison-chart", ticker, status="UNAVAILABLE")
@@ -226,7 +243,7 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
             if technical.get("status") == "AVAILABLE" and indicator_keys:
                 _marker("technical-indicators-chart", ticker, status="AVAILABLE", unit="USD_PER_SHARE_OR_INDEX")
                 indicator_frame = rows.dropna(subset=[date_key]).set_index(date_key)[indicator_keys]
-                _dark_line_chart(indicator_frame, height=260, y_title="Certified indicator value")
+                _dark_line_chart(indicator_frame, height=260, y_title="Certified indicator value", key=f"research-technical-chart-{ticker}")
             else:
                 _marker("technical-indicators-chart", ticker, status="UNAVAILABLE")
                 st.info(technical.get("message") or "Certified technical-indicator history is unavailable for this snapshot.")
@@ -250,21 +267,43 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
     pillars = page.get("six_pillars") or {}
     valid_count = len(pillars.get("items") or ())
     st.markdown(f"### Certified pillar coverage — {valid_count} of 6")
-    _marker("six-pillar-profile", ticker, status=pillars.get("status") or "UNAVAILABLE")
+    pillar_identity = [
+        {
+            "pillar": item.get("pillar"), "score": item.get("certified_score"),
+            "weight": item.get("weight"), "snapshot": item.get("snapshot_identity"),
+        }
+        for item in pillars.get("items") or ()
+    ]
+    pillar_digest = hashlib.sha256(
+        json.dumps(pillar_identity, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    _marker(
+        "six-pillar-profile", ticker, status=pillars.get("status") or "UNAVAILABLE",
+        count=valid_count, digest=pillar_digest,
+    )
     if pillars.get("status") in {"AVAILABLE", "PARTIAL"}:
         frame = _six_pillar_frame(pillars)
         if frame.empty:
             st.info(pillars.get("message") or "Certified six-pillar evidence is unavailable.")
         else:
             pillar_data = frame.reset_index()
-            st.vega_lite_chart(pillar_data, use_container_width=True, theme=None, spec={
+            st.vega_lite_chart(pillar_data, use_container_width=True, theme=None, key=f"research-pillar-chart-{ticker}", spec={
                 "height": max(180, 42 * len(pillar_data)), "mark": {"type": "bar", "cornerRadiusEnd": 5, "color": "#2dd4bf"},
                 "encoding": {"y": {"field": "Pillar", "type": "nominal", "sort": "-x", "axis": {"labelColor": "#cbd5e1", "title": None}}, "x": {"field": "Certified score", "type": "quantitative", "scale": {"domain": [0, 100]}, "axis": {"title": "Score", "labelColor": "#94a3b8", "titleColor": "#cbd5e1", "gridColor": "#1e293b"}}, "tooltip": [{"field": "Pillar"}, {"field": "Certified score", "format": ".1f"}]},
                 "config": {"background": "#08111f", "view": {"stroke": "#243244"}},
             })
+            st.dataframe(
+                frame[["Certified score"]].style.format("{:.1f}"),
+                use_container_width=True,
+                key=f"research-pillar-scores-{ticker}",
+            )
             weight_rows = frame.dropna(subset=["Governed weight (%)"])[["Governed weight (%)"]]
             if pillars.get("weights_status") == "AVAILABLE":
-                st.dataframe(weight_rows.style.format("{:.1f}%"), use_container_width=True)
+                st.dataframe(
+                    weight_rows.style.format("{:.1f}%"),
+                    use_container_width=True,
+                    key=f"research-pillar-weights-{ticker}",
+                )
             else:
                 st.caption("Governed pillar weights are unavailable in this snapshot; scores are shown without inferred weights.")
             if pillars.get("status") == "PARTIAL":
@@ -298,7 +337,7 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
     _marker("valuation-comparison-chart", ticker, status=valuation.get("status") or "UNAVAILABLE", unit=valuation.get("unit") or "")
     if valuation.get("status") == "AVAILABLE":
         valuation_frame = pd.DataFrame([{"Reference": key, "USD/share": value} for key, value in valuation["values"].items()])
-        st.vega_lite_chart(valuation_frame, use_container_width=True, theme=None, spec={
+        st.vega_lite_chart(valuation_frame, use_container_width=True, theme=None, key=f"research-valuation-chart-{ticker}", spec={
             "height": 240, "mark": {"type": "bar", "cornerRadiusEnd": 5},
             "encoding": {"x": {"field": "Reference", "type": "nominal", "axis": {"labelAngle": 0, "labelColor": "#cbd5e1", "title": None}}, "y": {"field": "USD/share", "type": "quantitative", "axis": {"title": "USD per share", "format": "$,.0f", "labelColor": "#94a3b8", "titleColor": "#cbd5e1", "gridColor": "#1e293b"}}, "color": {"field": "Reference", "type": "nominal", "scale": {"range": ["#60a5fa", "#2dd4bf", "#f59e0b"]}, "legend": None}, "tooltip": [{"field": "Reference"}, {"field": "USD/share", "format": "$,.2f"}]},
             "config": {"background": "#08111f", "view": {"stroke": "#243244"}},
@@ -309,10 +348,10 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
 
     _marker("section", ticker, section_name="Risk & Evidence")
     st.markdown("## Risk & Evidence")
-    st.markdown("### Risks")
     _marker("risks", ticker)
     _marker("view-change-conditions", ticker)
     if summary["risks"]:
+        st.markdown("### Risks")
         _list(summary["risks"])
 
     _marker("what-changed", ticker, status=page["recent_changes"]["status"])
@@ -349,7 +388,7 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
     if financial_trend.get("status") == "AVAILABLE":
         st.markdown("### Earnings and financial trends")
         trend_frame = pd.DataFrame(financial_trend["series"], index=financial_trend["periods"])
-        _dark_line_chart(trend_frame, height=280, y_title="Reported value")
+        _dark_line_chart(trend_frame, height=280, y_title="Reported value", key=f"research-financial-trend-{ticker}")
         st.caption(_provenance_caption(financial_trend.get("provenance") or {}))
 
     _marker("section", ticker, section_name="Catalysts & Sentiment")

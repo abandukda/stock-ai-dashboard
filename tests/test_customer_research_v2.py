@@ -90,6 +90,19 @@ def test_chart_accepts_only_persisted_rows_with_source_and_evidence():
     chart = build_customer_research_v2(source)["chart"]
     assert chart["status"] == "AVAILABLE"
     assert chart["spy_comparison"]["status"] == "DISABLED"
+    assert set(chart["ownership"].values()) == {"NVDA"}
+
+
+def test_report_and_certified_authority_ticker_mismatch_fails_closed():
+    source = report()
+    source["ticker"] = "AVT"
+    result = build_customer_research_v2(source)
+    assert result == {
+        "version": "ATLAS_CUSTOMER_RESEARCH_V2_P0",
+        "status": "RATING_NOT_PUBLISHED",
+        "ticker": "AVT",
+        "reason": "RESEARCH_AUTHORITY_TICKER_MISMATCH",
+    }
 
 
 def test_retained_artifact_bars_require_lineage_and_never_claim_live_price():
@@ -180,6 +193,38 @@ def test_retained_certified_publication_preserves_all_six_pillars_after_authorit
         assert bound["certified_customer_evaluation"]["decision"] == original_decision
 
     assert "CRC" not in by_ticker
+
+
+def test_retained_cross_ticker_navigation_never_reuses_chart_or_authority_payload():
+    rows = json.loads((Path(__file__).parents[1] / "market_full_scan.json").read_text(encoding="utf-8"))
+    if isinstance(rows, dict):
+        rows = rows.get("rows", [])
+    by_ticker = {str(row.get("ticker") or row.get("Ticker") or "").upper(): row for row in rows}
+
+    for sequence in (("NVDA", "MSFT", "AVT", "NVDA"), ("AVT", "MSFT", "AAC", "AVT")):
+        prior_published = None
+        for ticker in sequence:
+            page = build_customer_research_v2(bind_report_to_customer_authority({}, by_ticker[ticker]))
+            if ticker == "AAC":
+                assert page["status"] == "RATING_NOT_PUBLISHED"
+                continue
+            certified = by_ticker[ticker]["certified_customer_evaluation"]
+            decision = certified["decision"]
+            assert page["status"] == "AVAILABLE"
+            assert page["ticker"] == ticker
+            assert set(page["chart"]["ownership"].values()) == {ticker}
+            assert page["identity"]["evaluation_snapshot"] == certified["digests"]["evaluation_snapshot_id"]
+            assert page["header"]["fair_value"] == certified["fields"]["atlas_fair_value"]["value"]
+            assert {
+                item["pillar"]: (item["certified_score"], item["weight"])
+                for item in page["six_pillars"]["items"]
+            } == {
+                name: (payload["score"], payload["pillar_weight"])
+                for name, payload in decision["six_pillars"].items()
+            }
+            if prior_published and prior_published != ticker:
+                assert page["chart"]["ownership"]["chart_payload_ticker"] != prior_published
+            prior_published = ticker
 
 
 def test_r1_brief_uses_distinct_period_labeled_certified_facts_and_no_boilerplate():
@@ -462,6 +507,11 @@ def test_renderer_exposes_certified_header_fields_for_structured_browser_qa():
     assert '"financial-trend-chart"' in source
     assert '"valuation-comparison-chart"' in source
     assert 'y_title="Normalized performance (start = 100)"' in source
+    assert 'key=f"research-price-chart-{ticker}"' in source
+    assert 'key=f"research-spy-chart-{ticker}"' in source
+    assert 'key=f"research-pillar-chart-{ticker}"' in source
+    assert 'key=f"research-valuation-chart-{ticker}"' in source
+    assert '"chart-ownership", ticker' in source
 
 
 def test_financial_trend_requires_periods_provenance_and_equal_length(monkeypatch, tmp_path):

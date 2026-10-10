@@ -759,6 +759,9 @@ def _completed_research_fixture(monkeypatch, tmp_path, *, statuses, exception=Fa
             "ask_cta": True,
             "withheld_terminal": False,
             "publication_allowed": True,
+            "chart_ownership": "PASS",
+            "pillar_count": 6,
+            "pillar_digest": "fixture-certified-pillar-digest",
         }
 
     async def rendered_exception(_page):

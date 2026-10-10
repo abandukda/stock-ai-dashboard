@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 from agents.customer_experience_qa_contracts import (
     AUTO_REPAIR_CATEGORIES,
+    DESKTOP_SURFACES,
     MAX_REPAIR_ATTEMPTS,
     PAGE_SCORE_CRITERIA,
     PROTECTED_FIELDS,
@@ -28,6 +29,15 @@ from agents.customer_experience_qa_repairs import apply_plan
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github/workflows/atlas_customer_experience_autonomous_qa.yml"
+
+
+def test_final_customer_surface_contract_uses_approved_beta_routes_only() -> None:
+    assert "earnings" not in DESKTOP_SURFACES
+    assert set(DESKTOP_SURFACES) == {
+        "home", "research_nvda", "research_msft", "research_avt", "watchlist",
+        "ask_grounded", "internal_report_card", "report_card_signal_detail",
+        "customer_report_card_off",
+    }
 
 
 def test_workflow_is_review_only_bounded_and_zero_provider() -> None:

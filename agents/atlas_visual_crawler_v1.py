@@ -750,6 +750,9 @@ class AtlasVisualCrawler:
         declared_section_count = 0
         tab_labels: set[str] = set()
         v2_markers: set[str] = set()
+        chart_ownership = ""
+        pillar_count = 0
+        pillar_digest = ""
         for scope in _scopes(page):
             try:
                 roots = scope.locator(f'[data-atlas-qa="research-vnext"][data-atlas-ticker="{ticker}"]')
@@ -777,6 +780,20 @@ class AtlasVisualCrawler:
                         )
                         if await node.count():
                             v2_markers.add(marker)
+                    owner = scope.locator(
+                        f'[data-atlas-qa="research-v2-chart-ownership"][data-atlas-ticker="{ticker}"]'
+                    )
+                    if await owner.count():
+                        chart_ownership = await owner.last.get_attribute("data-atlas-status") or ""
+                    profile = scope.locator(
+                        f'[data-atlas-qa="research-v2-six-pillar-profile"][data-atlas-ticker="{ticker}"]'
+                    )
+                    if await profile.count():
+                        try:
+                            pillar_count = int(await profile.last.get_attribute("data-atlas-count") or 0)
+                        except (TypeError, ValueError):
+                            pillar_count = 0
+                        pillar_digest = await profile.last.get_attribute("data-atlas-digest") or ""
                 nodes = scope.locator(f'[data-atlas-qa="research-vnext-section"][data-atlas-ticker="{ticker}"]')
                 for index in range(await nodes.count()):
                     sections.add(await nodes.nth(index).get_attribute("data-atlas-section") or "")
@@ -819,6 +836,9 @@ class AtlasVisualCrawler:
             "withheld_terminal": withheld_terminal,
             "publication_allowed": publication_allowed,
             "story_blocks": sorted(story_blocks),
+            "chart_ownership": chart_ownership,
+            "pillar_count": pillar_count,
+            "pillar_digest": pillar_digest,
             "decision_story": {
                 "decision-why", "decision-core-metrics", "why-atlas-likes-it",
                 "what-stops-atlas", "what-changes-the-thesis", "watching-next",
@@ -847,6 +867,9 @@ class AtlasVisualCrawler:
             "certification_incomplete": bool(architecture.get("certification_incomplete")),
             "withheld_terminal": bool(architecture.get("withheld_terminal")),
             "publication_allowed": architecture.get("publication_allowed"),
+            "chart_ownership": architecture.get("chart_ownership"),
+            "pillar_count": architecture.get("pillar_count"),
+            "pillar_digest": architecture.get("pillar_digest"),
         })
         rendered_tickers: set[str] = set()
         provider_calls: list[int] = []
@@ -942,6 +965,13 @@ class AtlasVisualCrawler:
         result["complete"] = result["research_terminal_state"] in {
             "PUBLISHED_RESEARCH_COMPLETE", "RATING_NOT_PUBLISHED_COMPLETE",
         }
+        if result["research_terminal_state"] == "PUBLISHED_RESEARCH_COMPLETE":
+            result["complete"] = bool(
+                result["complete"]
+                and result.get("chart_ownership") == "PASS"
+                and result.get("pillar_count") == 6
+                and result.get("pillar_digest")
+            )
         expected_fact = dict((self.expected_runtime.get("expected_facts") or {}).get(expected) or {})
         if expected_fact and self.enforce_required_authority:
             result["authority_failures"] = required_research_authority_failures(
