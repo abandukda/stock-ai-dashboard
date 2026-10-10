@@ -331,6 +331,12 @@ jobs:
         env:
           ATLAS_QA_MODE: "1"
           ATLAS_REPORT_CARD_CUSTOMER_VISIBLE: "false"
+          # workflow_dispatch runs are registered from main, so GitHub's ambient
+          # GITHUB_SHA names the workflow revision rather than the exact checked-
+          # out review candidate.  Bind the app's pre-auth source marker to the
+          # resolved checkout explicitly; the browser gate must never infer it
+          # from the workflow-registration SHA.
+          ATLAS_SOURCE_SHA: ${{ steps.context.outputs.candidate_sha }}
         run: |
           python3 scripts/prepare_report_card_qa_fixture.py \
             --primary-root "$ATLAS_REPORT_CARD_DURABLE_ROOT" \

@@ -21,7 +21,11 @@ from typing import Any, Awaitable, Callable, Iterable
 from playwright.async_api import Browser, BrowserContext, Page, async_playwright
 from PIL import Image
 
-from agents.atlas_runtime_qa_v3 import _open_and_authenticate, expected_deployed_source_sha
+from agents.atlas_runtime_qa_v3 import (
+    DeploymentReadinessError,
+    _open_and_authenticate,
+    expected_deployed_source_sha,
+)
 from agents.product_hardening_certification import ACTIVE_PAGES
 from agents.runtime_qa_architecture import full_certification_ticker_matrix
 from agents.runtime_qa_architecture import decode_context_summary, stable_digest
@@ -209,6 +213,13 @@ def recovery_candidate_archetypes(candidates: list[dict[str, Any]]) -> list[tupl
 DESKTOP = {"width": 1440, "height": 1000}
 MOBILE = {"width": 390, "height": 844}
 GLOBAL_FATALS = {"APP_UNREACHABLE", "AUTHENTICATION_FAILED", "BROWSER_DIED"}
+
+
+def _classify_open_failure(page_url: str, exc: Exception) -> str:
+    """Keep deployment identity/readiness failures distinct from login failures."""
+    if isinstance(exc, DeploymentReadinessError):
+        return exc.classification
+    return "APP_UNREACHABLE" if not page_url or page_url == "about:blank" else "AUTHENTICATION_FAILED"
 MOBILE_PAGES = (
     "Home", "Research Any Ticker", "Today's Opportunities", "Ask AI",
     "Political Intelligence", "Earnings Intelligence", "Full Ranked Scan", "Portfolio Intelligence", "Recovery",
@@ -2885,7 +2896,7 @@ class AtlasVisualCrawler:
                     )
                 except Exception as exc:
                     shot = await self._shot(page, page_name="GLOBAL", interaction="authentication", state="failure")
-                    category = "APP_UNREACHABLE" if not page.url or page.url == "about:blank" else "AUTHENTICATION_FAILED"
+                    category = _classify_open_failure(page.url, exc)
                     await self._record(
                         category="GLOBAL", page_name="GLOBAL", interaction="authenticate",
                         expected="Reach and authenticate once", observed=type(exc).__name__,

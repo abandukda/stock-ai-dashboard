@@ -7,6 +7,7 @@ from pathlib import Path
 
 from agents.atlas_visual_crawler_v1 import (
     AtlasVisualCrawler,
+    _classify_open_failure,
     GLOBAL_FATALS,
     MOBILE_PAGES,
     REQUIRED_PAGE_VIEWPORTS,
@@ -28,12 +29,23 @@ from agents.atlas_visual_crawler_v1 import (
     required_research_authority_failures,
     VisualResult,
 )
+from agents.atlas_runtime_qa_v3 import DeploymentReadinessError
 from services.vnext_presentation_contract import RESEARCH_VNEXT_VERSION
 from agents.product_hardening_certification import ACTIVE_PAGES
 
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "agents" / "atlas_visual_crawler_v1.py"
+
+
+def test_open_failure_classification_does_not_mislabel_deployment_identity_as_authentication():
+    error = DeploymentReadinessError(
+        "DEPLOYMENT_NOT_READY",
+        {"expected_source_sha": "a" * 40, "deployed_source_sha": "b" * 40},
+    )
+    assert _classify_open_failure("http://127.0.0.1:8501/", error) == "DEPLOYMENT_NOT_READY"
+    assert _classify_open_failure("http://127.0.0.1:8501/", RuntimeError("login")) == "AUTHENTICATION_FAILED"
+    assert _classify_open_failure("about:blank", RuntimeError("open")) == "APP_UNREACHABLE"
 
 
 def test_research_field_reconciliation_accepts_current_customer_labels_and_values():
