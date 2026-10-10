@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from html import escape
 from typing import Any, Callable, Mapping
+from datetime import datetime
 
 import pandas as pd
 import streamlit as st
@@ -49,6 +50,13 @@ def _provenance_caption(provenance: Mapping[str, Any]) -> str:
     return f"Source: {source} · Evidence captured {as_of}"
 
 
+def _friendly_time(value: Any) -> str:
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00")).strftime("%b %-d, %Y · %-I:%M %p UTC")
+    except (TypeError, ValueError):
+        return "Date unavailable"
+
+
 def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[[Mapping[str, Any]], None]) -> None:
     page = build_customer_research_v2(report)
     ticker = str(page.get("ticker") or "UNKNOWN")
@@ -75,7 +83,7 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
         snapshot=page["identity"].get("evaluation_snapshot"),
     )
     cols = st.columns(6)
-    cols[0].metric("Current Price", _money(h["price"]))
+    cols[0].metric(h.get("price_label") or "Last Certified Close", _money(h["price"]))
     cols[1].metric("Action", h["action"])
     cols[2].metric("ATLAS Fair Value", _money(h["fair_value"]))
     cols[3].metric("Fair Value gap", _pct(h["fair_value_gap_pct"], signed=True))
@@ -83,9 +91,10 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
     cols[5].metric("Confidence", _pct(h["confidence"]))
     if h["fair_value_gap_pct"] is not None:
         direction = "above" if h["fair_value_gap_pct"] >= 0 else "below"
-        st.caption(f'ATLAS Fair Value is {abs(float(h["fair_value_gap_pct"])):.2f}% {direction} current price. This is not a guaranteed return.')
+        st.caption(f'ATLAS Fair Value is {abs(float(h["fair_value_gap_pct"])):.2f}% {direction} the last certified close. This is not a guaranteed return.')
     if h["action"] not in {"BUY NOW", "BUILD A POSITION"}:
         st.caption("Not currently actionable — continue monitoring the certified evidence.")
+    ask_cta(report)
 
     _marker("section", ticker, section_name="Decision")
     st.markdown("## Decision")
@@ -217,7 +226,7 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
     if page["recent_changes"]["items"]:
         for item in page["recent_changes"]["items"]:
             st.markdown(f'**{item.get("headline") or "Company update"}**  ')
-            st.caption(f'{item.get("article_publisher") or "Source unavailable"} · {item.get("article_timestamp") or "Date unavailable"}')
+            st.caption(f'{item.get("article_publisher") or "Source unavailable"} · {_friendly_time(item.get("article_timestamp"))}')
     else:
         st.info("Not enough evidence")
 
@@ -260,7 +269,7 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
     events = page["catalysts"].get("events") or []
     if events:
         for item in events:
-            st.write(f'**Earnings** · {item.get("date") or "Date unavailable"}')
+            st.write(f'**Upcoming earnings** · {item.get("date") or "Date unavailable"}')
     elif not page["catalysts"].get("items"):
         st.info("Not enough evidence")
 
@@ -279,7 +288,7 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
         st.markdown(f'**Publication:** `{evidence.get("publication_digest") or "Unavailable"}`  ')
         st.markdown(f'**Methodology:** `{evidence["methodology_version"]}`')
         st.caption("Contextual evidence is non-scoring and cannot change Action, Fair Value, Opportunity, or Confidence.")
-    ask_cta(report)
+    st.caption("Ask ATLAS remains grounded to this ticker and certified evaluation snapshot.")
 
 
 __all__ = ["render_customer_research_v2"]

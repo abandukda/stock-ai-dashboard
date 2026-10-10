@@ -41,6 +41,7 @@ def test_protected_authority_is_projected_exactly_without_recomputation(monkeypa
     assert result["header"] == {
         "price": 186.09, "price_timestamp": "2026-10-08T20:00:00Z",
         "price_source": "GOVERNED_FIXTURE", "market_freshness": "CERTIFIED",
+        "price_label": "Last Certified Close",
         "action": "BUY NOW", "fair_value": 346.05,
         "fair_value_gap_pct": (346.05 / 186.09 - 1) * 100,
         "opportunity": 85.96, "confidence": 87.46,
@@ -126,7 +127,8 @@ def test_qa_enrichment_renders_partial_modules_without_changing_authority(monkey
         "price_targets": record({"target_low": 180, "target_mean": 240, "target_high": 300, "last_updated": "2026-10-08"}, "targets"),
         "company_profile": record({"name": "NVIDIA Corporation", "industry": "Semiconductors", "country": "US"}, "profile"),
         "basic_financials": record({"revenue_growth_ttm_yoy": 83, "operating_margin_ttm": 61}, "fundamentals"),
-        "company_news": record({"articles": [{"headline": "NVIDIA reports results", "article_publisher": "Issuer", "article_timestamp": 1}]}, "news"),
+        "company_news": record({"articles": [{"headline": "NVIDIA reports results", "article_publisher": "Issuer", "article_timestamp": 1,
+                                                   "commercial_display_allowed": True, "ticker": "NVDA"}]}, "news"),
         "historical_ohlcv": record({"timestamps": [1], "close": [186.09], "completed_session_flags": [True]}, "history"),
         "spy_historical_ohlcv": record({"timestamps": [1], "close": [600], "completed_session_flags": [True]}, "spy"),
     }}}
@@ -148,6 +150,51 @@ def test_qa_enrichment_renders_partial_modules_without_changing_authority(monkey
     assert result["about"]["status"] == "AVAILABLE"
     assert result["recent_changes"]["status"] == "AVAILABLE"
     assert source == before
+
+
+def test_missing_rsi_zero_is_not_presented_as_real_risk():
+    source = report()
+    source["intelligence"]["key_risks"] = ["RSI is weak at 0.0.", "Execution risk."]
+    result = build_customer_research_v2(source)
+    assert result["summary"]["risks"] == ["Execution risk."]
+    assert result["header"]["opportunity"] == 85.96
+    assert result["header"]["confidence"] == 87.46
+
+
+def test_news_requires_identity_publisher_timestamp_and_display_rights(monkeypatch, tmp_path):
+    source = report()
+    def record(payload, family):
+        return {"payload": payload, "provenance": {"provider": "LICENSED", "raw_evidence_id": family}}
+    bundle = {"tickers": {"NVDA": {"company_news": record({"articles": [
+        {"headline": "Unrelated market story", "article_publisher": "Wire", "article_timestamp": "2026-10-09T12:00:00Z", "commercial_display_allowed": True},
+        {"headline": "NVIDIA announces platform update", "article_publisher": "Wire", "article_timestamp": "2026-10-09T12:00:00Z", "commercial_display_allowed": False},
+        {"headline": "NVIDIA announces governed platform update", "article_publisher": "Licensed Wire", "article_timestamp": "2026-10-09T12:00:00Z", "commercial_display_allowed": True, "ticker": "NVDA"},
+    ]}, "news")}}}
+    path = tmp_path / "qa.json"; path.write_text(__import__("json").dumps(bundle))
+    monkeypatch.setenv("ATLAS_QA_MODE", "1")
+    monkeypatch.setenv("ATLAS_RESEARCH_V2_QA_ENRICHMENT", str(path))
+    items = build_customer_research_v2(source)["recent_changes"]["items"]
+    assert [item["headline"] for item in items] == ["NVIDIA announces governed platform update"]
+    assert items[0]["article_timestamp"] == "2026-10-09T12:00:00Z"
+
+
+def test_past_earnings_events_are_not_future_catalysts(monkeypatch, tmp_path):
+    source = report()
+    bundle = {"tickers": {"NVDA": {"earnings_calendar": {
+        "payload": {"events": [{"date": "2026-10-07"}, {"date": "2026-10-20"}]},
+        "provenance": {"raw_evidence_id": "earnings:1"},
+    }}}}
+    path = tmp_path / "qa.json"; path.write_text(__import__("json").dumps(bundle))
+    monkeypatch.setenv("ATLAS_QA_MODE", "1")
+    monkeypatch.setenv("ATLAS_RESEARCH_V2_QA_ENRICHMENT", str(path))
+    result = build_customer_research_v2(source)
+    assert result["catalysts"]["events"] == [{"date": "2026-10-20"}]
+
+
+def test_research_copy_calls_certified_price_a_close_not_live_quote():
+    result = build_customer_research_v2(report())
+    assert result["header"]["price_label"] == "Last Certified Close"
+    assert "last certified close" in result["summary"]["bottom_line"]
 
 
 def test_qa_enrichment_is_never_loaded_outside_qa(monkeypatch, tmp_path):

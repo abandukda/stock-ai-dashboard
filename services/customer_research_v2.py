@@ -6,6 +6,7 @@ import re
 import json
 from pathlib import Path
 from dataclasses import dataclass, asdict
+from datetime import datetime, timezone
 from typing import Any, Iterable, Mapping
 
 from services.customer_authority import customer_authority, customer_authority_identity
@@ -68,6 +69,60 @@ def _module(record: Any) -> Mapping[str, Any]:
 def _module_status(*records: Mapping[str, Any]) -> str:
     present = [bool(record and _map(record.get("payload"))) for record in records]
     return "AVAILABLE" if present and all(present) else "PARTIAL" if any(present) else "UNAVAILABLE"
+
+
+def _instant(value: Any) -> datetime | None:
+    if value in (None, ""):
+        return None
+    try:
+        if isinstance(value, (int, float)):
+            return datetime.fromtimestamp(float(value), tz=timezone.utc)
+        return datetime.fromisoformat(str(value).strip().replace("Z", "+00:00")).astimezone(timezone.utc)
+    except (TypeError, ValueError, OSError):
+        return None
+
+
+def _customer_news(module: Mapping[str, Any], *, ticker: str, company: str) -> list[dict[str, Any]]:
+    """Fail closed on identity, timestamp, publisher and display rights."""
+    output: list[dict[str, Any]] = []
+    identity_terms = {ticker.upper(), company.upper()}
+    for raw in _seq(_map(module.get("payload")).get("articles")):
+        item = _map(raw)
+        headline = str(item.get("headline") or item.get("title") or "").strip()
+        publisher = str(item.get("article_publisher") or item.get("publisher") or "").strip()
+        published = _instant(item.get("article_timestamp") or item.get("published_at") or item.get("date"))
+        licensed = item.get("commercial_display_allowed") is True or str(item.get("commercial_status") or "").upper() in {"LICENSED", "DISPLAY_ALLOWED"}
+        explicit_match = str(item.get("ticker") or "").upper() == ticker.upper() or str(item.get("ticker_relevance") or "").upper() in {"VERIFIED_ENTITY", "ACCEPTED_COMPANY"}
+        textual_match = any(term and term in headline.upper() for term in identity_terms)
+        if headline and publisher and published and licensed and (explicit_match or textual_match):
+            output.append({**dict(item), "headline": headline, "article_publisher": publisher,
+                           "article_timestamp": published.isoformat().replace("+00:00", "Z")})
+    return output[:3]
+
+
+def _future_events(module: Mapping[str, Any], *, after: datetime | None) -> list[dict[str, Any]]:
+    if after is None:
+        return []
+    output: list[dict[str, Any]] = []
+    for raw in _seq(_map(module.get("payload")).get("events")):
+        item = _map(raw)
+        event_at = _instant(item.get("date") or item.get("event_date") or item.get("timestamp"))
+        if event_at and event_at > after:
+            output.append({**dict(item), "date": event_at.date().isoformat()})
+    return output[:3]
+
+
+def _real_risks(values: Iterable[Any]) -> list[str]:
+    """Missing technical evidence must never become a numeric risk claim."""
+    output = []
+    for value in values:
+        text = str(value or "").strip()
+        if not text or re.search(r"\bRSI\s+(?:is\s+)?(?:weak\s+at\s+)?0(?:\.0+)?\b", text, re.I):
+            continue
+        if "is rated Under review" in text:
+            continue
+        output.append(text)
+    return output[:4]
 
 
 @dataclass(frozen=True)
@@ -227,7 +282,7 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
         _fact("ATLAS Fair Value", fv_env, f"${float(fair_value):,.2f}" if fair_value is not None else UNAVAILABLE),
     ) if item]
     intelligence = _map(report.get("intelligence"))
-    risks = [str(item) for item in _seq(intelligence.get("key_risks")) if str(item).strip()][:4]
+    risks = _real_risks(_seq(intelligence.get("key_risks")))
     guidance = _map(report.get("guidance_summary"))
     conditions = _map(guidance.get("thesis_change_conditions"))
     likes = [str(item) for item in _seq(intelligence.get("why_atlas_supports_it")) if str(item).strip()][:3]
@@ -252,8 +307,16 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
             key=lambda item: item[1],
         )[0].replace("_", " ").title()
     wall_status = _module_status(recommendations, targets) if wall_street_enabled else "DISABLED"
+    news_items = _customer_news(news, ticker=ticker, company=company)
+    certified_at = _instant(price_env.get("as_of"))
+    future_events = _future_events(events, after=certified_at)
+    action_text = _display_action(authority["action"])
+    valuation_text = (
+        f" ATLAS Fair Value is {abs(gap):.1f}% {'above' if gap >= 0 else 'below'} the last certified close."
+        if gap is not None else ""
+    )
     summary = {
-        "bottom_line": f"The certified ATLAS Action for {ticker} is {_display_action(authority['action'])}.",
+        "bottom_line": f"ATLAS rates {ticker} {action_text}.{valuation_text}",
         "why": likes or [NOT_ENOUGH], "what_changed": [NOT_ENOUGH],
         "risks": risks or [NOT_ENOUGH],
         "view_changes": [str(item) for key in ("strengthen", "weaken", "invalidate") for item in _seq(conditions.get(key)) if str(item).strip()][:6] or [NOT_ENOUGH],
@@ -291,6 +354,7 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
         "header": {
             "price": price, "price_timestamp": price_env.get("as_of"),
             "price_source": price_env.get("source"), "market_freshness": price_env.get("certification_status"),
+            "price_label": "Last Certified Close",
             "action": _display_action(authority["action"]), "fair_value": fair_value,
             "fair_value_gap_pct": gap, "opportunity": authority["opportunity"], "confidence": authority["confidence"],
         },
@@ -299,9 +363,9 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
         "valuation_chart": valuation_chart,
         "financial_trend": _financial_trend_projection(financials),
         "fundamentals": [asdict(card) for card in facts],
-        "recent_changes": {"status": _module_status(news), "items": _seq(_map(news.get("payload")).get("articles"))[:3], "classification": CONTEXTUAL},
-        "catalysts": {"status": _module_status(news, events), "items": _seq(_map(news.get("payload")).get("articles"))[:3],
-                      "events": _seq(_map(events.get("payload")).get("events"))[:3], "classification": CONTEXTUAL},
+        "recent_changes": {"status": "AVAILABLE" if news_items else "UNAVAILABLE", "items": news_items, "classification": CONTEXTUAL},
+        "catalysts": {"status": "AVAILABLE" if (news_items or future_events) else "UNAVAILABLE", "items": news_items,
+                      "events": future_events, "classification": CONTEXTUAL},
         "about": {"status": _module_status(profile), "company": _map(profile.get("payload")).get("name") or company,
                   "sector": report.get("sector"), "industry": _map(profile.get("payload")).get("industry") or report.get("industry"),
                   "profile": dict(_map(profile.get("payload"))), "classification": CONTEXTUAL},
