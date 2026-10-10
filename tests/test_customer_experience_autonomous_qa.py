@@ -47,6 +47,15 @@ def test_workflow_is_review_only_bounded_and_zero_provider() -> None:
     assert MAX_REPAIR_ATTEMPTS == 2
 
 
+def test_workflow_binds_local_app_identity_to_exact_checked_out_candidate() -> None:
+    raw = WORKFLOW.read_text()
+    launch = raw.split("- name: Launch exact candidate", 1)[1].split(
+        "- name: Required-first customer surface certification", 1
+    )[0]
+    assert 'ATLAS_SOURCE_SHA: ${{ steps.context.outputs.candidate_sha }}' in launch
+    assert "python3 -m streamlit run app.py" in launch
+
+
 def test_field_inventory_and_scorecard_contract_are_complete() -> None:
     assert set(SURFACE_FIELD_INVENTORY) == {"home", "research", "earnings", "watchlist", "ask", "report_card_overview", "report_card_signal"}
     assert {"opportunity", "confidence", "evaluation_snapshot"} <= set(SURFACE_FIELD_INVENTORY["home"])
