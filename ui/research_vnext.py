@@ -40,6 +40,16 @@ RESEARCH_VNEXT_SECTIONS: Final = (
 )
 
 
+def _bind_built_report_to_persisted_authority(
+    report: Mapping[str, Any], persisted_row: Mapping[str, Any], research_row: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Restore certified authority stripped by presentation-report building."""
+    from services.customer_authority import bind_report_to_customer_authority
+
+    source = persisted_row if persisted_row else research_row
+    return bind_report_to_customer_authority(report, source)
+
+
 def _trust_tier(label: str, copy: str) -> None:
     customer_labels = {
         "CERTIFIED_ATLAS": ("✓", "Certified ATLAS analysis"),
@@ -1337,10 +1347,9 @@ def render_research_vnext(report: Mapping[str, Any], *, legacy: Mapping[str, Cal
     """Render the single governed customer Research V2 stock experience."""
     ticker = str(report.get("ticker") or "UNKNOWN").upper()
     view = build_research_decision_view(report)
-    certified_customer = safe_mapping(report.get("certified_customer_evaluation"))
-    publication_allowed = (
-        not certified_customer or certified_customer.get("customer_publication_allowed") is True
-    )
+    authority = customer_authority(report)
+    certified_customer = safe_mapping(authority.get("certified_customer_evaluation"))
+    publication_allowed = authority.get("status") == "AVAILABLE"
     st.markdown(
         f'<span data-atlas-qa="research-vnext" data-atlas-version="{RESEARCH_VNEXT_VERSION}" '
         f'data-atlas-ticker="{escape(ticker)}" data-atlas-section-count="5" '
@@ -1350,7 +1359,7 @@ def render_research_vnext(report: Mapping[str, Any], *, legacy: Mapping[str, Cal
         unsafe_allow_html=True,
     )
     st.markdown('<div class="atlas-kicker">Certified equity research</div>', unsafe_allow_html=True)
-    if certified_customer and certified_customer.get("customer_publication_allowed") is not True:
+    if not publication_allowed:
         fields = safe_mapping(certified_customer.get("fields"))
         price = safe_mapping(fields.get("price")).get("value")
         st.markdown(
@@ -1509,6 +1518,15 @@ def render_full_research_vnext(row: Mapping[str, Any]) -> None:
     checkpoint("build_atlas_research_v2:call")
     report = build_atlas_research_v2(research_row)
     checkpoint("build_atlas_research_v2:return")
+    # The builder deliberately emits a presentation report and does not carry
+    # the raw canonical wrapper. Rebind that report to the persisted certified
+    # customer authority before any customer projection is rendered. This
+    # preserves evidence and snapshot identity without recalculating scores.
+    report = _bind_built_report_to_persisted_authority(
+        report,
+        persisted_row if isinstance(persisted_row, Mapping) else {},
+        research_row,
+    )
     report["analyst_action_retrieval"] = retrieval
     report["policy_source_metrics"] = policy_retrieval.get("metrics") or {}
     legacy_report._inject_visual_standards()

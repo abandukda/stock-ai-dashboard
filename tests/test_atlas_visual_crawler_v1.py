@@ -201,7 +201,7 @@ def test_visual_crawler_has_complete_non_blocking_product_scope():
         "Portfolio Intelligence", "Recovery",
     }
     assert GLOBAL_FATALS == {"APP_UNREACHABLE", "AUTHENTICATION_FAILED", "BROWSER_DIED"}
-    assert RESEARCH_COMPLETION_TIMEOUT_SECONDS >= 90
+    assert RESEARCH_COMPLETION_TIMEOUT_SECONDS == 45
 
 
 def test_full_product_closure_reacquires_expanders_and_certifies_position_states():
@@ -504,6 +504,7 @@ def test_home_crawler_certifies_guidance_vnext_authority_and_layout_contract():
 
 
 def test_production_research_submission_waits_for_stronger_terminal_contract():
+    assert RESEARCH_COMPLETION_TIMEOUT_SECONDS == 45
     proven, mode = research_submission_proven(
         streamlit_event_frames=1,
         rerun_before=1,
@@ -554,6 +555,12 @@ def test_production_research_submission_waits_for_stronger_terminal_contract():
     )[0]
     assert "RESEARCH_COMPLETION_TIMEOUT_SECONDS" in boundary
     assert "and submission_marker" not in boundary
+    for diagnostic in (
+        '"current_ticker"', '"publication_allowed"', '"withheld_terminal"',
+        '"research_terminal_state"', '"terminal_status"', '"rendered_exception"',
+        '"completed_research_predicates"', '"elapsed_seconds"',
+    ):
+        assert diagnostic in boundary
 
 
 def _submission_surface(**overrides):

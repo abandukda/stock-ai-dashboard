@@ -74,7 +74,7 @@ def test_withheld_research_banner_never_formats_missing_action_as_watch():
 
 def test_withheld_research_returns_before_published_sections_and_ask_cta():
     source = Path("ui/research_vnext.py").read_text()
-    block = source.split('if certified_customer and certified_customer.get("customer_publication_allowed") is not True:', 1)[1]
+    block = source.split('if not publication_allowed:', 1)[1]
     withheld, published = block.split('    st.markdown(\n        """', 1)
     assert "RATING_NOT_PUBLISHED" in withheld
     assert "return" in withheld

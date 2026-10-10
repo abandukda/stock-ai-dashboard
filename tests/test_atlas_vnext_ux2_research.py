@@ -17,7 +17,8 @@ from services.vnext_presentation_contract import (
 )
 from ui.research_vnext import (
     RESEARCH_EVIDENCE_MIGRATION, RESEARCH_VNEXT_SECTIONS,
-    RESEARCH_VNEXT_VERSION, build_research_decision_view,
+    RESEARCH_VNEXT_VERSION, _bind_built_report_to_persisted_authority,
+    build_research_decision_view,
 )
 from ui.research_report_v2 import _money, _pct
 
@@ -381,3 +382,47 @@ def test_real_streamlit_withheld_research_is_a_safe_terminal_state(ticker):
         "Potential", "Six Pillars", "Full Investment Case",
     ):
         assert forbidden not in visible
+
+
+def test_absent_certified_wrapper_is_governed_withheld_terminal_not_published_surface():
+    report = report_fixture(ticker="CRC", verdict="REVIEW_REQUIRED", completeness=40.0)
+    report.pop("certified_customer_evaluation", None)
+    app = _render_certified_decision_app(report)
+    assert not app.exception
+    visible = " ".join(
+        [item.value for item in app.markdown]
+        + [item.value for item in app.warning]
+        + [item.value for item in app.caption]
+    )
+    assert 'data-atlas-research-terminal="rating-not-published"' in visible
+    assert 'data-atlas-publication-allowed="false"' in visible
+    assert "RATING NOT PUBLISHED" in visible
+    assert "BUY NOW" not in visible
+    assert "ATLAS Fair Value" not in visible
+
+
+def test_actual_builder_boundary_rebinds_retained_authority_without_changing_decision():
+    import json
+    from engines.atlas_research_builder_v2 import build_atlas_research_v2
+    from services.customer_research_v2 import build_customer_research_v2
+
+    payload = json.loads((ROOT / "market_full_scan.json").read_text(encoding="utf-8"))
+    rows = payload if isinstance(payload, list) else payload.get("rows", [])
+    by_ticker = {str(row.get("ticker") or row.get("Ticker") or "").upper(): row for row in rows}
+    for ticker in ("NVDA", "MSFT", "AVT"):
+        source = by_ticker[ticker]
+        expected = deepcopy(source["certified_customer_evaluation"])
+        built = build_atlas_research_v2(source)
+        assert "customer_authority_identity" not in built
+        bound = _bind_built_report_to_persisted_authority(built, source, source)
+        projected = build_customer_research_v2(bound)
+        assert bound["certified_customer_evaluation"] == expected
+        assert len(projected["six_pillars"]["items"]) == 6
+        assert projected["identity"]["evaluation_snapshot"] == expected["digests"]["evaluation_snapshot_id"]
+        assert {
+            item["pillar"]: (item["certified_score"], item["weight"])
+            for item in projected["six_pillars"]["items"]
+        } == {
+            name: (value["score"], value["pillar_weight"])
+            for name, value in expected["decision"]["six_pillars"].items()
+        }

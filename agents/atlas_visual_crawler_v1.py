@@ -45,7 +45,7 @@ from services.vnext_presentation_contract import (
 
 
 VISUAL_CRAWLER_VERSION = "ATLAS_VISUAL_CRAWLER_V1_1"
-RESEARCH_COMPLETION_TIMEOUT_SECONDS = 90
+RESEARCH_COMPLETION_TIMEOUT_SECONDS = 45
 REQUIRED_PHASE_TIMEOUT_SECONDS = 720
 REQUIRED_PHASE_BUDGET = {
     "authentication_and_deployment": {"timeout_seconds": 60, "retries": 0},
@@ -690,6 +690,22 @@ class AtlasVisualCrawler:
                 "provider_calls": completed_research.get("provider_calls"),
                 "provider_boundary_zero": bool(
                     completed_research.get("provider_boundary_zero")
+                ),
+                "current_ticker": ticker.strip().upper(),
+                "publication_allowed": completed_research.get("publication_allowed"),
+                "withheld_terminal": bool(completed_research.get("withheld_terminal")),
+                "research_terminal_state": completed_research.get("research_terminal_state") or "",
+                "terminal_status": completed_research.get("terminal_status") or "",
+                "rendered_exception": bool(completed_research.get("rendered_exception")),
+                "completed_research_predicates": {
+                    key: bool(completed_research.get(key))
+                    for key in (
+                        "ticker", "no_stale_ticker", "lifecycle_complete", "vnext",
+                        "certified_fields_reconciled", "provider_boundary_zero", "complete",
+                    )
+                },
+                "elapsed_seconds": round(
+                    RESEARCH_COMPLETION_TIMEOUT_SECONDS - max(deadline - time.monotonic(), 0.0), 3,
                 ),
                 "proof_mode": proof_mode,
             }
