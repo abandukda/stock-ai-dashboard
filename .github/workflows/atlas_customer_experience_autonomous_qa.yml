@@ -331,6 +331,9 @@ jobs:
         env:
           ATLAS_QA_MODE: "1"
           ATLAS_REPORT_CARD_CUSTOMER_VISIBLE: "false"
+          # Bind the launched app to the exact governed checkout; workflow_dispatch
+          # otherwise exposes the default-branch workflow revision via GITHUB_SHA.
+          ATLAS_SOURCE_SHA: ${{ steps.context.outputs.candidate_sha }}
         run: |
           python3 scripts/prepare_report_card_qa_fixture.py \
             --primary-root "$ATLAS_REPORT_CARD_DURABLE_ROOT" \
