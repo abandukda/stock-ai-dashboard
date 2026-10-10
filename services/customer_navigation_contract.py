@@ -5,8 +5,8 @@ from __future__ import annotations
 from collections.abc import MutableMapping, Sequence
 
 
-CUSTOMER_NAV_CONTRACT_VERSION = "ATLAS_CUSTOMER_NAV_VNEXT_1"
-CUSTOMER_ROUTES = ("Home", "Research", "Earnings", "Watchlist", "Ask ATLAS")
+CUSTOMER_NAV_CONTRACT_VERSION = "ATLAS_CUSTOMER_NAV_R1_1"
+CUSTOMER_ROUTES = ("Home", "Research", "Watchlist", "Ask ATLAS")
 ROUTE_ALIASES = {
     "Research Any Ticker": "Research",
     "Earnings Intelligence": "Earnings",

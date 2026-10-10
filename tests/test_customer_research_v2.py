@@ -18,8 +18,8 @@ def report():
         "decision": {"action": "BUY_NOW", "opportunity": 85.96, "decision_confidence": 87.46,
                      "six_pillars": {"valuation_quality": 91, "fundamental_quality": 84}},
         "fields": {
-            "price": _envelope(186.09, name="price", unit="PER_SHARE"),
-            "atlas_fair_value": _envelope(346.05, name="atlas_fair_value", unit="PER_SHARE"),
+            "price": {**_envelope(186.09, name="price", unit="PER_SHARE"), "period": "Oct 8, 2026 close"},
+            "atlas_fair_value": {**_envelope(346.05, name="atlas_fair_value", unit="PER_SHARE"), "period": "Oct 8, 2026 snapshot"},
         },
         "digests": {"evaluation_snapshot_id": "snapshot-nvda"},
     }
@@ -109,6 +109,23 @@ def test_six_pillars_are_projected_without_recalculation_and_sorted_by_weight():
         ("valuation_quality", 91, 0.6), ("fundamental_quality", 84, 0.4),
     ]
     assert all(item["evidence_ids"] == ("evidence:decision",) for item in result["items"])
+
+
+def test_r1_brief_uses_distinct_period_labeled_certified_facts_and_no_boilerplate():
+    result = build_customer_research_v2(report())
+    brief = result["summary"]
+    assert tuple(brief) == ("verdict", "why_rating", "risks", "watch_next")
+    assert brief["verdict"].startswith("ATLAS rates NVDA BUY NOW.")
+    assert len(brief["why_rating"]) >= 2
+    assert "Oct 8, 2026 close" in brief["why_rating"][0]
+    assert "Oct 8, 2026 snapshot" in brief["why_rating"][1]
+    assert len(set(brief["why_rating"])) == len(brief["why_rating"])
+    assert all("Why ATLAS Likes It" not in value for value in brief["why_rating"])
+
+
+def test_r1_six_pillar_frame_renders_fractional_weights_as_percent():
+    frame = _six_pillar_frame(build_customer_research_v2(report())["six_pillars"])
+    assert frame["Governed weight (%)"].tolist() == [60.0, 40.0]
 
 
 def _retained_structured_pillars():
@@ -310,7 +327,7 @@ def test_past_earnings_events_are_not_future_catalysts(monkeypatch, tmp_path):
 def test_research_copy_calls_certified_price_a_close_not_live_quote():
     result = build_customer_research_v2(report())
     assert result["header"]["price_label"] == "Last Certified Close"
-    assert "last certified close" in result["summary"]["bottom_line"]
+    assert "last certified close" in result["summary"]["verdict"]
 
 
 def test_shared_customer_evidence_header_uses_score_not_percentage():
@@ -335,12 +352,12 @@ def test_available_balance_sheet_facts_are_used_as_risk(monkeypatch, tmp_path):
 
 def test_renderer_uses_customer_safe_labels_and_escapes_currency():
     source = __import__("pathlib").Path("ui/customer_research_v2.py").read_text(encoding="utf-8")
-    assert 'metric("Evidence confidence"' in source
+    assert '<small>Evidence Confidence</small>' in source
     assert 'metric("Confidence", _pct' not in source
     assert '("TTM P/E", fundamentals.get("pe_ttm")' in source
     assert "_escape_markdown_currency(item)" in source
     assert "**Why this rating**" in source
-    assert "**What could go wrong**" in source
+    assert "**Material risks**" in source
 
 
 def test_markdown_currency_escape_preserves_governed_debt_cash_text(monkeypatch):
@@ -373,7 +390,7 @@ def test_renderer_exposes_certified_header_fields_for_structured_browser_qa():
     assert '"technical-indicators-chart"' in source
     assert '"financial-trend-chart"' in source
     assert '"valuation-comparison-chart"' in source
-    assert 'y_label="Normalized performance (start = 100)"' in source
+    assert 'y_title="Normalized performance (start = 100)"' in source
 
 
 def test_financial_trend_requires_periods_provenance_and_equal_length(monkeypatch, tmp_path):

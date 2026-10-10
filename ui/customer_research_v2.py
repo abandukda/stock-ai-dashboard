@@ -26,14 +26,17 @@ def _six_pillar_frame(pillars: Mapping[str, Any]) -> pd.DataFrame:
             isinstance(weight, bool) or not isinstance(weight, (int, float)) or not math.isfinite(float(weight))
         ):
             weight = None
+        weight_display = None
+        if weight is not None:
+            weight_display = float(weight) * 100.0 if item.get("weight_unit") == "FRACTION" else float(weight)
         rows.append(
             {
                 "Pillar": str(item["pillar"]).replace("_", " ").title(),
                 "Certified score": float(score),
-                "Governed weight": float(weight) if weight is not None else None,
+                "Governed weight (%)": weight_display,
             }
         )
-    return pd.DataFrame(rows).set_index("Pillar") if rows else pd.DataFrame(columns=["Certified score", "Governed weight"])
+    return pd.DataFrame(rows).set_index("Pillar") if rows else pd.DataFrame(columns=["Certified score", "Governed weight (%)"])
 
 
 def _money(value: Any) -> str:
@@ -79,7 +82,22 @@ def _dates(values: pd.Series) -> pd.Series:
 def _provenance_caption(provenance: Mapping[str, Any]) -> str:
     source = provenance.get("source") or provenance.get("provider") or "Governed source"
     as_of = provenance.get("capture_timestamp") or provenance.get("as_of") or "timestamp unavailable"
-    return f"Source: {source} · Evidence captured {as_of}"
+    return f"Source: {str(source).replace('_', ' ').title()} · Evidence captured {_friendly_time(as_of)}"
+
+
+def _dark_line_chart(frame: pd.DataFrame, *, height: int, y_title: str) -> None:
+    data = frame.reset_index().rename(columns={frame.index.name or "index": "Date"}).melt("Date", var_name="Series", value_name="Value")
+    st.vega_lite_chart(data, use_container_width=True, theme=None, spec={
+        "height": height,
+        "mark": {"type": "line", "strokeWidth": 2.2},
+        "encoding": {
+            "x": {"field": "Date", "type": "temporal", "axis": {"title": "Date", "format": "%b %Y", "labelColor": "#94a3b8", "titleColor": "#cbd5e1", "gridColor": "#1e293b"}},
+            "y": {"field": "Value", "type": "quantitative", "axis": {"title": y_title, "labelColor": "#94a3b8", "titleColor": "#cbd5e1", "gridColor": "#1e293b"}},
+            "color": {"field": "Series", "type": "nominal", "scale": {"range": ["#2dd4bf", "#60a5fa", "#f59e0b", "#a78bfa"]}, "legend": {"labelColor": "#cbd5e1", "titleColor": "#cbd5e1"}},
+            "tooltip": [{"field": "Date", "type": "temporal", "format": "%b %d, %Y"}, {"field": "Series"}, {"field": "Value", "format": ",.2f"}],
+        },
+        "config": {"background": "#08111f", "view": {"stroke": "#243244"}, "axis": {"domainColor": "#334155", "tickColor": "#334155"}},
+    })
 
 
 def _friendly_time(value: Any) -> str:
@@ -111,15 +129,20 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
     confidence_score = f'{float(h["confidence"]):.0f}/100'
     _marker("root", ticker, version=page["version"], authority="certified_customer_evaluation", section_count=5)
     st.markdown("""<style>
-    .atlas-r2-head{padding:1rem 1.1rem;border:1px solid rgba(45,212,191,.25);border-radius:18px;background:linear-gradient(145deg,rgba(15,23,42,.96),rgba(18,39,51,.88));margin-bottom:.7rem}.atlas-r2-kicker{color:#61d8c3;font-size:.7rem;font-weight:800;letter-spacing:.13em}.atlas-r2-head h1{margin:.2rem 0;font-size:1.8rem}.atlas-r2-meta{color:#94a3b8;font-size:.78rem}.atlas-r2-grid{display:grid;grid-template-columns:1fr 1fr;gap:.7rem}.atlas-r2-panel{padding:.9rem;border:1px solid rgba(148,163,184,.16);border-radius:14px;background:rgba(15,23,42,.55)}
-    @media(max-width:700px){.atlas-r2-head h1{font-size:1.35rem}.atlas-r2-grid{grid-template-columns:1fr}[data-testid="stMetric"]{padding-right:.25rem!important}.atlas-r2-panel{padding:.75rem}}
+    .atlas-r2-head{padding:.9rem 1rem;border:1px solid rgba(45,212,191,.25);border-radius:16px;background:linear-gradient(145deg,rgba(15,23,42,.96),rgba(18,39,51,.88));margin-bottom:.55rem}.atlas-r2-kicker{color:#61d8c3;font-size:.68rem;font-weight:800;letter-spacing:.13em}.atlas-r2-title{display:flex;align-items:baseline;justify-content:space-between;gap:.8rem;flex-wrap:wrap}.atlas-r2-head h1{margin:.18rem 0;font-size:1.55rem}.atlas-r2-action{color:#5eead4;font-size:.82rem;font-weight:850;letter-spacing:.07em}.atlas-r2-meta{color:#94a3b8;font-size:.76rem}.atlas-r2-metrics{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:.55rem;margin:.65rem 0}.atlas-r2-metric{padding:.7rem .75rem;border:1px solid rgba(148,163,184,.18);border-radius:12px;background:#0f192b;min-width:0}.atlas-r2-metric small{display:block;color:#8ea1bb;font-size:.62rem;letter-spacing:.08em;text-transform:uppercase}.atlas-r2-metric strong{display:block;color:#f8fafc;font-size:1.15rem;line-height:1.15;margin-top:.25rem;overflow-wrap:anywhere}.atlas-r2-grid{display:grid;grid-template-columns:1fr 1fr;gap:.7rem}.atlas-r2-panel{padding:.9rem;border:1px solid rgba(148,163,184,.16);border-radius:14px;background:rgba(15,23,42,.55)}
+    @media(max-width:700px){.atlas-r2-head h1{font-size:1.25rem}.atlas-r2-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.atlas-r2-metric strong{font-size:1rem}.atlas-r2-grid{grid-template-columns:1fr}.atlas-r2-panel{padding:.75rem}}
     </style>""", unsafe_allow_html=True)
     st.markdown(
         f'<section class="atlas-r2-head"><div class="atlas-r2-kicker">CERTIFIED ATLAS RESEARCH</div>'
-        f'<h1>{escape(ticker)} · {escape(str(page["company"]))}</h1>'
-        f'<div class="atlas-r2-meta">Evidence as of {escape(str(h.get("evidence_as_of") or "Date unavailable"))} · '
-        f'Evidence confidence: {escape(str(h.get("confidence_band") or "Unavailable"))} '
-        f'({escape(confidence_score)})</div></section>', unsafe_allow_html=True,
+        f'<div class="atlas-r2-title"><h1>{escape(ticker)} · {escape(str(page["company"]))}</h1><span class="atlas-r2-action">{escape(h["action"])}</span></div>'
+        f'<div class="atlas-r2-meta">{escape(str(page.get("sector") or "Sector unavailable"))} · Last certified close {escape(str(h.get("evidence_as_of") or "Date unavailable"))}</div>'
+        f'<div class="atlas-r2-metrics">'
+        f'<div class="atlas-r2-metric"><small>Last Certified Close</small><strong>{escape(_money(h["price"]))}</strong></div>'
+        f'<div class="atlas-r2-metric"><small>ATLAS Fair Value</small><strong>{escape(_money(h["fair_value"]))}</strong></div>'
+        f'<div class="atlas-r2-metric"><small>Fair Value Gap</small><strong>{escape(_pct(h["fair_value_gap_pct"], signed=True))}</strong></div>'
+        f'<div class="atlas-r2-metric"><small>Opportunity</small><strong>{float(h["opportunity"]):.2f}</strong></div>'
+        f'<div class="atlas-r2-metric"><small>Evidence Confidence</small><strong>{escape(str(h.get("confidence_band") or "Unavailable"))} · {escape(confidence_score)}</strong></div>'
+        f'</div></section>', unsafe_allow_html=True,
     )
     _marker(
         "stock-header", ticker,
@@ -127,13 +150,6 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
         opportunity=h["opportunity"], confidence=h["confidence"],
         snapshot=page["identity"].get("evaluation_snapshot"),
     )
-    cols = st.columns(6)
-    cols[0].metric(h.get("price_label") or "Last Certified Close", _money(h["price"]))
-    cols[1].metric("Action", h["action"])
-    cols[2].metric("ATLAS Fair Value", _money(h["fair_value"]))
-    cols[3].metric("Fair Value gap", _pct(h["fair_value_gap_pct"], signed=True))
-    cols[4].metric("Opportunity", f'{float(h["opportunity"]):.2f}')
-    cols[5].metric("Evidence confidence", f'{h["confidence_band"]} ({float(h["confidence"]):.0f}/100)')
     if h["fair_value_gap_pct"] is not None:
         direction = "above" if h["fair_value_gap_pct"] >= 0 else "below"
         st.caption(f'ATLAS Fair Value is {abs(float(h["fair_value_gap_pct"])):.2f}% {direction} the last certified close. This is not a guaranteed return.')
@@ -177,7 +193,7 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
             price_frame = stock_rows.copy()
             if fair_value is not None:
                 price_frame["ATLAS Fair Value — certified snapshot"] = float(fair_value)
-            st.line_chart(price_frame, height=300, y_label="Price (USD/share)", x_label="Date")
+            _dark_line_chart(price_frame, height=300, y_title="Price (USD/share)")
             spy = chart.get("spy_comparison") or {}
             spy_rows = pd.DataFrame(spy.get("series") or [])
             if spy.get("status") == "AVAILABLE" and not spy_rows.empty:
@@ -190,7 +206,7 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
                     if not joined.empty and float(joined.iloc[0][ticker]) and float(joined.iloc[0]["SPY"]):
                         normalized = joined[[ticker, "SPY"]].divide(joined.iloc[0][[ticker, "SPY"]]).multiply(100.0)
                         _marker("spy-comparison-chart", ticker, status="AVAILABLE", unit="NORMALIZED_INDEX_100")
-                        st.line_chart(normalized, height=320, y_label="Normalized performance (start = 100)", x_label="Date")
+                        _dark_line_chart(normalized, height=320, y_title="Normalized performance (start = 100)")
                         st.caption(_provenance_caption(spy.get("provenance") or {}))
                     else:
                         _marker("spy-comparison-chart", ticker, status="UNAVAILABLE")
@@ -210,7 +226,7 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
             if technical.get("status") == "AVAILABLE" and indicator_keys:
                 _marker("technical-indicators-chart", ticker, status="AVAILABLE", unit="USD_PER_SHARE_OR_INDEX")
                 indicator_frame = rows.dropna(subset=[date_key]).set_index(date_key)[indicator_keys]
-                st.line_chart(indicator_frame, height=260, y_label="Certified indicator value", x_label="Date")
+                _dark_line_chart(indicator_frame, height=260, y_title="Certified indicator value")
             else:
                 _marker("technical-indicators-chart", ticker, status="UNAVAILABLE")
                 st.info(technical.get("message") or "Certified technical-indicator history is unavailable for this snapshot.")
@@ -220,28 +236,35 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
     st.markdown("## AI Investment Brief")
     _marker("summary", ticker, classification="CERTIFIED_ATLAS")
     summary = page["summary"]
-    st.markdown("**Bottom line**")
-    st.write(summary["bottom_line"])
+    st.markdown("**Verdict**")
+    st.write(summary["verdict"])
     st.markdown("**Why this rating**")
-    _list(summary["why_rating"])
-    st.markdown("**What's strong**")
-    _list(summary["strengths"])
-    st.markdown("**What could go wrong**")
-    _list(summary["risks"])
-    st.markdown("**What to watch**")
-    _list(summary["watch_next"])
+    _list(summary["why_rating"] or ["The available certified evidence does not support additional explanatory claims."])
+    if summary["risks"]:
+        st.markdown("**Material risks**")
+        _list(summary["risks"])
+    if summary["watch_next"]:
+        st.markdown("**What to watch**")
+        _list(summary["watch_next"])
 
-    st.markdown("### Six-pillar investment profile")
     pillars = page.get("six_pillars") or {}
+    valid_count = len(pillars.get("items") or ())
+    st.markdown(f"### Certified pillar coverage — {valid_count} of 6")
     _marker("six-pillar-profile", ticker, status=pillars.get("status") or "UNAVAILABLE")
     if pillars.get("status") in {"AVAILABLE", "PARTIAL"}:
         frame = _six_pillar_frame(pillars)
         if frame.empty:
             st.info(pillars.get("message") or "Certified six-pillar evidence is unavailable.")
         else:
-            st.bar_chart(frame[["Certified score"]], horizontal=True, height=260, x_label="Certified score (0–100)", y_label="Pillar")
+            pillar_data = frame.reset_index()
+            st.vega_lite_chart(pillar_data, use_container_width=True, theme=None, spec={
+                "height": max(180, 42 * len(pillar_data)), "mark": {"type": "bar", "cornerRadiusEnd": 5, "color": "#2dd4bf"},
+                "encoding": {"y": {"field": "Pillar", "type": "nominal", "sort": "-x", "axis": {"labelColor": "#cbd5e1", "title": None}}, "x": {"field": "Certified score", "type": "quantitative", "scale": {"domain": [0, 100]}, "axis": {"title": "Score", "labelColor": "#94a3b8", "titleColor": "#cbd5e1", "gridColor": "#1e293b"}}, "tooltip": [{"field": "Pillar"}, {"field": "Certified score", "format": ".1f"}]},
+                "config": {"background": "#08111f", "view": {"stroke": "#243244"}},
+            })
+            weight_rows = frame.dropna(subset=["Governed weight (%)"])[["Governed weight (%)"]]
             if pillars.get("weights_status") == "AVAILABLE":
-                st.dataframe(frame, use_container_width=True)
+                st.dataframe(weight_rows.style.format("{:.1f}%"), use_container_width=True)
             else:
                 st.caption("Governed pillar weights are unavailable in this snapshot; scores are shown without inferred weights.")
             if pillars.get("status") == "PARTIAL":
@@ -274,33 +297,30 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
     valuation = page.get("valuation_chart") or {}
     _marker("valuation-comparison-chart", ticker, status=valuation.get("status") or "UNAVAILABLE", unit=valuation.get("unit") or "")
     if valuation.get("status") == "AVAILABLE":
-        valuation_frame = pd.DataFrame.from_dict(valuation["values"], orient="index", columns=["Value ($/share)"])
-        st.bar_chart(valuation_frame, height=260, y_label="USD per share", x_label="Valuation reference")
-        st.caption(f'Valuation comparison as of {valuation.get("as_of") or "Unavailable"}. Wall Street context is non-scoring.')
+        valuation_frame = pd.DataFrame([{"Reference": key, "USD/share": value} for key, value in valuation["values"].items()])
+        st.vega_lite_chart(valuation_frame, use_container_width=True, theme=None, spec={
+            "height": 240, "mark": {"type": "bar", "cornerRadiusEnd": 5},
+            "encoding": {"x": {"field": "Reference", "type": "nominal", "axis": {"labelAngle": 0, "labelColor": "#cbd5e1", "title": None}}, "y": {"field": "USD/share", "type": "quantitative", "axis": {"title": "USD per share", "format": "$,.0f", "labelColor": "#94a3b8", "titleColor": "#cbd5e1", "gridColor": "#1e293b"}}, "color": {"field": "Reference", "type": "nominal", "scale": {"range": ["#60a5fa", "#2dd4bf", "#f59e0b"]}, "legend": None}, "tooltip": [{"field": "Reference"}, {"field": "USD/share", "format": "$,.2f"}]},
+            "config": {"background": "#08111f", "view": {"stroke": "#243244"}},
+        })
+        st.caption(f'Valuation comparison as of {_friendly_time(valuation.get("as_of"))}. Wall Street context is non-scoring.')
     else:
         st.info(valuation.get("message") or "Comparable certified valuation points are unavailable.")
 
     _marker("section", ticker, section_name="Risk & Evidence")
     st.markdown("## Risk & Evidence")
-    st.markdown("### Risks / What Would Change the View")
+    st.markdown("### Risks")
     _marker("risks", ticker)
     _marker("view-change-conditions", ticker)
-    left, right = st.columns(2)
-    with left:
-        st.markdown("### What Could Go Wrong")
+    if summary["risks"]:
         _list(summary["risks"])
-    with right:
-        st.markdown("### What Would Change the ATLAS View")
-        _list(summary["view_changes"])
 
-    st.markdown("## What Changed Recently")
     _marker("what-changed", ticker, status=page["recent_changes"]["status"])
     if page["recent_changes"]["items"]:
+        st.markdown("## What Changed Recently")
         for item in page["recent_changes"]["items"]:
             st.markdown(f'**{item.get("headline") or "Company update"}**  ')
             st.caption(f'{item.get("article_publisher") or "Source unavailable"} · {_friendly_time(item.get("article_timestamp"))}')
-    else:
-        st.info("Not enough evidence")
 
     st.markdown("## Fundamentals Snapshot")
     _marker("fundamentals", ticker, count=len(page["fundamentals"]))
@@ -325,25 +345,21 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
             st.info("Not enough evidence")
 
     financial_trend = page.get("financial_trend") or {}
-    st.markdown("### Earnings and financial trends")
     _marker("financial-trend-chart", ticker, status=financial_trend.get("status") or "UNAVAILABLE")
     if financial_trend.get("status") == "AVAILABLE":
+        st.markdown("### Earnings and financial trends")
         trend_frame = pd.DataFrame(financial_trend["series"], index=financial_trend["periods"])
-        st.line_chart(trend_frame, height=280, x_label="Fiscal period", y_label="Reported value")
+        _dark_line_chart(trend_frame, height=280, y_title="Reported value")
         st.caption(_provenance_caption(financial_trend.get("provenance") or {}))
-    else:
-        st.info(financial_trend.get("message") or "Certified multi-period earnings and financial history is unavailable for this snapshot.")
 
     _marker("section", ticker, section_name="Catalysts & Sentiment")
-    st.markdown("## Catalysts & Sentiment")
-    st.markdown("### Catalysts / Next Events")
     _marker("catalysts", ticker, status=page["catalysts"]["status"])
     events = page["catalysts"].get("events") or []
     if events:
+        st.markdown("## Catalysts & Sentiment")
+        st.markdown("### Verified next events")
         for item in events:
             st.write(f'**Upcoming earnings** · {item.get("date") or "Date unavailable"}')
-    elif not page["catalysts"].get("items"):
-        st.info("Not enough evidence")
 
     st.markdown("## About the Company")
     _marker("about-company", ticker, status=page["about"]["status"])
@@ -359,6 +375,13 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
         st.markdown(f'**Candidate:** `{evidence.get("candidate_digest") or "Unavailable"}`  ')
         st.markdown(f'**Publication:** `{evidence.get("publication_digest") or "Unavailable"}`  ')
         st.markdown(f'**Methodology:** `{evidence["methodology_version"]}`')
+        unavailable = []
+        if page["recent_changes"]["status"] != "AVAILABLE": unavailable.append("Recent changes")
+        if financial_trend.get("status") != "AVAILABLE": unavailable.append("Financial trends")
+        if page["catalysts"]["status"] != "AVAILABLE": unavailable.append("Catalysts")
+        if chart.get("technical_indicators", {}).get("status") != "AVAILABLE": unavailable.append("Technical history")
+        if unavailable:
+            st.markdown("**Unavailable in this certified snapshot:** " + ", ".join(unavailable))
         st.caption("Contextual evidence is non-scoring and cannot change Action, Fair Value, Opportunity, or Confidence.")
     st.caption("Ask ATLAS remains grounded to this ticker and certified evaluation snapshot.")
 

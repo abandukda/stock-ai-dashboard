@@ -225,11 +225,11 @@ def test_certified_fair_value_and_upside_remain_distinct_from_opportunity():
         },
     }
     app = _render_certified_decision_app(report)
-    metrics = {metric.label: metric.value for metric in app.metric}
-    assert metrics["ATLAS Fair Value"] == "$338.82"
-    assert metrics["Fair Value gap"] == "+49.10%"
-    assert metrics["Opportunity"] == "86.68"
-    assert metrics["Evidence confidence"] == "High (89/100)"
+    rendered = "\n".join(markdown.value for markdown in app.markdown)
+    assert "ATLAS Fair Value" in rendered and "$338.82" in rendered
+    assert "Fair Value Gap" in rendered and "+49.10%" in rendered
+    assert "Opportunity" in rendered and "86.68" in rendered
+    assert "Evidence Confidence" in rendered and "High · 89/100" in rendered
 
 
 def test_absent_certified_customer_evaluation_preserves_current_fallback(monkeypatch):
@@ -343,7 +343,8 @@ def test_real_streamlit_high_evidence_renderer_has_consolidated_research_v2_and_
     assert not app.exception
     assert not app.tabs
     assert any(button.label == "Ask ATLAS about this research" for button in app.button)
-    assert any(metric.label == "Evidence confidence" and metric.value == "Moderate (78/100)" for metric in app.metric)
+    rendered = "\n".join(markdown.value for markdown in app.markdown)
+    assert "Evidence Confidence" in rendered and "Moderate · 78/100" in rendered
     assert not any(metric.label == "Research Completeness" for metric in app.metric)
 
 

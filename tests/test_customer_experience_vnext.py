@@ -64,7 +64,7 @@ def test_unavailable_transcript_never_generates_summary():
 def test_customer_navigation_and_internal_report_card_boundaries_are_explicit():
     source = Path("app.py").read_text(encoding="utf-8")
     contract = Path("services/customer_navigation_contract.py").read_text(encoding="utf-8")
-    assert 'CUSTOMER_ROUTES = ("Home", "Research", "Earnings", "Watchlist", "Ask ATLAS")' in contract
+    assert 'CUSTOMER_ROUTES = ("Home", "Research", "Watchlist", "Ask ATLAS")' in contract
     assert "customer_pages = list(CUSTOMER_ROUTES)" in source
     assert "_internal_authorized = internal_routes_allowed(get_user_role())" in source
     assert "if _internal_authorized:\n        pages.extend(internal_pages)" in source

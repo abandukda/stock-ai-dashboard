@@ -138,6 +138,62 @@ def _confidence_band(value: Any) -> str:
     return "Low"
 
 
+def _period_label(value: Any) -> str:
+    text = str(value or "").strip()
+    return text if text else "certified snapshot"
+
+
+def _research_brief(
+    *,
+    ticker: str,
+    action: str,
+    gap: float | None,
+    pillars: Mapping[str, Any],
+    facts: Iterable[FactCard],
+    risks: Iterable[str],
+    conditions: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Build a concise deterministic brief from customer-publishable evidence only."""
+    reasons: list[str] = []
+    seen: set[str] = set()
+    for fact in facts:
+        sentence = f"{fact.fact_name} is {fact.display_value} for {_period_label(fact.period)}."
+        if sentence not in seen:
+            reasons.append(sentence)
+            seen.add(sentence)
+    for item in pillars.get("items") or ():
+        if len(reasons) >= 3:
+            break
+        name = str(item.get("pillar") or "").replace("_", " ").title()
+        score = item.get("certified_score")
+        if name and isinstance(score, (int, float)) and math.isfinite(float(score)):
+            sentence = f"{name} scores {float(score):.1f}/100 in the certified evaluation snapshot."
+            if sentence not in seen:
+                reasons.append(sentence)
+                seen.add(sentence)
+    if gap is not None and len(reasons) < 3:
+        reasons.append(f"ATLAS Fair Value is {abs(float(gap)):.1f}% {'above' if gap >= 0 else 'below'} the last certified close.")
+    material_risks = list(dict.fromkeys(str(item).strip() for item in risks if str(item).strip()))[:3]
+    watch = [
+        str(item).strip()
+        for key in ("strengthen", "weaken", "invalidate")
+        for item in _seq(conditions.get(key))
+        if str(item).strip()
+    ]
+    # Only retain governed, non-tautological conditions.
+    watch = [item for item in dict.fromkeys(watch) if not re.search(r"\b(current|baseline)\b.*\b(current|baseline)\b", item, re.I)][:3]
+    valuation = (
+        f" ATLAS Fair Value is {abs(float(gap)):.1f}% {'above' if gap >= 0 else 'below'} the last certified close."
+        if gap is not None else ""
+    )
+    return {
+        "verdict": f"ATLAS rates {ticker} {action}.{valuation}",
+        "why_rating": reasons[:3],
+        "risks": material_risks,
+        "watch_next": watch,
+    }
+
+
 def _human_date(value: Any) -> str:
     instant = _instant(value)
     return instant.strftime("%b %-d, %Y") if instant else "Date unavailable"
@@ -403,7 +459,6 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
     risks = _real_risks(_seq(intelligence.get("key_risks")))
     guidance = _map(report.get("guidance_summary"))
     conditions = _map(guidance.get("thesis_change_conditions"))
-    likes = [str(item) for item in _seq(intelligence.get("why_atlas_supports_it")) if str(item).strip()][:3]
     signal = _signal_projection(report)
     wall_street_enabled = os.getenv("ATLAS_WALL_STREET_CONTEXT_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"}
     recommendations = _module(enrichment.get("recommendations"))
@@ -433,20 +488,11 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
     if balance_sheet_risk and balance_sheet_risk not in risks:
         risks = [balance_sheet_risk, *risks][:4]
     action_text = _display_action(authority["action"])
-    valuation_text = (
-        f" ATLAS Fair Value is {abs(gap):.1f}% {'above' if gap >= 0 else 'below'} the last certified close."
-        if gap is not None else ""
+    pillar_projection = _six_pillar_projection(certified, report)
+    summary = _research_brief(
+        ticker=ticker, action=action_text, gap=gap, pillars=pillar_projection,
+        facts=facts, risks=risks, conditions=conditions,
     )
-    summary = {
-        "bottom_line": f"ATLAS rates {ticker} {action_text}.{valuation_text}",
-        "why_rating": likes or [NOT_ENOUGH],
-        "strengths": likes or [NOT_ENOUGH],
-        "risks": risks or [NOT_ENOUGH],
-        "view_changes": [str(item) for key in ("strengthen", "weaken", "invalidate") for item in _seq(conditions.get(key)) if str(item).strip()][:6] or [NOT_ENOUGH],
-        "why_might_be_wrong": list(dict.fromkeys(str(item) for item in _seq(report.get("enricher_errors")) if str(item).strip()))[:2] or [NOT_ENOUGH],
-        "watch_next": [str(item) for item in _seq(conditions.get("strengthen")) if str(item).strip()][:1] or [NOT_ENOUGH],
-    }
-    summary["why"] = summary["why_rating"]
     wall_street = ({
         "status": wall_status, "classification": CONTEXTUAL,
         "consensus": consensus, "recommendation_period": latest_rec.get("period"), "buy_count": buy_count if latest_rec else None,
@@ -474,6 +520,7 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
     }
     return {
         "version": VERSION, "status": "AVAILABLE", "ticker": ticker, "company": company,
+        "sector": report.get("sector") or _map(profile.get("payload")).get("sector"),
         "authority": dict(authority), "identity": identity,
         "header": {
             "price": price, "price_timestamp": price_env.get("as_of"),
@@ -485,13 +532,13 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
             "confidence_band": _confidence_band(authority["confidence"]),
         },
         "signal": signal, "chart": _chart_projection(report, signal, enrichment), "summary": summary,
-        "six_pillars": _six_pillar_projection(certified, report),
+        "six_pillars": pillar_projection,
         "wall_street": wall_street,
         "valuation_chart": valuation_chart,
         "financial_trend": _financial_trend_projection(financials),
         "fundamentals": [asdict(card) for card in facts],
         "recent_changes": {"status": "AVAILABLE" if news_items else "UNAVAILABLE", "items": news_items, "classification": CONTEXTUAL},
-        "catalysts": {"status": "AVAILABLE" if (news_items or future_events) else "UNAVAILABLE", "items": news_items,
+        "catalysts": {"status": "AVAILABLE" if future_events else "UNAVAILABLE", "items": (),
                       "events": future_events, "classification": CONTEXTUAL},
         "about": {"status": _module_status(profile), "company": _map(profile.get("payload")).get("name") or company,
                   "sector": report.get("sector"), "industry": _map(profile.get("payload")).get("industry") or report.get("industry"),

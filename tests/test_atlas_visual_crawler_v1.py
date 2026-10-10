@@ -309,10 +309,10 @@ def _passing_required_results():
         _result(category="RESEARCH", page="Research Any Ticker", ticker=ticker)
         for ticker in REQUIRED_RESEARCH_TICKERS
     )
-    rows.append(_result(
-        category="RESEARCH", page="Research Any Ticker", ticker="NVDA",
-        viewport="mobile",
-    ))
+    rows.extend(
+        _result(category="RESEARCH", page="Research Any Ticker", ticker=ticker, viewport="mobile")
+        for ticker in REQUIRED_RESEARCH_TICKERS
+    )
     return rows
 
 
@@ -606,7 +606,7 @@ def test_submission_failure_classification_does_not_mislabel_observed_rerun():
 
 
 def test_required_research_matrix_covers_current_production_contract():
-    assert REQUIRED_RESEARCH_TICKERS == ("NVDA", "MSFT", "AVT")
+    assert REQUIRED_RESEARCH_TICKERS == ("NVDA", "MSFT", "AVT", "CRC")
     assert ("Research Any Ticker", "desktop") in REQUIRED_PAGE_VIEWPORTS
     assert ("Research Any Ticker", "mobile") in REQUIRED_PAGE_VIEWPORTS
     source = SOURCE.read_text(encoding="utf-8")
@@ -674,8 +674,8 @@ def test_route_generation_recovery_requires_current_visible_healthy_page():
 def test_browser_session_is_shared_between_desktop_and_mobile():
     source = SOURCE.read_text(encoding="utf-8")
     assert source.count("await browser.new_context") == 1
-    assert "self._required_desktop(page), timeout=285" in source
-    assert "self._required_mobile(page), timeout=135" in source
+    assert "self._required_desktop(page), timeout=360" in source
+    assert "self._required_mobile(page), timeout=300" in source
     assert "await self._supplementary_desktop(page)" in source
     assert "await self._supplementary_mobile(page)" in source
     assert "await page.set_viewport_size(MOBILE)" in source

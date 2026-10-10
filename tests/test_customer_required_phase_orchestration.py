@@ -25,11 +25,10 @@ def _crawler_constant(name: str):
 def test_required_phase_has_exact_customer_routes_and_mobile_coverage() -> None:
     REQUIRED_CUSTOMER_ROUTES = _crawler_constant("REQUIRED_CUSTOMER_ROUTES")
     REQUIRED_PAGE_VIEWPORTS = frozenset(_crawler_constant("REQUIRED_PAGE_VIEWPORTS"))
-    assert REQUIRED_CUSTOMER_ROUTES == ("Home", "Research", "Earnings", "Watchlist", "Ask ATLAS")
+    assert REQUIRED_CUSTOMER_ROUTES == ("Home", "Research", "Watchlist", "Ask ATLAS")
     required_mobile = {page for page, viewport in REQUIRED_PAGE_VIEWPORTS if viewport == "mobile"}
     assert required_mobile == {
-        "Home", "Research Any Ticker", "Earnings Intelligence",
-        "Watchlist Intelligence", "Ask AI",
+        "Home", "Research Any Ticker", "Watchlist Intelligence", "Ask AI",
     }
     assert not {"Recovery", "ETFs", "Full Ranked Scan"} & required_mobile
 
@@ -41,7 +40,7 @@ def test_required_phase_budget_is_explicit_and_below_ceiling() -> None:
         item["timeout_seconds"] * (item["retries"] + 1)
         for item in REQUIRED_PHASE_BUDGET.values()
     )
-    assert worst_case <= REQUIRED_PHASE_TIMEOUT_SECONDS == 480
+    assert worst_case <= REQUIRED_PHASE_TIMEOUT_SECONDS == 720
     assert all(item["retries"] == 0 for item in REQUIRED_PHASE_BUDGET.values())
 
 

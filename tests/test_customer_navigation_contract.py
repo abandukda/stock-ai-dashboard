@@ -8,8 +8,9 @@ from services.customer_navigation_contract import (
 
 
 def test_customer_navigation_is_exact_vnext_contract() -> None:
-    assert CUSTOMER_NAV_CONTRACT_VERSION == "ATLAS_CUSTOMER_NAV_VNEXT_1"
-    assert CUSTOMER_ROUTES == ("Home", "Research", "Earnings", "Watchlist", "Ask ATLAS")
+    assert CUSTOMER_NAV_CONTRACT_VERSION == "ATLAS_CUSTOMER_NAV_R1_1"
+    assert CUSTOMER_ROUTES == ("Home", "Research", "Watchlist", "Ask ATLAS")
+    assert "Earnings" not in CUSTOMER_ROUTES
     assert "Recovery" not in CUSTOMER_ROUTES
     assert "ETFs" not in CUSTOMER_ROUTES
 
@@ -23,7 +24,7 @@ def test_stale_research_and_other_legacy_routes_migrate() -> None:
     migrate_navigation_state(state, allowed_routes=CUSTOMER_ROUTES)
     assert state == {
         "v79_pending_page": "Research",
-        "v73_page": "Earnings",
+        "v73_page": "Home",
         "v784_single_nav": "Watchlist",
     }
 

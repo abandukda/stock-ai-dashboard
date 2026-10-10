@@ -27407,7 +27407,6 @@ def render_research_any_ticker(full_df, recovery_df, watch_df, prescreen_df, etf
     if isinstance(live, dict) and not live.get("error"):
         merged = v8054_merge_saved_live(saved, live)
         merged["Live Research"] = True
-        st.success(f"Live research loaded · {v8054_format_time(merged.get('research_refreshed_at'))} · Confidence: {merged.get('research_confidence', merged.get('Confidence', 'N/A'))}")
         render_detail(pd.Series(merged)); return
     if isinstance(live, dict) and live.get("error"):
         st.warning(f"Live provider refresh failed: {live['error']}. Showing verified Discovery evidence.")
@@ -28033,8 +28032,6 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
         st.session_state["research_status"]="complete"
         if isinstance(live,dict) and live.get("error"):
             st.warning(f"Live refresh was unavailable for {ticker}; showing its verified saved Atlas research.")
-        else:
-            st.success(f"Live research loaded · {v8055_format_et(merged.get('research_refreshed_at'))} · Confidence: {merged.get('research_confidence',merged.get('Confidence','N/A'))}")
         company=str(v8054_first_meaningful(merged,["company","Company","company_name","name"],ticker) or ticker)
         is_etf=bool(merged.get("is_etf") or str(v8054_first_meaningful(merged,["security_type","Security Type"],"")).upper()=="ETF")
         security_type="ETF" if is_etf else str(v8054_first_meaningful(merged,["security_type","Security Type"],"Equity") or "Equity")

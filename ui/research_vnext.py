@@ -1524,25 +1524,8 @@ def render_full_research_vnext(row: Mapping[str, Any]) -> None:
         certified_action if certified_customer else current_guidance.get("state") or _decision_value(report, "recommendation", "committee_verdict")
     )["label"]
 
-    st.markdown(
-        f"""
-        <div style="border:1px solid rgba(95,159,226,.32);border-radius:24px;padding:24px;
-        background:linear-gradient(145deg,rgba(14,39,65,.98),rgba(7,18,34,.98));margin-bottom:18px">
-          <div style="color:#8fa8c4;font-size:.75rem;font-weight:850;letter-spacing:.14em;text-transform:uppercase">
-            Atlas V2 Institutional Intelligence
-          </div>
-          <div style="color:#f8faff;font-size:2.5rem;font-weight:900;margin-top:8px">
-            {escape(str(report.get("ticker") or "UNKNOWN"))}
-          </div>
-          <div style="color:#aebbd0;margin-top:9px">
-            {escape(str(report.get("company") or ""))} ·
-            {escape(str(report.get("sector") or "Unknown"))} ·
-            {escape(banner_state)}
-          </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    # Customer Research V2 owns the single compact identity/decision strip.
+    # Do not render the legacy institutional banner above it.
     render_research_vnext(
         report,
         legacy={

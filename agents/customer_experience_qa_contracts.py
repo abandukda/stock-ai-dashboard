@@ -119,7 +119,7 @@ CUSTOMER_INTERNAL_TERMS = (
     "raw json",
 )
 
-REQUIRED_NAVIGATION = ("Home", "Research", "Earnings", "Watchlist", "Ask ATLAS")
+REQUIRED_NAVIGATION = ("Home", "Research", "Watchlist", "Ask ATLAS")
 
 
 @dataclass(frozen=True)
