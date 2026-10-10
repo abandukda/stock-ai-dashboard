@@ -1,6 +1,7 @@
 from copy import deepcopy
 
 from services.customer_research_v2 import FactCard, build_customer_research_v2, validate_grounded_text
+from ui.customer_research_v2 import _six_pillar_frame
 
 
 def _envelope(value, *, name, unit=None):
@@ -104,10 +105,88 @@ def test_retained_artifact_bars_require_lineage_and_never_claim_live_price():
 def test_six_pillars_are_projected_without_recalculation_and_sorted_by_weight():
     result = build_customer_research_v2(report())["six_pillars"]
     assert result["status"] == "AVAILABLE"
-    assert [(item["pillar"], item["score"], item["weight"]) for item in result["items"]] == [
+    assert [(item["pillar"], item["certified_score"], item["weight"]) for item in result["items"]] == [
         ("valuation_quality", 91, 0.6), ("fundamental_quality", 84, 0.4),
     ]
     assert all(item["evidence_ids"] == ("evidence:decision",) for item in result["items"])
+
+
+def _retained_structured_pillars():
+    return {
+        "entry_quality": {"score": 100, "pillar_weight": 10.0, "effective_weight": 10.0, "coverage_fraction": 1.0, "status": "AVAILABLE", "evidence_ids": []},
+        "fundamental_quality": {"score": 93.0, "pillar_weight": 20.0, "effective_weight": 16.0, "coverage_fraction": 0.8, "status": "PARTIAL", "evidence_ids": ["fundamental:1"]},
+        "risk_quality": {"score": 80.0, "pillar_weight": 15.0, "effective_weight": 10.5, "coverage_fraction": 0.7, "status": "PARTIAL", "evidence_ids": []},
+        "technical_quality": {"score": 76.85, "pillar_weight": 25.0, "effective_weight": 25.0, "coverage_fraction": 1.0, "status": "AVAILABLE", "evidence_ids": ["technical:1"]},
+        "valuation_quality": {"score": 98.32, "pillar_weight": 20.0, "effective_weight": 20.0, "coverage_fraction": 1.0, "status": "AVAILABLE", "evidence_ids": []},
+        "volume_quality": {"score": 65, "pillar_weight": 10.0, "effective_weight": 10.0, "coverage_fraction": 1.0, "status": "AVAILABLE", "evidence_ids": ["volume:1"]},
+    }
+
+
+def test_exact_retained_structured_pillar_shape_projects_numeric_chart_contract():
+    source = report()
+    source["certified_customer_evaluation"]["decision"]["six_pillars"] = _retained_structured_pillars()
+    before = deepcopy(source)
+    result = build_customer_research_v2(source)["six_pillars"]
+    assert result["status"] == "AVAILABLE"
+    assert len(result["items"]) == 6
+    assert result["items"][0]["pillar"] == "technical_quality"
+    assert result["items"][0]["certified_score"] == 76.85
+    assert result["items"][0]["score_scale"] == "0_TO_100"
+    assert result["items"][0]["score_unit"] == "POINTS"
+    frame = _six_pillar_frame(result)
+    assert frame["Certified score"].map(lambda value: isinstance(value, float)).all()
+    assert frame["Certified score"].notna().all()
+    assert source == before
+
+
+def test_invalid_partial_and_unavailable_pillars_never_coerce_to_zero():
+    source = report()
+    source["certified_customer_evaluation"]["decision"]["six_pillars"] = {
+        "valid": {"score": 72.5, "pillar_weight": None, "evidence_ids": ["valid:1"]},
+        "invalid_string": {"score": "81", "pillar_weight": 20, "evidence_ids": ["invalid:1"]},
+        "missing": {"pillar_weight": 15, "evidence_ids": ["missing:1"]},
+        "malformed": {"score": {"value": 88}, "pillar_weight": 15, "evidence_ids": ["malformed:1"]},
+    }
+    result = build_customer_research_v2(source)["six_pillars"]
+    assert result["status"] == "PARTIAL"
+    assert [(item["pillar"], item["certified_score"], item["weight"]) for item in result["items"]] == [("valid", 72.5, None)]
+    assert {item["pillar"] for item in result["unavailable"]} == {"invalid_string", "missing", "malformed"}
+    assert 0.0 not in _six_pillar_frame(result)["Certified score"].tolist()
+
+
+def test_structured_weight_requires_explicit_weight_key_and_missing_evidence_fails_closed():
+    source = report()
+    source["canonical_investment_evaluation"]["evidence_ids"] = []
+    source["certified_customer_evaluation"]["decision"]["six_pillars"] = {
+        "valid_weight": {"score": 71, "evidence_ids": ["pillar:1"]},
+        "missing_evidence": {"score": 70, "pillar_weight": 12},
+    }
+    source["six_pillar_weights"] = {"valid_weight": {"weight": 0.25}}
+    result = build_customer_research_v2(source)["six_pillars"]
+    assert result["status"] == "PARTIAL"
+    assert result["items"][0]["weight"] == 0.25
+    assert result["items"][0]["weight_unit"] == "FRACTION"
+    assert result["unavailable"] == ({"pillar": "missing_evidence", "reason": "EVIDENCE_IDENTITY_UNAVAILABLE"},)
+
+
+def test_nonpublishable_and_completely_unavailable_pillars_fail_closed():
+    source = report()
+    source["certified_customer_evaluation"]["decision"]["six_pillars"] = {
+        "private": {"score": 88, "publication_permission": "PROHIBITED", "evidence_ids": ["private:1"]},
+        "invalid": {"score": float("nan"), "evidence_ids": ["invalid:1"]},
+    }
+    result = build_customer_research_v2(source)["six_pillars"]
+    assert result["status"] == "UNAVAILABLE"
+    assert result["items"] == ()
+    assert _six_pillar_frame(result).empty
+
+
+def test_missing_snapshot_identity_makes_pillar_unavailable():
+    source = report()
+    source["certified_customer_evaluation"]["digests"].pop("evaluation_snapshot_id")
+    result = build_customer_research_v2(source)["six_pillars"]
+    assert result["status"] == "UNAVAILABLE"
+    assert {item["reason"] for item in result["unavailable"]} == {"SNAPSHOT_IDENTITY_UNAVAILABLE"}
 
 
 def test_incomplete_retained_bar_is_not_customer_projected():

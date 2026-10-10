@@ -4,11 +4,36 @@ from __future__ import annotations
 from html import escape
 from typing import Any, Callable, Mapping
 from datetime import datetime
+import math
 
 import pandas as pd
 import streamlit as st
 
 from services.customer_research_v2 import build_customer_research_v2
+
+
+def _six_pillar_frame(pillars: Mapping[str, Any]) -> pd.DataFrame:
+    """Build a chart frame from the validated customer projection only."""
+    rows = []
+    for item in pillars.get("items") or ():
+        score = item.get("certified_score")
+        weight = item.get("weight")
+        if isinstance(score, bool) or not isinstance(score, (int, float)) or not math.isfinite(float(score)):
+            continue
+        if not 0.0 <= float(score) <= 100.0:
+            continue
+        if weight is not None and (
+            isinstance(weight, bool) or not isinstance(weight, (int, float)) or not math.isfinite(float(weight))
+        ):
+            weight = None
+        rows.append(
+            {
+                "Pillar": str(item["pillar"]).replace("_", " ").title(),
+                "Certified score": float(score),
+                "Governed weight": float(weight) if weight is not None else None,
+            }
+        )
+    return pd.DataFrame(rows).set_index("Pillar") if rows else pd.DataFrame(columns=["Certified score", "Governed weight"])
 
 
 def _money(value: Any) -> str:
@@ -209,22 +234,21 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
     st.markdown("### Six-pillar investment profile")
     pillars = page.get("six_pillars") or {}
     _marker("six-pillar-profile", ticker, status=pillars.get("status") or "UNAVAILABLE")
-    if pillars.get("status") == "AVAILABLE":
-        frame = pd.DataFrame([
-            {
-                "Pillar": str(item["pillar"]).replace("_", " ").title(),
-                "Certified score": float(item["score"]),
-                "Governed weight": float(item["weight"]) if item.get("weight") is not None else None,
-            }
-            for item in pillars["items"]
-        ]).set_index("Pillar")
-        st.bar_chart(frame[["Certified score"]], horizontal=True, height=260, x_label="Certified score", y_label="Pillar")
-        if pillars.get("weights_status") == "AVAILABLE":
-            st.dataframe(frame, use_container_width=True)
+    if pillars.get("status") in {"AVAILABLE", "PARTIAL"}:
+        frame = _six_pillar_frame(pillars)
+        if frame.empty:
+            st.info(pillars.get("message") or "Certified six-pillar evidence is unavailable.")
         else:
-            st.caption("Governed pillar weights are unavailable in this snapshot; scores are shown without inferred weights.")
+            st.bar_chart(frame[["Certified score"]], horizontal=True, height=260, x_label="Certified score (0–100)", y_label="Pillar")
+            if pillars.get("weights_status") == "AVAILABLE":
+                st.dataframe(frame, use_container_width=True)
+            else:
+                st.caption("Governed pillar weights are unavailable in this snapshot; scores are shown without inferred weights.")
+            if pillars.get("status") == "PARTIAL":
+                st.caption(pillars.get("message") or "Some certified pillars are unavailable for customer display.")
     else:
         st.info(pillars.get("message") or "Certified six-pillar evidence is unavailable.")
+
 
     _marker("section", ticker, section_name="Fundamentals & Valuation")
     st.markdown("## Fundamentals & Valuation")

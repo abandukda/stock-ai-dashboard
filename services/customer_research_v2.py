@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 import re
 import json
+import math
 from pathlib import Path
 from dataclasses import dataclass, asdict
 from datetime import datetime, timezone
@@ -319,21 +320,63 @@ def _six_pillar_projection(certified: Mapping[str, Any], report: Mapping[str, An
     snapshot = _map(certified.get("digests")).get("evaluation_snapshot_id")
     if not pillars:
         return {"status": "UNAVAILABLE", "items": (), "message": "Certified six-pillar evidence is unavailable."}
+    def finite_number(value: Any) -> float | None:
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            return None
+        number = float(value)
+        return number if math.isfinite(number) else None
+
+    def governed_weight(value: Any) -> float | None:
+        if isinstance(value, Mapping):
+            value = value.get("weight")
+        return finite_number(value)
+
     items = []
-    for name, score in pillars.items():
-        if score is None:
+    unavailable = []
+    for name, source_score in pillars.items():
+        structured = _map(source_score)
+        score = finite_number(structured.get("score")) if structured else finite_number(source_score)
+        permission = str(structured.get("publication_permission") or "DISPLAY_ALLOWED") if structured else "DISPLAY_ALLOWED"
+        pillar_evidence = tuple(sorted(str(item) for item in _seq(structured.get("evidence_ids")) if item))
+        bound_evidence = pillar_evidence or evidence_ids
+        if permission not in {"DISPLAY_ALLOWED", "ALLOWED", "CUSTOMER_ALLOWED"}:
+            unavailable.append({"pillar": str(name), "reason": "CUSTOMER_DISPLAY_NOT_ALLOWED"})
             continue
-        weight = weights.get(name)
+        if score is None or not 0.0 <= score <= 100.0:
+            unavailable.append({"pillar": str(name), "reason": "CERTIFIED_NUMERIC_SCORE_UNAVAILABLE"})
+            continue
+        if not bound_evidence:
+            unavailable.append({"pillar": str(name), "reason": "EVIDENCE_IDENTITY_UNAVAILABLE"})
+            continue
+        if not snapshot:
+            unavailable.append({"pillar": str(name), "reason": "SNAPSHOT_IDENTITY_UNAVAILABLE"})
+            continue
+        weight_source = structured.get("pillar_weight") if structured else weights.get(name)
+        if weight_source is None:
+            weight_source = weights.get(name)
+        weight = governed_weight(weight_source)
+        if weight is not None and not 0.0 <= weight <= 100.0:
+            weight = None
         items.append({
-            "pillar": str(name), "score": score, "weight": weight,
-            "evidence_ids": evidence_ids, "snapshot_timestamp": snapshot,
+            "pillar": str(name),
+            "certified_score": score,
+            "score_scale": "0_TO_100",
+            "score_unit": "POINTS",
+            "weight": weight,
+            "weight_unit": "FRACTION" if weight is not None and weight <= 1.0 else "PERCENT",
+            "evidence_ids": bound_evidence,
+            "snapshot_identity": snapshot,
             "publication_permission": "DISPLAY_ALLOWED",
         })
-    items.sort(key=lambda item: (item["weight"] is None, -(float(item["weight"]) if item["weight"] is not None else 0), item["pillar"]))
+    items.sort(key=lambda item: (item["weight"] is None, -(item["weight"] or 0.0), item["pillar"]))
     return {
-        "status": "AVAILABLE" if items else "UNAVAILABLE", "items": tuple(items),
+        "status": "AVAILABLE" if items and not unavailable else ("PARTIAL" if items else "UNAVAILABLE"),
+        "items": tuple(items), "unavailable": tuple(unavailable),
         "weights_status": "AVAILABLE" if items and all(item["weight"] is not None for item in items) else "UNAVAILABLE",
-        "message": None if items else "Certified six-pillar evidence is unavailable.",
+        "message": None if items and not unavailable else (
+            "Some certified pillars are unavailable for customer display." if items
+            else "Certified six-pillar evidence is unavailable."
+        ),
     }
 
 
