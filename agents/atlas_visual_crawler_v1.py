@@ -372,6 +372,23 @@ def certified_research_fields_reconciled(fields: dict[str, Any]) -> bool:
     )
 
 
+def certified_research_fields_for_terminal(
+    fields: dict[str, Any], *, withheld_terminal: bool,
+    publication_allowed: bool | None,
+) -> dict[str, Any]:
+    """Bind the governed withheld terminal to its canonical customer action.
+
+    A withheld Research page intentionally renders no decision metrics.  Its
+    explicit terminal marker is therefore the authority for
+    ``RATING_NOT_PUBLISHED``; requiring a published Action widget on that page
+    would make the safe terminal state impossible to certify.
+    """
+    resolved = dict(fields)
+    if withheld_terminal and publication_allowed is False:
+        resolved.setdefault("action", "RATING_NOT_PUBLISHED")
+    return resolved
+
+
 def required_research_authority_failures(
     observed: dict[str, Any], expected_fact: dict[str, Any], expected_identity: dict[str, Any],
 ) -> list[str]:
@@ -888,7 +905,11 @@ class AtlasVisualCrawler:
             ))
         )
         result["published_decision_evidence"] = published_decision_evidence
-        certified_fields = await self._research_certified_fields(page, expected)
+        certified_fields = certified_research_fields_for_terminal(
+            await self._research_certified_fields(page, expected),
+            withheld_terminal=bool(architecture.get("withheld_terminal")),
+            publication_allowed=architecture.get("publication_allowed"),
+        )
         result["certified_fields"] = certified_fields
         result["certified_fields_reconciled"] = bool(
             published_decision_evidence

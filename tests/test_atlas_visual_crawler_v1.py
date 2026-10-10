@@ -22,6 +22,7 @@ from agents.atlas_visual_crawler_v1 import (
     RESEARCH_COMPLETION_TIMEOUT_SECONDS,
     _research_declared_architecture,
     classify_research_terminal_state,
+    certified_research_fields_for_terminal,
     certified_research_fields_reconciled,
     normalize_research_action,
     research_submission_failure,
@@ -92,6 +93,22 @@ def test_research_field_reconciliation_rejects_unrelated_action_text():
         "atlas_fair_value": "$338.82", "opportunity": "86.68",
         "decision_confidence": "88.54%",
     }) is False
+
+
+def test_governed_withheld_terminal_supplies_only_rating_not_published_action():
+    assert certified_research_fields_for_terminal(
+        {}, withheld_terminal=True, publication_allowed=False,
+    ) == {"action": "RATING_NOT_PUBLISHED"}
+    assert certified_research_fields_for_terminal(
+        {}, withheld_terminal=False, publication_allowed=False,
+    ) == {}
+    assert certified_research_fields_for_terminal(
+        {}, withheld_terminal=True, publication_allowed=None,
+    ) == {}
+    assert certified_research_fields_for_terminal(
+        {"action": "BUY_NOW"}, withheld_terminal=True,
+        publication_allowed=False,
+    ) == {"action": "BUY_NOW"}
 
 
 def _unpublished_completion(**overrides):
