@@ -188,6 +188,7 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
         return
     if not first_screen_rendered:
         page = render_customer_research_first_screen(report)
+    header = page["header"]
     ask_cta(report)
 
     _marker("section", ticker, section_name="Decision")
@@ -233,7 +234,10 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
             stock_rows = rows.dropna(subset=[date_key, close_key]).set_index(date_key)[[close_key]].rename(columns={close_key: ticker})
             selected_range = st.selectbox("Price range", ("1M", "3M", "6M", "1Y"), index=2, key=f"research-price-range-{ticker}")
             stock_rows = _range_rows(stock_rows, selected_range)
-            fair_value = h.get("fair_value")
+            # The chart is rendered after the first-screen helper has returned,
+            # so its local ``h`` binding is intentionally unavailable here.
+            # Use the already-certified projection carried by this page.
+            fair_value = header.get("fair_value")
             price_frame = stock_rows.copy()
             if fair_value is not None:
                 price_frame["ATLAS Fair Value — certified snapshot"] = float(fair_value)
@@ -383,11 +387,11 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
         a[2].metric("Hold", wall.get("hold_count") if wall.get("hold_count") is not None else "Unavailable")
         a[3].metric("Sell", wall.get("sell_count") if wall.get("sell_count") is not None else "Unavailable")
         b = st.columns(5)
-        b[0].metric("Current Price", _money(h["price"]))
+        b[0].metric("Current Price", _money(header["price"]))
         b[1].metric("Wall St. Low", _money(wall.get("target_low")))
         b[2].metric("Wall St. Average", _money(wall.get("target_average")))
         b[3].metric("Wall St. High", _money(wall.get("target_high")))
-        b[4].metric("ATLAS Fair Value", _money(h["fair_value"]))
+        b[4].metric("ATLAS Fair Value", _money(header["fair_value"]))
         st.caption(f'{wall.get("analyst_count") or "Unavailable"} analysts · as of {wall.get("as_of") or "Unavailable"} · contextual and non-scoring')
 
     valuation = page.get("valuation_chart") or {}

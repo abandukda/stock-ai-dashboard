@@ -1,4 +1,5 @@
 from copy import deepcopy
+import ast
 import json
 from pathlib import Path
 
@@ -556,6 +557,117 @@ def test_renderer_exposes_certified_header_fields_for_structured_browser_qa():
     assert "display_rows = _six_pillar_display_rows" in source
     assert 'key=f"research-valuation-chart-{ticker}"' in source
     assert '"chart-ownership", ticker' in source
+
+
+def test_real_renderer_binds_certified_fair_value_to_each_ticker_chart(monkeypatch):
+    """Exercise the renderer through its real chart construction boundary."""
+    import ui.customer_research_v2 as renderer
+
+    class StopAfterPriceChart(RuntimeError):
+        pass
+
+    class Column:
+        def metric(self, *_args, **_kwargs):
+            return None
+
+    class StreamlitStub:
+        session_state = {}
+
+        @staticmethod
+        def markdown(*_args, **_kwargs):
+            return None
+
+        @staticmethod
+        def caption(*_args, **_kwargs):
+            return None
+
+        @staticmethod
+        def columns(count):
+            return [Column() for _ in range(count)]
+
+        @staticmethod
+        def selectbox(*_args, **_kwargs):
+            return "1Y"
+
+        @staticmethod
+        def info(*_args, **_kwargs):
+            return None
+
+        @staticmethod
+        def error(*_args, **_kwargs):
+            return None
+
+    monkeypatch.setattr(renderer, "st", StreamlitStub())
+
+    cases = (("NVDA", 346.05), ("MSFT", 704.48), ("AVT", 130.97))
+    for ticker, fair_value in cases:
+        source = report()
+        source["ticker"] = ticker
+        source["company"] = f"{ticker} Company"
+        source["certified_customer_evaluation"]["ticker"] = ticker
+        source["certified_customer_evaluation"]["fields"]["atlas_fair_value"]["value"] = fair_value
+        source["certified_customer_evaluation"]["digests"]["evaluation_snapshot_id"] = f"snapshot-{ticker.lower()}"
+        source["sections"]["technical"] = {
+            "history": [
+                {"date": "2026-10-07", "adjusted_close": 100.0},
+                {"date": "2026-10-08", "adjusted_close": 101.0},
+            ],
+            "history_provenance": {"source": "CERTIFIED_ARCHIVE", "evidence_ids": [f"bar:{ticker}"]},
+        }
+        captured = {}
+
+        def capture_chart(frame, **kwargs):
+            captured["frame"] = frame.copy()
+            captured["key"] = kwargs["key"]
+            raise StopAfterPriceChart
+
+        monkeypatch.setattr(renderer, "_dark_line_chart", capture_chart)
+        with __import__("pytest").raises(StopAfterPriceChart):
+            renderer.render_customer_research_v2(source, ask_cta=lambda _report: None)
+
+        assert captured["key"] == f"research-price-chart-{ticker}"
+        assert list(captured["frame"].columns) == [ticker, "ATLAS Fair Value — certified snapshot"]
+        assert captured["frame"]["ATLAS Fair Value — certified snapshot"].tolist() == [fair_value, fair_value]
+        assert captured["frame"][ticker].tolist() == [100.0, 101.0]
+
+
+def test_real_renderer_withheld_terminal_does_not_enter_chart_path(monkeypatch):
+    import ui.customer_research_v2 as renderer
+
+    class StreamlitStub:
+        session_state = {}
+
+        @staticmethod
+        def markdown(*_args, **_kwargs):
+            return None
+
+    source = report()
+    source["ticker"] = "CRC"
+    source["certified_customer_evaluation"]["ticker"] = "CRC"
+    source["certified_customer_evaluation"]["customer_publication_allowed"] = False
+    monkeypatch.setattr(renderer, "st", StreamlitStub())
+    monkeypatch.setattr(
+        renderer,
+        "_dark_line_chart",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("withheld Research rendered a chart")),
+    )
+
+    renderer.render_customer_research_v2(source, ask_cta=lambda _report: None)
+
+
+def test_research_renderer_has_no_reference_to_first_screen_local_header_alias():
+    """Guard the exact F821 regression that escaped projection-only tests."""
+    source = Path("ui/customer_research_v2.py").read_text(encoding="utf-8")
+    module = ast.parse(source)
+    renderer = next(
+        node for node in module.body
+        if isinstance(node, ast.FunctionDef) and node.name == "render_customer_research_v2"
+    )
+    undefined_header_aliases = [
+        node for node in ast.walk(renderer)
+        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load) and node.id == "h"
+    ]
+    assert undefined_header_aliases == []
 
 
 def test_financial_trend_requires_periods_provenance_and_equal_length(monkeypatch, tmp_path):
