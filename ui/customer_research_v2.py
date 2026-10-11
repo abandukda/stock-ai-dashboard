@@ -127,13 +127,24 @@ def _range_rows(frame: pd.DataFrame, selected: str) -> pd.DataFrame:
     return frame.loc[frame.index >= cutoff]
 
 
-def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[[Mapping[str, Any]], None]) -> None:
+def render_customer_research_first_screen(report: Mapping[str, Any]) -> dict[str, Any]:
+    """Render the settled ticker's customer-safe summary before search controls."""
     page = build_customer_research_v2(report)
     ticker = str(page.get("ticker") or "UNKNOWN")
     if page.get("status") != "AVAILABLE":
         _marker("terminal", ticker, state="RATING_NOT_PUBLISHED")
-        st.warning("ATLAS does not have a customer-publishable certified view for this security.")
-        return
+        st.markdown(
+            '<section data-atlas-qa="research-withheld-message" '
+            f'data-atlas-ticker="{escape(ticker)}" role="status" '
+            'style="padding:.9rem 1rem;border:1px solid rgba(251,191,36,.35);'
+            'border-radius:12px;background:rgba(120,53,15,.18);color:#f8fafc;'
+            'font-size:1rem;line-height:1.5;margin:.5rem 0 1rem">'
+            f'<strong>A certified ATLAS rating is not available for {escape(ticker)}.</strong><br>'
+            'This security requires additional review before ATLAS can publish an investment rating.'
+            '</section>',
+            unsafe_allow_html=True,
+        )
+        return page
     h = page["header"]
     confidence_score = f'{float(h["confidence"]):.0f}/100'
     _marker("root", ticker, version=page["version"], authority="certified_customer_evaluation", section_count=5)
@@ -164,16 +175,27 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
         st.caption(f'ATLAS Fair Value is {abs(float(h["fair_value_gap_pct"])):.2f}% {direction} the last certified close. This is not a guaranteed return.')
     if h["action"] not in {"BUY NOW", "BUILD A POSITION"}:
         st.caption("Not currently actionable — continue monitoring the certified evidence.")
+    return page
+
+
+def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[[Mapping[str, Any]], None]) -> None:
+    page = build_customer_research_v2(report)
+    ticker = str(page.get("ticker") or "UNKNOWN")
+    first_screen_rendered = st.session_state.pop("_atlas_research_first_screen_rendered", "") == ticker
+    if page.get("status") != "AVAILABLE":
+        if not first_screen_rendered:
+            render_customer_research_first_screen(report)
+        return
+    if not first_screen_rendered:
+        page = render_customer_research_first_screen(report)
     ask_cta(report)
 
     _marker("section", ticker, section_name="Decision")
     st.markdown("## Decision")
-    st.markdown("### Since ATLAS Flagged It")
     _marker("since-signal", ticker, status=page["signal"]["status"])
     signal = page["signal"]
-    if signal["status"] != "AVAILABLE":
-        st.info("No customer-published signal episode is available for this security.")
-    else:
+    if signal["status"] == "AVAILABLE":
+        st.markdown("### Since ATLAS Flagged It")
         s = st.columns(5)
         s[0].metric("Action at issuance", signal["action"])
         s[1].metric("Reference price", _money(signal["reference_price"]))
@@ -251,7 +273,6 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
                 _dark_line_chart(indicator_frame, height=260, y_title="Certified indicator value", key=f"research-technical-chart-{ticker}")
             else:
                 _marker("technical-indicators-chart", ticker, status="UNAVAILABLE")
-                st.info(technical.get("message") or "Certified technical-indicator history is unavailable for this snapshot.")
         else:
             st.info("Price history is unavailable under the governed display contract.")
 
@@ -265,9 +286,15 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
     if summary["risks"]:
         st.markdown("**Material risks**")
         _list(summary["risks"])
-    if summary["watch_next"]:
-        st.markdown("**What to watch**")
-        _list(summary["watch_next"])
+    weakest = summary.get("weakest_pillar") or {}
+    if weakest:
+        st.caption(f'Weakest certified pillar: {weakest["name"]} · {float(weakest["score"]):.1f}/100')
+    condition_labels = {"strengthen": "Strengthens the case", "weaken": "Weakens the case", "invalidate": "Invalidates the case"}
+    for key, label in condition_labels.items():
+        items = list((summary.get("watch_conditions") or {}).get(key) or ())
+        if items:
+            st.markdown(f"**{label}**")
+            _list(items)
 
     pillars = page.get("six_pillars") or {}
     valid_count = len(pillars.get("items") or ())
@@ -455,4 +482,4 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
     st.caption("Ask ATLAS remains grounded to this ticker and certified evaluation snapshot.")
 
 
-__all__ = ["render_customer_research_v2"]
+__all__ = ["render_customer_research_first_screen", "render_customer_research_v2"]

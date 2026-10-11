@@ -92,6 +92,21 @@ def test_zero_provider_run_does_not_claim_live_price_certification() -> None:
     assert 'ATLAS_QA_PROVIDER_CALLS_ALLOWED: "0"' in WORKFLOW
 
 
+def test_r1_visual_acceptance_is_an_explicit_fail_closed_b1_b18_gate() -> None:
+    for index in range(1, 19):
+        assert f'"B{index}"' in PREPARER
+    assert 'all(item["status"] == "PASS" for item in results_out)' in PREPARER
+    assert 'r1_acceptance["status"] == "PASS"' in PREPARER
+
+
+def test_customer_role_visual_evidence_covers_launch_surfaces_and_exact_viewports() -> None:
+    assert 'DESKTOP = {"width": 1440, "height": 900}' in CRAWLER
+    assert 'MOBILE = {"width": 390, "height": 844}' in CRAWLER
+    assert "_customer_role_visual_evidence" in CRAWLER
+    assert 'for ticker in ("NVDA", "AVT", "CRC")' in CRAWLER
+    assert 'interaction="customer-copy-contract"' in CRAWLER
+
+
 def test_supplementary_phase_is_non_blocking_and_runs_after_required_certification() -> None:
     required = WORKFLOW.index("Required-first customer surface certification")
     certify = WORKFLOW.index("Consolidate exact-authority certification")

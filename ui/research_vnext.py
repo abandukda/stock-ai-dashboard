@@ -1361,6 +1361,7 @@ def render_research_vnext(report: Mapping[str, Any], *, legacy: Mapping[str, Cal
     )
     st.markdown('<div class="atlas-kicker">Certified equity research</div>', unsafe_allow_html=True)
     if not publication_allowed:
+        first_screen_rendered = st.session_state.pop("_atlas_research_first_screen_rendered", "") == ticker
         fields = safe_mapping(certified_customer.get("fields"))
         price = safe_mapping(fields.get("price")).get("value")
         customer_message = (
@@ -1379,21 +1380,22 @@ def render_research_vnext(report: Mapping[str, Any], *, legacy: Mapping[str, Cal
             'data-atlas-publication-allowed="false" aria-hidden="true" style="display:none">research-terminal</span>',
             unsafe_allow_html=True,
         )
-        st.markdown(
-            '<section data-atlas-qa="research-withheld-message" '
-            f'data-atlas-ticker="{escape(ticker)}" role="status" '
-            'style="padding:.9rem 1rem;border:1px solid rgba(251,191,36,.35);'
-            'border-radius:12px;background:rgba(120,53,15,.18);color:#f8fafc;'
-            'font-size:1rem;line-height:1.5;margin:.5rem 0 1rem">'
-            f'<strong>{escape(RESEARCH_WITHHELD_PRIMARY_COPY)}</strong><br>'
-            f'{escape(customer_message)}</section>',
-            unsafe_allow_html=True,
-        )
-        if ticker != "CRC":
-            st.warning(RESEARCH_WITHHELD_SUPPORTING_COPY)
-        if price is not None:
-            st.metric("Certified Market Price", CanonicalNumberFormatter.price(price).display)
-        st.caption("Only independently certified facts are shown until the complete evaluation reconciles.")
+        if not first_screen_rendered:
+            st.markdown(
+                '<section data-atlas-qa="research-withheld-message" '
+                f'data-atlas-ticker="{escape(ticker)}" role="status" '
+                'style="padding:.9rem 1rem;border:1px solid rgba(251,191,36,.35);'
+                'border-radius:12px;background:rgba(120,53,15,.18);color:#f8fafc;'
+                'font-size:1rem;line-height:1.5;margin:.5rem 0 1rem">'
+                f'<strong>{escape(RESEARCH_WITHHELD_PRIMARY_COPY)}</strong><br>'
+                f'{escape(customer_message)}</section>',
+                unsafe_allow_html=True,
+            )
+            if ticker != "CRC":
+                st.warning(RESEARCH_WITHHELD_SUPPORTING_COPY)
+            if price is not None:
+                st.metric("Certified Market Price", CanonicalNumberFormatter.price(price).display)
+            st.caption("Only independently certified facts are shown until the complete evaluation reconciles.")
         return
     from ui.customer_research_v2 import render_customer_research_v2
     render_customer_research_v2(report, ask_cta=_render_ask_cta)

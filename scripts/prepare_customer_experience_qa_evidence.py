@@ -32,6 +32,68 @@ def _visual_page(item: dict[str, Any]) -> str:
     }.get(page, page.lower().replace(" ", "_"))
 
 
+def _r1_acceptance(
+    required: dict[str, Any], report_card_access: dict[str, Any], normalized: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Render the explicit, fail-closed R1 B1-B18 acceptance contract."""
+    results = required.get("results") or []
+
+    def state(*, category: str = "", interaction: str = "", ticker: str = "", viewport: str = "") -> str:
+        matches = [
+            item for item in results
+            if (not category or item.get("category") == category)
+            and (not interaction or item.get("interaction") == interaction)
+            and (not ticker or str(item.get("ticker_context") or "").upper() == ticker)
+            and (not viewport or item.get("viewport") == viewport)
+        ]
+        if not matches:
+            return "NOT_PROVEN"
+        return "PASS" if all(item.get("status") == "PASS" for item in matches) else "FAIL"
+
+    def combine(*values: str) -> str:
+        if "FAIL" in values:
+            return "FAIL"
+        return "PASS" if values and all(value == "PASS" for value in values) else "NOT_PROVEN"
+
+    viewer_shots = [item for item in required.get("screenshot_manifest") or [] if item.get("authenticated_role") == "customer_viewer"]
+    viewer_pages = {str(item.get("page") or "") for item in viewer_shots if item.get("generated")}
+    visual_pages = {str(item.get("page") or "") for item in normalized}
+    report_card_state = combine(*(str(item.get("status") or "NOT_PROVEN") for item in report_card_access.values()))
+    checks = {
+        "B1": ("Exact four-item customer navigation", state(category="GLOBAL", interaction="customer-navigation-authority")),
+        "B2": ("Admin authorization preserved", state(category="GLOBAL", interaction="role-isolation-internal_admin")),
+        "B3": ("Customer/internal route isolation", state(category="GLOBAL", interaction="role-isolation-customer_viewer")),
+        "B4": ("Desktop published Research scroll-zero hierarchy", combine(*(
+            state(category="RESEARCH_FIRST_SCREEN", ticker=ticker, viewport="desktop") for ticker in ("NVDA", "MSFT", "AVT")
+        ))),
+        "B5": ("Mobile published Research scroll-zero hierarchy", combine(*(
+            state(category="RESEARCH_FIRST_SCREEN", ticker=ticker, viewport="mobile") for ticker in ("NVDA", "MSFT", "AVT")
+        ))),
+        "B6": ("CRC desktop visible withheld explanation", state(category="RESEARCH_FIRST_SCREEN", ticker="CRC", viewport="desktop")),
+        "B7": ("CRC mobile visible withheld explanation", state(category="RESEARCH_FIRST_SCREEN", ticker="CRC", viewport="mobile")),
+        "B8": ("CRC governed withheld terminal without fabricated metrics", combine(
+            state(category="RESEARCH", ticker="CRC", viewport="desktop"),
+            state(category="RESEARCH", ticker="CRC", viewport="mobile"),
+        )),
+        "B9": ("Exact ticker ownership and no stale Research context", state(category="RESEARCH", interaction="submit")),
+        "B10": ("Six-pillar chart/table numeric parity", state(category="RESEARCH_ARCHITECTURE", interaction="vnext-five-section-contract")),
+        "B11": ("Cross-ticker chart ownership", state(category="RESEARCH_ARCHITECTURE", interaction="vnext-five-section-contract")),
+        "B12": ("Research/Ask canonical authority parity", state(category="ASK_RECONCILIATION", interaction="context-digest")),
+        "B13": ("Customer Report Card OFF behavior", report_card_state),
+        "B14": ("Customer-role Home, Research, Watchlist and Ask visual evidence", "PASS" if {"Home", "Research Any Ticker", "Watchlist Intelligence", "Ask AI"} <= viewer_pages else "NOT_PROVEN"),
+        "B15": ("No raw customer enums or ISO timestamps", state(category="UX", interaction="customer-copy-contract")),
+        "B16": ("No empty-only Research sections", state(category="UX", interaction="customer-copy-contract")),
+        "B17": ("Complete original-resolution visual evidence", "PASS" if {"home", "research_nvda", "research_msft", "research_avt", "watchlist", "ask_grounded"} <= visual_pages else "NOT_PROVEN"),
+        "B18": ("Required browser phase, no critical exception", str((required.get("required_completeness") or {}).get("status") or "NOT_PROVEN")),
+    }
+    results_out = [
+        {"criterion": key, "description": description, "status": status}
+        for key, (description, status) in checks.items()
+    ]
+    overall = "PASS" if all(item["status"] == "PASS" for item in results_out) else "FAIL"
+    return {"status": overall, "criteria": results_out}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", required=True)
@@ -103,8 +165,9 @@ def main() -> int:
         report_card_links.get("status") == "PASS"
         and all(value.get("status") == "PASS" for value in report_card_access.values())
     )
+    r1_acceptance = _r1_acceptance(required, report_card_access, normalized)
     browser = {
-        "status": "PASS" if required_pass and report_card_pass else "FAIL",
+        "status": "PASS" if required_pass and report_card_pass and r1_acceptance["status"] == "PASS" else "FAIL",
         "required_phase": required.get("required_completeness"),
         "required_duration_seconds": required.get("duration_seconds"),
         "required_phase_budget": required.get("required_phase_budget"),
@@ -113,6 +176,7 @@ def main() -> int:
         "report_card_access": report_card_access,
         "market_price_certification": "ZERO_PROVIDER_RENDERED_CLASSIFICATION_ONLY",
         "supplementary": {"status": "SEPARATE_NON_BLOCKING_ARTIFACT"},
+        "r1_visual_acceptance": r1_acceptance,
     }
     (root / "browser" / "customer_required_phase.json").write_text(json.dumps(browser, indent=2) + "\n")
     return 0

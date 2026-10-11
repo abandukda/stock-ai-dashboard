@@ -125,6 +125,10 @@ def _real_risks(values: Iterable[Any]) -> list[str]:
             continue
         if "is rated Under review" in text:
             continue
+        # A retained ratio must never be presented as a dollar-denominated
+        # risk. Fail closed instead of guessing the intended unit.
+        if re.search(r"\b(?:FCF|free cash flow)\b.*\bconversion\b", text, re.I) and "$" in text:
+            continue
         output.append(text)
     return output[:4]
 
@@ -164,7 +168,8 @@ def _research_brief(
         if sentence not in seen:
             reasons.append(sentence)
             seen.add(sentence)
-    for item in pillars.get("items") or ():
+    pillar_items = tuple(pillars.get("items") or ())
+    for item in pillar_items:
         if len(reasons) >= 3:
             break
         name = str(item.get("pillar") or "").replace("_", " ").title()
@@ -177,14 +182,31 @@ def _research_brief(
     if gap is not None and len(reasons) < 3:
         reasons.append(f"ATLAS Fair Value is {abs(float(gap)):.1f}% {'above' if gap >= 0 else 'below'} the last certified close.")
     material_risks = list(dict.fromkeys(str(item).strip() for item in risks if str(item).strip()))[:3]
-    watch = [
-        str(item).strip()
-        for key in ("strengthen", "weaken", "invalidate")
-        for item in _seq(conditions.get(key))
-        if str(item).strip()
-    ]
-    # Only retain governed, non-tautological conditions.
-    watch = [item for item in dict.fromkeys(watch) if not re.search(r"\b(current|baseline)\b.*\b(current|baseline)\b", item, re.I)][:3]
+    categorized: dict[str, list[str]] = {"strengthen": [], "weaken": [], "invalidate": []}
+    seen_conditions: set[str] = set()
+    for key in categorized:
+        for raw in _seq(conditions.get(key)):
+            item = str(raw).strip()
+            normalized = re.sub(r"\s+", " ", item).casefold()
+            if not item or normalized in seen_conditions:
+                continue
+            if re.search(r"\b(current|baseline)\b.*\b(current|baseline)\b", item, re.I):
+                continue
+            categorized[key].append(item)
+            seen_conditions.add(normalized)
+            if len(categorized[key]) == 2:
+                break
+    weakest = min(
+        (
+            (str(item.get("pillar") or "").replace("_", " ").title(), float(item["certified_score"]))
+            for item in pillar_items
+            if str(item.get("pillar") or "")
+            and isinstance(item.get("certified_score"), (int, float))
+            and math.isfinite(float(item["certified_score"]))
+        ),
+        key=lambda item: item[1],
+        default=None,
+    )
     valuation = (
         f" ATLAS Fair Value is {abs(float(gap)):.1f}% {'above' if gap >= 0 else 'below'} the last certified close."
         if gap is not None else ""
@@ -193,7 +215,9 @@ def _research_brief(
         "verdict": f"ATLAS rates {ticker} {action}.{valuation}",
         "why_rating": reasons[:3],
         "risks": material_risks,
-        "watch_next": watch,
+        "watch_next": [item for values in categorized.values() for item in values][:3],
+        "watch_conditions": categorized,
+        "weakest_pillar": ({"name": weakest[0], "score": weakest[1]} if weakest else None),
     }
 
 

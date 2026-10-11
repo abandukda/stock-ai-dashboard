@@ -27819,6 +27819,10 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
     _research_widget_trace("before_research_form_creation", active_route=st.session_state.get("v784_single_nav"))
     _emit_research_entry_stage("RESEARCH_ROUTE_ENTERED")
     v8055_inject_research_css()
+    # A settled report fills this earlier container later in the same rerun.
+    # This keeps certified decision evidence at scroll zero without moving or
+    # duplicating the ticker-bound authority payload.
+    _research_first_screen_slot = st.container()
     st.markdown("<div class='v65-section-title'>🔎 Live Atlas Research</div>",unsafe_allow_html=True)
     st.markdown("<div class='v65-subtitle'>Paid-client research combines current retrieval with the richest verified saved evidence across all Atlas datasets.</div>",unsafe_allow_html=True)
     st.markdown(
@@ -28054,11 +28058,27 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
             st.warning(f"Live refresh was unavailable for {ticker}; showing its verified saved Atlas research.")
         company=str(v8054_first_meaningful(merged,["company","Company","company_name","name"],ticker) or ticker)
         is_etf=bool(merged.get("is_etf") or str(v8054_first_meaningful(merged,["security_type","Security Type"],"")).upper()=="ETF")
-        security_type="ETF" if is_etf else str(v8054_first_meaningful(merged,["security_type","Security Type"],"Equity") or "Equity")
+        _raw_security_type = str(v8054_first_meaningful(merged,["security_type","Security Type"],"") or "").strip().upper()
+        security_type = {
+            "COMMON_STOCK": "Common stock",
+            "COMMON STOCK": "Common stock",
+            "ETF": "Exchange-traded fund",
+        }.get(_raw_security_type, _raw_security_type.replace("_", " ").title())
         generated_at=str(v8054_first_meaningful(merged,["research_refreshed_at","generated_at","scan_timestamp","Generated At"],"") or "Unavailable")
-        _research_context_caption = f"Research context · {ticker} · {company} · {security_type}"
+        _research_context_caption = f"Research context · {ticker} · {company}"
+        if security_type:
+            _research_context_caption += f" · {security_type}"
         if generated_at not in {"", "Unavailable"}:
             _research_context_caption += f" · Generated {v8055_format_et(generated_at)}"
+        try:
+            from ui.customer_research_v2 import render_customer_research_first_screen
+            with _research_first_screen_slot:
+                render_customer_research_first_screen(merged)
+            st.session_state["_atlas_research_first_screen_rendered"] = ticker
+        except Exception:
+            # The canonical renderer below remains the fail-closed authority;
+            # a preview failure must never suppress or replace it.
+            st.session_state.pop("_atlas_research_first_screen_rendered", None)
         st.caption(_research_context_caption)
         try:
             from agents.runtime_qa_architecture import encode_context_summary, sanitize_research_context
@@ -28558,7 +28578,7 @@ def main():
     # controls and PAGE_INTERACTIVE lifecycle marker.  Filling a Streamlit
     # container after the route renderer preserves the layout while allowing
     # navigation and customer interaction to settle first.
-    _market_tape_slot = st.container() if selected_route != "Home" else None
+    _market_tape_slot = st.container() if selected_route not in {"Home", "Research Any Ticker"} else None
     if selected_route=="Home":
         _home_runtime_trace("home_route_dispatch_started")
         v810_render_dynamic_home(full_df,source_df,recovery_df)
@@ -28604,6 +28624,9 @@ def main():
             navigation_pages=pages,
             app_version=APP_VERSION,
         )
+    if selected_route == "Research Any Ticker":
+        with st.expander("Market context", expanded=False):
+            render_v72_market_tape(always_show=False)
     if _market_tape_slot is not None:
         with _market_tape_slot:
             if selected_route in {"Ask AI", "Earnings Intelligence", "Recovery"}:

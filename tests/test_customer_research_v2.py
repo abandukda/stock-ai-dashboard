@@ -230,13 +230,43 @@ def test_retained_cross_ticker_navigation_never_reuses_chart_or_authority_payloa
 def test_r1_brief_uses_distinct_period_labeled_certified_facts_and_no_boilerplate():
     result = build_customer_research_v2(report())
     brief = result["summary"]
-    assert tuple(brief) == ("verdict", "why_rating", "risks", "watch_next")
+    assert tuple(brief) == (
+        "verdict", "why_rating", "risks", "watch_next",
+        "watch_conditions", "weakest_pillar",
+    )
     assert brief["verdict"].startswith("ATLAS rates NVDA BUY NOW.")
     assert len(brief["why_rating"]) >= 2
     assert "Oct 8, 2026 close" in brief["why_rating"][0]
     assert "Oct 8, 2026 snapshot" in brief["why_rating"][1]
     assert len(set(brief["why_rating"])) == len(brief["why_rating"])
     assert all("Why ATLAS Likes It" not in value for value in brief["why_rating"])
+    assert brief["weakest_pillar"] == {"name": "Fundamental Quality", "score": 84.0}
+
+
+def test_brief_deduplicates_cross_category_conditions_without_inventing_copy():
+    source = report()
+    source["guidance_summary"] = {"thesis_change_conditions": {
+        "strengthen": ["Margins expand", "Margins expand"],
+        "weaken": ["Margins expand", "Revenue slows"],
+        "invalidate": ["Balance-sheet evidence fails"],
+    }}
+    conditions = build_customer_research_v2(source)["summary"]["watch_conditions"]
+    assert conditions == {
+        "strengthen": ["Margins expand"],
+        "weaken": ["Revenue slows"],
+        "invalidate": ["Balance-sheet evidence fails"],
+    }
+
+
+def test_dollar_denominated_fcf_conversion_risk_fails_closed():
+    source = report()
+    source["intelligence"] = {"key_risks": [
+        "FCF conversion is $0.72.",
+        "Customer concentration remains elevated.",
+    ]}
+    assert build_customer_research_v2(source)["summary"]["risks"] == [
+        "Customer concentration remains elevated."
+    ]
 
 
 def test_r1_six_pillar_frame_renders_fractional_weights_as_percent():
@@ -474,6 +504,18 @@ def test_renderer_uses_customer_safe_labels_and_escapes_currency():
     assert "_escape_markdown_currency(item)" in source
     assert "**Why this rating**" in source
     assert "**Material risks**" in source
+    assert "Strengthens the case" in source
+    assert "Weakens the case" in source
+    assert "Invalidates the case" in source
+    assert "Weakest certified pillar" in source
+
+
+def test_research_first_screen_is_rendered_before_search_and_market_context():
+    app_source = __import__("pathlib").Path("app.py").read_text(encoding="utf-8")
+    route = app_source.split("def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=None):", 1)[1]
+    assert route.index("_research_first_screen_slot = st.container()") < route.index('with st.form("research_ticker_form"')
+    assert 'selected_route not in {"Home", "Research Any Ticker"}' in app_source
+    assert 'with st.expander("Market context", expanded=False)' in app_source
 
 
 def test_markdown_currency_escape_preserves_governed_debt_cash_text(monkeypatch):

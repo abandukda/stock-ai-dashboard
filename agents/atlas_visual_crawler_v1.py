@@ -223,7 +223,7 @@ def recovery_candidate_archetypes(candidates: list[dict[str, Any]]) -> list[tupl
             seen.add(identity)
             output.append((role, candidate))
     return output
-DESKTOP = {"width": 1440, "height": 1000}
+DESKTOP = {"width": 1440, "height": 900}
 MOBILE = {"width": 390, "height": 844}
 GLOBAL_FATALS = {"APP_UNREACHABLE", "AUTHENTICATION_FAILED", "BROWSER_DIED"}
 
@@ -2560,6 +2560,38 @@ class AtlasVisualCrawler:
                 await page.wait_for_timeout(150)
                 first_text = await _visible_text(page)
                 overflow = await page.evaluate("() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 2")
+                raw_customer_tokens = sorted({
+                    token for token in ("COMMON_STOCK", "GENERIC_EQUITY") if token in first_text
+                })
+                raw_iso_timestamps = sorted(set(re.findall(
+                    r"\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})\b",
+                    first_text,
+                )))
+                empty_sections = await page.evaluate("""() => {
+                  const labels = new Set(['Since ATLAS Flagged It', 'Technical history', 'Catalysts', 'What Changed', 'Risks']);
+                  const empty = [];
+                  for (const node of document.querySelectorAll('h1,h2,h3,h4,h5,h6,[data-testid="stSubheader"]')) {
+                    const label = (node.textContent || '').trim();
+                    if (!labels.has(label)) continue;
+                    const block = node.closest('[data-testid="stVerticalBlock"]') || node.parentElement;
+                    const text = (block?.innerText || '').replace(label, '').trim();
+                    if (!text) empty.push(label);
+                  }
+                  return empty;
+                }""")
+                copy_passed = not raw_customer_tokens and not raw_iso_timestamps and not empty_sections
+                await self._record(
+                    category="UX", page_name="Research Any Ticker",
+                    interaction="customer-copy-contract",
+                    expected="No raw enums or ISO timestamps and no empty-only Research sections",
+                    observed=json.dumps({
+                        "raw_tokens": raw_customer_tokens,
+                        "raw_iso_timestamps": raw_iso_timestamps,
+                        "empty_sections": empty_sections,
+                    }, sort_keys=True),
+                    passed=copy_passed, elapsed=time.monotonic() - started,
+                    ticker=ticker, viewport=viewport, screenshots=(), severity="P1",
+                )
                 first_screen_pass, first_screen_expected = research_first_screen_contract(
                     completion, first_text, overflow=bool(overflow),
                 )
@@ -2575,7 +2607,7 @@ class AtlasVisualCrawler:
                     passed=first_screen_pass, elapsed=time.monotonic() - started,
                     ticker=ticker, viewport=viewport, screenshots=(first_shot,), severity="P1",
                 )
-                passed = passed and first_screen_pass
+                passed = passed and first_screen_pass and copy_passed
             after = await self._shot(page, page_name="Research Any Ticker", interaction=f"submit-{ticker}", state="after", viewport=viewport, ticker=ticker, complete_surface=ticker != "INVALID123")
             if passed and architecture.get("version") == RESEARCH_V2_VERSION:
                 await self._research_v2_section_screenshots(page, ticker, viewport)
@@ -3056,6 +3088,38 @@ class AtlasVisualCrawler:
             raise GlobalCrawlFailure("REQUIRED_WATCHLIST_MOBILE_FAILED")
         await asyncio.wait_for(self._ask(page, viewport="mobile"), timeout=35)
 
+    async def _customer_role_visual_evidence(self, page: Page) -> None:
+        """Capture the launch-critical customer surfaces in a real viewer session."""
+        await page.set_viewport_size(DESKTOP)
+        await asyncio.wait_for(self._page_visit(page, "Home", viewport="desktop"), timeout=30)
+        await self._shot(
+            page, page_name="Home", interaction="customer-role-evidence",
+            state="scroll-zero", viewport="desktop", complete_surface=True,
+        )
+        for ticker in ("NVDA", "AVT", "CRC"):
+            passed = await asyncio.wait_for(
+                self._submit_research(page, ticker, tabs=False, viewport="desktop"), timeout=45,
+            )
+            if not passed:
+                raise GlobalCrawlFailure(f"CUSTOMER_ROLE_RESEARCH_FAILED_{ticker}")
+        if not await asyncio.wait_for(
+            self._page_visit(page, "Watchlist Intelligence", viewport="desktop"), timeout=20,
+        ):
+            raise GlobalCrawlFailure("CUSTOMER_ROLE_WATCHLIST_FAILED")
+        await self._shot(
+            page, page_name="Watchlist Intelligence", interaction="customer-role-evidence",
+            state="visible", viewport="desktop", complete_surface=True,
+        )
+        await asyncio.wait_for(self._ask(page, viewport="desktop"), timeout=35)
+
+        await page.set_viewport_size(MOBILE)
+        for ticker in ("NVDA", "AVT", "CRC"):
+            passed = await asyncio.wait_for(
+                self._submit_research(page, ticker, tabs=False, viewport="mobile"), timeout=45,
+            )
+            if not passed:
+                raise GlobalCrawlFailure(f"CUSTOMER_ROLE_RESEARCH_FAILED_{ticker}_MOBILE")
+
     async def _supplementary_mobile(self, page: Page) -> None:
         await page.set_viewport_size(MOBILE)
         for page_name in (name for name in MOBILE_PAGES if name not in {"Home", "Research Any Ticker"}):
@@ -3147,6 +3211,7 @@ class AtlasVisualCrawler:
                         )
                         await self._customer_navigation_contract(viewer_page)
                         await self._role_isolation_contract(viewer_page, expected_role="customer_viewer")
+                        await self._customer_role_visual_evidence(viewer_page)
                     finally:
                         await viewer_context.close()
                 if phase in {"supplementary", "all"}:
