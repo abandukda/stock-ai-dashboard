@@ -25,6 +25,7 @@ from agents.atlas_visual_crawler_v1 import (
     certified_research_fields_for_terminal,
     certified_research_fields_reconciled,
     normalize_research_action,
+    research_first_screen_contract,
     research_submission_failure,
     research_submission_proven,
     required_research_authority_failures,
@@ -117,10 +118,66 @@ def _unpublished_completion(**overrides):
         "vnext": True, "certified_fields_reconciled": False,
         "provider_boundary_zero": True, "publication_allowed": False,
         "withheld_terminal": True,
+        "withheld_message_visible": True, "complete": True,
+        "certified_fields": {"action": "RATING_NOT_PUBLISHED"},
+        "published_decision_evidence": False, "pillar_count": 0,
+        "pillar_chart_series": {}, "pillar_table_series": {},
+        "rendered_exception": False,
         "research_terminal_state": "RATING_NOT_PUBLISHED_COMPLETE",
     }
     value.update(overrides)
     return value
+
+
+def test_first_screen_contract_branches_published_and_withheld_requirements():
+    published = _unpublished_completion(
+        research_terminal_state="PUBLISHED_RESEARCH_COMPLETE",
+        publication_allowed=True, withheld_terminal=False,
+    )
+    passed, expected = research_first_screen_contract(
+        published,
+        "Certified ATLAS Research Action BUY NOW Last Certified Close Oct 9 "
+        "ATLAS Fair Value $346.05 Opportunity 85.96",
+        overflow=False,
+    )
+    assert passed is True
+    assert "Fair Value" in expected
+    assert research_first_screen_contract(
+        published, "Certified ATLAS Research", overflow=False,
+    )[0] is False
+
+    crc = _unpublished_completion()
+    passed, expected = research_first_screen_contract(
+        crc, "A certified ATLAS rating is not available for CRC.", overflow=False,
+    )
+    assert passed is True
+    assert "withheld terminal" in expected
+    assert "Last Certified Close" not in expected
+
+
+def test_withheld_first_screen_fails_closed_on_policy_visibility_identity_or_fabrication():
+    for mutation in (
+        {"publication_allowed": True},
+        {"withheld_terminal": False},
+        {"withheld_message_visible": False},
+        {"ticker": False},
+        {"no_stale_ticker": False},
+        {"rendered_exception": True},
+        {"certified_fields": {"action": "BUY_NOW"}},
+        {"certified_fields": {"action": "RATING_NOT_PUBLISHED", "atlas_fair_value": "$100"}},
+        {"pillar_count": 1},
+        {"pillar_chart_series": {"valuation": {"score": 88}}},
+    ):
+        assert research_first_screen_contract(
+            _unpublished_completion(**mutation),
+            "A certified ATLAS rating is not available for CRC.",
+            overflow=False,
+        )[0] is False
+    assert research_first_screen_contract(
+        _unpublished_completion(),
+        "A certified ATLAS rating is not available for CRC.",
+        overflow=True,
+    )[0] is False
 
 
 def test_submission_proof_accepts_only_explicit_governed_unpublished_terminal():

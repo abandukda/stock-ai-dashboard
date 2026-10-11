@@ -398,6 +398,49 @@ def certified_research_fields_for_terminal(
     return resolved
 
 
+def research_first_screen_contract(
+    completion: dict[str, Any], visible_text: str, *, overflow: bool,
+) -> tuple[bool, str]:
+    """Validate the first screen according to its certified terminal type."""
+    terminal = str(completion.get("research_terminal_state") or "")
+    if terminal == "PUBLISHED_RESEARCH_COMPLETE":
+        required = (
+            "CERTIFIED ATLAS RESEARCH", "Last Certified Close",
+            "ATLAS Fair Value", "Opportunity",
+        )
+        visible = all(item.lower() in str(visible_text or "").lower() for item in required)
+        return bool(visible and not overflow), (
+            "Action, certified close/date, Fair Value and Opportunity visible "
+            "with no horizontal overflow"
+        )
+
+    fields = dict(completion.get("certified_fields") or {})
+    action = normalize_research_action(str(fields.pop("action", "") or ""))
+    no_fabricated_metrics = bool(
+        action == "RATING_NOT_PUBLISHED"
+        and not fields
+        and not completion.get("published_decision_evidence")
+        and int(completion.get("pillar_count") or 0) == 0
+        and not completion.get("pillar_chart_series")
+        and not completion.get("pillar_table_series")
+    )
+    valid_withheld = bool(
+        terminal == "RATING_NOT_PUBLISHED_COMPLETE"
+        and completion.get("complete")
+        and completion.get("ticker")
+        and completion.get("no_stale_ticker")
+        and completion.get("publication_allowed") is False
+        and completion.get("withheld_terminal")
+        and completion.get("withheld_message_visible")
+        and not completion.get("rendered_exception")
+        and no_fabricated_metrics
+    )
+    return bool(valid_withheld and not overflow), (
+        "Exact-ticker governed withheld terminal and visible customer-safe "
+        "explanation, with no fabricated investment metrics or overflow"
+    )
+
+
 def required_research_authority_failures(
     observed: dict[str, Any], expected_fact: dict[str, Any], expected_identity: dict[str, Any],
 ) -> list[str]:
@@ -2516,9 +2559,10 @@ class AtlasVisualCrawler:
                 }""")
                 await page.wait_for_timeout(150)
                 first_text = await _visible_text(page)
-                required_first = ("CERTIFIED ATLAS RESEARCH", "Last Certified Close", "ATLAS Fair Value", "Opportunity")
-                first_screen_pass = all(item.lower() in first_text.lower() for item in required_first)
                 overflow = await page.evaluate("() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 2")
+                first_screen_pass, first_screen_expected = research_first_screen_contract(
+                    completion, first_text, overflow=bool(overflow),
+                )
                 first_shot = await self._shot(
                     page, page_name="Research Any Ticker", interaction=f"first-screen-{ticker}",
                     state="scroll-zero", viewport=viewport, ticker=ticker,
@@ -2526,12 +2570,12 @@ class AtlasVisualCrawler:
                 await self._record(
                     category="RESEARCH_FIRST_SCREEN", page_name="Research Any Ticker",
                     interaction="scroll-zero-decision-strip",
-                    expected="Action, certified close/date, Fair Value and Opportunity visible with no horizontal overflow",
+                    expected=first_screen_expected,
                     observed=f"required_visible={first_screen_pass}; overflow={overflow}",
-                    passed=first_screen_pass and not overflow, elapsed=time.monotonic() - started,
+                    passed=first_screen_pass, elapsed=time.monotonic() - started,
                     ticker=ticker, viewport=viewport, screenshots=(first_shot,), severity="P1",
                 )
-                passed = passed and first_screen_pass and not overflow
+                passed = passed and first_screen_pass
             after = await self._shot(page, page_name="Research Any Ticker", interaction=f"submit-{ticker}", state="after", viewport=viewport, ticker=ticker, complete_surface=ticker != "INVALID123")
             if passed and architecture.get("version") == RESEARCH_V2_VERSION:
                 await self._research_v2_section_screenshots(page, ticker, viewport)
