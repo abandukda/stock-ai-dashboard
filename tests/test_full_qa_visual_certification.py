@@ -69,7 +69,8 @@ def test_withheld_research_banner_never_formats_missing_action_as_watch():
     assert 'publication_withheld = bool(' in function
     assert 'banner_state = RESEARCH_WITHHELD_PRIMARY_COPY if publication_withheld' in function
     assert 'data-atlas-research-terminal="{RESEARCH_TERMINAL_RATING_NOT_PUBLISHED}"' in source
-    assert 'A certified ATLAS rating is not available for {escape(ticker)}.' in source
+    assert 'data-atlas-qa="research-withheld-message"' in source
+    assert 'RESEARCH_WITHHELD_SECTOR_REVIEW_COPY.format(ticker=ticker)' in source
 
 
 def test_withheld_research_returns_before_published_sections_and_ask_cta():

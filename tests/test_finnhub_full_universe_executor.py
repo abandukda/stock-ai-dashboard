@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 import services.finnhub_full_universe_executor as executor
+from scripts.finnhub_canonical_proving_set import NormalizedEvidence
 
 
 def universe(symbols=("A", "B", "C")):
@@ -44,7 +45,7 @@ def test_acquisition_cache_calls_each_authorized_family_once(monkeypatch, tmp_pa
         return {"provenance": {"certification_status": "CERTIFIED", "raw_evidence_id": f"{symbol}:{capability}"}}
 
     def fake_normalized(symbol, _classification, _records):
-        return ({"ticker": symbol}, [], [])
+        return NormalizedEvidence({"ticker": symbol}, {}, {"ticker": symbol}, [], [])
 
     monkeypatch.setattr(executor, "_fetch", fake_fetch)
     monkeypatch.setattr(executor, "_normalized_row", fake_normalized)
@@ -79,7 +80,9 @@ def test_acquisition_checkpoint_from_other_run_is_not_reused(monkeypatch, tmp_pa
         calls.append((symbol, capability)) or
         {"provenance": {"certification_status": "CERTIFIED", "raw_evidence_id": f"{symbol}:{capability}"}}
     ))
-    monkeypatch.setattr(executor, "_normalized_row", lambda symbol, _classification, _records: ({"ticker": symbol}, [], []))
+    monkeypatch.setattr(executor, "_normalized_row", lambda symbol, _classification, _records: NormalizedEvidence(
+        {"ticker": symbol}, {}, {"ticker": symbol}, [], [],
+    ))
     scope = universe(("A",)); shard = executor.deterministic_shards(["A"], shard_size=1)[0]
     first_identity = identity(scope)
     executor.acquire_shard(adapter=object(), shard=shard, identity=first_identity, catalog={}, pace_seconds=0,

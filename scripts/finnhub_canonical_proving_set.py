@@ -7,6 +7,7 @@ uses the existing ATLAS engines unchanged and persists immutable diagnostics.
 from __future__ import annotations
 
 import argparse
+from dataclasses import dataclass
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -34,6 +35,17 @@ from services.live_market.models import FeedHealth, SecurityType
 VERSION = "ATLAS_FINNHUB_CANONICAL_PROVING_SET_V1"
 SYMBOLS = ("AAPL", "MSFT", "NVDA", "WMT", "IBM", "F", "PFE", "TSLA", "ORCL", "COST", "GM", "AMGN")
 PEER_BATCH_SIZE = 8
+
+
+@dataclass(frozen=True)
+class NormalizedEvidence:
+    """Independently preserved identity, analytical inputs, and blockers."""
+
+    security_master: dict[str, Any]
+    analytical_inputs: dict[str, Any]
+    row: dict[str, Any] | None
+    bars: list[DailyBar]
+    blockers: list[str]
 
 
 def _num(value: Any) -> float | None:
@@ -90,7 +102,7 @@ def _historical_route_count(diagnostics: Mapping[str, Mapping[str, Any]]) -> int
     )
 
 
-def _normalized_row(symbol: str, classification: Mapping[str, Any], records: Mapping[str, Mapping[str, Any]]) -> tuple[dict[str, Any] | None, list[DailyBar], list[str]]:
+def _normalized_row(symbol: str, classification: Mapping[str, Any], records: Mapping[str, Mapping[str, Any]]) -> NormalizedEvidence:
     blockers = []
     payloads = {}
     evidence_ids = []
@@ -111,6 +123,7 @@ def _normalized_row(symbol: str, classification: Mapping[str, Any], records: Map
     facts = (report or {}).get("canonical_facts") or {}
     basics = payloads.get("basic_financials") or {}
     profile = payloads.get("company_profile") or {}
+    profile_provenance = (records.get("company_profile") or {}).get("provenance") or {}
     if not report: blockers.append("LATEST_FY_FINANCIAL_REPORT_MISSING")
     if len(bars) < 200: blockers.append("COMPLETED_TECHNICAL_HISTORY_INSUFFICIENT")
     resolved_classification = dict(classification)
@@ -118,8 +131,41 @@ def _normalized_row(symbol: str, classification: Mapping[str, Any], records: Map
     resolved_classification.setdefault("industry", profile.get("industry"))
     if not resolved_classification.get("sector") or not resolved_classification.get("industry"):
         blockers.append("GOVERNED_CLASSIFICATION_UNRESOLVED")
+    security_master = {
+        "ticker": symbol,
+        "company_name": profile.get("name"),
+        "security_type": resolved_classification.get("security_type"),
+        "exchange": profile.get("exchange"),
+        "sector": resolved_classification.get("sector"),
+        "industry": resolved_classification.get("industry"),
+        "model_domain": resolved_classification.get("model_domain"),
+        "profile_evidence_id": profile_provenance.get("raw_evidence_id"),
+        "provider": profile_provenance.get("provider"),
+        "capture_timestamp": profile_provenance.get("capture_timestamp"),
+        "certification_status": profile_provenance.get("certification_status"),
+        "missing_fields": tuple(
+            key for key, value in (
+                ("company_name", profile.get("name")),
+                ("security_type", resolved_classification.get("security_type")),
+                ("exchange", profile.get("exchange")),
+                ("sector", resolved_classification.get("sector")),
+                ("industry", resolved_classification.get("industry")),
+            ) if value in (None, "")
+        ),
+    }
+    analytical_inputs = {
+        "latest_fy_available": report is not None,
+        "completed_bar_count": len(bars),
+        "evidence_ids": tuple(sorted(str(item) for item in evidence_ids if item)),
+        "financial_statement_evidence_id": (
+            (records.get("financial_statements") or {}).get("provenance") or {}
+        ).get("raw_evidence_id"),
+        "historical_ohlcv_evidence_id": (
+            (records.get("historical_ohlcv") or {}).get("provenance") or {}
+        ).get("raw_evidence_id"),
+    }
     if blockers:
-        return None, bars, blockers
+        return NormalizedEvidence(security_master, analytical_inputs, None, bars, blockers)
 
     def fact(name: str) -> float | None:
         return _num((facts.get(name) or {}).get("value"))
@@ -184,7 +230,7 @@ def _normalized_row(symbol: str, classification: Mapping[str, Any], records: Map
         "finnhub_authority_version": AUTHORITY_VERSION,
         "forward_contract_status": "CONTRACT_PENDING",
     }
-    return row, bars, []
+    return NormalizedEvidence(security_master, analytical_inputs, row, bars, [])
 
 
 def evaluate_canonical_row(
@@ -384,7 +430,8 @@ def build_report(*, pace_seconds: float = 1.05) -> dict[str, Any]:
             "historical_ohlcv": _fetch(adapter, "historical_ohlcv", symbol, pace_seconds, resolution="D", **{"from": start, "to": end}),
         }
         provider_calls += 4
-        row, bars, blockers = _normalized_row(symbol, classification, records)
+        normalized = _normalized_row(symbol, classification, records)
+        row, bars, blockers = normalized.row, normalized.bars, normalized.blockers
         diagnostics[symbol] = {"authority_blockers": blockers, "record_statuses": {
             key: (value.get("provenance") or {}).get("certification_status") for key, value in records.items()
         }}

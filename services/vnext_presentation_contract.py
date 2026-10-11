@@ -25,6 +25,10 @@ RESEARCH_WITHHELD_PRIMARY_COPY: Final = "RATING NOT PUBLISHED"
 RESEARCH_WITHHELD_SUPPORTING_COPY: Final = (
     "ATLAS does not have enough certified evidence to publish a rating for this snapshot."
 )
+RESEARCH_WITHHELD_SECTOR_REVIEW_COPY: Final = (
+    "ATLAS has not published a certified rating for {ticker} because its "
+    "sector-specific valuation model requires additional review."
+)
 MIGRATION_BASELINE_VERSION: Final = "ATLAS_VNEXT_UX2_RESEARCH_MIGRATION_BASELINE"
 MIGRATION_BASELINE_CLASSIFICATION: Final = "VERSIONED_REPLACEABLE_MIGRATION_BASELINE"
 

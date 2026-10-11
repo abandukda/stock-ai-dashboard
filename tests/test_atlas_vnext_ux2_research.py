@@ -384,6 +384,23 @@ def test_real_streamlit_withheld_research_is_a_safe_terminal_state(ticker):
         assert forbidden not in visible
 
 
+def test_crc_withheld_research_has_visible_sector_review_explanation():
+    app = _render_withheld_app("CRC")
+    assert not app.exception
+    visible = " ".join(
+        [item.value for item in app.markdown]
+        + [item.value for item in app.warning]
+        + [item.value for item in app.caption]
+    )
+    assert (
+        "ATLAS has not published a certified rating for CRC because its "
+        "sector-specific valuation model requires additional review."
+    ) in visible
+    assert 'data-atlas-qa="research-withheld-message"' in visible
+    assert 'data-atlas-ticker="CRC"' in visible
+    assert "ATLAS Fair Value" not in visible
+
+
 def test_absent_certified_wrapper_is_governed_withheld_terminal_not_published_surface():
     report = report_fixture(ticker="CRC", verdict="REVIEW_REQUIRED", completeness=40.0)
     report.pop("certified_customer_evaluation", None)

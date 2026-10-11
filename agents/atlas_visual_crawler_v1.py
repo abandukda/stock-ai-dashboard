@@ -174,12 +174,18 @@ def classify_research_terminal_state(
             else "RESEARCH_RENDER_INCOMPLETE"
         )
     if withheld_marker and publication_allowed is False:
+        sector_review_visible = bool(re.search(
+            r"ATLAS HAS NOT PUBLISHED A CERTIFIED RATING FOR [A-Z0-9.\-]+ "
+            r"BECAUSE ITS SECTOR-SPECIFIC VALUATION MODEL REQUIRES ADDITIONAL REVIEW\.",
+            normalized,
+        ))
         safe = (
-            (
+            sector_review_visible
+            or (
                 RESEARCH_WITHHELD_PRIMARY_COPY in normalized
                 or bool(re.search(r"A CERTIFIED ATLAS RATING IS NOT AVAILABLE FOR [A-Z0-9.\-]+\.", normalized))
             )
-            and RESEARCH_WITHHELD_SUPPORTING_COPY.upper() in normalized
+            and (sector_review_visible or RESEARCH_WITHHELD_SUPPORTING_COPY.upper() in normalized)
             and not any(
             forbidden in normalized for forbidden in RESEARCH_WITHHELD_FORBIDDEN_TEXT
             )
@@ -835,11 +841,15 @@ class AtlasVisualCrawler:
                     allowed = (await terminal.last.get_attribute("data-atlas-publication-allowed") or "").lower()
                     if allowed in {"true", "false"}:
                         publication_allowed = allowed == "true"
-                    message = scope.get_by_text(
-                        f"A certified ATLAS rating is not available for {ticker}.", exact=True,
+                    message = scope.locator(
+                        f'[data-atlas-qa="research-withheld-message"]'
+                        f'[data-atlas-ticker="{ticker}"]'
                     )
                     withheld_message_visible = withheld_message_visible or bool(
-                        await message.count() and await message.last.is_visible()
+                        await message.count()
+                        and await message.last.is_visible()
+                        and (await message.last.get_attribute("aria-hidden") or "").lower() != "true"
+                        and (await message.last.inner_text()).strip()
                     )
                 tabs = scope.get_by_role("tab")
                 for index in range(await tabs.count()):

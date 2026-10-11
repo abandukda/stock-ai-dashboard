@@ -812,6 +812,13 @@ def test_ticker_specific_customer_safe_withheld_copy_is_terminal():
     )) == "RATING_NOT_PUBLISHED_COMPLETE"
 
 
+def test_sector_review_withheld_copy_is_a_customer_safe_terminal():
+    assert _terminal(visible_text=(
+        "ATLAS has not published a certified rating for CRC because its "
+        "sector-specific valuation model requires additional review."
+    )) == "RATING_NOT_PUBLISHED_COMPLETE"
+
+
 def test_published_research_still_requires_sections_and_ask_cta():
     assert _terminal(
         publication_allowed=True, withheld_marker=False, five_sections=True,

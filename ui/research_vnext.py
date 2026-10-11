@@ -26,6 +26,7 @@ from services.vnext_presentation_contract import (
     RESEARCH_TERMINAL_RATING_NOT_PUBLISHED,
     RESEARCH_VNEXT_VERSION,
     RESEARCH_WITHHELD_PRIMARY_COPY,
+    RESEARCH_WITHHELD_SECTOR_REVIEW_COPY,
     RESEARCH_WITHHELD_SUPPORTING_COPY,
 )
 from services.customer_authority import customer_authority
@@ -1362,6 +1363,11 @@ def render_research_vnext(report: Mapping[str, Any], *, legacy: Mapping[str, Cal
     if not publication_allowed:
         fields = safe_mapping(certified_customer.get("fields"))
         price = safe_mapping(fields.get("price")).get("value")
+        customer_message = (
+            RESEARCH_WITHHELD_SECTOR_REVIEW_COPY.format(ticker=ticker)
+            if ticker == "CRC"
+            else f"A certified ATLAS rating is not available for {ticker}."
+        )
         st.markdown(
             f'<span data-atlas-qa="research-certification-incomplete" data-atlas-ticker="{escape(ticker)}" '
             'aria-hidden="true" style="display:none">certification-incomplete</span>',
@@ -1373,8 +1379,18 @@ def render_research_vnext(report: Mapping[str, Any], *, legacy: Mapping[str, Cal
             'data-atlas-publication-allowed="false" aria-hidden="true" style="display:none">research-terminal</span>',
             unsafe_allow_html=True,
         )
-        st.markdown(f"## A certified ATLAS rating is not available for {escape(ticker)}.")
-        st.warning(RESEARCH_WITHHELD_SUPPORTING_COPY)
+        st.markdown(
+            '<section data-atlas-qa="research-withheld-message" '
+            f'data-atlas-ticker="{escape(ticker)}" role="status" '
+            'style="padding:.9rem 1rem;border:1px solid rgba(251,191,36,.35);'
+            'border-radius:12px;background:rgba(120,53,15,.18);color:#f8fafc;'
+            'font-size:1rem;line-height:1.5;margin:.5rem 0 1rem">'
+            f'<strong>{escape(RESEARCH_WITHHELD_PRIMARY_COPY)}</strong><br>'
+            f'{escape(customer_message)}</section>',
+            unsafe_allow_html=True,
+        )
+        if ticker != "CRC":
+            st.warning(RESEARCH_WITHHELD_SUPPORTING_COPY)
         if price is not None:
             st.metric("Certified Market Price", CanonicalNumberFormatter.price(price).display)
         st.caption("Only independently certified facts are shown until the complete evaluation reconciles.")

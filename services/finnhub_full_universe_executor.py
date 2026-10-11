@@ -428,7 +428,8 @@ def acquire_shard(
             cache[key] = record
             records[capability] = record
         core_records = {name: records[name] for name in CORE_ACQUISITION_FAMILIES}
-        row, bars, blockers = _normalized_row(symbol, _classification(catalog, symbol), core_records)
+        normalized = _normalized_row(symbol, _classification(catalog, symbol), core_records)
+        row, bars, blockers = normalized.row, normalized.bars, normalized.blockers
         forward_bridges: dict[str, Any] = {}
         if row is not None:
             _augment_accounting_lineage(row, records["financial_statements"])
@@ -448,6 +449,8 @@ def acquire_shard(
         item = {
             "ticker": symbol, "row": row, "bars": serialize_bars(bars),
             "blockers": blockers, "credential_entitlement_failures": entitlement,
+            "security_master": normalized.security_master,
+            "analytical_inputs": normalized.analytical_inputs,
             "shadow_evidence_leakage": any(
                 (record.get("provenance") or {}).get("certification_status") in {"UNVERIFIED_SHADOW", "SHADOW_ONLY"}
                 for name, record in records.items() if name in CORE_ACQUISITION_FAMILIES
@@ -720,6 +723,8 @@ def _terminal_from_acquisition(item: Mapping[str, Any], identity: Mapping[str, A
         "reason_codes": blockers, "credential_entitlement_failures": int(item.get("credential_entitlement_failures") or 0),
         "checkpoint_identity_sha256": identity["checkpoint_identity_sha256"],
         "run_identity_sha256": identity["run_identity_sha256"],
+        "security_master": dict(item.get("security_master") or {}),
+        "retained_evidence": dict(item.get("analytical_inputs") or {}),
     }
 
 

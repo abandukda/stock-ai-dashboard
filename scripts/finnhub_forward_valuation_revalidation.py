@@ -95,7 +95,8 @@ def _acquire_row(symbol: str, classification: Mapping[str, Any], *, canonical: F
     for capability in CORE_CAPABILITIES:
         params = {"resolution": "D", "from": start, "to": end} if capability == "historical_ohlcv" else {}
         records[capability] = _fetch(canonical, capability, symbol, pace, **params)
-    row, bars, blockers = _normalized_row(symbol, classification, records)
+    normalized = _normalized_row(symbol, classification, records)
+    row, bars, blockers = normalized.row, normalized.bars, normalized.blockers
     diagnostic = {"core_blockers": blockers, "core_evidence_ids": [
         (record.get("provenance") or {}).get("raw_evidence_id") for record in records.values()
     ]}
