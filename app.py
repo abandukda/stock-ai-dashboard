@@ -53,7 +53,12 @@ SEC_USER_AGENT = os.getenv("SEC_USER_AGENT", "").strip()
 
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "").strip()
 GITHUB_REPO_URL = os.getenv("GITHUB_REPO_URL", "").strip()
-DATA_DIR = os.getenv("DATA_DIR", ".").strip() or "."
+_configured_data_dir = os.getenv("DATA_DIR", "").strip()
+DATA_DIR = _configured_data_dir or (
+    "audit_results/full_qa/runtime"
+    if os.getenv("ATLAS_QA_MODE", "").strip().lower() in {"1", "true", "yes"}
+    else "."
+)
 
 def strict_env(name, default=""):
     """Read one exact environment variable name only."""
@@ -148,7 +153,7 @@ from services.research_render_diagnostics import (  # noqa: E402
 )
 
 inject_css()
-DATA_DIR = Path(os.getenv("DATA_DIR", "."))
+DATA_DIR = Path(DATA_DIR)
 FMP_API_KEY = ""
 FINNHUB_API_KEY = (os.getenv("FINNHUB_API_KEY") or os.getenv("FINNHUB_TOKEN") or "").strip()
 NEWSAPI_KEY = (os.getenv("NEWSAPI_KEY") or os.getenv("NEWS_API_KEY") or "").strip()

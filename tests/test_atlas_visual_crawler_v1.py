@@ -869,6 +869,48 @@ def test_ticker_specific_customer_safe_withheld_copy_is_terminal():
     )) == "RATING_NOT_PUBLISHED_COMPLETE"
 
 
+def test_withheld_copy_is_scoped_away_from_unrelated_published_navigation_text():
+    assert _terminal(
+        visible_text=(
+            "BUY NOW ATLAS FAIR VALUE navigation from another customer surface. "
+            "A certified ATLAS rating is not available for CRC."
+        ),
+        withheld_message_text=(
+            "A certified ATLAS rating is not available for CRC. "
+            "ATLAS does not have enough certified evidence to publish a rating "
+            "for this snapshot."
+        ),
+    ) == "RATING_NOT_PUBLISHED_COMPLETE"
+
+
+def test_withheld_first_screen_requires_customer_explanation_in_scroll_zero_text():
+    completion = {
+        "research_terminal_state": "RATING_NOT_PUBLISHED_COMPLETE",
+        "complete": True,
+        "ticker": True,
+        "no_stale_ticker": True,
+        "publication_allowed": False,
+        "withheld_terminal": True,
+        "withheld_message_visible": True,
+        "rendered_exception": False,
+        "certified_fields": {"action": "RATING_NOT_PUBLISHED"},
+        "published_decision_evidence": False,
+        "pillar_count": 0,
+        "pillar_chart_series": {},
+        "pillar_table_series": {},
+    }
+    passed, _ = research_first_screen_contract(
+        completion,
+        "A certified ATLAS rating is not available for CRC.",
+        overflow=False,
+    )
+    assert passed is True
+    passed, _ = research_first_screen_contract(
+        completion, "Research CRC", overflow=False,
+    )
+    assert passed is False
+
+
 def test_sector_review_withheld_copy_is_a_customer_safe_terminal():
     assert _terminal(visible_text=(
         "ATLAS has not published a certified rating for CRC because its "

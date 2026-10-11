@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CRAWLER = (ROOT / "agents/atlas_visual_crawler_v1.py").read_text()
 WORKFLOW = (ROOT / ".github/workflows/atlas_customer_experience_autonomous_qa.yml").read_text()
 PREPARER = (ROOT / "scripts/prepare_customer_experience_qa_evidence.py").read_text()
+APP = (ROOT / "app.py").read_text()
 
 
 def _crawler_constant(name: str):
@@ -105,6 +106,19 @@ def test_customer_role_visual_evidence_covers_launch_surfaces_and_exact_viewport
     assert "_customer_role_visual_evidence" in CRAWLER
     assert 'for ticker in ("NVDA", "AVT", "CRC")' in CRAWLER
     assert 'interaction="customer-copy-contract"' in CRAWLER
+
+
+def test_research_timeout_is_owned_by_submission_settlement_and_preserves_diagnostics() -> None:
+    assert "settlement_deadline = time.monotonic() + RESEARCH_COMPLETION_TIMEOUT_SECONDS" in CRAWLER
+    assert '"dom_marker_inventory": marker_inventory' in CRAWLER
+    assert '"research_input_value":' in CRAWLER
+    assert "wait_for(self._submit_research" not in CRAWLER
+
+
+def test_qa_app_defaults_to_the_governed_materialized_runtime() -> None:
+    assert '"audit_results/full_qa/runtime"' in APP
+    assert 'if os.getenv("ATLAS_QA_MODE", "").strip().lower()' in APP
+    assert "DATA_DIR = Path(DATA_DIR)" in APP
 
 
 def test_supplementary_phase_is_non_blocking_and_runs_after_required_certification() -> None:

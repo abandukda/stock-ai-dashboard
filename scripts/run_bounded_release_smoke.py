@@ -240,6 +240,7 @@ def _stream_pool(path: Path) -> tuple[
 
 LEGACY_RESEARCH_SMOKE_TICKERS = ("NVDA", "REGN")
 FRESH_RESEARCH_ANCHOR_TICKERS = ("NVDA", "MSFT")
+FRESH_WITHHELD_RESEARCH_TICKERS = ("CRC",)
 
 
 def _stream_customer_rows(
@@ -626,8 +627,31 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         if not smaller_cap_representatives:
             raise ValueError("FRESH_RESEARCH_REPRESENTATIVE_MISSING")
         research_tickers = (*research_tickers, smaller_cap_representatives[0])
+    runtime_research_tickers = (
+        (*research_tickers, *FRESH_WITHHELD_RESEARCH_TICKERS)
+        if not legacy_contract else research_tickers
+    )
+    selected_by_ticker = {
+        str(row.get("ticker") or row.get("symbol") or "").upper(): row
+        for row in selected if isinstance(row, dict)
+    }
+    missing_runtime_tickers = set(runtime_research_tickers) - set(selected_by_ticker)
+    if missing_runtime_tickers:
+        with (bundle / "full_evaluation_pool.json").open("rb") as handle:
+            for row in ijson.items(handle, "item", use_float=True):
+                ticker = str(row.get("ticker") or row.get("symbol") or "").upper()
+                if ticker in missing_runtime_tickers:
+                    selected_by_ticker[ticker] = row
+                    missing_runtime_tickers.remove(ticker)
+                    if not missing_runtime_tickers:
+                        break
+    if missing_runtime_tickers:
+        raise ValueError(
+            "BOUNDED_RESEARCH_RECORD_MISSING:" + ",".join(sorted(missing_runtime_tickers))
+        )
+    selected = list(selected_by_ticker.values())
     _copy_small_bundle(
-        bundle, args.runtime_dir.resolve(), selected, customer_rows, research_tickers,
+        bundle, args.runtime_dir.resolve(), selected, customer_rows, runtime_research_tickers,
     )
     runtime_expectations = None
     if not legacy_contract:

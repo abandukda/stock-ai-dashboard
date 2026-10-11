@@ -161,7 +161,7 @@ def classify_research_terminal_state(
     five_sections: bool, ask_cta: bool, withheld_marker: bool,
     published_decision_evidence: bool = False,
     publication_allowed: bool | None, visible_text: str, rendered_exception: bool,
-    loading: bool,
+    loading: bool, withheld_message_text: str = "",
 ) -> str:
     """Classify only explicit, internally consistent Research terminal states."""
     if not ticker_present or not lifecycle_complete or not authoritative_version or rendered_exception or loading:
@@ -174,20 +174,31 @@ def classify_research_terminal_state(
             else "RESEARCH_RENDER_INCOMPLETE"
         )
     if withheld_marker and publication_allowed is False:
+        # The withheld copy owns its own customer-safe terminal contract.  Do
+        # not scan unrelated navigation or previously rendered page text for
+        # forbidden published-report labels; metric absence is validated from
+        # the exact-ticker DOM fields below.
+        normalized = re.sub(
+            r"\s+", " ", str(withheld_message_text or visible_text or "")
+        ).upper()
         sector_review_visible = bool(re.search(
             r"ATLAS HAS NOT PUBLISHED A CERTIFIED RATING FOR [A-Z0-9.\-]+ "
             r"BECAUSE ITS SECTOR-SPECIFIC VALUATION MODEL REQUIRES ADDITIONAL REVIEW\.",
             normalized,
         ))
-        safe = (
-            sector_review_visible
-            or (
-                RESEARCH_WITHHELD_PRIMARY_COPY in normalized
-                or bool(re.search(r"A CERTIFIED ATLAS RATING IS NOT AVAILABLE FOR [A-Z0-9.\-]+\.", normalized))
-            )
-            and (sector_review_visible or RESEARCH_WITHHELD_SUPPORTING_COPY.upper() in normalized)
+        ticker_specific_visible = bool(re.search(
+            r"A CERTIFIED ATLAS RATING IS NOT AVAILABLE FOR [A-Z0-9.\-]+\.",
+            normalized,
+        ))
+        legacy_withheld_visible = bool(
+            RESEARCH_WITHHELD_PRIMARY_COPY in normalized
+            and RESEARCH_WITHHELD_SUPPORTING_COPY.upper() in normalized
+        )
+        safe = bool(
+            (sector_review_visible or ticker_specific_visible or legacy_withheld_visible)
             and not any(
-            forbidden in normalized for forbidden in RESEARCH_WITHHELD_FORBIDDEN_TEXT
+                forbidden in normalized
+                for forbidden in RESEARCH_WITHHELD_FORBIDDEN_TEXT
             )
         )
         return "RATING_NOT_PUBLISHED_COMPLETE" if safe else "RESEARCH_RENDER_INCOMPLETE"
@@ -434,6 +445,11 @@ def research_first_screen_contract(
         and completion.get("withheld_message_visible")
         and not completion.get("rendered_exception")
         and no_fabricated_metrics
+        and bool(re.search(
+            r"A certified ATLAS rating is not available for [A-Z0-9.\-]+\.",
+            str(visible_text or ""),
+            flags=re.IGNORECASE,
+        ))
     )
     return bool(valid_withheld and not overflow), (
         "Exact-ticker governed withheld terminal and visible customer-safe "
@@ -692,12 +708,12 @@ class AtlasVisualCrawler:
 
     async def _require_submission_boundary(
         self, page: Page, ticker: str, *, sent_before: int, rerun_before: int,
+        deadline: float,
     ) -> dict[str, Any]:
         # Production intentionally omits the exact-candidate QA-only submit
         # marker. Keep the strict marker-based transport proof intact, while
         # allowing the stronger exact-ticker terminal Research contract to
         # become authoritative within the existing bounded Research budget.
-        deadline = time.monotonic() + RESEARCH_COMPLETION_TIMEOUT_SECONDS
         evidence: dict[str, Any] = {}
         while time.monotonic() < deadline:
             sent_after = len(self._streamlit_frames_sent)
@@ -770,6 +786,34 @@ class AtlasVisualCrawler:
             rerun_after=int(evidence.get("rerun_after", 0)),
             completed_research=completed_research,
         )
+        marker_inventory: list[dict[str, Any]] = []
+        for scope in _scopes(page):
+            for selector in (
+                '[data-atlas-qa="research-terminal"]',
+                '[data-atlas-qa="research-withheld-message"]',
+                '[data-atlas-qa="research-container"]',
+                '[data-atlas-qa="research-context-v1"]',
+            ):
+                nodes = scope.locator(selector)
+                for index in range(await nodes.count()):
+                    node = nodes.nth(index)
+                    marker_inventory.append({
+                        "selector": selector,
+                        "ticker": await node.get_attribute("data-atlas-ticker") or "",
+                        "status": await node.get_attribute("data-atlas-status") or "",
+                        "terminal": await node.get_attribute("data-atlas-research-terminal") or "",
+                        "publication_allowed": await node.get_attribute("data-atlas-publication-allowed"),
+                        "visible": await node.is_visible(),
+                        "visible_text": (await node.inner_text()).strip()[:240],
+                    })
+        evidence.update({
+            "browser_url": page.url,
+            "dom_marker_inventory": marker_inventory,
+            "streamlit_exception": await _has_rendered_exception(page),
+            "research_input_value": await page.locator(
+                '[data-testid="stForm"] input'
+            ).first.input_value() if await page.locator('[data-testid="stForm"] input').count() else "",
+        })
         raise ResearchSubmissionBoundaryError(category, evidence)
 
     def _monitor_research_ticker(self) -> str:
@@ -808,6 +852,7 @@ class AtlasVisualCrawler:
         pillar_chart_series: dict[str, tuple[float, float | None]] = {}
         pillar_table_series: dict[str, tuple[float, float | None]] = {}
         withheld_message_visible = False
+        withheld_message_text = ""
         for scope in _scopes(page):
             try:
                 roots = scope.locator(f'[data-atlas-qa="research-vnext"][data-atlas-ticker="{ticker}"]')
@@ -894,6 +939,10 @@ class AtlasVisualCrawler:
                         and (await message.last.get_attribute("aria-hidden") or "").lower() != "true"
                         and (await message.last.inner_text()).strip()
                     )
+                    if await message.count() and await message.last.is_visible():
+                        withheld_message_text = (
+                            await message.last.inner_text()
+                        ).strip()
                 tabs = scope.get_by_role("tab")
                 for index in range(await tabs.count()):
                     tab = tabs.nth(index)
@@ -929,6 +978,7 @@ class AtlasVisualCrawler:
                 and pillar_chart_series == pillar_table_series
             ),
             "withheld_message_visible": withheld_message_visible,
+            "withheld_message_text": withheld_message_text,
             "decision_story": {
                 "decision-why", "decision-core-metrics", "why-atlas-likes-it",
                 "what-stops-atlas", "what-changes-the-thesis", "watching-next",
@@ -1054,6 +1104,7 @@ class AtlasVisualCrawler:
             ask_cta=result["ask_cta"], withheld_marker=result["withheld_terminal"],
             published_decision_evidence=published_decision_evidence,
             publication_allowed=result["publication_allowed"], visible_text=visible_text,
+            withheld_message_text=str(architecture.get("withheld_message_text") or ""),
             rendered_exception=result["rendered_exception"], loading=result["loading"],
         )
         result["complete"] = result["research_terminal_state"] in {
@@ -1068,7 +1119,23 @@ class AtlasVisualCrawler:
                 and result.get("pillar_numeric_parity")
             )
         elif result["research_terminal_state"] == "RATING_NOT_PUBLISHED_COMPLETE":
-            result["complete"] = bool(result["complete"] and result.get("withheld_message_visible"))
+            withheld_fields = dict(result.get("certified_fields") or {})
+            withheld_action = normalize_research_action(
+                str(withheld_fields.pop("action", "") or "")
+            )
+            no_fabricated_metrics = bool(
+                withheld_action == "RATING_NOT_PUBLISHED"
+                and not withheld_fields
+                and not result.get("published_decision_evidence")
+                and int(result.get("pillar_count") or 0) == 0
+                and not result.get("pillar_chart_series")
+                and not result.get("pillar_table_series")
+            )
+            result["complete"] = bool(
+                result["complete"]
+                and result.get("withheld_message_visible")
+                and no_fabricated_metrics
+            )
         expected_fact = dict((self.expected_runtime.get("expected_facts") or {}).get(expected) or {})
         if expected_fact and self.enforce_required_authority:
             result["authority_failures"] = required_research_authority_failures(
@@ -2490,8 +2557,10 @@ class AtlasVisualCrawler:
             await input_node.fill(ticker)
             sent_before = len(self._streamlit_frames_sent)
             await button.click()
+            settlement_deadline = time.monotonic() + RESEARCH_COMPLETION_TIMEOUT_SECONDS
             submission_evidence = await self._require_submission_boundary(
                 page, ticker, sent_before=sent_before, rerun_before=rerun_before,
+                deadline=settlement_deadline,
             )
             await self._record(
                 category="RESEARCH_SUBMISSION_BOUNDARY", page_name="Research Any Ticker",
@@ -2508,7 +2577,7 @@ class AtlasVisualCrawler:
             # persisted-evidence builders and can legitimately take longer
             # than subsequent tickers. Keep the check bounded while avoiding
             # a false failure immediately before the result settles.
-            deadline = time.monotonic() + RESEARCH_COMPLETION_TIMEOUT_SECONDS
+            deadline = settlement_deadline
             text = ""
             completion: dict[str, Any] = {}
             while time.monotonic() < deadline:
@@ -3034,7 +3103,7 @@ class AtlasVisualCrawler:
         await page.set_viewport_size(DESKTOP)
         await asyncio.wait_for(self._home_cards(page), timeout=90)
         for ticker in REQUIRED_RESEARCH_TICKERS:
-            passed = await asyncio.wait_for(self._submit_research(page, ticker, tabs=True), timeout=45)
+            passed = await self._submit_research(page, ticker, tabs=True)
             if not passed:
                 raise GlobalCrawlFailure(f"REQUIRED_RESEARCH_FAILED_{ticker}")
         if not await asyncio.wait_for(self._page_visit(page, "Watchlist Intelligence"), timeout=20):
@@ -3081,7 +3150,7 @@ class AtlasVisualCrawler:
         await page.set_viewport_size(MOBILE)
         await asyncio.wait_for(self._home_cards(page, viewport="mobile"), timeout=30)
         for ticker in REQUIRED_RESEARCH_TICKERS:
-            passed = await asyncio.wait_for(self._submit_research(page, ticker, tabs=True, viewport="mobile"), timeout=45)
+            passed = await self._submit_research(page, ticker, tabs=True, viewport="mobile")
             if not passed:
                 raise GlobalCrawlFailure(f"REQUIRED_RESEARCH_FAILED_{ticker}_MOBILE")
         if not await asyncio.wait_for(self._page_visit(page, "Watchlist Intelligence", viewport="mobile"), timeout=20):
@@ -3097,9 +3166,7 @@ class AtlasVisualCrawler:
             state="scroll-zero", viewport="desktop", complete_surface=True,
         )
         for ticker in ("NVDA", "AVT", "CRC"):
-            passed = await asyncio.wait_for(
-                self._submit_research(page, ticker, tabs=False, viewport="desktop"), timeout=45,
-            )
+            passed = await self._submit_research(page, ticker, tabs=False, viewport="desktop")
             if not passed:
                 raise GlobalCrawlFailure(f"CUSTOMER_ROLE_RESEARCH_FAILED_{ticker}")
         if not await asyncio.wait_for(
@@ -3114,9 +3181,7 @@ class AtlasVisualCrawler:
 
         await page.set_viewport_size(MOBILE)
         for ticker in ("NVDA", "AVT", "CRC"):
-            passed = await asyncio.wait_for(
-                self._submit_research(page, ticker, tabs=False, viewport="mobile"), timeout=45,
-            )
+            passed = await self._submit_research(page, ticker, tabs=False, viewport="mobile")
             if not passed:
                 raise GlobalCrawlFailure(f"CUSTOMER_ROLE_RESEARCH_FAILED_{ticker}_MOBILE")
 

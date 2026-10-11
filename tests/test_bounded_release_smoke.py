@@ -5,6 +5,7 @@ from pathlib import Path
 
 from agents.visual_qa_certification_v2 import candidate_identity
 from scripts.run_bounded_release_smoke import (
+    FRESH_WITHHELD_RESEARCH_TICKERS,
     PUBLICATION_FILES,
     _action,
     _canonical_digest,
@@ -19,6 +20,10 @@ from scripts.run_bounded_release_smoke import (
     _stream_top_level_scalars,
     run,
 )
+
+
+def test_fresh_bounded_runtime_registers_crc_withheld_terminal_fixture():
+    assert FRESH_WITHHELD_RESEARCH_TICKERS == ("CRC",)
 
 
 SOURCE_SHA = "d5526664b1b4450e67b63a67b01d936f6da5a2a4"
