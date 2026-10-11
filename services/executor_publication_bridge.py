@@ -109,6 +109,8 @@ def bridge_evaluation(terminal: Mapping[str, Any], source_row: Mapping[str, Any]
             "terminal_data_state": terminal.get("terminal_data_state"),
             "reason_codes": list(terminal.get("reason_codes") or ()),
             "canonical_action": terminal.get("canonical_action") or "RATING_NOT_PUBLISHED",
+            "security_master": deepcopy(dict(terminal.get("security_master") or {})),
+            "retained_evidence": deepcopy(dict(terminal.get("retained_evidence") or {})),
             "executor_publication_bridge": {"version": VERSION, "status": "WITHHELD_NO_CERTIFIED_EVALUATION"},
         }
 
