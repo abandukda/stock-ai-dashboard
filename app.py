@@ -27188,7 +27188,8 @@ def v8054_merge_saved_live(saved, live):
     # but a partial retrieval must never replace a valid persisted canonical
     # evaluation or its publication certification.
     protected = {
-        "canonical_investment_evaluation", "publication_certification",
+        "canonical_investment_evaluation", "certified_customer_evaluation",
+        "customer_authority_identity", "publication_certification",
         "production_rank", "Production Rank",
     }
     for key, value in (live or {}).items():

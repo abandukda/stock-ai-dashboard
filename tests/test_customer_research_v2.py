@@ -655,6 +655,38 @@ def test_real_renderer_withheld_terminal_does_not_enter_chart_path(monkeypatch):
     renderer.render_customer_research_v2(source, ask_cta=lambda _report: None)
 
 
+def test_final_renderer_authority_marker_uses_exact_bound_snapshot_and_fails_closed(monkeypatch):
+    import ui.customer_research_v2 as renderer
+
+    captured = []
+
+    class StreamlitStub:
+        @staticmethod
+        def markdown(value, **_kwargs):
+            captured.append(value)
+
+    monkeypatch.setattr(renderer, "st", StreamlitStub())
+    page = build_customer_research_v2(report())
+    assert renderer._render_production_authority_marker(page) is True
+    marker = captured[-1]
+    assert 'data-atlas-ticker="NVDA"' in marker
+    assert 'data-atlas-evaluation-snapshot="snapshot-nvda"' in marker
+    assert 'data-atlas-action="BUY_NOW"' in marker
+    assert 'data-atlas-fair-value="346.05"' in marker
+
+    missing = __import__("copy").deepcopy(page)
+    missing["identity"]["evaluation_snapshot"] = ""
+    assert renderer._render_production_authority_marker(missing) is False
+
+    mismatched = __import__("copy").deepcopy(page)
+    mismatched["identity"]["evaluation_snapshot"] = "snapshot-msft-stale"
+    assert renderer._render_production_authority_marker(mismatched) is False
+
+    wrong_ticker = __import__("copy").deepcopy(page)
+    wrong_ticker["identity"]["ticker"] = "MSFT"
+    assert renderer._render_production_authority_marker(wrong_ticker) is False
+
+
 def test_research_renderer_has_no_reference_to_first_screen_local_header_alias():
     """Guard the exact F821 regression that escaped projection-only tests."""
     source = Path("ui/customer_research_v2.py").read_text(encoding="utf-8")

@@ -56,6 +56,56 @@ def test_live_research_merge_cannot_replace_persisted_canonical_decision():
     assert 'if not isinstance(context.get("current_evaluation"), dict)' in function
 
 
+def test_live_research_merge_protects_exact_customer_snapshot_authority():
+    """Optional live context must not replace the persisted customer envelope.
+
+    The customer crawler reads the evaluation snapshot from this envelope.
+    Protecting only the canonical evaluation allowed a sparse live envelope to
+    retain the visible decision fields while silently dropping its snapshot.
+    """
+    source = Path("app.py").read_text()
+    function = source.split("def v8054_merge_saved_live", 1)[1].split("def v8054_first_meaningful", 1)[0]
+    assert '"certified_customer_evaluation"' in function
+    assert '"customer_authority_identity"' in function
+
+    tree = ast.parse(source)
+    merge = next(
+        node for node in tree.body
+        if isinstance(node, ast.FunctionDef) and node.name == "v8054_merge_saved_live"
+    )
+    missing = next(
+        node for node in tree.body
+        if isinstance(node, ast.FunctionDef) and node.name == "v8054_is_missing"
+    )
+    namespace = {"pd": __import__("pandas"), "_V8054_MISSING_TEXT": {"", "n/a", "na", "none", "null"},
+                 "_V8054_FINANCE_KEYS": set()}
+    exec(compile(ast.Module(body=[missing, merge], type_ignores=[]), "app.py", "exec"), namespace)
+
+    certified = {
+        "ticker": "NVDA",
+        "customer_publication_allowed": True,
+        "decision": {"action": "BUY_NOW", "opportunity": 85.96, "decision_confidence": 87.46},
+        "fields": {"atlas_fair_value": {"value": 346.05}},
+        "digests": {"evaluation_snapshot_id": "snapshot-certified-nvda"},
+    }
+    identity = {"ticker": "NVDA", "evaluation_snapshot": "snapshot-certified-nvda"}
+    saved = {"ticker": "NVDA", "certified_customer_evaluation": certified,
+             "customer_authority_identity": identity}
+    live = {
+        "ticker": "NVDA",
+        "certified_customer_evaluation": {
+            "ticker": "NVDA", "customer_publication_allowed": True,
+            "decision": certified["decision"], "fields": certified["fields"], "digests": {},
+        },
+        "customer_authority_identity": {"ticker": "MSFT", "evaluation_snapshot": "snapshot-stale-msft"},
+    }
+
+    merged = namespace["v8054_merge_saved_live"](saved, live)
+    assert merged["certified_customer_evaluation"] is certified
+    assert merged["customer_authority_identity"] is identity
+    assert merged["certified_customer_evaluation"]["digests"]["evaluation_snapshot_id"] == "snapshot-certified-nvda"
+
+
 def test_research_render_boundary_preserves_current_and_reconciles_production_separately():
     source = Path("ui/research_vnext.py").read_text()
     function = source.split("def render_full_research_vnext", 1)[1]

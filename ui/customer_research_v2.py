@@ -73,6 +73,36 @@ def _marker(name: str, ticker: str, **attrs: Any) -> None:
     )
 
 
+def _render_production_authority_marker(page: Mapping[str, Any]) -> bool:
+    """Emit authority only from the final ticker-bound customer projection."""
+    ticker = str(page.get("ticker") or "").strip().upper()
+    identity = page.get("identity") if isinstance(page.get("identity"), Mapping) else {}
+    authority = page.get("authority") if isinstance(page.get("authority"), Mapping) else {}
+    evidence = page.get("evidence") if isinstance(page.get("evidence"), Mapping) else {}
+    snapshot = str(identity.get("evaluation_snapshot") or "")
+    if (
+        not ticker
+        or str(identity.get("ticker") or "").strip().upper() != ticker
+        or not snapshot
+        or snapshot != str(evidence.get("evaluation_snapshot_id") or "")
+    ):
+        return False
+    st.markdown(
+        f'<span data-atlas-qa="research-production-authority" data-atlas-ticker="{escape(ticker)}" '
+        f'data-atlas-action="{escape(str(authority.get("action") or ""))}" '
+        f'data-atlas-fair-value="{escape(str(authority.get("fair_value") or ""))}" '
+        f'data-atlas-opportunity="{escape(str(authority.get("opportunity") or ""))}" '
+        f'data-atlas-confidence="{escape(str(authority.get("confidence") or ""))}" '
+        f'data-atlas-evaluation-snapshot="{escape(snapshot)}" '
+        f'data-atlas-candidate-digest="{escape(str(identity.get("candidate_digest") or ""))}" '
+        f'data-atlas-publication-digest="{escape(str(identity.get("publication_digest") or ""))}" '
+        f'data-atlas-source-sha="{escape(str(identity.get("source_sha") or ""))}" '
+        'aria-hidden="true" style="display:none">research-production-authority</span>',
+        unsafe_allow_html=True,
+    )
+    return True
+
+
 def _list(items: list[str]) -> None:
     # Streamlit Markdown treats dollar-delimited text as math. Escape currency
     # so governed debt/cash values remain readable and numerically unchanged.
@@ -188,6 +218,9 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
         return
     if not first_screen_rendered:
         page = render_customer_research_first_screen(report)
+    if not _render_production_authority_marker(page):
+        st.error("Certified Research identity could not be reconciled for this ticker.")
+        return
     header = page["header"]
     ask_cta(report)
 
