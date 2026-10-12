@@ -160,19 +160,22 @@ def test_app_restores_persisted_exact_candidate_before_render():
     source = Path("app.py").read_text(encoding="utf-8")
     assert 'persisted_certified_research(st.session_state, ticker)' in source
     assert 'persist_certified_research(' in source
-    assert 'data-atlas-lifecycle="PUBLISHED_RESEARCH_COMPLETE"' in source
+    assert '"PUBLISHED_RESEARCH_COMPLETE"' in source
+    assert 'data-atlas-lifecycle="CERTIFIED_RECORD_BOUND"' in source
 
 
-def test_exact_candidate_terminal_markers_precede_deep_detail_rendering():
+def test_exact_candidate_terminal_marker_follows_successful_deep_rendering():
     source = Path("app.py").read_text(encoding="utf-8")
     route = source.split("def render_research_any_ticker", 1)[1].split(
         "_research_route_without_deployment_boundary", 1
     )[0]
     persisted = route.index("_persisted_exact_state = persist_certified_research(")
-    terminal = route.index('data-atlas-lifecycle="PUBLISHED_RESEARCH_COMPLETE"', persisted)
-    context = route.index('data-atlas-qa="research-context-v1"', terminal)
+    bound = route.index('data-atlas-lifecycle="CERTIFIED_RECORD_BOUND"', persisted)
+    context = route.index('data-atlas-qa="research-context-v1"', bound)
     detail = route.index("render_detail(pd.Series(merged))", context)
-    assert persisted < terminal < context < detail
+    terminal = route.index('"PUBLISHED_RESEARCH_COMPLETE"', detail)
+    assert persisted < bound < context < detail < terminal
+    assert "if _research_render_complete:" in route[detail:terminal]
 
 
 def test_exact_candidate_submission_and_rerun_markers_are_qa_only():

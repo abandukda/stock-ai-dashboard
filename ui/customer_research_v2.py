@@ -214,19 +214,19 @@ def render_customer_research_first_screen(report: Mapping[str, Any]) -> dict[str
     return page
 
 
-def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[[Mapping[str, Any]], None]) -> None:
+def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[[Mapping[str, Any]], None]) -> bool:
     page = build_customer_research_v2(report)
     ticker = str(page.get("ticker") or "UNKNOWN")
     first_screen_rendered = st.session_state.pop("_atlas_research_first_screen_rendered", "") == ticker
     if page.get("status") != "AVAILABLE":
         if not first_screen_rendered:
             render_customer_research_first_screen(report)
-        return
+        return True
     if not first_screen_rendered:
         page = render_customer_research_first_screen(report)
     if not _render_production_authority_marker(page):
         st.error("Certified Research identity could not be reconciled for this ticker.")
-        return
+        return False
     header = page["header"]
     ask_cta(report)
 
@@ -523,6 +523,7 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
             st.markdown("**Unavailable in this certified snapshot:** " + ", ".join(unavailable))
         st.caption("Contextual evidence is non-scoring and cannot change Action, Fair Value, Opportunity, or Confidence.")
     st.caption("Ask ATLAS remains grounded to this ticker and certified evaluation snapshot.")
+    return True
 
 
 __all__ = ["render_customer_research_first_screen", "render_customer_research_v2"]

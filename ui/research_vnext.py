@@ -45,9 +45,27 @@ def _bind_built_report_to_persisted_authority(
     report: Mapping[str, Any], persisted_row: Mapping[str, Any], research_row: Mapping[str, Any],
 ) -> dict[str, Any]:
     """Restore certified authority stripped by presentation-report building."""
-    from services.customer_authority import bind_report_to_customer_authority
+    from services.customer_authority import (
+        bind_report_to_customer_authority,
+        customer_authority_identity,
+    )
 
-    source = persisted_row if persisted_row else research_row
+    ticker = str(report.get("ticker") or research_row.get("ticker") or research_row.get("Ticker") or "").strip().upper()
+
+    def complete_identity(value: Mapping[str, Any]) -> bool:
+        identity = customer_authority_identity(value)
+        return bool(
+            ticker
+            and identity.get("ticker") == ticker
+            and identity.get("evaluation_snapshot")
+            and identity.get("candidate_digest")
+            and identity.get("publication_digest")
+            and identity.get("source_sha")
+        )
+
+    # The active Research row may carry a certified bundle-level publication
+    # identity that is intentionally absent from each raw persisted scan row.
+    source = research_row if complete_identity(research_row) else persisted_row
     return bind_report_to_customer_authority(report, source)
 
 
@@ -1344,7 +1362,7 @@ def _render_ask_cta(report: Mapping[str, Any]) -> None:
         st.rerun()
 
 
-def render_research_vnext(report: Mapping[str, Any], *, legacy: Mapping[str, Callable[..., Any]]) -> None:
+def render_research_vnext(report: Mapping[str, Any], *, legacy: Mapping[str, Callable[..., Any]]) -> bool:
     """Render the single governed customer Research V2 stock experience."""
     ticker = str(report.get("ticker") or "UNKNOWN").upper()
     view = build_research_decision_view(report)
@@ -1396,10 +1414,9 @@ def render_research_vnext(report: Mapping[str, Any], *, legacy: Mapping[str, Cal
             if price is not None:
                 st.metric("Certified Market Price", CanonicalNumberFormatter.price(price).display)
             st.caption("Only independently certified facts are shown until the complete evaluation reconciles.")
-        return
+        return True
     from ui.customer_research_v2 import render_customer_research_v2
-    render_customer_research_v2(report, ask_cta=_render_ask_cta)
-    return
+    return render_customer_research_v2(report, ask_cta=_render_ask_cta)
     st.markdown(
         """
         <style>
@@ -1478,7 +1495,7 @@ def render_research_vnext(report: Mapping[str, Any], *, legacy: Mapping[str, Cal
     _render_ask_cta(report)
 
 
-def render_full_research_vnext(row: Mapping[str, Any]) -> None:
+def render_full_research_vnext(row: Mapping[str, Any]) -> bool:
     """Build and render the canonical report through the active UX-2 surface.
 
     This is the single runtime activation boundary used by the final app route,
@@ -1562,7 +1579,7 @@ def render_full_research_vnext(row: Mapping[str, Any]) -> None:
 
     # Customer Research V2 owns the single compact identity/decision strip.
     # Do not render the legacy institutional banner above it.
-    render_research_vnext(
+    return render_research_vnext(
         report,
         legacy={
             "valuation": legacy_report._render_hybrid_valuation,

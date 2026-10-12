@@ -27792,8 +27792,9 @@ def render_detail(row):
         # module state while preserving V104/V2 compatibility entry points.
         from ui.research_vnext import render_full_research_vnext as render_full_research_report
         research_render_checkpoint("render_detail:before")
-        render_full_research_report(dict(row))
+        render_complete = bool(render_full_research_report(dict(row)))
         research_render_checkpoint("render_detail:after")
+        return render_complete
     except Exception as exc:
         location = sanitized_failure_envelope(exc, ticker=ticker)
         st.session_state[f"atlas_research_failure_{ticker}"] = dict(location)
@@ -27949,13 +27950,12 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
             st.session_state, ticker, _submission_plan.certified_record or saved
         )
         _research_widget_trace("certified_research_persisted", ticker=ticker)
-        # The certified record is terminal independently of optional detail
-        # rendering.  Persist and expose that terminal state before any later
-        # Streamlit rerun can discard the form-submit boolean.
+        # Persist the certified record, but do not declare the page terminal
+        # until the complete ticker-bound renderer has finished below.
         st.markdown(
-            f'<span data-atlas-qa="research-container" data-atlas-status="complete" '
-            f'data-atlas-ticker="{html.escape(ticker)}" data-atlas-lifecycle="PUBLISHED_RESEARCH_COMPLETE" '
-            f'aria-hidden="true" style="display:none">research-complete</span>',
+            f'<span data-atlas-qa="research-container" data-atlas-status="loading" '
+            f'data-atlas-ticker="{html.escape(ticker)}" data-atlas-lifecycle="CERTIFIED_RECORD_BOUND" '
+            f'aria-hidden="true" style="display:none">research-loading</span>',
             unsafe_allow_html=True,
         )
     elif (submitted or auto_live) and _submission_plan.mode == CERTIFIED_RECORD_MISSING:
@@ -28149,7 +28149,7 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
         # Ask ATLAS must consume the exact merged canonical row rendered here,
         # not an unmerged acquisition row with a different context digest.
         st.session_state[f"atlas_canonical_research_row_{ticker}"] = merged
-        render_detail(pd.Series(merged))
+        _research_render_complete = bool(render_detail(pd.Series(merged)))
         _qa_performance = st.session_state.get(f"atlas_research_performance_{ticker}") or {}
         _qa_performance_digest = hashlib.sha256(json.dumps(_qa_performance, sort_keys=True, default=str).encode("utf-8")).hexdigest()[:16]
         st.markdown(
@@ -28164,16 +28164,26 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
             f'data-atlas-performance-digest="{_qa_performance_digest}" aria-hidden="true" style="display:none">research-performance</span>',
             unsafe_allow_html=True,
         )
-        # Emit completion only after all report sections have been rendered.
-        st.markdown(
-            f'<span data-atlas-qa="research-container" data-atlas-status="complete" data-atlas-ticker="{html.escape(ticker)}" '
-            f'data-atlas-company="{html.escape(company)}" data-atlas-security-type="{html.escape(security_type)}" '
-            f'data-atlas-generated-at="{html.escape(generated_at)}" '
-            f'data-atlas-context-version="{html.escape(str(_qa_summary.get("context_version") or ""))}" '
-            f'data-atlas-decision-digest="{html.escape(str(_qa_summary.get("production_decision_digest") or ""))}" '
-            f'aria-hidden="true" style="display:none">research-complete</span>',
-            unsafe_allow_html=True,
-        )
+        # Emit terminal completion only after the renderer confirms that its
+        # authority gate and every required customer component completed.
+        if _research_render_complete:
+            _publication_allowed = bool(
+                dict(merged.get("certified_customer_evaluation") or {}).get("customer_publication_allowed") is True
+            )
+            _lifecycle = (
+                "PUBLISHED_RESEARCH_COMPLETE"
+                if _publication_allowed else "RATING_NOT_PUBLISHED_COMPLETE"
+            )
+            st.markdown(
+                f'<span data-atlas-qa="research-container" data-atlas-status="complete" data-atlas-ticker="{html.escape(ticker)}" '
+                f'data-atlas-lifecycle="{_lifecycle}" '
+                f'data-atlas-company="{html.escape(company)}" data-atlas-security-type="{html.escape(security_type)}" '
+                f'data-atlas-generated-at="{html.escape(generated_at)}" '
+                f'data-atlas-context-version="{html.escape(str(_qa_summary.get("context_version") or ""))}" '
+                f'data-atlas-decision-digest="{html.escape(str(_qa_summary.get("production_decision_digest") or ""))}" '
+                f'aria-hidden="true" style="display:none">research-complete</span>',
+                unsafe_allow_html=True,
+            )
         return
     if isinstance(live,dict) and live.get("error"):
         st.session_state["research_status"]="error"

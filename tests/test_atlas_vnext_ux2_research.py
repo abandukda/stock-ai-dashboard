@@ -443,3 +443,34 @@ def test_actual_builder_boundary_rebinds_retained_authority_without_changing_dec
             name: (value["score"], value["pillar_weight"])
             for name, value in expected["decision"]["six_pillars"].items()
         }
+
+
+def test_builder_boundary_prefers_complete_active_runtime_identity_over_sparse_persisted_row():
+    built = {"ticker": "NVDA"}
+    persisted = report_fixture(ticker="NVDA", verdict="BUY_NOW", completeness=100.0)
+    active = deepcopy(persisted)
+    active["customer_authority_identity"] = {
+        "ticker": "NVDA",
+        "candidate_digest": "candidate-exact",
+        "publication_digest": "publication-exact",
+        "source_sha": "source-exact",
+        "evaluation_snapshot": "snapshot-exact",
+        "action": "BUY_NOW",
+        "fair_value": 346.05,
+        "opportunity": 85.96,
+        "confidence": 87.46,
+        "evidence_ids": ["evidence:exact"],
+    }
+    bound = _bind_built_report_to_persisted_authority(built, persisted, active)
+    assert bound["customer_authority_identity"] == active["customer_authority_identity"]
+
+
+def test_builder_boundary_rejects_incomplete_active_runtime_identity():
+    built = {"ticker": "NVDA"}
+    persisted = report_fixture(ticker="NVDA", verdict="BUY_NOW", completeness=100.0)
+    active = deepcopy(persisted)
+    active["customer_authority_identity"] = {
+        "ticker": "NVDA", "evaluation_snapshot": "snapshot-only",
+    }
+    bound = _bind_built_report_to_persisted_authority(built, persisted, active)
+    assert bound["customer_authority_identity"] != active["customer_authority_identity"]
