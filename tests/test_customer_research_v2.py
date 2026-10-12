@@ -672,8 +672,8 @@ def test_real_renderer_binds_certified_fair_value_to_each_ticker_chart(monkeypat
             renderer.render_customer_research_v2(source, ask_cta=lambda _report: None)
 
         assert captured["key"] == f"research-price-chart-{ticker}"
-        assert list(captured["frame"].columns) == [ticker, "ATLAS Fair Value — certified snapshot"]
-        assert captured["frame"]["ATLAS Fair Value — certified snapshot"].tolist() == [fair_value, fair_value]
+        assert list(captured["frame"].columns) == [ticker, "ATLAS Fair Value"]
+        assert captured["frame"]["ATLAS Fair Value"].tolist() == [fair_value, fair_value]
         assert captured["frame"][ticker].tolist() == [100.0, 101.0]
 
 
