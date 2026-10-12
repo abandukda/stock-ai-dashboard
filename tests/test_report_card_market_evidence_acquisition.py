@@ -175,3 +175,16 @@ def test_partial_price_arrays_fail_closed(tmp_path):
             ledger=item, provider=Partial(), calendar=calendar(), now=NOW,
             authorization=AUTHORIZATION_TOKEN, source_sha="a" * 40,
         )
+
+
+def test_dispatch_workflow_is_inert_and_requires_distinct_primary_and_backup():
+    source = Path(".github/workflows/atlas_report_card_market_evidence_acquisition.yml").read_text(
+        encoding="utf-8"
+    )
+    assert "schedule:" not in source
+    assert 'test "${{ inputs.authorize_acquisition }}" = "REPORT_CARD_ACQUIRE_ONCE"' in source
+    assert "ATLAS_REPORT_CARD_DURABLE_ROOT" in source
+    assert "ATLAS_REPORT_CARD_BACKUP_ROOT" in source
+    assert '--backup-ledger "$ATLAS_REPORT_CARD_BACKUP_ROOT/report-card.sqlite3"' in source
+    assert "append_observation" not in source
+    assert "REPORT_CARD_APPEND_ONCE" not in source

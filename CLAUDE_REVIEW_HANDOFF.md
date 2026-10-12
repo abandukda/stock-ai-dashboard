@@ -10,7 +10,7 @@
 
 ## Report Card evidence acquisition
 
-The new acquisition path is deliberately inert. It has no schedule and accepts only the explicit one-run token `REPORT_CARD_ACQUIRE_ONCE`. It reads the protected append-only ledger, verifies the ledger chain, derives due signals and horizons from that ledger, and verifies the ledger file hash did not change.
+The new acquisition path is deliberately inert. It has no schedule and accepts only the explicit one-run token `REPORT_CARD_ACQUIRE_ONCE`. It reads the protected append-only primary ledger, verifies the ledger chain, derives due signals and horizons from that ledger, and verifies that neither the primary nor distinct backup ledger file hash changed.
 
 Bounded provider scope:
 
