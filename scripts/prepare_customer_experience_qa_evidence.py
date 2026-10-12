@@ -60,14 +60,29 @@ def _r1_acceptance(
     visual_pages = {str(item.get("page") or "") for item in normalized}
     report_card_state = combine(*(str(item.get("status") or "NOT_PROVEN") for item in report_card_access.values()))
     mandatory_results = [item for item in results if item.get("required") is True]
+
+    def observed_payload(item: dict[str, Any]) -> dict[str, Any]:
+        observed = item.get("observed")
+        if isinstance(observed, dict):
+            return observed
+        if not isinstance(observed, str):
+            return {}
+        try:
+            parsed = json.loads(observed)
+        except (TypeError, ValueError):
+            return {}
+        return parsed if isinstance(parsed, dict) else {}
+
     incomplete_published = [
         item for item in mandatory_results
         if item.get("category") == "RESEARCH_SUBMISSION_BOUNDARY"
-        and '"publication_allowed": true' in str(item.get("observed") or "").lower()
+        and observed_payload(item).get("publication_allowed") is True
         and (
-            '"complete": false' in str(item.get("observed") or "").lower()
-            or '"research_terminal_state": "research_render_incomplete"'
-            in str(item.get("observed") or "").lower()
+            observed_payload(item).get("complete") is not True
+            or observed_payload(item).get("research_terminal_state")
+            != "PUBLISHED_RESEARCH_COMPLETE"
+            or (observed_payload(item).get("completed_research_predicates") or {}).get("complete")
+            is not True
         )
     ]
     browser_phase_state = str(

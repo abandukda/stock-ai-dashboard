@@ -1,4 +1,5 @@
 import ast
+import json
 from pathlib import Path
 
 from scripts.prepare_report_card_qa_fixture import prepare
@@ -100,8 +101,8 @@ def test_r1_visual_acceptance_is_an_explicit_fail_closed_b1_b18_gate() -> None:
     assert 'all(item["status"] == "PASS" for item in results_out)' in PREPARER
     assert 'r1_acceptance["status"] == "PASS"' in PREPARER
     assert 'incomplete_published' in PREPARER
-    assert '\"complete\": false' in PREPARER
-    assert 'RESEARCH_RENDER_INCOMPLETE' in PREPARER.upper()
+    assert 'observed_payload(item).get("complete") is not True' in PREPARER
+    assert '!= "PUBLISHED_RESEARCH_COMPLETE"' in PREPARER
 
 
 def test_b18_fails_when_published_submission_contains_incomplete_predicate() -> None:
@@ -125,6 +126,37 @@ def test_b18_fails_when_published_submission_contains_incomplete_predicate() -> 
     b18 = next(item for item in acceptance["criteria"] if item["criterion"] == "B18")
     assert b18["status"] == "FAIL"
     assert acceptance["status"] == "FAIL"
+
+
+def test_b18_uses_final_structured_state_not_intermediate_settlement_history() -> None:
+    required = {
+        "required_completeness": {"status": "PASS"},
+        "results": [{
+            "category": "RESEARCH_SUBMISSION_BOUNDARY",
+            "interaction": "submit-event-and-rerun",
+            "ticker_context": "NVDA",
+            "viewport": "mobile",
+            "required": True,
+            "status": "PASS",
+            "observed": json.dumps({
+                "publication_allowed": True,
+                "complete": True,
+                "research_terminal_state": "PUBLISHED_RESEARCH_COMPLETE",
+                "completed_research_predicates": {"complete": True},
+                "settlement_observations": [{
+                    "complete": False,
+                    "research_terminal_state": "RESEARCH_RENDER_INCOMPLETE",
+                }, {
+                    "complete": True,
+                    "research_terminal_state": "PUBLISHED_RESEARCH_COMPLETE",
+                }],
+            }),
+        }],
+        "screenshot_manifest": [],
+    }
+    acceptance = _r1_acceptance(required, {}, [])
+    b18 = next(item for item in acceptance["criteria"] if item["criterion"] == "B18")
+    assert b18["status"] == "PASS"
 
 
 def test_customer_role_visual_evidence_covers_launch_surfaces_and_exact_viewports() -> None:
