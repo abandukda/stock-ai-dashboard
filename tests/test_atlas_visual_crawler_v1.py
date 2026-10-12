@@ -118,7 +118,8 @@ def _unpublished_completion(**overrides):
         "vnext": True, "certified_fields_reconciled": False,
         "provider_boundary_zero": True, "publication_allowed": False,
         "withheld_terminal": True,
-        "withheld_message_visible": True, "complete": True,
+        "withheld_message_visible": True, "withheld_message_in_viewport": True,
+        "complete": True,
         "certified_fields": {"action": "RATING_NOT_PUBLISHED"},
         "published_decision_evidence": False, "pillar_count": 0,
         "pillar_chart_series": {}, "pillar_table_series": {},
@@ -955,6 +956,7 @@ def test_withheld_first_screen_requires_customer_explanation_in_scroll_zero_text
         "publication_allowed": False,
         "withheld_terminal": True,
         "withheld_message_visible": True,
+        "withheld_message_in_viewport": True,
         "rendered_exception": False,
         "certified_fields": {"action": "RATING_NOT_PUBLISHED"},
         "published_decision_evidence": False,
@@ -972,6 +974,14 @@ def test_withheld_first_screen_requires_customer_explanation_in_scroll_zero_text
         completion, "Research CRC", overflow=False,
     )
     assert passed is False
+
+
+def test_withheld_first_screen_rejects_message_outside_mobile_viewport():
+    assert research_first_screen_contract(
+        _unpublished_completion(withheld_message_in_viewport=False),
+        "A certified ATLAS rating is not available for CRC.",
+        overflow=False,
+    )[0] is False
 
 
 def test_sector_review_withheld_copy_is_a_customer_safe_terminal():

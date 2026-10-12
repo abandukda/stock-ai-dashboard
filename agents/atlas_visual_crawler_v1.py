@@ -477,6 +477,7 @@ def research_first_screen_contract(
         and completion.get("publication_allowed") is False
         and completion.get("withheld_terminal")
         and completion.get("withheld_message_visible")
+        and completion.get("withheld_message_in_viewport")
         and not completion.get("rendered_exception")
         and no_fabricated_metrics
         and bool(re.search(
@@ -610,6 +611,37 @@ class AtlasVisualCrawler:
         if set(facts) != {"NVDA", "MSFT", "AVT"}:
             raise RuntimeError("RUNTIME_EXPECTATIONS_RESEARCH_SET_MISMATCH")
         return payload
+
+    async def _scroll_streamlit_to_top(self, page: Page) -> None:
+        """Reset every live Streamlit scrolling surface, including iframe scopes."""
+        for scope in _scopes(page):
+            try:
+                await scope.evaluate("""() => {
+                  window.scrollTo(0, 0);
+                  for (const node of document.querySelectorAll(
+                    '[data-testid="stAppViewContainer"], [data-testid="stMain"]'
+                  )) node.scrollTop = 0;
+                }""")
+            except Exception:
+                continue
+        await page.wait_for_timeout(200)
+
+    async def _withheld_message_in_viewport(self, page: Page, ticker: str) -> bool:
+        for scope in _scopes(page):
+            try:
+                message = scope.locator(
+                    f'[data-atlas-qa="research-withheld-message"][data-atlas-ticker="{ticker}"]'
+                )
+                if await message.count() and await message.last.is_visible():
+                    if await message.last.evaluate("""node => {
+                      const rect = node.getBoundingClientRect();
+                      return rect.bottom > 0 && rect.right > 0 &&
+                        rect.top < window.innerHeight && rect.left < window.innerWidth;
+                    }"""):
+                        return True
+            except Exception:
+                continue
+        return False
 
     @staticmethod
     def _csv_set(value: str) -> set[str]:
@@ -1883,6 +1915,19 @@ class AtlasVisualCrawler:
             page, page_name="Recovery", interaction="vnext-contract",
             state="evidence", viewport=viewport, complete_surface=True,
         )
+        passed = bool(
+            version and section_count == len(RECOVERY_VNEXT_SECTION_LABELS)
+            and visible_contract and exact_ticker and cta and not exception
+        )
+        await self._record(
+            category="RECOVERY", page_name="Recovery", interaction="vnext-decision-story",
+            expected="Twelve-section Recovery story, exact-ticker Research CTA, and no exception",
+            observed=(f"version={version}; sections={section_count}; visible={visible_contract}; "
+                      f"ticker={exact_ticker}; cta={cta}; exception={exception}"),
+            passed=passed, elapsed=time.monotonic() - started, viewport=viewport,
+            screenshots=(shot,), severity="P1",
+            exception=await self._exception_identity(page) if exception else {},
+        )
 
     async def _full_scan_candidates(self, page: Page) -> list[dict[str, Any]]:
         """Read sanitized Full Scan VNext candidate markers in production order."""
@@ -2063,20 +2108,6 @@ class AtlasVisualCrawler:
                     ticker=ticker, viewport=viewport, screenshots=(before, failure), severity="P1",
                 )
                 await self._page_visit(page, "Full Ranked Scan", viewport=viewport)
-        passed = bool(
-            version and section_count == len(RECOVERY_VNEXT_SECTION_LABELS)
-            and visible_contract and exact_ticker and cta and not exception
-        )
-        await self._record(
-            category="RECOVERY", page_name="Recovery", interaction="vnext-decision-story",
-            expected="Twelve-section Recovery story, exact-ticker Research CTA, and no exception",
-            observed=(f"version={version}; sections={section_count}; visible={visible_contract}; "
-                      f"ticker={exact_ticker}; cta={cta}; exception={exception}"),
-            passed=passed, elapsed=time.monotonic() - started, viewport=viewport,
-            screenshots=(shot,), severity="P1",
-            exception=await self._exception_identity(page) if exception else {},
-        )
-
     async def _recovery_marker(self, page: Page) -> dict[str, str]:
         for scope in _scopes(page):
             try:
@@ -2748,11 +2779,10 @@ class AtlasVisualCrawler:
                     severity="P1", screenshots=(),
                 )
                 passed = passed and architecture_passed
-                await page.evaluate("""() => {
-                  window.scrollTo(0, 0);
-                  for (const node of document.querySelectorAll('[data-testid="stAppViewContainer"], [data-testid="stMain"]')) node.scrollTop = 0;
-                }""")
-                await page.wait_for_timeout(150)
+                await self._scroll_streamlit_to_top(page)
+                completion["withheld_message_in_viewport"] = await self._withheld_message_in_viewport(
+                    page, ticker,
+                ) if completion.get("withheld_terminal") else True
                 first_text = await _visible_text(page)
                 overflow = await page.evaluate("() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 2")
                 raw_customer_tokens = sorted({
