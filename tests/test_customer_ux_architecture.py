@@ -71,8 +71,9 @@ def test_mobile_keeps_actionable_cards_before_watching():
 def test_home_restores_concise_market_read_without_legacy_market_bulk():
     source = (ROOT / "ui" / "home_guidance_vnext.py").read_text(encoding="utf-8")
     active = source[source.index("def render_home_guidance_vnext"):]
+    assert active.index("ATLAS Action Summary") < active.index("_render_groups(story")
+    assert active.index("_render_groups(story") < active.index("_render_market_strip(story)")
     assert active.index("_render_market_strip(story)") < active.index("_render_market_read(story)")
-    assert active.index("_render_market_read(story)") < active.index("ATLAS Action Summary")
     assert "_render_market_today(story)" not in active
     assert "ATLAS Market Read" in source
     assert 'data-atlas-non-scoring="true"' in source

@@ -159,11 +159,21 @@ def _research_brief(
     facts: Iterable[FactCard],
     risks: Iterable[str],
     conditions: Mapping[str, Any],
+    business_evidence: Iterable[str] = (),
 ) -> dict[str, Any]:
     """Build a concise deterministic brief from customer-publishable evidence only."""
     reasons: list[str] = []
     seen: set[str] = set()
+    for raw in business_evidence:
+        sentence = str(raw or "").strip()
+        if sentence and sentence not in seen:
+            reasons.append(sentence)
+            seen.add(sentence)
+        if len(reasons) == 3:
+            break
     for fact in facts:
+        if len(reasons) == 3:
+            break
         sentence = f"{fact.fact_name} is {fact.display_value} for {_period_label(fact.period)}."
         if sentence not in seen:
             reasons.append(sentence)
@@ -385,7 +395,13 @@ def _financial_trend_projection(financials: Mapping[str, Any]) -> dict[str, Any]
     candidates = {
         "Revenue": _seq(payload.get("revenue_history")),
         "EPS": _seq(payload.get("eps_history")),
+        "Net Income": _seq(payload.get("net_income_history")),
+        "Operating Cash Flow": _seq(payload.get("operating_cash_flow_history")),
+        "Free Cash Flow": _seq(payload.get("free_cash_flow_history")),
+        "Capital Expenditures": _seq(payload.get("capex_history")),
         "Operating Margin": _seq(payload.get("operating_margin_history")),
+        "Gross Margin": _seq(payload.get("gross_margin_history")),
+        "Net Margin": _seq(payload.get("net_margin_history")),
     }
     series = {label: values for label, values in candidates.items() if periods and len(values) == len(periods)}
     if not series or not (provenance.get("raw_evidence_id") or provenance.get("evidence_ids")):
@@ -393,7 +409,86 @@ def _financial_trend_projection(financials: Mapping[str, Any]) -> dict[str, Any]
             "status": "UNAVAILABLE", "series": {}, "periods": (),
             "message": "Certified multi-period earnings and financial history is unavailable for this snapshot.",
         }
-    return {"status": "AVAILABLE", "series": series, "periods": tuple(periods), "provenance": dict(provenance)}
+    return {
+        "status": "AVAILABLE", "series": series, "periods": tuple(periods),
+        "provenance": dict(provenance),
+        "units": {
+            "Revenue": "USD", "Net Income": "USD", "Operating Cash Flow": "USD",
+            "Free Cash Flow": "USD", "Capital Expenditures": "USD", "EPS": "USD_PER_SHARE",
+            "Operating Margin": "PERCENT", "Gross Margin": "PERCENT", "Net Margin": "PERCENT",
+        },
+    }
+
+
+def _financial_snapshot_projection(report: Mapping[str, Any]) -> dict[str, Any]:
+    """Project retained field-level financial evidence without deriving values."""
+    lineage = _map(report.get("professional_evidence_lineage"))
+    fields = _map(lineage.get("fields"))
+    definitions = (
+        ("latest_revenue", "Revenue", "USD"),
+        ("net_income", "Net income", "USD"),
+        ("operating_cash_flow", "Operating cash flow", "USD"),
+        ("free_cash_flow", "Free cash flow", "USD"),
+        ("capex", "Capital expenditures", "USD"),
+        ("cash_and_equivalents", "Cash and equivalents", "USD"),
+        ("total_debt", "Total debt", "USD"),
+        ("market_cap", "Market capitalization", "USD"),
+        ("forward_eps", "Forward EPS estimate", "USD_PER_SHARE"),
+        ("forward_ebitda", "Forward EBITDA estimate", "USD"),
+        ("revenue_growth_pct", "Revenue growth", "PERCENT"),
+        ("gross_margin_pct", "Gross margin", "PERCENT"),
+        ("operating_margin_pct", "Operating margin", "PERCENT"),
+        ("net_margin_pct", "Net margin", "PERCENT"),
+    )
+    items = []
+    for key, label, default_unit in definitions:
+        field_lineage = _map(fields.get(key))
+        value = report.get(key)
+        evidence_id = field_lineage.get("evidence_id")
+        if value is None or not evidence_id:
+            continue
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            continue
+        if not math.isfinite(number):
+            continue
+        items.append({
+            "field": key, "label": label, "value": number,
+            "unit": str(field_lineage.get("unit") or default_unit),
+            "currency": field_lineage.get("currency"),
+            "period": field_lineage.get("period") or report.get(f"{key}_period"),
+            "as_of": field_lineage.get("as_of") or report.get("professional_evidence_as_of"),
+            "provider": field_lineage.get("provider") or lineage.get("provider"),
+            "evidence_id": str(evidence_id),
+            "analyst_count": field_lineage.get("analyst_count"),
+        })
+    return {
+        "status": "AVAILABLE" if items else "UNAVAILABLE",
+        "items": tuple(items),
+        "message": None if items else "Retained field-level financial evidence is unavailable for this snapshot.",
+    }
+
+
+def _financial_business_evidence(snapshot: Mapping[str, Any]) -> tuple[str, ...]:
+    by_field = {str(item.get("field")): item for item in _seq(snapshot.get("items")) if isinstance(item, Mapping)}
+    output = []
+    for key in ("revenue_growth_pct", "operating_margin_pct", "free_cash_flow"):
+        item = by_field.get(key)
+        if not item:
+            continue
+        value = float(item["value"])
+        if item.get("unit") == "PERCENT":
+            rendered = f"{value:,.1f}%"
+        elif abs(value) >= 1_000_000_000:
+            rendered = f"${value / 1_000_000_000:,.1f}B"
+        elif abs(value) >= 1_000_000:
+            rendered = f"${value / 1_000_000:,.1f}M"
+        else:
+            rendered = f"${value:,.2f}"
+        period = _human_date(item.get("period") or item.get("as_of"))
+        output.append(f'{item["label"]} is {rendered} for {period}.')
+    return tuple(output)
 
 
 def _six_pillar_projection(certified: Mapping[str, Any], report: Mapping[str, Any]) -> dict[str, Any]:
@@ -536,9 +631,11 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
         risks = [balance_sheet_risk, *risks][:4]
     action_text = _display_action(authority["action"])
     pillar_projection = _six_pillar_projection(certified, report)
+    financial_snapshot = _financial_snapshot_projection(report)
     summary = _research_brief(
         ticker=ticker, action=action_text, gap=gap, pillars=pillar_projection,
         facts=facts, risks=risks, conditions=conditions,
+        business_evidence=_financial_business_evidence(financial_snapshot),
     )
     wall_street = ({
         "status": wall_status, "classification": CONTEXTUAL,
@@ -594,6 +691,7 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
         "wall_street": wall_street,
         "valuation_chart": valuation_chart,
         "financial_trend": _financial_trend_projection(financials),
+        "financial_snapshot": financial_snapshot,
         "fundamentals": [asdict(card) for card in facts],
         "recent_changes": {"status": "AVAILABLE" if news_items else "UNAVAILABLE", "items": news_items, "classification": CONTEXTUAL},
         "catalysts": {"status": "AVAILABLE" if future_events else "UNAVAILABLE", "items": (),

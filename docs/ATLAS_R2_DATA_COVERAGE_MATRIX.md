@@ -9,6 +9,8 @@ The shared customer view reports evidence availability separately from investmen
 | Analyst context | `EXTERNAL_CONTEXT` or `MISSING_RETAINED_EVIDENCE` | Retained licensed context | Must be labeled context, never authority |
 | News | `EXTERNAL_CONTEXT` or `MISSING_RETAINED_EVIDENCE` | Retained licensed context | Missing news yields an honest empty state |
 | Earnings | `EXTERNAL_CONTEXT` or `MISSING_RETAINED_EVIDENCE` | Retained licensed context | Only retained future catalysts may render |
+| Financial snapshot | available per field or unavailable | Retained professional evidence lineage | Each displayed value requires an exact evidence ID, fiscal period/as-of date, unit, and provider |
+| Financial history | available or unavailable | Provenance-bearing multi-period retained series | Period/value lengths must match; currencies, per-share values, and percentages render separately |
 | Saved security identity | supported type or explanatory unsupported state | Security master / retained row | Saved symbols remain owned; no fabricated profile |
 | Price/SPY history | available with provenance or unavailable | Retained certified series | No provider retrieval and no fabricated series |
 

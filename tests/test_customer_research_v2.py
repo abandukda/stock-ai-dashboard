@@ -765,3 +765,42 @@ def test_financial_trend_requires_periods_provenance_and_equal_length(monkeypatc
     assert trend["status"] == "AVAILABLE"
     assert trend["periods"] == ("FY2024", "FY2025")
     assert trend["series"] == {"Revenue": [60.9, 130.5], "EPS": [1.19, 2.94]}
+
+
+def test_retained_field_level_financial_evidence_is_projected_with_exact_lineage():
+    source = report()
+    source.update({
+        "free_cash_flow": 96_676_000_000,
+        "cash_and_equivalents": 10_605_000_000,
+        "total_debt": 8_468_000_000,
+        "forward_eps": 9.4699146,
+        "professional_evidence_as_of": "2026-10-04T21:03:54Z",
+        "professional_evidence_lineage": {
+            "provider": "FINNHUB",
+            "fields": {
+                "free_cash_flow": {"unit": "USD", "period": "2026-01-25", "provider": "FINNHUB", "evidence_id": "fin:fcf"},
+                "cash_and_equivalents": {"unit": "USD", "period": "2026-01-25", "provider": "FINNHUB", "evidence_id": "fin:cash"},
+                "total_debt": {"unit": "USD", "period": "2026-01-25", "provider": "FINNHUB", "evidence_id": "fin:debt"},
+                "forward_eps": {"unit": "USD_PER_SHARE", "period": "2027-03-31", "provider": "FINNHUB", "evidence_id": "fin:eps", "analyst_count": 68},
+            },
+        },
+    })
+
+    page = build_customer_research_v2(source)
+    snapshot = page["financial_snapshot"]
+    assert snapshot["status"] == "AVAILABLE"
+    assert [(item["field"], item["value"], item["evidence_id"]) for item in snapshot["items"]] == [
+        ("free_cash_flow", 96_676_000_000.0, "fin:fcf"),
+        ("cash_and_equivalents", 10_605_000_000.0, "fin:cash"),
+        ("total_debt", 8_468_000_000.0, "fin:debt"),
+        ("forward_eps", 9.4699146, "fin:eps"),
+    ]
+    assert page["summary"]["why_rating"][0] == "Free cash flow is $96.7B for Jan 25, 2026."
+
+
+def test_unlined_financial_values_are_not_projected_or_used_in_brief():
+    source = report()
+    source["free_cash_flow"] = 999_000_000
+    page = build_customer_research_v2(source)
+    assert page["financial_snapshot"]["status"] == "UNAVAILABLE"
+    assert all("999" not in reason for reason in page["summary"]["why_rating"])

@@ -16,10 +16,10 @@ This matrix is fail-closed. `IMPLEMENTED` means code and focused automated evide
 | D-08 | Optional sections could render empty / Research renderer | Existing conditional rendering retained; full route audit pending | crawler rejects empty-only headings | Required | PARTIAL |
 | D-09 | ISO timestamps escaped into customer copy / route renderers | Human-date utility introduced; crawler already rejects raw ISO timestamps | crawler negative contract | Required | PARTIAL |
 | D-10 | Old certified close lacked warning / shared view + Research | Deterministic current/dated classification and visible dated warning | shared-view freshness regression | Required | IMPLEMENTED |
-| D-11 | Retained financial depth not always projected / evidence projection | No fabricated history; retained-depth audit still required | none added | Required | OPEN |
-| D-12 | Generic brief wording / Research projection | Protected values preserved; ticker-specific narrative redesign not yet proven | grounding suite only | Required | OPEN |
+| D-11 | Retained financial depth not always projected / evidence projection | Field-level retained financial evidence now projects with periods, units, provider, and evidence IDs; multi-period series still render only when exact retained history exists | financial lineage and unequal-history regressions | Required | PARTIAL |
+| D-12 | Generic brief wording / Research projection | Financially grounded ticker evidence is prioritized ahead of template facts; unsupported values remain excluded | grounded retained-financial regressions | Required | PARTIAL |
 | D-13 | Internal Watchlist status wording / Watchlist | Human-readable security/support states; raw types normalized | security-type regression | Required | IMPLEMENTED |
-| D-14 | Home hierarchy/repetition / Home | No R2 Home redesign in this slice | none | Required | OPEN |
+| D-14 | Home hierarchy/repetition / Home | Certified Action Summary and opportunities now precede secondary market context | Home architecture and rendering suites | Required | PARTIAL |
 | D-15 | Missing viewer mobile evidence / QA artifacts | Governed viewer capture has not run | none | Required | OPEN |
 | D-16 | B5/B15/B16 false-pass / crawler | Existing fail-closed first-screen, role, raw-copy and terminal contracts verified by negative tests | `test_atlas_visual_crawler_v1.py` | Required | PARTIAL |
 | D-17 | Withheld language imprecise / Research | Existing exact customer-safe unavailable statement preserved | withheld first-screen negatives | Required | IMPLEMENTED |
@@ -27,7 +27,7 @@ This matrix is fail-closed. `IMPLEMENTED` means code and focused automated evide
 | D-19 | Duplicate provenance/tool overlap / Research | Compact Fair Value caption; full screenshot audit pending | none | Required | PARTIAL |
 | D-20 | Valuation reference unclear / chart | Short `ATLAS Fair Value` series and explicit per-share reference | render-path coverage pending | Required | IMPLEMENTED |
 | D-21 | Duplicate Home evidence / crawler/artifacts | Requires a fresh manifest uniqueness audit | none | Required | OPEN |
-| D-22 | Confidence formatting inconsistent / Watchlist + shared projection | Watchlist uses one decimal `/100`; cross-route audit pending | focused Watchlist checks | Required | PARTIAL |
+| D-22 | Confidence formatting inconsistent / Watchlist + shared projection | Watchlist and Ask use one decimal `/100`; Research retains the same certified value and scale | focused Watchlist/Ask checks | Required | IMPLEMENTED |
 | D-23 | “Live”/marketing copy unsupported / legacy routes | Primary V2 copy is certified; legacy route strings remain | source scan records remaining strings | Required | OPEN |
 
 ## Promotion gate

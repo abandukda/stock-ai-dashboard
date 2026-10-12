@@ -152,6 +152,26 @@ def _friendly_time(value: Any) -> str:
         return "Date unavailable"
 
 
+def _financial_value(value: Any, unit: str) -> str:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return "Unavailable"
+    if unit == "PERCENT":
+        return f"{number:,.1f}%"
+    if unit == "USD_PER_SHARE":
+        return f"${number:,.2f}"
+    if unit == "USD":
+        if abs(number) >= 1_000_000_000_000:
+            return f"${number / 1_000_000_000_000:,.2f}T"
+        if abs(number) >= 1_000_000_000:
+            return f"${number / 1_000_000_000:,.2f}B"
+        if abs(number) >= 1_000_000:
+            return f"${number / 1_000_000:,.2f}M"
+        return f"${number:,.2f}"
+    return f"{number:,.2f}"
+
+
 def _range_rows(frame: pd.DataFrame, selected: str) -> pd.DataFrame:
     """Return a display-only date window without altering retained values."""
     if frame.empty or selected == "1Y":
@@ -489,12 +509,47 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
         else:
             st.info("Not enough evidence")
 
+    financial_snapshot = page.get("financial_snapshot") or {}
+    _marker("financial-snapshot", ticker, status=financial_snapshot.get("status") or "UNAVAILABLE",
+            count=len(financial_snapshot.get("items") or ()))
+    if financial_snapshot.get("status") == "AVAILABLE":
+        st.markdown("### Certified financial evidence")
+        items = list(financial_snapshot.get("items") or ())
+        for start in range(0, len(items), 4):
+            group = items[start:start + 4]
+            cols = st.columns(len(group))
+            for col, item in zip(cols, group):
+                period = _friendly_time(item.get("period") or item.get("as_of"))
+                analyst_note = f' · {item["analyst_count"]} analysts' if item.get("analyst_count") else ""
+                col.metric(
+                    str(item.get("label") or item.get("field") or "Financial evidence"),
+                    _financial_value(item.get("value"), str(item.get("unit") or "")),
+                    help=f'{period} · {item.get("provider") or "Certified source"}{analyst_note}',
+                )
+        with st.expander("Financial evidence periods and provenance", expanded=False):
+            evidence_rows = [{
+                "Metric": item.get("label"),
+                "Value": _financial_value(item.get("value"), str(item.get("unit") or "")),
+                "Fiscal period / as of": _friendly_time(item.get("period") or item.get("as_of")),
+                "Source": item.get("provider") or "Certified source",
+                "Evidence ID": item.get("evidence_id"),
+            } for item in items]
+            st.dataframe(pd.DataFrame(evidence_rows), hide_index=True, use_container_width=True)
+    else:
+        st.info(financial_snapshot.get("message") or "Certified financial evidence is unavailable for this snapshot.")
+
     financial_trend = page.get("financial_trend") or {}
     _marker("financial-trend-chart", ticker, status=financial_trend.get("status") or "UNAVAILABLE")
     if financial_trend.get("status") == "AVAILABLE":
         st.markdown("### Earnings and financial trends")
-        trend_frame = pd.DataFrame(financial_trend["series"], index=financial_trend["periods"])
-        _dark_line_chart(trend_frame, height=280, y_title="Reported value", key=f"research-financial-trend-{ticker}")
+        all_series = financial_trend["series"]
+        units = financial_trend.get("units") or {}
+        for unit, title in (("USD", "Reported financial value (USD)"), ("USD_PER_SHARE", "Reported value (USD/share)"), ("PERCENT", "Reported margin (%)")):
+            selected = {name: values for name, values in all_series.items() if units.get(name) == unit}
+            if selected:
+                trend_frame = pd.DataFrame(selected, index=financial_trend["periods"])
+                _dark_line_chart(trend_frame, height=280, y_title=title,
+                                 key=f"research-financial-trend-{ticker}-{unit.lower()}")
         st.caption(_provenance_caption(financial_trend.get("provenance") or {}))
 
     _marker("section", ticker, section_name="Catalysts & Sentiment")

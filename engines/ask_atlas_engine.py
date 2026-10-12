@@ -189,7 +189,7 @@ def _certified_investment_view(report: Mapping[str, Any]) -> str:
         f"**Action:** {str(authority['action']).replace('_', ' ')}  \n"
         f"**ATLAS Fair Value:** ${float(authority['fair_value']):,.2f}  \n"
         f"**Opportunity:** {float(authority['opportunity']):.2f}  \n"
-        f"**Decision Confidence:** {float(authority['confidence']):.2f}\n\n"
+        f"**Evidence Confidence:** {float(authority['confidence']):.1f}/100\n\n"
         "These values come from the customer-publishable certified evaluation; no protected field was recalculated."
     )
 
