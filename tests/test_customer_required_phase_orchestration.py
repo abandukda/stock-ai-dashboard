@@ -101,7 +101,7 @@ def test_r1_visual_acceptance_is_an_explicit_fail_closed_b1_b18_gate() -> None:
     assert 'all(item["status"] == "PASS" for item in results_out)' in PREPARER
     assert 'r1_acceptance["status"] == "PASS"' in PREPARER
     assert 'incomplete_published' in PREPARER
-    assert 'observed_payload(item).get("complete") is not True' in PREPARER
+    assert 'get("completed_research_predicates")' in PREPARER
     assert '!= "PUBLISHED_RESEARCH_COMPLETE"' in PREPARER
 
 
@@ -115,10 +115,11 @@ def test_b18_fails_when_published_submission_contains_incomplete_predicate() -> 
             "viewport": "mobile",
             "required": True,
             "status": "PASS",
-            "observed": (
-                '{"publication_allowed": true, "complete": false, '
-                '"research_terminal_state": "RESEARCH_RENDER_INCOMPLETE"}'
-            ),
+            "observed": json.dumps({
+                "publication_allowed": True,
+                "research_terminal_state": "RESEARCH_RENDER_INCOMPLETE",
+                "completed_research_predicates": {"complete": False},
+            }),
         }],
         "screenshot_manifest": [],
     }
@@ -140,7 +141,6 @@ def test_b18_uses_final_structured_state_not_intermediate_settlement_history() -
             "status": "PASS",
             "observed": json.dumps({
                 "publication_allowed": True,
-                "complete": True,
                 "research_terminal_state": "PUBLISHED_RESEARCH_COMPLETE",
                 "completed_research_predicates": {"complete": True},
                 "settlement_observations": [{

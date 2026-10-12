@@ -78,8 +78,7 @@ def _r1_acceptance(
         if item.get("category") == "RESEARCH_SUBMISSION_BOUNDARY"
         and observed_payload(item).get("publication_allowed") is True
         and (
-            observed_payload(item).get("complete") is not True
-            or observed_payload(item).get("research_terminal_state")
+            observed_payload(item).get("research_terminal_state")
             != "PUBLISHED_RESEARCH_COMPLETE"
             or (observed_payload(item).get("completed_research_predicates") or {}).get("complete")
             is not True
