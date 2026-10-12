@@ -3,6 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
+import hashlib
 
 import pytest
 
@@ -10,6 +11,7 @@ from services.prospective_report_card import ProspectiveLedger
 from services.report_card_market_evidence_acquisition import (
     AUTHORIZATION_TOKEN, acquire_market_evidence, derive_acquisition_scope, estimated_provider_calls,
 )
+from scripts.acquire_report_card_market_evidence import resolve_verified_backup
 
 
 UTC = timezone.utc
@@ -185,6 +187,31 @@ def test_dispatch_workflow_is_inert_and_requires_distinct_primary_and_backup():
     assert 'test "${{ inputs.authorize_acquisition }}" = "REPORT_CARD_ACQUIRE_ONCE"' in source
     assert "ATLAS_REPORT_CARD_DURABLE_ROOT" in source
     assert "ATLAS_REPORT_CARD_BACKUP_ROOT" in source
-    assert '--backup-ledger "$ATLAS_REPORT_CARD_BACKUP_ROOT/report-card.sqlite3"' in source
+    assert '--backup-root "$ATLAS_REPORT_CARD_BACKUP_ROOT"' in source
     assert "append_observation" not in source
     assert "REPORT_CARD_APPEND_ONCE" not in source
+
+
+def test_timestamped_backup_requires_sidecar_and_matching_logical_tip(tmp_path):
+    primary = ledger(tmp_path / "primary" / "report-card.sqlite3")
+    backup_root = tmp_path / "backup"
+    backup_root.mkdir()
+    backup = primary.backup(backup_root, now=ACTIVATED)
+    expected = hashlib.sha256(backup.read_bytes()).hexdigest()
+    assert backup.with_suffix(".sqlite3.sha256").read_text(encoding="utf-8").strip() == expected
+    assert resolve_verified_backup(backup_root=backup_root, primary_tip=primary.verify()) == backup
+
+
+def test_backup_resolution_fails_closed_on_bad_or_ambiguous_identity(tmp_path):
+    primary = ledger(tmp_path / "primary" / "report-card.sqlite3")
+    backup_root = tmp_path / "backup"
+    backup_root.mkdir()
+    first = primary.backup(backup_root, now=ACTIVATED)
+    first.with_suffix(".sqlite3.sha256").write_text("0" * 64 + "\n", encoding="utf-8")
+    with pytest.raises(FileNotFoundError, match="VERIFIED_REPORT_CARD_BACKUP_REQUIRED"):
+        resolve_verified_backup(backup_root=backup_root, primary_tip=primary.verify())
+
+    first = primary.backup(backup_root, now=ACTIVATED)
+    second = primary.backup(backup_root, now=NOW)
+    with pytest.raises(RuntimeError, match="REPORT_CARD_BACKUP_IDENTITY_AMBIGUOUS"):
+        resolve_verified_backup(backup_root=backup_root, primary_tip=primary.verify())
