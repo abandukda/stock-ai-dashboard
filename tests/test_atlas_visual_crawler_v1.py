@@ -29,6 +29,7 @@ from agents.atlas_visual_crawler_v1 import (
     research_submission_failure,
     research_submission_proven,
     required_research_authority_failures,
+    _scoped_last_locator,
     VisualResult,
 )
 from agents.atlas_runtime_qa_v3 import DeploymentReadinessError
@@ -48,6 +49,55 @@ def test_open_failure_classification_does_not_mislabel_deployment_identity_as_au
     assert _classify_open_failure("http://127.0.0.1:8501/", error) == "DEPLOYMENT_NOT_READY"
     assert _classify_open_failure("http://127.0.0.1:8501/", RuntimeError("login")) == "AUTHENTICATION_FAILED"
     assert _classify_open_failure("about:blank", RuntimeError("open")) == "APP_UNREACHABLE"
+
+
+class _ScopedMarkerNode:
+    def __init__(self, value):
+        self.value = value
+
+    async def get_attribute(self, _name):
+        return self.value
+
+
+class _ScopedMarkerLocator:
+    def __init__(self, values):
+        self.values = values
+
+    async def count(self):
+        return len(self.values)
+
+    @property
+    def last(self):
+        return _ScopedMarkerNode(self.values[-1])
+
+
+class _ScopedMarkerScope:
+    def __init__(self, values):
+        self.values = values
+
+    def locator(self, _selector):
+        return _ScopedMarkerLocator(self.values)
+
+
+def test_navigation_marker_is_resolved_from_streamlit_iframe(monkeypatch):
+    page = object()
+    main = _ScopedMarkerScope([])
+    iframe = _ScopedMarkerScope(["customer_viewer"])
+    monkeypatch.setattr("agents.atlas_visual_crawler_v1._scopes", lambda _page: [main, iframe])
+    marker = asyncio.run(_scoped_last_locator(page, '[data-atlas-qa="customer-navigation-contract"]'))
+    assert marker is not None
+    assert asyncio.run(marker.get_attribute("data-atlas-role-category")) == "customer_viewer"
+
+
+def test_navigation_marker_does_not_fall_back_to_main_document_text(monkeypatch):
+    page = object()
+    monkeypatch.setattr(
+        "agents.atlas_visual_crawler_v1._scopes",
+        lambda _page: [_ScopedMarkerScope([]), _ScopedMarkerScope([])],
+    )
+    assert asyncio.run(
+        _scoped_last_locator(page, '[data-atlas-qa="customer-navigation-contract"]')
+    ) is None
 
 
 def test_research_field_reconciliation_accepts_current_customer_labels_and_values():
