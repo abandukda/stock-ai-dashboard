@@ -17,6 +17,7 @@ from services.report_card_market_evidence_acquisition import acquire_market_evid
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--ledger", type=Path, required=True)
+    parser.add_argument("--backup-ledger", type=Path, required=True)
     parser.add_argument("--calendar", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--source-sha", required=True)
@@ -24,7 +25,12 @@ def main() -> int:
     args = parser.parse_args()
     if not args.ledger.is_file():
         raise FileNotFoundError("PROTECTED_REPORT_CARD_LEDGER_REQUIRED")
+    if not args.backup_ledger.is_file():
+        raise FileNotFoundError("PROTECTED_REPORT_CARD_BACKUP_REQUIRED")
+    if args.ledger.resolve() == args.backup_ledger.resolve():
+        raise RuntimeError("REPORT_CARD_PRIMARY_BACKUP_NOT_DISTINCT")
     ledger_hash_before = hashlib.sha256(args.ledger.read_bytes()).hexdigest()
+    backup_hash_before = hashlib.sha256(args.backup_ledger.read_bytes()).hexdigest()
     ledger = ProspectiveLedger(args.ledger)
     calendar = json.loads(args.calendar.read_text(encoding="utf-8"))
     provider = FinnhubShadowAdapter(license_class=FINNHUB_PAID_CORE_CERTIFICATION_LICENSE)
@@ -37,9 +43,13 @@ def main() -> int:
         source_sha=args.source_sha,
     )
     ledger_hash_after = hashlib.sha256(args.ledger.read_bytes()).hexdigest()
+    backup_hash_after = hashlib.sha256(args.backup_ledger.read_bytes()).hexdigest()
     if ledger_hash_after != ledger_hash_before:
         raise RuntimeError("PROTECTED_REPORT_CARD_LEDGER_MUTATED")
+    if backup_hash_after != backup_hash_before:
+        raise RuntimeError("PROTECTED_REPORT_CARD_BACKUP_MUTATED")
     evidence["ledger_file_sha256"] = ledger_hash_before
+    evidence["backup_file_sha256"] = backup_hash_before
     evidence_without_hash = {key: value for key, value in evidence.items() if key != "artifact_sha256"}
     canonical = json.dumps(evidence_without_hash, sort_keys=True, separators=(",", ":"), default=str)
     evidence["artifact_sha256"] = hashlib.sha256(canonical.encode()).hexdigest()
