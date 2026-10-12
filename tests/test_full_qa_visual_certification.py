@@ -254,8 +254,8 @@ def test_release_research_uses_fresh_authenticated_pages_with_early_socket_track
         "async def ", 1
     )[0]
     assert "context.new_page()" in helper
-    assert 'page.on("websocket", crawler._track_streamlit_websocket)' in helper
-    assert helper.index('page.on("websocket"') < helper.index("_open_and_authenticate(")
+    assert 'crawler._attach_streamlit_transport(page, role="research_certification")' in helper
+    assert helper.index("_attach_streamlit_transport") < helper.index("_open_and_authenticate(")
     assert "_open_and_authenticate(" in helper
     assert "expected_sha=expected_sha" in helper
     assert "allow_local_exact_candidate=True" in helper
@@ -544,7 +544,7 @@ def test_research_submission_requires_stable_controls_and_streamlit_boundary_evi
     source = Path("agents/atlas_visual_crawler_v1.py").read_text(encoding="utf-8")
     submit = source.split("async def _submit_research", 1)[1].split("async def ", 1)[0]
     assert "await self._stable_research_controls(page)" in submit
-    assert "sent_before = len(self._streamlit_frames_sent)" in submit
+    assert 'sent_before = int(self._transport_snapshot(page)["frames_sent"])' in submit
     assert "await self._require_submission_boundary(" in submit
     assert "RESEARCH_SUBMISSION_BOUNDARY" in submit
     assert "button.click()" in submit

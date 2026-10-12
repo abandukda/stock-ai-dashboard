@@ -545,6 +545,7 @@ class AtlasVisualCrawler:
         self.screenshot_retries = 0
         self.research_contexts: dict[str, dict[str, str]] = {}
         self._streamlit_frames_sent: list[dict[str, Any]] = []
+        self._streamlit_transport: dict[int, dict[str, Any]] = {}
         self.monitor_ticker = self._monitor_research_ticker()
         self.expected_runtime = self._load_runtime_expectations()
         self.enforce_required_authority = False
@@ -604,12 +605,52 @@ class AtlasVisualCrawler:
         observed["passed"] = not failures
         return observed
 
-    def _track_streamlit_websocket(self, websocket: Any) -> None:
+    def _attach_streamlit_transport(self, page: Page, *, role: str) -> None:
+        """Attach sanitized, page-scoped transport telemetry before navigation."""
+        page_key = id(page)
+        state = self._streamlit_transport.setdefault(page_key, {
+            "browser_context": f"{role}-context",
+            "page": f"{role}-page",
+            "listener_attached_at": time.monotonic(),
+            "websockets_created": 0,
+            "frames_sent": [],
+            "frames_received": [],
+        })
+
+        def track(websocket: Any) -> None:
+            state["websockets_created"] += 1
+            self._track_streamlit_websocket(websocket, page_key=page_key)
+
+        page.on("websocket", track)
+
+    def _track_streamlit_websocket(self, websocket: Any, *, page_key: int | None = None) -> None:
         def record_frame(payload: Any) -> None:
             size = len(payload) if isinstance(payload, (bytes, str)) else 0
-            self._streamlit_frames_sent.append({"at": time.monotonic(), "size": size})
+            row = {"at": time.monotonic(), "size": size}
+            self._streamlit_frames_sent.append(row)
+            if page_key in self._streamlit_transport:
+                self._streamlit_transport[page_key]["frames_sent"].append(row)
+
+        def record_received(payload: Any) -> None:
+            size = len(payload) if isinstance(payload, (bytes, str)) else 0
+            if page_key in self._streamlit_transport:
+                self._streamlit_transport[page_key]["frames_received"].append(
+                    {"at": time.monotonic(), "size": size}
+                )
 
         websocket.on("framesent", record_frame)
+        websocket.on("framereceived", record_received)
+
+    def _transport_snapshot(self, page: Page) -> dict[str, Any]:
+        state = self._streamlit_transport.get(id(page)) or {}
+        return {
+            "browser_context": state.get("browser_context", "unattached-context"),
+            "page": state.get("page", "unattached-page"),
+            "listener_attached": bool(state),
+            "websockets_created": int(state.get("websockets_created", 0)),
+            "frames_sent": len(state.get("frames_sent") or ()),
+            "frames_received": len(state.get("frames_received") or ()),
+        }
 
     async def _stable_research_controls(self, page: Page) -> tuple[Any, Any, dict[str, Any]]:
         """Resolve one visible, enabled, hit-testable form pair twice in succession."""
@@ -716,7 +757,8 @@ class AtlasVisualCrawler:
         # become authoritative within the existing bounded Research budget.
         evidence: dict[str, Any] = {}
         while time.monotonic() < deadline:
-            sent_after = len(self._streamlit_frames_sent)
+            transport = self._transport_snapshot(page)
+            sent_after = int(transport["frames_sent"])
             rerun_after = 0
             submitted_marker = False
             for scope in _scopes(page):
@@ -740,6 +782,7 @@ class AtlasVisualCrawler:
             )
             evidence = {
                 "streamlit_event_frames": sent_after - sent_before,
+                "transport": transport,
                 "rerun_before": rerun_before,
                 "rerun_after": rerun_after,
                 "submission_marker": submitted_marker,
@@ -2555,7 +2598,7 @@ class AtlasVisualCrawler:
                     )
             input_node, button, controls_evidence = await self._stable_research_controls(page)
             await input_node.fill(ticker)
-            sent_before = len(self._streamlit_frames_sent)
+            sent_before = int(self._transport_snapshot(page)["frames_sent"])
             await button.click()
             settlement_deadline = time.monotonic() + RESEARCH_COMPLETION_TIMEOUT_SECONDS
             submission_evidence = await self._require_submission_boundary(
@@ -3227,7 +3270,7 @@ class AtlasVisualCrawler:
             browser: Browser = await pw.chromium.launch(headless=self.headless)
             context: BrowserContext = await browser.new_context(viewport=DESKTOP)
             page = await context.new_page()
-            page.on("websocket", self._track_streamlit_websocket)
+            self._attach_streamlit_transport(page, role="internal_admin")
             try:
                 try:
                     self.authentication = await asyncio.wait_for(
@@ -3264,6 +3307,7 @@ class AtlasVisualCrawler:
                     viewer_context = await browser.new_context(viewport=DESKTOP)
                     try:
                         viewer_page = await viewer_context.new_page()
+                        self._attach_streamlit_transport(viewer_page, role="customer_viewer")
                         (self.output_dir / "viewer-auth").mkdir(parents=True, exist_ok=True)
                         await _open_and_authenticate(
                             viewer_page, self.url, self.output_dir / "viewer-auth",

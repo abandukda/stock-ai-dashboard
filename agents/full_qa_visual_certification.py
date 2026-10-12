@@ -54,7 +54,7 @@ async def open_authenticated_research_page(
     """
     page = await context.new_page()
     await page.set_viewport_size(viewport)
-    page.on("websocket", crawler._track_streamlit_websocket)
+    crawler._attach_streamlit_transport(page, role="research_certification")
     await _open_and_authenticate(
         page, url, output, expected_sha=expected_sha,
         allow_local_exact_candidate=True,
@@ -1170,7 +1170,7 @@ async def run(args: argparse.Namespace) -> int:
         browser = await pw.chromium.launch(headless=not args.headed)
         context = await browser.new_context(viewport=DESKTOP)
         page = await context.new_page()
-        page.on("websocket", crawler._track_streamlit_websocket)
+        crawler._attach_streamlit_transport(page, role="full_qa")
         try:
             crawler.authentication = await bounded_operation(
                 "auth", lambda: _open_and_authenticate(

@@ -1039,3 +1039,55 @@ def test_full_scan_crawler_clicks_visible_exact_ticker_cta_and_reconciles_state(
     assert "self._exact_research_ticker(page, ticker)" in block
     assert "candidate[\"decision_status\"] == research_status" in block
     assert 'await self._page_visit(page, "Full Ranked Scan"' in block
+
+
+class _TransportPage:
+    def __init__(self):
+        self.handlers = {}
+
+    def on(self, event, handler):
+        self.handlers[event] = handler
+
+
+class _TransportWebSocket:
+    def __init__(self):
+        self.handlers = {}
+
+    def on(self, event, handler):
+        self.handlers[event] = handler
+
+
+def test_streamlit_transport_is_page_scoped_and_payload_safe():
+    crawler = AtlasVisualCrawler.__new__(AtlasVisualCrawler)
+    crawler._streamlit_frames_sent = []
+    crawler._streamlit_transport = {}
+    admin = _TransportPage()
+    viewer = _TransportPage()
+
+    crawler._attach_streamlit_transport(admin, role="internal_admin")
+    crawler._attach_streamlit_transport(viewer, role="customer_viewer")
+    admin_socket = _TransportWebSocket()
+    viewer_socket = _TransportWebSocket()
+    admin.handlers["websocket"](admin_socket)
+    viewer.handlers["websocket"](viewer_socket)
+    admin_socket.handlers["framesent"]("admin-secret-payload")
+    viewer_socket.handlers["framesent"]("viewer-secret-payload")
+    viewer_socket.handlers["framereceived"](b"private-response")
+
+    admin_state = crawler._transport_snapshot(admin)
+    viewer_state = crawler._transport_snapshot(viewer)
+    assert admin_state["frames_sent"] == 1
+    assert admin_state["frames_received"] == 0
+    assert viewer_state["frames_sent"] == 1
+    assert viewer_state["frames_received"] == 1
+    assert viewer_state["websockets_created"] == 1
+    assert "payload" not in json.dumps(crawler._streamlit_transport)
+
+
+def test_customer_listener_attaches_before_customer_authentication():
+    source = SOURCE.read_text(encoding="utf-8")
+    viewer = source.split("viewer_page = await viewer_context.new_page()", 1)[1].split(
+        "await self._customer_navigation_contract(viewer_page)", 1
+    )[0]
+    assert 'self._attach_streamlit_transport(viewer_page, role="customer_viewer")' in viewer
+    assert viewer.index("_attach_streamlit_transport") < viewer.index("_open_and_authenticate(")
