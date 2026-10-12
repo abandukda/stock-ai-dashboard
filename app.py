@@ -27829,7 +27829,11 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
     # A settled report fills this earlier container later in the same rerun.
     # This keeps certified decision evidence at scroll zero without moving or
     # duplicating the ticker-bound authority payload.
-    _research_first_screen_slot = st.container()
+    # Reserve a replaceable slot before the shell so the settled decision (or
+    # customer-safe withheld terminal) is genuinely rendered at scroll zero.
+    # A regular container populated later can be appended after intervening
+    # elements by Streamlit on narrow-screen reruns.
+    _research_first_screen_slot = st.empty()
     st.markdown("<div class='v65-section-title'>🔎 Live Atlas Research</div>",unsafe_allow_html=True)
     st.markdown("<div class='v65-subtitle'>Paid-client research combines current retrieval with the richest verified saved evidence across all Atlas datasets.</div>",unsafe_allow_html=True)
     st.markdown(
@@ -28078,7 +28082,7 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
             _research_context_caption += f" · Generated {v8055_format_et(generated_at)}"
         try:
             from ui.customer_research_v2 import render_customer_research_first_screen
-            with _research_first_screen_slot:
+            with _research_first_screen_slot.container():
                 render_customer_research_first_screen(merged)
             st.session_state["_atlas_research_first_screen_rendered"] = ticker
         except Exception:

@@ -984,6 +984,12 @@ def test_withheld_first_screen_rejects_message_outside_mobile_viewport():
     )[0] is False
 
 
+def test_research_first_screen_uses_replaceable_scroll_zero_slot():
+    source = Path("app.py").read_text(encoding="utf-8")
+    assert "_research_first_screen_slot = st.empty()" in source
+    assert "with _research_first_screen_slot.container():" in source
+
+
 def test_sector_review_withheld_copy_is_a_customer_safe_terminal():
     assert _terminal(visible_text=(
         "ATLAS has not published a certified rating for CRC because its "
