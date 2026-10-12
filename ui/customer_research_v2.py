@@ -80,11 +80,17 @@ def _render_production_authority_marker(page: Mapping[str, Any]) -> bool:
     authority = page.get("authority") if isinstance(page.get("authority"), Mapping) else {}
     evidence = page.get("evidence") if isinstance(page.get("evidence"), Mapping) else {}
     snapshot = str(identity.get("evaluation_snapshot") or "")
+    candidate = str(identity.get("candidate_digest") or "")
+    publication = str(identity.get("publication_digest") or "")
+    source_sha = str(identity.get("source_sha") or "")
     if (
         not ticker
         or str(identity.get("ticker") or "").strip().upper() != ticker
         or not snapshot
         or snapshot != str(evidence.get("evaluation_snapshot_id") or "")
+        or not candidate or candidate != str(evidence.get("candidate_digest") or "")
+        or not publication or publication != str(evidence.get("publication_digest") or "")
+        or not source_sha or source_sha != str(evidence.get("source_sha") or "")
     ):
         return False
     st.markdown(
@@ -94,9 +100,9 @@ def _render_production_authority_marker(page: Mapping[str, Any]) -> bool:
         f'data-atlas-opportunity="{escape(str(authority.get("opportunity") or ""))}" '
         f'data-atlas-confidence="{escape(str(authority.get("confidence") or ""))}" '
         f'data-atlas-evaluation-snapshot="{escape(snapshot)}" '
-        f'data-atlas-candidate-digest="{escape(str(identity.get("candidate_digest") or ""))}" '
-        f'data-atlas-publication-digest="{escape(str(identity.get("publication_digest") or ""))}" '
-        f'data-atlas-source-sha="{escape(str(identity.get("source_sha") or ""))}" '
+        f'data-atlas-candidate-digest="{escape(candidate)}" '
+        f'data-atlas-publication-digest="{escape(publication)}" '
+        f'data-atlas-source-sha="{escape(source_sha)}" '
         'aria-hidden="true" style="display:none">research-production-authority</span>',
         unsafe_allow_html=True,
     )

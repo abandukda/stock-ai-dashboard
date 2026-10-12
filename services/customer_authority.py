@@ -109,6 +109,47 @@ def customer_authority_digest(value: Mapping[str, Any]) -> str:
     ).hexdigest()
 
 
+def bind_runtime_publication_identity(
+    value: Mapping[str, Any], source_certification: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Attach the retained publication identity to one publishable source row.
+
+    The full-universe publication digest is a bundle-level identity stored in
+    the certified runtime projection contract, not duplicated on every row.
+    Bind it only when that contract explicitly inventories the row's ticker as
+    customer-publishable. Existing, conflicting identities are never replaced.
+    """
+    bound = dict(value)
+    authority = customer_authority(value)
+    ticker = str(authority.get("ticker") or "").strip().upper()
+    inventory = _mapping(source_certification.get("inventory"))
+    publishable = {
+        str(item).strip().upper()
+        for item in (inventory.get("publishable_buy_now") or ())
+        if str(item).strip()
+    }
+    candidate = str(source_certification.get("candidate_digest") or "")
+    publication = str(source_certification.get("publication_digest") or "")
+    source_sha = str(source_certification.get("analytical_source_sha") or "")
+    if (
+        authority.get("status") != "AVAILABLE"
+        or not ticker or ticker not in publishable
+        or not candidate or not publication or not source_sha
+    ):
+        return bound
+    identity = customer_authority_identity(value)
+    expected = {
+        "candidate_digest": candidate,
+        "publication_digest": publication,
+        "source_sha": source_sha,
+    }
+    if any(identity.get(key) and str(identity.get(key)) != expected[key] for key in expected):
+        return bound
+    identity.update(expected)
+    bound["customer_authority_identity"] = identity
+    return bound
+
+
 def bind_report_to_customer_authority(report: Mapping[str, Any], source: Mapping[str, Any]) -> dict[str, Any]:
     """Bind an explanatory Research/Ask report to saved certified authority."""
     authority = customer_authority(source)
@@ -139,6 +180,6 @@ def bind_report_to_customer_authority(report: Mapping[str, Any], source: Mapping
 
 
 __all__ = [
-    "bind_report_to_customer_authority", "certified_customer_evaluation",
+    "bind_report_to_customer_authority", "bind_runtime_publication_identity", "certified_customer_evaluation",
     "customer_authority", "customer_authority_digest", "customer_authority_identity",
 ]

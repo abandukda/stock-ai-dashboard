@@ -28119,6 +28119,9 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
                 _runtime_manifest = {}
             _runtime_contract = dict((_runtime_manifest or {}).get("runtime_projection_contract") or {})
             _runtime_source = dict(_runtime_contract.get("source_certification") or {})
+            from services.customer_authority import bind_runtime_publication_identity
+            merged = bind_runtime_publication_identity(merged, _runtime_source)
+            _runtime_identity = dict(merged.get("customer_authority_identity") or {})
             st.markdown(
                 f'<span data-atlas-qa="research-production-authority" data-atlas-ticker="{html.escape(ticker)}" '
                 f'data-atlas-action="{html.escape(str(_decision.get("action") or ""))}" '
@@ -28126,9 +28129,9 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
                 f'data-atlas-opportunity="{html.escape(str(_decision.get("opportunity") or ""))}" '
                 f'data-atlas-confidence="{html.escape(str(_decision.get("decision_confidence") or ""))}" '
                 f'data-atlas-evaluation-snapshot="{html.escape(str(_digests.get("evaluation_snapshot_id") or ""))}" '
-                f'data-atlas-candidate-digest="{html.escape(str(_runtime_source.get("candidate_digest") or ""))}" '
-                f'data-atlas-publication-digest="{html.escape(str(_runtime_source.get("publication_digest") or ""))}" '
-                f'data-atlas-source-sha="{html.escape(str(_runtime_source.get("analytical_source_sha") or ""))}" '
+                f'data-atlas-candidate-digest="{html.escape(str(_runtime_identity.get("candidate_digest") or ""))}" '
+                f'data-atlas-publication-digest="{html.escape(str(_runtime_identity.get("publication_digest") or ""))}" '
+                f'data-atlas-source-sha="{html.escape(str(_runtime_identity.get("source_sha") or ""))}" '
                 'aria-hidden="true" style="display:none">research-production-authority</span>',
                 unsafe_allow_html=True,
             )

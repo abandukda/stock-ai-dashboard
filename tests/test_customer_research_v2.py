@@ -3,7 +3,7 @@ import ast
 import json
 from pathlib import Path
 
-from services.customer_authority import bind_report_to_customer_authority
+from services.customer_authority import bind_report_to_customer_authority, bind_runtime_publication_identity
 from services.customer_research_v2 import FactCard, build_customer_research_v2, validate_grounded_text
 from ui.customer_research_v2 import _six_pillar_frame
 
@@ -38,6 +38,52 @@ def report():
         "guidance_summary": {"thesis_change_conditions": {"invalidate": ["Certified evidence deteriorates."]}},
         "sections": {"technical": {"history": [], "history_provenance": {}}},
     }
+
+
+def runtime_source():
+    return {
+        "candidate_digest": "candidate", "publication_digest": "publication",
+        "analytical_source_sha": "source",
+        "inventory": {"publishable_buy_now": ["NVDA", "MSFT", "AVT"]},
+    }
+
+
+def test_runtime_publication_identity_binds_exact_certified_bundle_authority():
+    source = report()
+    source.pop("candidate_digest")
+    source.pop("publication_digest")
+    source.pop("source_sha")
+
+    bound = bind_runtime_publication_identity(source, runtime_source())
+
+    identity = bound["customer_authority_identity"]
+    assert identity["ticker"] == "NVDA"
+    assert identity["evaluation_snapshot"] == "snapshot-nvda"
+    assert identity["candidate_digest"] == "candidate"
+    assert identity["publication_digest"] == "publication"
+    assert identity["source_sha"] == "source"
+
+
+def test_runtime_publication_identity_fails_closed_for_missing_mismatch_stale_or_withheld():
+    source = report()
+    source.pop("candidate_digest")
+    source.pop("publication_digest")
+    source.pop("source_sha")
+    assert "customer_authority_identity" not in bind_runtime_publication_identity(
+        source, {**runtime_source(), "publication_digest": ""}
+    )
+
+    source["customer_authority_identity"] = {
+        "ticker": "NVDA", "evaluation_snapshot": "snapshot-nvda",
+        "publication_digest": "stale-publication",
+    }
+    assert bind_runtime_publication_identity(source, runtime_source())["customer_authority_identity"][
+        "publication_digest"
+    ] == "stale-publication"
+
+    withheld = report()
+    withheld["certified_customer_evaluation"]["customer_publication_allowed"] = False
+    assert "customer_authority_identity" not in bind_runtime_publication_identity(withheld, runtime_source())
 
 
 def test_protected_authority_is_projected_exactly_without_recomputation(monkeypatch):

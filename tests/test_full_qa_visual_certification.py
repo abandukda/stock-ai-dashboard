@@ -113,6 +113,23 @@ def test_research_render_boundary_preserves_current_and_reconciles_production_se
     assert "_reconcile_canonical_context(canonical_context, persisted_row)" in function
 
 
+def test_final_research_authority_marker_requires_all_exact_certified_identities():
+    source = Path("ui/customer_research_v2.py").read_text()
+    function = source.split("def _render_production_authority_marker", 1)[1].split("def _list", 1)[0]
+    assert 'snapshot != str(evidence.get("evaluation_snapshot_id") or "")' in function
+    assert 'candidate != str(evidence.get("candidate_digest") or "")' in function
+    assert 'publication != str(evidence.get("publication_digest") or "")' in function
+    assert 'source_sha != str(evidence.get("source_sha") or "")' in function
+    assert "or not publication" in function
+
+
+def test_app_binds_bundle_publication_identity_before_canonical_research_render():
+    source = Path("app.py").read_text()
+    binding = source.index("merged = bind_runtime_publication_identity(merged, _runtime_source)")
+    render = source.index("render_detail(pd.Series(merged))", binding)
+    assert binding < render
+
+
 def test_withheld_research_banner_never_formats_missing_action_as_watch():
     source = Path("ui/research_vnext.py").read_text()
     function = source.split("def render_full_research_vnext", 1)[1]
