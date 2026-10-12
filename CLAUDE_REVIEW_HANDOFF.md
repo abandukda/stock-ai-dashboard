@@ -37,3 +37,13 @@ Public Report Card visibility remains OFF throughout these gates.
 - Are stale, absent, partial, and immature evidence states fail-closed without fabricated values?
 - Is the separation between retained provider evidence, observation production, durable append, and customer publication operationally unambiguous?
 - Are the three authorization gates sufficiently independent to prevent acquisition from implying append or public activation?
+
+## Production smoke differential — October 12, 2026
+
+- Original production smoke `38274070164` failed because the post-login navigation contract used the Community Cloud wrapper document even though authentication correctly used the nested `streamlitApp` frame.
+- QA-harness repair `243965b7db9710da56026c02ac93aa3dd8b65db5` made navigation and screenshot role discovery frame-aware. Focused result: 78 tests passed; compilation and diff checks passed.
+- Remediated production smoke `38275346858` proved deployed authentication, exact navigation contract version, Home active route, and the four customer routes. It then failed closed at role isolation: the configured `ATLAS_AUDIT_PASSWORD` authenticated as `customer_viewer`, while the legacy harness expected `internal_admin` for that first session.
+- Repository secret inventory contains `ATLAS_AUDIT_PASSWORD` but no separately named admin QA credential. The role-stamped artifact correctly recorded `customer_viewer`; no credential was exposed.
+- Production verification therefore remains blocked. The correct next step is to provision a separately governed admin QA secret or formally scope production smoke to customer-only coverage while retaining server-side internal-route denial. Do not relabel the viewer credential as admin and do not weaken the role assertion.
+
+The Report Card runtime configuration itself is present: environment `atlas-internal-report-card` exposes distinct primary and backup roots, and the repository has a Finnhub credential plus paid-core license metadata. The acquisition workflow remains unregistered on the default branch, so it cannot yet be dispatched and the protected ledger's exact unique due-ticker count has not been read.
