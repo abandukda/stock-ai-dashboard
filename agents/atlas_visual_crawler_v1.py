@@ -260,6 +260,28 @@ def _classify_open_failure(page_url: str, exc: Exception) -> str:
     if isinstance(exc, DeploymentReadinessError):
         return exc.classification
     return "APP_UNREACHABLE" if not page_url or page_url == "about:blank" else "AUTHENTICATION_FAILED"
+
+
+async def _scoped_last_locator(page: Page, selector: str, *, timeout_ms: int = 0) -> Any | None:
+    """Resolve a marker from the Streamlit document or its hosting iframe.
+
+    Community Cloud hosts the application below a ``streamlitApp`` iframe,
+    while local exact-candidate QA normally renders in the main document.  A
+    successful authentication probe already searches both scopes; every
+    subsequent authority check must retain that same ownership boundary.
+    """
+    deadline = time.monotonic() + max(0, timeout_ms) / 1000
+    while True:
+        for scope in _scopes(page):
+            try:
+                candidate = scope.locator(selector)
+                if await candidate.count():
+                    return candidate.last
+            except Exception:
+                continue
+        if time.monotonic() >= deadline:
+            return None
+        await page.wait_for_timeout(150)
 MOBILE_PAGES = (
     "Home", "Research Any Ticker", "Today's Opportunities", "Ask AI",
     "Political Intelligence", "Earnings Intelligence", "Full Ranked Scan", "Portfolio Intelligence", "Recovery",
@@ -1460,8 +1482,10 @@ class AtlasVisualCrawler:
     ) -> str:
         role = "unauthenticated"
         try:
-            marker = page.locator('[data-atlas-qa="customer-navigation-contract"]').last
-            if await marker.count():
+            marker = await _scoped_last_locator(
+                page, '[data-atlas-qa="customer-navigation-contract"]'
+            )
+            if marker is not None:
                 role = (await marker.get_attribute("data-atlas-role-category") or role).strip()
             await page.add_style_tag(content=(
                 '[data-testid="stStatusWidget"], [data-testid="stToolbar"], '
@@ -1784,8 +1808,11 @@ class AtlasVisualCrawler:
     async def _customer_navigation_contract(self, page: Page) -> None:
         """Fail closed unless the authenticated shell exposes the exact VNext routes."""
         started = time.monotonic()
-        marker = page.locator('[data-atlas-qa="customer-navigation-contract"]').last
-        await marker.wait_for(state="attached", timeout=30000)
+        marker = await _scoped_last_locator(
+            page, '[data-atlas-qa="customer-navigation-contract"]', timeout_ms=30000,
+        )
+        if marker is None:
+            raise GlobalCrawlFailure("CUSTOMER_NAVIGATION_MARKER_NOT_FOUND")
         version = await marker.get_attribute("data-atlas-contract-version") or ""
         role = await marker.get_attribute("data-atlas-role-category") or ""
         routes = tuple(filter(None, (await marker.get_attribute("data-atlas-customer-routes") or "").split("|")))
@@ -1808,8 +1835,11 @@ class AtlasVisualCrawler:
     async def _role_isolation_contract(self, page: Page, *, expected_role: str) -> None:
         """Prove route authorization in the authenticated browser session."""
         started = time.monotonic()
-        marker = page.locator('[data-atlas-qa="customer-navigation-contract"]').last
-        await marker.wait_for(state="attached", timeout=30000)
+        marker = await _scoped_last_locator(
+            page, '[data-atlas-qa="customer-navigation-contract"]', timeout_ms=30000,
+        )
+        if marker is None:
+            raise GlobalCrawlFailure("CUSTOMER_NAVIGATION_MARKER_NOT_FOUND")
         role = await marker.get_attribute("data-atlas-role-category") or ""
         visible = await _visible_text(page)
         forbidden = ("Developer Center", "Internal Report Card", "Performance Tracking")
