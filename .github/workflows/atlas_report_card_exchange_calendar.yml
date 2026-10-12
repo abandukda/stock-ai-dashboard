@@ -1,0 +1,49 @@
+name: ATLAS Report Card XNYS Calendar
+
+# Manual-only until the first acquisition and append are separately certified.
+on:
+  workflow_dispatch:
+    inputs:
+      authorize_calendar:
+        description: Exact one-run calendar authorization token
+        required: true
+        type: string
+      start_date:
+        description: Earliest required session date (YYYY-MM-DD)
+        required: true
+        default: "2026-10-08"
+        type: string
+      as_of:
+        description: Explicit UTC evidence cutoff (ISO-8601)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: atlas-report-card-xnys-calendar
+  cancel-in-progress: false
+
+jobs:
+  produce:
+    runs-on: [self-hosted, Linux, X64, atlas-worker-1]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - run: pip install -r requirements.txt
+      - name: Require explicit calendar authorization
+        run: test "${{ inputs.authorize_calendar }}" = "REPORT_CARD_CALENDAR_PRODUCE_ONCE"
+      - name: Produce and replay-verify exact XNYS calendar
+        run: |
+          python3 scripts/build_report_card_exchange_calendar.py \
+            --start-date "${{ inputs.start_date }}" \
+            --as-of "${{ inputs.as_of }}" \
+            --output audit_results/report_card_calendar/xnys_calendar.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: atlas-report-card-xnys-calendar-${{ github.run_id }}
+          path: audit_results/report_card_calendar/xnys_calendar.json
+          retention-days: 30

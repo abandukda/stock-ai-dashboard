@@ -74,7 +74,7 @@ jobs:
             --authorization "${{ inputs.authorize_acquisition }}" \
             --output audit_results/report_card_market_evidence/report_card_market_evidence.json
       - name: Offline acquisition contract tests
-        run: pytest -q tests/test_report_card_market_evidence_acquisition.py tests/test_report_card_observation_producer.py
+        run: pytest -q tests/test_report_card_exchange_calendar.py tests/test_report_card_market_evidence_acquisition.py tests/test_report_card_observation_producer.py tests/test_report_card_observation_activation.py tests/test_report_card_end_to_end_offline.py
       - name: Fail closed without ledger mutation
         if: failure()
         run: echo "::error title=ATLAS evidence acquisition failed::No Report Card observation or public mutation was attempted."

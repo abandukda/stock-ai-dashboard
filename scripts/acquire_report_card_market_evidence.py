@@ -12,6 +12,7 @@ from pathlib import Path
 from services.finnhub_shadow_provider import FINNHUB_PAID_CORE_CERTIFICATION_LICENSE, FinnhubShadowAdapter
 from services.prospective_report_card import ProspectiveLedger
 from services.report_card_market_evidence_acquisition import acquire_market_evidence
+from services.report_card_exchange_calendar import verify_xnys_calendar
 from scripts.certify_report_card_durable_readonly import snapshot
 
 
@@ -59,6 +60,8 @@ def main() -> int:
         raise RuntimeError("REPORT_CARD_PRIMARY_BACKUP_NOT_DISTINCT")
     backup_hash_before = _sha256(backup_ledger)
     calendar = json.loads(args.calendar.read_text(encoding="utf-8"))
+    generated_at = datetime.fromisoformat(str(calendar.get("generated_at") or ""))
+    verify_xnys_calendar(calendar, as_of=generated_at)
     provider = FinnhubShadowAdapter(license_class=FINNHUB_PAID_CORE_CERTIFICATION_LICENSE)
     evidence = acquire_market_evidence(
         ledger=ledger,

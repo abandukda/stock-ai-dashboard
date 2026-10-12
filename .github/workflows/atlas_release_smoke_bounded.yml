@@ -103,7 +103,9 @@ jobs:
     env:
       ATLAS_EXACT_CANDIDATE_QA: "true"
       DATA_DIR: audit_results/release_smoke/runtime
-      ATLAS_AUDIT_PASSWORD: ${{ secrets.ATLAS_AUDIT_PASSWORD }}
+      ATLAS_AUDIT_PASSWORD: ${{ secrets.ATLAS_INTERNAL_QA_PASSWORD }}
+      APP_PASSWORD: ${{ secrets.ATLAS_INTERNAL_QA_PASSWORD }}
+      ATLAS_VIEWER_QA_PASSWORD: ${{ secrets.ATLAS_AUDIT_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -112,6 +114,12 @@ jobs:
           pip install -r requirements.txt
           pip install playwright==1.52.0
           python -m playwright install chromium
+      - name: Preflight independent QA role credentials
+        shell: bash
+        run: |
+          test -n "$ATLAS_AUDIT_PASSWORD" || { echo "::error::ATLAS_INTERNAL_QA_PASSWORD environment secret is required"; exit 1; }
+          test -n "$ATLAS_VIEWER_QA_PASSWORD" || { echo "::error::ATLAS_AUDIT_PASSWORD viewer secret is required"; exit 1; }
+          test "$ATLAS_AUDIT_PASSWORD" != "$ATLAS_VIEWER_QA_PASSWORD" || { echo "::error::Admin and viewer QA credentials must be independent"; exit 1; }
       - uses: actions/download-artifact@v4
         with:
           name: atlas-bounded-release-smoke-verification-${{ github.run_id }}
