@@ -59,6 +59,29 @@ def _r1_acceptance(
     viewer_pages = {str(item.get("page") or "") for item in viewer_shots if item.get("generated")}
     visual_pages = {str(item.get("page") or "") for item in normalized}
     report_card_state = combine(*(str(item.get("status") or "NOT_PROVEN") for item in report_card_access.values()))
+    mandatory_results = [item for item in results if item.get("required") is True]
+    incomplete_published = [
+        item for item in mandatory_results
+        if item.get("category") == "RESEARCH_SUBMISSION_BOUNDARY"
+        and '"publication_allowed": true' in str(item.get("observed") or "").lower()
+        and (
+            '"complete": false' in str(item.get("observed") or "").lower()
+            or '"research_terminal_state": "research_render_incomplete"'
+            in str(item.get("observed") or "").lower()
+        )
+    ]
+    browser_phase_state = str(
+        (required.get("required_completeness") or {}).get("status") or "NOT_PROVEN"
+    )
+    b18_state = (
+        "FAIL" if incomplete_published
+        else combine(
+            browser_phase_state,
+            "PASS" if mandatory_results and all(
+                item.get("status") == "PASS" for item in mandatory_results
+            ) else "FAIL" if mandatory_results else "NOT_PROVEN",
+        )
+    )
     checks = {
         "B1": ("Exact four-item customer navigation", state(category="GLOBAL", interaction="customer-navigation-authority")),
         "B2": ("Admin authorization preserved", state(category="GLOBAL", interaction="role-isolation-internal_admin")),
@@ -84,7 +107,7 @@ def _r1_acceptance(
         "B15": ("No raw customer enums or ISO timestamps", state(category="UX", interaction="customer-copy-contract")),
         "B16": ("No empty-only Research sections", state(category="UX", interaction="customer-copy-contract")),
         "B17": ("Complete original-resolution visual evidence", "PASS" if {"home", "research_nvda", "research_msft", "research_avt", "watchlist", "ask_grounded"} <= visual_pages else "NOT_PROVEN"),
-        "B18": ("Required browser phase, no critical exception", str((required.get("required_completeness") or {}).get("status") or "NOT_PROVEN")),
+        "B18": ("Required browser phase, complete published lifecycle, no critical exception", b18_state),
     }
     results_out = [
         {"criterion": key, "description": description, "status": status}

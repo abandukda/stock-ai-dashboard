@@ -2,6 +2,7 @@ import ast
 from pathlib import Path
 
 from scripts.prepare_report_card_qa_fixture import prepare
+from scripts.prepare_customer_experience_qa_evidence import _r1_acceptance
 from services.prospective_report_card import ProspectiveLedger
 
 
@@ -98,6 +99,32 @@ def test_r1_visual_acceptance_is_an_explicit_fail_closed_b1_b18_gate() -> None:
         assert f'"B{index}"' in PREPARER
     assert 'all(item["status"] == "PASS" for item in results_out)' in PREPARER
     assert 'r1_acceptance["status"] == "PASS"' in PREPARER
+    assert 'incomplete_published' in PREPARER
+    assert '\"complete\": false' in PREPARER
+    assert 'RESEARCH_RENDER_INCOMPLETE' in PREPARER.upper()
+
+
+def test_b18_fails_when_published_submission_contains_incomplete_predicate() -> None:
+    required = {
+        "required_completeness": {"status": "PASS"},
+        "results": [{
+            "category": "RESEARCH_SUBMISSION_BOUNDARY",
+            "interaction": "submit-event-and-rerun",
+            "ticker_context": "NVDA",
+            "viewport": "mobile",
+            "required": True,
+            "status": "PASS",
+            "observed": (
+                '{"publication_allowed": true, "complete": false, '
+                '"research_terminal_state": "RESEARCH_RENDER_INCOMPLETE"}'
+            ),
+        }],
+        "screenshot_manifest": [],
+    }
+    acceptance = _r1_acceptance(required, {}, [])
+    b18 = next(item for item in acceptance["criteria"] if item["criterion"] == "B18")
+    assert b18["status"] == "FAIL"
+    assert acceptance["status"] == "FAIL"
 
 
 def test_customer_role_visual_evidence_covers_launch_surfaces_and_exact_viewports() -> None:

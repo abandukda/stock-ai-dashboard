@@ -30,6 +30,13 @@ def valid_observed():
         "evaluation_snapshot_id": "snapshot",
         "provider_calls": 0,
         "research_terminal_state": "PUBLISHED_RESEARCH_COMPLETE",
+        "complete": True,
+        "five_sections": True,
+        "ask_cta": True,
+        "pillar_count": 6,
+        "pillar_numeric_parity": True,
+        "chart_ownership": "PASS",
+        "rendered_exception": False,
     }
 
 
@@ -49,6 +56,13 @@ def test_each_required_research_boundary_fails_closed():
         "decision_confidence": "1.00",
         "provider_calls": 1,
         "research_terminal_state": "RESEARCH_RENDER_INCOMPLETE",
+        "complete": False,
+        "five_sections": False,
+        "ask_cta": False,
+        "pillar_count": 3,
+        "pillar_numeric_parity": False,
+        "chart_ownership": "FAIL",
+        "rendered_exception": True,
     }
     for field, wrong in mutations.items():
         observed = valid_observed()

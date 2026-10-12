@@ -324,6 +324,20 @@ def research_submission_proven(
         completed_research.get("research_terminal_state") == "RATING_NOT_PUBLISHED_COMPLETE"
         and completed_research.get("publication_allowed") is False
         and completed_research.get("withheld_terminal")
+        and completed_research.get("complete") is True
+        and completed_research.get("withheld_message_visible") is True
+        and not completed_research.get("rendered_exception")
+    )
+    published_terminal = bool(
+        completed_research.get("research_terminal_state") == "PUBLISHED_RESEARCH_COMPLETE"
+        and completed_research.get("publication_allowed") is True
+        and completed_research.get("complete") is True
+        and completed_research.get("five_sections") is True
+        and completed_research.get("ask_cta") is True
+        and int(completed_research.get("pillar_count") or 0) == 6
+        and completed_research.get("pillar_numeric_parity") is True
+        and completed_research.get("chart_ownership") == "PASS"
+        and not completed_research.get("rendered_exception")
     )
     end_to_end = bool(
         streamlit_event_frames > 0
@@ -332,7 +346,10 @@ def research_submission_proven(
         and completed_research.get("no_stale_ticker")
         and completed_research.get("lifecycle_complete")
         and completed_research.get("vnext")
-        and (completed_research.get("certified_fields_reconciled") or unpublished_terminal)
+        and (
+            (published_terminal and completed_research.get("certified_fields_reconciled"))
+            or unpublished_terminal
+        )
         and completed_research.get("provider_boundary_zero")
     )
     if end_to_end:
@@ -363,6 +380,23 @@ def research_submission_failure(
         and completed_research.get("publication_allowed") is False
         and completed_research.get("withheld_terminal")
     )
+    if not unpublished_terminal:
+        if completed_research.get("research_terminal_state") != "PUBLISHED_RESEARCH_COMPLETE":
+            return "RESEARCH_RENDER_INCOMPLETE"
+        if completed_research.get("complete") is not True:
+            return "RESEARCH_REQUIRED_COMPONENTS_INCOMPLETE"
+        if not completed_research.get("five_sections"):
+            return "RESEARCH_FIVE_SECTIONS_MISSING"
+        if not completed_research.get("ask_cta"):
+            return "RESEARCH_ASK_CTA_MISSING"
+        if int(completed_research.get("pillar_count") or 0) != 6:
+            return "RESEARCH_SIX_PILLARS_INCOMPLETE"
+        if completed_research.get("pillar_numeric_parity") is not True:
+            return "RESEARCH_PILLAR_PARITY_FAILED"
+        if completed_research.get("chart_ownership") != "PASS":
+            return "RESEARCH_CHART_OWNERSHIP_FAILED"
+        if completed_research.get("rendered_exception"):
+            return "RESEARCH_RENDER_EXCEPTION"
     if not completed_research.get("certified_fields_reconciled") and not unpublished_terminal:
         return "RESEARCH_CERTIFIED_FIELDS_NOT_RECONCILED"
     if not completed_research.get("provider_boundary_zero"):
@@ -499,6 +533,20 @@ def required_research_authority_failures(
     )
     if observed.get("research_terminal_state") != expected_terminal:
         failures.append("TERMINAL_LIFECYCLE_MISSING")
+    if observed.get("complete") is not True:
+        failures.append("REQUIRED_COMPONENTS_INCOMPLETE")
+    if not unpublished:
+        component_contract = (
+            ("five_sections", True, "FIVE_SECTIONS_MISSING"),
+            ("ask_cta", True, "ASK_CTA_MISSING"),
+            ("pillar_count", 6, "SIX_PILLARS_INCOMPLETE"),
+            ("pillar_numeric_parity", True, "PILLAR_PARITY_FAILED"),
+            ("chart_ownership", "PASS", "CHART_OWNERSHIP_FAILED"),
+            ("rendered_exception", False, "RENDER_EXCEPTION"),
+        )
+        for key, expected_value, label in component_contract:
+            if observed.get(key) != expected_value:
+                failures.append(label)
     if unpublished and observed.get("publication_allowed") is not False:
         failures.append("PUBLICATION_POLICY_MISMATCH")
     return failures
@@ -756,6 +804,8 @@ class AtlasVisualCrawler:
         # allowing the stronger exact-ticker terminal Research contract to
         # become authoritative within the existing bounded Research budget.
         evidence: dict[str, Any] = {}
+        settlement_observations: list[dict[str, Any]] = []
+        prior_settlement_signature: tuple[Any, ...] | None = None
         while time.monotonic() < deadline:
             transport = self._transport_snapshot(page)
             sent_after = int(transport["frames_sent"])
@@ -773,6 +823,29 @@ class AtlasVisualCrawler:
                     f'[data-atlas-submitted="true"][data-atlas-ticker="{ticker}"]'
                 ).count())
             completed_research = await self._completed_research(page, ticker)
+            settlement_signature = (
+                completed_research.get("research_terminal_state"),
+                bool(completed_research.get("complete")),
+                bool(completed_research.get("five_sections")),
+                bool(completed_research.get("ask_cta")),
+                int(completed_research.get("pillar_count") or 0),
+                completed_research.get("chart_ownership"),
+                bool(completed_research.get("rendered_exception")),
+            )
+            if settlement_signature != prior_settlement_signature:
+                settlement_observations.append({
+                    "elapsed_seconds": round(
+                        RESEARCH_COMPLETION_TIMEOUT_SECONDS - max(deadline - time.monotonic(), 0.0), 3,
+                    ),
+                    "research_terminal_state": settlement_signature[0] or "",
+                    "complete": settlement_signature[1],
+                    "five_sections": settlement_signature[2],
+                    "ask_cta": settlement_signature[3],
+                    "pillar_count": settlement_signature[4],
+                    "chart_ownership": settlement_signature[5] or "",
+                    "rendered_exception": settlement_signature[6],
+                })
+                prior_settlement_signature = settlement_signature
             proven, proof_mode = research_submission_proven(
                 streamlit_event_frames=sent_after - sent_before,
                 rerun_before=rerun_before,
@@ -815,6 +888,7 @@ class AtlasVisualCrawler:
                         "certified_fields_reconciled", "provider_boundary_zero", "complete",
                     )
                 },
+                "settlement_observations": settlement_observations,
                 "elapsed_seconds": round(
                     RESEARCH_COMPLETION_TIMEOUT_SECONDS - max(deadline - time.monotonic(), 0.0), 3,
                 ),
@@ -1281,6 +1355,15 @@ class AtlasVisualCrawler:
         return captures
 
     def _source_sha(self) -> str:
+        explicit = os.getenv("ATLAS_SOURCE_SHA", "").strip().lower()
+        if (
+            explicit
+            and os.getenv("ATLAS_EXACT_CANDIDATE_QA", "").strip().lower()
+            in {"1", "true", "yes"}
+        ):
+            if not re.fullmatch(r"[0-9a-f]{40}", explicit):
+                raise RuntimeError("INVALID_EXACT_CANDIDATE_SOURCE_SHA")
+            return explicit
         return subprocess.check_output(
             ["git", "rev-parse", "HEAD"], cwd=self.root, text=True,
         ).strip()

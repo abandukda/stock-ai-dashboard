@@ -129,6 +129,59 @@ def _unpublished_completion(**overrides):
     return value
 
 
+def _published_completion(**overrides):
+    value = {
+        "ticker": True, "no_stale_ticker": True, "lifecycle_complete": True,
+        "vnext": True, "certified_fields_reconciled": True,
+        "provider_boundary_zero": True, "publication_allowed": True,
+        "withheld_terminal": False, "complete": True,
+        "five_sections": True, "ask_cta": True, "pillar_count": 6,
+        "pillar_numeric_parity": True, "chart_ownership": "PASS",
+        "rendered_exception": False,
+        "research_terminal_state": "PUBLISHED_RESEARCH_COMPLETE",
+    }
+    value.update(overrides)
+    return value
+
+
+def test_published_submission_proof_requires_every_component_and_lifecycle_predicate():
+    proven, _ = research_submission_proven(
+        streamlit_event_frames=1, rerun_before=1, rerun_after=2,
+        submission_marker=False, completed_research=_published_completion(),
+    )
+    assert proven is True
+    negative_fixtures = (
+        {"lifecycle_complete": False},
+        {"ask_cta": False},
+        {"five_sections": False},
+        {"pillar_count": 0},
+        {"pillar_numeric_parity": False},
+        {"chart_ownership": "FAIL"},
+        {"research_terminal_state": "RESEARCH_RENDER_INCOMPLETE"},
+        {"complete": False},
+        {"rendered_exception": True},
+        {"no_stale_ticker": False},
+    )
+    for mutation in negative_fixtures:
+        assert research_submission_proven(
+            streamlit_event_frames=1, rerun_before=1, rerun_after=2,
+            submission_marker=True,
+            completed_research=_published_completion(**mutation),
+        )[0] is False, mutation
+
+
+def test_premature_terminal_marker_cannot_override_incomplete_mobile_rendering():
+    incomplete = _published_completion(
+        complete=False, five_sections=False, ask_cta=False, pillar_count=0,
+        pillar_numeric_parity=False, chart_ownership="",
+        research_terminal_state="RESEARCH_RENDER_INCOMPLETE",
+    )
+    assert research_submission_proven(
+        streamlit_event_frames=4, rerun_before=1, rerun_after=3,
+        submission_marker=True, completed_research=incomplete,
+    )[0] is False
+
+
 def test_first_screen_contract_branches_published_and_withheld_requirements():
     published = _unpublished_completion(
         research_terminal_state="PUBLISHED_RESEARCH_COMPLETE",
@@ -203,6 +256,7 @@ def test_unpublished_authority_requires_action_policy_identity_and_terminal():
     observed = {
         "action": "RATING NOT PUBLISHED", "publication_allowed": False,
         "research_terminal_state": "RATING_NOT_PUBLISHED_COMPLETE",
+        "complete": True,
         "candidate_digest": "c", "publication_digest": "p", "source_sha": "s",
         "evaluation_snapshot_id": "", "provider_calls": 0,
     }
@@ -584,6 +638,15 @@ def test_production_research_submission_waits_for_stronger_terminal_contract():
             "vnext": True,
             "certified_fields_reconciled": True,
             "provider_boundary_zero": True,
+            "publication_allowed": True,
+            "complete": True,
+            "five_sections": True,
+            "ask_cta": True,
+            "pillar_count": 6,
+            "pillar_numeric_parity": True,
+            "chart_ownership": "PASS",
+            "rendered_exception": False,
+            "research_terminal_state": "PUBLISHED_RESEARCH_COMPLETE",
         },
     )
     assert proven is True
@@ -603,8 +666,8 @@ def test_production_research_submission_waits_for_stronger_terminal_contract():
             "provider_boundary_zero": True,
         },
     )
-    assert proven is True
-    assert mode == "LEGACY_MARKER_AND_CERTIFIED_COMPLETION"
+    assert proven is False
+    assert mode == "UNPROVEN"
 
     source = SOURCE.read_text(encoding="utf-8")
     boundary = source.split("async def _require_submission_boundary", 1)[1].split(
