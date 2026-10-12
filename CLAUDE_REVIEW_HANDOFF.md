@@ -64,6 +64,41 @@ exchange_calendars 4.13.2 (XNYS)
 - Protected append authorization is absent.
 - Recurring schedule authorization is absent.
 
+## Comprehensive customer-suite differential
+
+The same broad customer/research/navigation suite was executed on both production main
+`1cfc27ee9f52a22bd4917c64db95fc2883ccdeed` and this PR. Results were identical:
+
+- Production main: 245 passed, 24 failed.
+- PR plus Report Card tests: 276 passed, 24 failed in the broad sweep; the focused release and Report Card gate separately passed 115/115.
+- New regressions introduced by this PR: **zero**.
+
+Failure classification:
+
+- 15 missing-fixture failures: retained `CXT`, `SD`, and CRC rows are absent from the local checkout. These are inherited fixture/environment failures, not evidence that the rendered product changed.
+- 4 retired source-shape assertions: tests search for superseded literal route/container/banner strings rather than exercising the current contract.
+- 2 inherited legacy renderer-fixture failures: synthetic VNext fixtures do not contain the certified authority needed by the current fail-closed renderer, so Ask/AI Brief elements are intentionally not emitted.
+- 2 inherited copy-expectation failures: current plain-English MONITOR copy differs from an older unavailable-copy assertion without changing authority.
+- 1 inherited authority-precedence contract conflict: a legacy test expects nested certified fields to override an incomplete current evaluation; current fail-closed code retains the incomplete current evaluation. This needs an owner-approved contract reconciliation and must not be silently changed as UI polish.
+
+No product code was changed to conceal these inherited failures. They remain release evidence debt and must be reported independently from the already-certified R1 run `38267208505`.
+
+## Premium-product evidence matrix
+
+| Workstream | State | Evidence boundary |
+|---|---|---|
+| Home premium hierarchy | VERIFIED BY EXISTING R1 CERTIFICATION; NEW PRODUCTION VISUAL PROOF BLOCKED | Exact production admin secret absent |
+| Five-section Research | VERIFIED BY EXISTING R1 CERTIFICATION; NEW PRODUCTION VISUAL PROOF BLOCKED | Exact production admin secret absent |
+| Watchlist and Ask | VERIFIED BY EXISTING R1 CERTIFICATION; NEW PRODUCTION VISUAL PROOF BLOCKED | Exact production admin secret absent |
+| Customer/admin isolation | IMPLEMENTED — AWAITING CONFIGURATION | Dedicated secret wiring and inequality preflight added |
+| Desktop/mobile production screenshots | NOT PROVEN FOR THIS PR | No authenticated production run permitted |
+| Calendar and acquisition | OFFLINE CERTIFIED | 115-test gate and deterministic end-to-end replay |
+| First live Report Card run | READY — AWAITING AUTHORIZATION | Calendar, provider, and append gates remain separate |
+| Public Report Card | OFF | No automatic activation path added |
+
+Route quality scores are intentionally withheld: without a fresh authenticated original-resolution
+production capture, assigning 1–10 visual scores would be unsupported.
+
 ## Claude review question
 
 Do the independent credential preflight, deterministic calendar identity, ledger-derived acquisition scope, zero-provider producer separation, idempotent append contract, and verified backup restore collectively prevent a false production PASS or an unauthorized/fabricated Report Card observation under every mandatory failure mode represented by the test suite?
