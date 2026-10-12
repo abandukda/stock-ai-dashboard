@@ -1,0 +1,83 @@
+name: ATLAS Report Card Market Evidence Acquisition
+
+# Intentionally dispatch-only. This workflow is inert until an owner supplies
+# the one-run authorization input. It never appends to the Report Card ledger.
+on:
+  workflow_dispatch:
+    inputs:
+      authorize_acquisition:
+        description: Exact one-run authorization token
+        required: true
+        type: string
+      calendar_run_id:
+        description: Governed XNYS calendar run ID
+        required: true
+        type: string
+      calendar_artifact:
+        description: Exact governed XNYS calendar artifact
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: atlas-report-card-market-evidence-acquisition
+  cancel-in-progress: false
+
+jobs:
+  acquire:
+    environment: atlas-internal-report-card
+    runs-on: [self-hosted, Linux, X64, atlas-worker-1]
+    timeout-minutes: 20
+    env:
+      ATLAS_REPORT_CARD_DURABLE_ROOT: ${{ vars.ATLAS_REPORT_CARD_DURABLE_ROOT }}
+      FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+      ATLAS_FINNHUB_LICENSE_CLASS: FINNHUB_PAID_CORE_CERTIFICATION
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - run: pip install -r requirements.txt
+      - name: Require explicit bounded authorization
+        shell: bash
+        run: |
+          test "${{ inputs.authorize_acquisition }}" = "REPORT_CARD_ACQUIRE_ONCE"
+          test -n "$ATLAS_REPORT_CARD_DURABLE_ROOT"
+          test -n "$FINNHUB_API_KEY"
+      - name: Download exact governed exchange calendar
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.calendar_run_id }}
+          name: ${{ inputs.calendar_artifact }}
+          path: audit_results/report_card_calendar
+      - name: Resolve exactly one calendar
+        id: calendar
+        shell: bash
+        run: |
+          mapfile -t files < <(find audit_results/report_card_calendar -type f \( -name xyns_calendar.json -o -name xnys_calendar.json \))
+          test "${#files[@]}" -eq 1
+          echo "path=${files[0]}" >> "$GITHUB_OUTPUT"
+      - name: Acquire bounded internal evidence
+        shell: bash
+        run: |
+          python3 scripts/acquire_report_card_market_evidence.py \
+            --ledger "$ATLAS_REPORT_CARD_DURABLE_ROOT/report-card.sqlite3" \
+            --calendar "${{ steps.calendar.outputs.path }}" \
+            --source-sha "$GITHUB_SHA" \
+            --authorization "${{ inputs.authorize_acquisition }}" \
+            --output audit_results/report_card_market_evidence/report_card_market_evidence.json
+      - name: Offline acquisition contract tests
+        run: pytest -q tests/test_report_card_market_evidence_acquisition.py tests/test_report_card_observation_producer.py
+      - name: Fail closed without ledger mutation
+        if: failure()
+        run: echo "::error title=ATLAS evidence acquisition failed::No Report Card observation or public mutation was attempted."
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atlas-report-card-market-evidence-${{ github.run_id }}
+          path: audit_results/report_card_market_evidence
+          retention-days: 30
