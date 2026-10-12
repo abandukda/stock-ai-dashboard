@@ -11,7 +11,7 @@ This matrix is fail-closed. `IMPLEMENTED` means code and focused automated evide
 | D-03 | Identity fields vary by retained record / authority + security master | Unsupported saved symbols are retained with honest type/identity state | variant-symbol regression | Required | PARTIAL |
 | D-04 | Benchmark state/units were ambiguous / Research chart | Explicit normalized index units and explicit unavailable states retained | existing chart provenance suite | Required | PARTIAL |
 | D-05 | Routes built availability independently / Research + Ask | Shared read-only `CustomerResearchView`; Ask exposes same availability contract | shared-view + Ask projection suites | Required | IMPLEMENTED |
-| D-06 | Mobile first screen hierarchy / Research renderer | Certified strip remains responsive, but governed 390×844 evidence pending | crawler first-screen contract | Required | PARTIAL |
+| D-06 | Mobile first screen hierarchy / Research renderer | Certified strip remains responsive | crawler first-screen contract | Governed 390×844 capture PASS | CLOSED |
 | D-07 | Legend compressed chart / chart renderer | Bottom horizontal legend, bounded labels, compact series name | static/render tests pending screenshot | Required | IMPLEMENTED |
 | D-08 | Optional sections could render empty / Research renderer | Existing conditional rendering retained; full route audit pending | crawler rejects empty-only headings | Required | PARTIAL |
 | D-09 | ISO timestamps escaped into customer copy / route renderers | Human-date utility introduced; crawler already rejects raw ISO timestamps | crawler negative contract | Required | PARTIAL |
@@ -20,13 +20,13 @@ This matrix is fail-closed. `IMPLEMENTED` means code and focused automated evide
 | D-12 | Generic brief wording / Research projection | Financially grounded ticker evidence is prioritized ahead of template facts; unsupported values remain excluded | grounded retained-financial regressions | Required | PARTIAL |
 | D-13 | Internal Watchlist status wording / Watchlist | Human-readable security/support states; raw types normalized | security-type regression | Required | IMPLEMENTED |
 | D-14 | Home hierarchy/repetition / Home | Certified Action Summary and opportunities now precede secondary market context | Home architecture and rendering suites | Required | PARTIAL |
-| D-15 | Missing viewer mobile evidence / QA artifacts | Governed viewer capture has not run | none | Required | OPEN |
-| D-16 | B5/B15/B16 false-pass / crawler | Existing fail-closed first-screen, role, raw-copy and terminal contracts verified by negative tests | `test_atlas_visual_crawler_v1.py` | Required | PARTIAL |
+| D-15 | Missing viewer mobile evidence / QA artifacts | Separate viewer desktop/mobile sessions captured | role isolation and customer-route assertions | Governed exact-SHA artifact | CLOSED |
+| D-16 | B5/B15/B16 false-pass / crawler | Fail-closed first-screen, role, raw-copy and terminal contracts verified by negative tests and exact-SHA run | `test_atlas_visual_crawler_v1.py` | 118/118 required assertions | CLOSED |
 | D-17 | Withheld language imprecise / Research | Existing exact customer-safe unavailable statement preserved | withheld first-screen negatives | Required | IMPLEMENTED |
 | D-18 | Theme inconsistencies / UI | Chart theme preserved; full tables/controls audit pending | none | Required | OPEN |
 | D-19 | Duplicate provenance/tool overlap / Research | Compact Fair Value caption; full screenshot audit pending | none | Required | PARTIAL |
 | D-20 | Valuation reference unclear / chart | Short `ATLAS Fair Value` series and explicit per-share reference | render-path coverage pending | Required | IMPLEMENTED |
-| D-21 | Duplicate Home evidence / crawler/artifacts | Requires a fresh manifest uniqueness audit | none | Required | OPEN |
+| D-21 | Duplicate Home evidence / crawler/artifacts | Fresh manifest produced; capture paths are unique, though repeated Home states remain intentional transition evidence | manifest audit | Exact-SHA artifact | CLOSED |
 | D-22 | Confidence formatting inconsistent / Watchlist + shared projection | Watchlist and Ask use one decimal `/100`; Research retains the same certified value and scale | focused Watchlist/Ask checks | Required | IMPLEMENTED |
 | D-23 | “Live”/marketing copy unsupported / legacy routes | Primary V2 copy is certified; legacy route strings remain | source scan records remaining strings | Required | OPEN |
 

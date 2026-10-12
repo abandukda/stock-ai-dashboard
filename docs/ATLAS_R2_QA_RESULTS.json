@@ -1,0 +1,33 @@
+{
+  "schema_version": "ATLAS_R2_QA_RESULTS_V1",
+  "candidate_sha": "934a06a4ba0d9cb691a627678762f985aff44fbd",
+  "branch": "codex/premium-r2-complete-customer-product",
+  "production_changed": false,
+  "provider_calls_authorized": false,
+  "offline_validation": {
+    "focused_passed": 119,
+    "combined_customer_passed": 208,
+    "deselected_inherited_source_shape_assertions": 1,
+    "python_compilation": "PASS",
+    "git_diff_check": "PASS"
+  },
+  "governed_qa": {
+    "run_id": 38292622116,
+    "mode": "certify_only",
+    "max_repair_attempts": 0,
+    "runtime_source_run": 37216506983,
+    "runtime_artifact_identity": "atlas-finnhub-full-universe-final-37216506983",
+    "status": "PASS",
+    "artifact_id": 11767750308,
+    "artifact_name": "atlas-customer-experience-qa-934a06a4ba0d9cb691a627678762f985aff44fbd",
+    "artifact_sha256": "3dddf698d8fcbcc830a1a58b83f578f460d0014a24e97482e0e08688027bd914",
+    "required_assertions": {"passed": 118, "attempted": 118, "failed": 0},
+    "required_screenshots": {"generated": 167, "expected": 167, "missing": 0},
+    "supplementary_assertions": {"passed": 26, "attempted": 36, "failed": 10},
+    "supplementary_screenshots": {"generated": 110, "expected": 110, "missing": 0},
+    "provider_calls": 0,
+    "production": "UNCHANGED"
+  },
+  "visual_acceptance": "REQUIRED_GOVERNED_QA_PASS_WITH_SUPPLEMENTARY_GAPS",
+  "independent_10_of_10": "NOT_YET_PROVEN"
+}
