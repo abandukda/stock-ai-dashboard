@@ -26,8 +26,9 @@ def _compact_context(report: Mapping[str, Any]) -> dict[str, Any]:
     # Research and Ask consume one customer-facing projection for protected
     # values, freshness and contextual availability. Ask remains read-only and
     # never calculates Action, Fair Value, Opportunity or Confidence.
-    from services.customer_research_v2 import build_customer_research_v2
-    customer_projection = build_customer_research_v2(report)
+    from services.customer_research_view import build_customer_research_view
+    customer_view = build_customer_research_view(report)
+    customer_projection = customer_view.as_mapping()
     customer_header = customer_projection.get("header") if isinstance(customer_projection.get("header"), Mapping) else {}
     customer_summary = customer_projection.get("summary") if isinstance(customer_projection.get("summary"), Mapping) else {}
     intelligence = report.get("intelligence") or build_executive_intelligence(report)
@@ -106,6 +107,7 @@ def _compact_context(report: Mapping[str, Any]) -> dict[str, Any]:
             "earnings": (customer_projection.get("catalysts") or {}).get("status"),
             "analysts": (customer_projection.get("wall_street") or {}).get("status"),
         } if customer_projection.get("status") == "AVAILABLE" else {},
+        "customer_availability_contract": dict(customer_view.availability),
         # Legacy committee narrative may carry a recommendation that is not
         # published by RESEARCH_CONTEXT_V1. Never present it to synthesis as
         # decision authority when the canonical decision is unavailable.

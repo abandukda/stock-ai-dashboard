@@ -11,7 +11,7 @@ import math
 import pandas as pd
 import streamlit as st
 
-from services.customer_research_v2 import build_customer_research_v2
+from services.customer_research_view import Availability, build_customer_research_view
 
 
 def _six_pillar_display_rows(pillars: Mapping[str, Any]) -> tuple[dict[str, Any], ...]:
@@ -138,7 +138,7 @@ def _dark_line_chart(frame: pd.DataFrame, *, height: int, y_title: str, key: str
         "encoding": {
             "x": {"field": "Date", "type": "temporal", "axis": {"title": "Date", "format": "%b %Y", "tickCount": 6, "labelOverlap": "greedy", "labelColor": "#94a3b8", "titleColor": "#cbd5e1", "gridColor": "#1e293b"}},
             "y": {"field": "Value", "type": "quantitative", "scale": {"zero": False, "nice": True}, "axis": {"title": y_title, "labelColor": "#94a3b8", "titleColor": "#cbd5e1", "gridColor": "#1e293b"}},
-            "color": {"field": "Series", "type": "nominal", "scale": {"domain": series, "range": palette[:len(series)]}, "legend": {"title": None, "labelLimit": 320, "labelColor": "#cbd5e1", "titleColor": "#cbd5e1"}},
+            "color": {"field": "Series", "type": "nominal", "scale": {"domain": series, "range": palette[:len(series)]}, "legend": {"title": None, "orient": "bottom", "direction": "horizontal", "columns": 2, "labelLimit": 180, "labelColor": "#cbd5e1", "titleColor": "#cbd5e1"}},
             "tooltip": [{"field": "Date", "type": "temporal", "format": "%b %d, %Y"}, {"field": "Series"}, {"field": "Value", "format": ",.2f"}],
         },
         "config": {"background": "#08111f", "view": {"stroke": "#243244"}, "axis": {"domainColor": "#334155", "tickColor": "#334155"}},
@@ -165,7 +165,8 @@ def _range_rows(frame: pd.DataFrame, selected: str) -> pd.DataFrame:
 
 def render_customer_research_first_screen(report: Mapping[str, Any]) -> dict[str, Any]:
     """Render the settled ticker's customer-safe summary before search controls."""
-    page = build_customer_research_v2(report)
+    customer_view = build_customer_research_view(report)
+    page = customer_view.as_mapping()
     ticker = str(page.get("ticker") or "UNKNOWN")
     if page.get("status") != "AVAILABLE":
         _marker("terminal", ticker, state="RATING_NOT_PUBLISHED")
@@ -209,13 +210,16 @@ def render_customer_research_first_screen(report: Mapping[str, Any]) -> dict[str
     if h["fair_value_gap_pct"] is not None:
         direction = "above" if h["fair_value_gap_pct"] >= 0 else "below"
         st.caption(f'ATLAS Fair Value is {abs(float(h["fair_value_gap_pct"])):.2f}% {direction} the last certified close. This is not a guaranteed return.')
+    if customer_view.availability.get("certified_close") == Availability.CERTIFIED_DATED.value:
+        st.warning("This Research uses a dated certified close. Review the displayed as-of date before acting.")
     if h["action"] not in {"BUY NOW", "BUILD A POSITION"}:
         st.caption("Not currently actionable — continue monitoring the certified evidence.")
     return page
 
 
 def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[[Mapping[str, Any]], None]) -> bool:
-    page = build_customer_research_v2(report)
+    customer_view = build_customer_research_view(report)
+    page = customer_view.as_mapping()
     ticker = str(page.get("ticker") or "UNKNOWN")
     first_screen_rendered = st.session_state.pop("_atlas_research_first_screen_rendered", "") == ticker
     if page.get("status") != "AVAILABLE":
@@ -279,8 +283,10 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
             fair_value = header.get("fair_value")
             price_frame = stock_rows.copy()
             if fair_value is not None:
-                price_frame["ATLAS Fair Value — certified snapshot"] = float(fair_value)
+                price_frame["ATLAS Fair Value"] = float(fair_value)
             _dark_line_chart(price_frame, height=300, y_title="Price (USD/share)", key=f"research-price-chart-{ticker}")
+            if fair_value is not None:
+                st.caption(f"ATLAS Fair Value reference: {_money(fair_value)} per share · certified snapshot")
             spy = chart.get("spy_comparison") or {}
             spy_rows = pd.DataFrame(spy.get("series") or [])
             if spy.get("status") == "AVAILABLE" and not spy_rows.empty:

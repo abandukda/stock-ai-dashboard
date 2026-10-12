@@ -4018,7 +4018,7 @@ def write_watchlist_symbols(symbols):
     cleaned = []
     for item in symbols:
         sym = safe_text(item, "").upper().strip()
-        if sym and "." not in sym and "/" not in sym and len(sym) <= 7:
+        if re.fullmatch(r"[A-Z0-9][A-Z0-9.\-/]{0,11}", sym):
             cleaned.append(sym)
 
     payload = {"symbols": list(dict.fromkeys(cleaned))}
@@ -4043,6 +4043,14 @@ def add_symbol_to_watchlist(symbol):
         return write_watchlist_symbols(symbols)
 
     return True
+
+
+def remove_symbol_from_watchlist(symbol):
+    symbol = safe_text(symbol, "").upper().strip()
+    symbols = read_watchlist_symbols()
+    if symbol not in symbols:
+        return True
+    return write_watchlist_symbols([item for item in symbols if item != symbol])
 
 
 def find_ticker_row(ticker, *dfs):
@@ -28627,7 +28635,13 @@ def main():
     elif selected_page=="Full Ranked Scan":
             render_full_scan_vnext(full_df, open_research=v784_open_research)
     elif selected_page=="Portfolio Intelligence": render_v505_portfolio_analyzer(full_df,top_df,recovery_df,watch_df,prescreen_df,etf_df)
-    elif selected_route=="Watchlist Intelligence": render_watchlist_vnext(full_df, read_watchlist_symbols(), open_research=v784_open_research)
+    elif selected_route=="Watchlist Intelligence": render_watchlist_vnext(
+        full_df,
+        read_watchlist_symbols(),
+        open_research=v784_open_research,
+        add_symbol=add_symbol_to_watchlist,
+        remove_symbol=remove_symbol_from_watchlist,
+    )
     elif selected_page=="Recovery":
         render_recovery_vnext(recovery_df, open_research=v784_open_research)
     elif selected_page=="ETFs":
