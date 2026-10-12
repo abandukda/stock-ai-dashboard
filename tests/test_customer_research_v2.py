@@ -3,6 +3,8 @@ import ast
 import json
 from pathlib import Path
 
+import pytest
+
 from services.customer_authority import bind_report_to_customer_authority, bind_runtime_publication_identity
 from services.customer_research_v2 import FactCard, build_customer_research_v2, validate_grounded_text
 from ui.customer_research_v2 import _six_pillar_frame
@@ -557,10 +559,61 @@ def test_renderer_uses_customer_safe_labels_and_escapes_currency():
     assert "Weakest certified pillar" in source
 
 
+def test_verified_profile_name_replaces_ticker_only_company_label(monkeypatch, tmp_path):
+    source = report()
+    source["company"] = "NVDA"
+    bundle = {"tickers": {"NVDA": {"company_profile": {
+        "payload": {"name": "NVIDIA Corp", "industry": "Semiconductors"},
+        "provenance": {"raw_evidence_id": "profile:nvda"},
+    }}}}
+    path = tmp_path / "qa.json"; path.write_text(json.dumps(bundle))
+    monkeypatch.setenv("ATLAS_QA_MODE", "1")
+    monkeypatch.setenv("ATLAS_RESEARCH_V2_QA_ENRICHMENT", str(path))
+
+    projected = build_customer_research_v2(source)
+
+    assert projected["company"] == "NVIDIA Corp"
+    assert projected["about"]["company"] == "NVIDIA Corp"
+
+
+def test_retained_contract_financial_series_projects_only_registered_evidence(monkeypatch, tmp_path):
+    source = report()
+    bundle = {"tickers": {"NVDA": {"basic_financials": {
+        "payload": {
+            "series": {"annual": {
+                "ebitda": [{"period": "2024-01-01", "v": 10}, {"period": "2025-01-01", "v": 20}],
+                "grossMargin": [{"period": "2024-01-01", "v": .50}, {"period": "2025-01-01", "v": .55}],
+                "unregistered": [{"period": "2024-01-01", "v": 999}, {"period": "2025-01-01", "v": 1000}],
+            }},
+            "provider_contract_series": {
+                "annual.ebitda": {"status": "CERTIFIED_PROVIDER_CONTRACT", "conversion": "MULTIPLY_BY_1E6", "evidence_reference": "series:ebitda"},
+                "annual.grossMargin": {"status": "CERTIFIED_PROVIDER_CONTRACT", "canonical_unit": "RATIO_DECIMAL", "evidence_reference": "series:gross-margin"},
+            },
+        },
+        "provenance": {"raw_evidence_id": "financials:nvda"},
+    }}}}
+    path = tmp_path / "qa.json"; path.write_text(json.dumps(bundle))
+    monkeypatch.setenv("ATLAS_QA_MODE", "1")
+    monkeypatch.setenv("ATLAS_RESEARCH_V2_QA_ENRICHMENT", str(path))
+
+    trend = build_customer_research_v2(source)["financial_trend"]
+
+    assert trend["status"] == "AVAILABLE"
+    assert trend["periods"] == ("2024-01-01", "2025-01-01")
+    assert trend["series"]["EBITDA"] == (10_000_000.0, 20_000_000.0)
+    assert trend["series"]["Gross Margin"] == pytest.approx((50.0, 55.0))
+    assert trend["units"] == {"EBITDA": "USD", "Gross Margin": "PERCENT"}
+    assert set(trend["provenance"]["evidence_ids"]) == {"series:ebitda", "series:gross-margin"}
+    reasons = build_customer_research_v2(source)["summary"]["why_rating"]
+    assert "EBITDA was $20.0M for Jan 1, 2025." in reasons
+    assert "Gross Margin was 55.0% for Jan 1, 2025." in reasons
+
+
 def test_research_first_screen_is_rendered_before_search_and_market_context():
     app_source = __import__("pathlib").Path("app.py").read_text(encoding="utf-8")
     route = app_source.split("def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=None):", 1)[1]
-    assert route.index("_research_first_screen_slot = st.container()") < route.index('with st.form("research_ticker_form"')
+    assert route.index("_research_first_screen_slot = st.empty()") < route.index('with st.form("research_ticker_form"')
+    assert "Live Atlas Research" not in route.split("def ", 1)[0]
     assert 'selected_route not in {"Home", "Research Any Ticker"}' in app_source
     assert 'with st.expander("Market context", expanded=False)' in app_source
 

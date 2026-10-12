@@ -27842,8 +27842,8 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
     # A regular container populated later can be appended after intervening
     # elements by Streamlit on narrow-screen reruns.
     _research_first_screen_slot = st.empty()
-    st.markdown("<div class='v65-section-title'>🔎 Live Atlas Research</div>",unsafe_allow_html=True)
-    st.markdown("<div class='v65-subtitle'>Paid-client research combines current retrieval with the richest verified saved evidence across all Atlas datasets.</div>",unsafe_allow_html=True)
+    st.markdown("<div class='v65-section-title'>ATLAS Research</div>",unsafe_allow_html=True)
+    st.markdown("<div class='v65-subtitle'>Certified investment research with clearly labeled retained context and evidence freshness.</div>",unsafe_allow_html=True)
     st.markdown(
         '<span data-atlas-qa="page-ready" data-atlas-page="research-any-ticker" '
         'data-atlas-status="ready" aria-hidden="true" style="display:none">research-page-ready</span>',

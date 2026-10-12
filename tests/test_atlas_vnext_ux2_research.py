@@ -59,6 +59,18 @@ report["certified_customer_evaluation"] = {{
     }},
     "digests": {{"evaluation_snapshot_id": "snapshot-{ticker}"}},
 }}
+report["candidate_digest"] = "candidate-{ticker}"
+report["publication_digest"] = "publication-{ticker}"
+report["source_sha"] = "source-{ticker}"
+report["customer_authority_identity"] = {{
+    "ticker": {ticker!r}, "candidate_digest": "candidate-{ticker}",
+    "publication_digest": "publication-{ticker}", "source_sha": "source-{ticker}",
+    "evaluation_snapshot": "snapshot-{ticker}", "action": {verdict!r},
+    "fair_value": report.get("atlas_fair_value") or 120.0,
+    "opportunity": report.get("opportunity_score") or 40.0,
+    "confidence": report.get("confidence_pct") or 40.0,
+    "evidence_ids": ["fixture:{ticker}:certified"],
+}}
 render_research_vnext(report, legacy={{"meta": meta, "metric_grid": metric_grid, "interpretation": interpretation, "valuation": valuation, "analyst": analyst, "trade_plan": trade_plan, "price_chart": price_chart, "policy": policy}})
 '''
     return AppTest.from_string(source, default_timeout=20).run()

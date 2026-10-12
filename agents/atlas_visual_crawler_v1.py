@@ -2282,7 +2282,7 @@ class AtlasVisualCrawler:
         for scope in _scopes(page):
             try:
                 heading = scope.locator(".v65-section-title").filter(
-                    has_text="Live Atlas Research"
+                    has_text="ATLAS Research"
                 )
                 inputs = scope.get_by_label("Ticker", exact=True)
                 if not await inputs.count():
@@ -2786,7 +2786,7 @@ class AtlasVisualCrawler:
                 first_text = await _visible_text(page)
                 overflow = await page.evaluate("() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 2")
                 raw_customer_tokens = sorted({
-                    token for token in ("COMMON_STOCK", "GENERIC_EQUITY") if token in first_text
+                    token for token in ("COMMON_STOCK", "GENERIC_EQUITY", "Live Atlas Research") if token in first_text
                 })
                 raw_iso_timestamps = sorted(set(re.findall(
                     r"\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})\b",
@@ -3264,7 +3264,72 @@ class AtlasVisualCrawler:
                 raise GlobalCrawlFailure(f"REQUIRED_RESEARCH_FAILED_{ticker}")
         if not await asyncio.wait_for(self._page_visit(page, "Watchlist Intelligence"), timeout=20):
             raise GlobalCrawlFailure("REQUIRED_WATCHLIST_DESKTOP_FAILED")
+        await self._watchlist_edit_journey(page)
         await asyncio.wait_for(self._ask(page, viewport="desktop"), timeout=35)
+
+    async def _watchlist_edit_journey(self, page: Page) -> None:
+        """Prove add/search/sort/remove persistence without retaining QA state."""
+        ticker = "ZZZZQ"
+        started = time.monotonic()
+        before = await self._shot(
+            page, page_name="Watchlist Intelligence", interaction="personal-watchlist-journey",
+            state="before", viewport="desktop",
+        )
+        evidence = {"added": False, "searched": False, "sorted": False, "removed": False,
+                    "unavailable_not_zero": False}
+        after = before
+        try:
+            for scope in _scopes(page):
+                field = scope.get_by_label("Add ticker", exact=True)
+                button = scope.get_by_role("button", name="Add", exact=True)
+                if await field.count() and await button.count() and await field.first.is_visible():
+                    await field.first.fill(ticker)
+                    await button.first.click()
+                    await page.wait_for_timeout(900)
+                    break
+            text = await _visible_text(page)
+            evidence["added"] = ticker in text
+            evidence["unavailable_not_zero"] = "Unavailable" in text and "$0.00" not in text
+            for scope in _scopes(page):
+                search = scope.get_by_label("Search your watchlist", exact=True)
+                if await search.count() and await search.first.is_visible():
+                    await search.first.fill(ticker)
+                    await page.wait_for_timeout(450)
+                    evidence["searched"] = ticker in await _visible_text(page)
+                    await search.first.fill("")
+                    break
+            for scope in _scopes(page):
+                sort = scope.get_by_label("Sort", exact=True)
+                if await sort.count() and await sort.first.is_visible():
+                    await sort.first.click()
+                    option = page.get_by_role("option", name="Opportunity", exact=True)
+                    await option.first.click()
+                    await page.wait_for_timeout(450)
+                    evidence["sorted"] = True
+                    break
+            after = await self._shot(
+                page, page_name="Watchlist Intelligence", interaction="personal-watchlist-journey",
+                state="added-searched-sorted", viewport="desktop", ticker=ticker,
+            )
+        finally:
+            for scope in _scopes(page):
+                remove = scope.get_by_role("button", name=f"Remove {ticker}", exact=True)
+                if await remove.count() and await remove.first.is_visible():
+                    await remove.first.click()
+                    await page.wait_for_timeout(900)
+                    evidence["removed"] = f"Remove {ticker}" not in await _visible_text(page)
+                    break
+        passed = all(evidence.values())
+        await self._record(
+            category="WATCHLIST", page_name="Watchlist Intelligence",
+            interaction="add-search-sort-remove-persistence",
+            expected="Customer can add, search, sort and remove a saved symbol; absent prices remain Unavailable",
+            observed=json.dumps(evidence, sort_keys=True), passed=passed,
+            elapsed=time.monotonic() - started, ticker=ticker, viewport="desktop",
+            screenshots=(before, after), severity="P1",
+        )
+        if not passed:
+            raise GlobalCrawlFailure("REQUIRED_WATCHLIST_EDIT_JOURNEY_FAILED")
 
     async def _supplementary_desktop(self, page: Page) -> None:
         await page.set_viewport_size(DESKTOP)
@@ -3336,10 +3401,24 @@ class AtlasVisualCrawler:
         await asyncio.wait_for(self._ask(page, viewport="desktop"), timeout=35)
 
         await page.set_viewport_size(MOBILE)
+        await asyncio.wait_for(self._page_visit(page, "Home", viewport="mobile"), timeout=30)
+        await self._shot(
+            page, page_name="Home", interaction="customer-role-evidence",
+            state="scroll-zero", viewport="mobile", complete_surface=True,
+        )
         for ticker in ("NVDA", "AVT", "CRC"):
             passed = await self._submit_research(page, ticker, tabs=False, viewport="mobile")
             if not passed:
                 raise GlobalCrawlFailure(f"CUSTOMER_ROLE_RESEARCH_FAILED_{ticker}_MOBILE")
+        if not await asyncio.wait_for(
+            self._page_visit(page, "Watchlist Intelligence", viewport="mobile"), timeout=20,
+        ):
+            raise GlobalCrawlFailure("CUSTOMER_ROLE_WATCHLIST_FAILED_MOBILE")
+        await self._shot(
+            page, page_name="Watchlist Intelligence", interaction="customer-role-evidence",
+            state="visible", viewport="mobile", complete_surface=True,
+        )
+        await asyncio.wait_for(self._ask(page, viewport="mobile"), timeout=35)
 
     async def _supplementary_mobile(self, page: Page) -> None:
         await page.set_viewport_size(MOBILE)
