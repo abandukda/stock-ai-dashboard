@@ -3281,32 +3281,52 @@ class AtlasVisualCrawler:
         try:
             for scope in _scopes(page):
                 field = scope.get_by_label("Add ticker", exact=True)
-                button = scope.get_by_role("button", name="Add", exact=True)
-                if await field.count() and await button.count() and await field.first.is_visible():
+                if await field.count() and await field.first.is_visible():
                     await field.first.fill(ticker)
-                    await button.first.click()
-                    await page.wait_for_timeout(900)
+                    # Streamlit may replace the widget tree after the input event.  A
+                    # button locator captured before fill() can remain syntactically
+                    # valid while pointing at the detached pre-rerun node, producing a
+                    # silent no-op.  Re-resolve the control from the live frame before
+                    # clicking and prove the resulting ticker card, rather than
+                    # treating the populated input as evidence of an add.
+                    await page.wait_for_timeout(250)
+                    clicked = False
+                    for live_scope in _scopes(page):
+                        button = live_scope.get_by_role("button", name="Add", exact=True)
+                        if await button.count() and await button.first.is_visible():
+                            await button.first.click()
+                            clicked = True
+                            break
+                    if clicked:
+                        for _ in range(12):
+                            if f"Remove {ticker}" in await _visible_text(page):
+                                break
+                            await page.wait_for_timeout(250)
                     break
             text = await _visible_text(page)
-            evidence["added"] = ticker in text
-            evidence["unavailable_not_zero"] = "Unavailable" in text and "$0.00" not in text
-            for scope in _scopes(page):
-                search = scope.get_by_label("Search your watchlist", exact=True)
-                if await search.count() and await search.first.is_visible():
-                    await search.first.fill(ticker)
-                    await page.wait_for_timeout(450)
-                    evidence["searched"] = ticker in await _visible_text(page)
-                    await search.first.fill("")
-                    break
-            for scope in _scopes(page):
-                sort = scope.get_by_label("Sort", exact=True)
-                if await sort.count() and await sort.first.is_visible():
-                    await sort.first.click()
-                    option = page.get_by_role("option", name="Opportunity", exact=True)
-                    await option.first.click()
-                    await page.wait_for_timeout(450)
-                    evidence["sorted"] = True
-                    break
+            evidence["added"] = f"Remove {ticker}" in text
+            if evidence["added"]:
+                evidence["unavailable_not_zero"] = "Unavailable" in text and "$0.00" not in text
+                for scope in _scopes(page):
+                    search = scope.get_by_label("Search your watchlist", exact=True)
+                    if await search.count() and await search.first.is_visible():
+                        await search.first.fill(ticker)
+                        await page.wait_for_timeout(450)
+                        evidence["searched"] = f"Remove {ticker}" in await _visible_text(page)
+                        await search.first.fill("")
+                        await page.wait_for_timeout(250)
+                        break
+                for scope in _scopes(page):
+                    sort = scope.get_by_label("Sort", exact=True)
+                    if await sort.count() and await sort.first.is_visible():
+                        await sort.first.click()
+                        option = scope.get_by_role("option", name="Opportunity", exact=True)
+                        if not await option.count():
+                            option = page.get_by_role("option", name="Opportunity", exact=True)
+                        await option.first.click()
+                        await page.wait_for_timeout(450)
+                        evidence["sorted"] = True
+                        break
             after = await self._shot(
                 page, page_name="Watchlist Intelligence", interaction="personal-watchlist-journey",
                 state="added-searched-sorted", viewport="desktop", ticker=ticker,

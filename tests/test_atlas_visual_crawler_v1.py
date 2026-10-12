@@ -40,6 +40,20 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "agents" / "atlas_visual_crawler_v1.py"
 
 
+def test_watchlist_journey_re_resolves_add_button_after_streamlit_input_rerun():
+    """The governed journey must never reuse a pre-fill Streamlit button node."""
+    source = SOURCE.read_text()
+    start = source.index("async def _watchlist_edit_journey")
+    end = source.index("async def _supplementary_desktop", start)
+    journey = source[start:end]
+    fill_at = journey.index('await field.first.fill(ticker)')
+    live_scope_at = journey.index('for live_scope in _scopes(page):', fill_at)
+    button_at = journey.index('live_scope.get_by_role("button", name="Add"', live_scope_at)
+    click_at = journey.index('await button.first.click()', button_at)
+    assert fill_at < live_scope_at < button_at < click_at
+    assert 'evidence["added"] = f"Remove {ticker}" in text' in journey
+
+
 def test_open_failure_classification_does_not_mislabel_deployment_identity_as_authentication():
     error = DeploymentReadinessError(
         "DEPLOYMENT_NOT_READY",
