@@ -30,7 +30,8 @@ FIELD_ENDPOINT_FAMILY = {
 PUBLICATION_INPUT_ALIASES = {
     "latest_revenue": "revenue", "net_income": "net_income",
     "operating_cash_flow": "operating_cash_flow", "capex": "capex",
-    "capital_expenditures": "capex", "cash_and_equivalents": "cash", "total_debt": "debt",
+    "capital_expenditures": "capex", "free_cash_flow": "free_cash_flow",
+    "cash_and_equivalents": "cash", "total_debt": "debt",
 }
 
 
@@ -89,7 +90,8 @@ def recover_publication_lineage(archive: Path, tickers: set[str]) -> dict[str, d
                     fields[field] = {
                         "evidence_id": source["evidence_id"], "period": source["period"],
                         "unit": source["unit"], "provider": source.get("provider") or source.get("source"),
-                        "as_of": source.get("as_of"), "recovered_from": "FROZEN_PUBLICATION_CERTIFICATION",
+                        "as_of": source.get("as_of"), "frequency": source.get("period_type") or source.get("basis"),
+                        "recovered_from": "FROZEN_PUBLICATION_CERTIFICATION",
                     }
             recovered[ticker] = fields
     return recovered
