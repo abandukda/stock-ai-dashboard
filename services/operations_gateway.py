@@ -32,6 +32,7 @@ RESEARCH_ENDPOINTS = frozenset(
     }
 )
 OPERATIONS = frozenset({"plan", "acquire", "validate", "append"})
+SECRET_KEY_RE = re.compile(r"(?:token|secret|password|api[_-]?key|authorization|credential)", re.I)
 
 
 def canonical_bytes(value: Any) -> bytes:
@@ -40,6 +41,22 @@ def canonical_bytes(value: Any) -> bytes:
 
 def sha256(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
+
+
+def resolve_bounded_path(root: Path, relative: str) -> Path:
+    root = root.resolve()
+    candidate = (root / relative).resolve()
+    if candidate == root or not candidate.is_relative_to(root) or not candidate.is_file():
+        raise PermissionError("GATEWAY_SCOPE_PATH_INVALID")
+    return candidate
+
+
+def _contains_secret(value: Any) -> bool:
+    if isinstance(value, Mapping):
+        return any(SECRET_KEY_RE.search(str(key)) or _contains_secret(item) for key, item in value.items())
+    if isinstance(value, (list, tuple)):
+        return any(_contains_secret(item) for item in value)
+    return False
 
 
 @dataclass(frozen=True)
@@ -86,11 +103,17 @@ def verify_scope(path: Path, approval: GatewayApproval) -> dict[str, Any]:
     ordinals = [row.get("ordinal") for row in requests]
     if ordinals != list(range(1, len(requests) + 1)):
         raise PermissionError("GATEWAY_REQUEST_ORDER_INVALID")
+    fingerprints: set[str] = set()
     for row in requests:
         if row.get("method") != "GET" or row.get("endpoint") not in RESEARCH_ENDPOINTS:
             raise PermissionError("GATEWAY_ENDPOINT_NOT_ALLOWED")
-        if "token" in (row.get("parameters") or {}):
+        if _contains_secret(row.get("parameters") or {}):
             raise PermissionError("GATEWAY_SCOPE_MUST_NOT_CONTAIN_SECRET")
+        fingerprint = sha256(canonical_bytes({"method": row.get("method"), "endpoint": row.get("endpoint"),
+                                              "parameters": row.get("parameters") or {}}))
+        if fingerprint in fingerprints:
+            raise PermissionError("GATEWAY_DUPLICATE_REQUEST")
+        fingerprints.add(fingerprint)
     return scope
 
 

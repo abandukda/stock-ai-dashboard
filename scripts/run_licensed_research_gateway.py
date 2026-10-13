@@ -11,7 +11,7 @@ import time
 
 import requests
 
-from services.operations_gateway import GatewayApproval, verify_scope
+from services.operations_gateway import GatewayApproval, resolve_bounded_path, verify_scope
 
 
 def run(*, approval_path: Path, scope_path: Path, output: Path, run_id: str) -> dict:
@@ -60,8 +60,9 @@ def run(*, approval_path: Path, scope_path: Path, output: Path, run_id: str) -> 
 
 
 def main():
-    p=argparse.ArgumentParser(); p.add_argument("--approval",type=Path,required=True); p.add_argument("--scope",type=Path,required=True); p.add_argument("--output",type=Path,required=True); p.add_argument("--run-id",required=True)
-    a=p.parse_args(); run(approval_path=a.approval,scope_path=a.scope,output=a.output,run_id=a.run_id)
+    p=argparse.ArgumentParser(); p.add_argument("--approval",type=Path,required=True); p.add_argument("--scope",type=Path,required=True); p.add_argument("--scope-root",type=Path); p.add_argument("--output",type=Path,required=True); p.add_argument("--run-id",required=True)
+    a=p.parse_args(); scope=resolve_bounded_path(a.scope_root,str(a.scope)) if a.scope_root else a.scope
+    run(approval_path=a.approval,scope_path=scope,output=a.output,run_id=a.run_id)
 
 
 if __name__ == "__main__": main()

@@ -80,7 +80,7 @@ def test_home_and_navigation_report_card_boundaries_are_fail_closed():
     assert "authorized_internal and enabled and root" in home
     assert 'data-atlas-qa="home-performance-tracking"' in home
     assert 'st.button("View Report Card"' in home
-    assert 'authorized_internal=not is_viewer()' in app
+    assert 'authorized_internal=(get_user_role() == "admin")' in app
     assert 'pages.append("Internal Report Card")' in app
     assert '"View Report Card"' in interactions and '"Internal Report Card"' in interactions
 
