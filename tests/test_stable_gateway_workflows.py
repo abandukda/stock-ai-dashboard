@@ -30,4 +30,11 @@ def test_report_card_is_default_branch_scope_bound_and_mutations_stay_closed():
     assert "ref: ${{ github.event.repository.default_branch }}" in text
     assert "verify_operations_gateway.py" in text and "--scope-root" in text
     assert "Mutation/provider adapters remain separately reviewed and intentionally fail closed." in text
+    assert "cutoff_utc" in inputs and "as_of" not in inputs
+    assert '--cutoff-utc "$REPORT_CARD_CUTOFF_UTC"' in text
+    assert 'test "$REPORT_CARD_CUTOFF_UTC" = "2026-10-13T20:30:00Z"' in text
+    assert "verify_report_card_closed_sentinel.py" in text
+    assert "OPERATIONS_KILL_SWITCH" not in text
+    assert "ACQUISITION_KILL_SWITCH" in text
+    assert '--scope "${{ inputs.scope_path }}"' not in text
     assert "schedule:" not in text
