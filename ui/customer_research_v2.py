@@ -176,6 +176,94 @@ def _financial_value(value: Any, unit: str) -> str:
     return f"{number:,.2f}"
 
 
+def _financial_period(value: Any) -> str:
+    """Keep fiscal labels intact and render ISO dates without invented times."""
+    text = str(value or "").strip()
+    if not text:
+        return "Unavailable"
+    try:
+        return datetime.fromisoformat(text.replace("Z", "+00:00")).strftime("%b %-d, %Y")
+    except ValueError:
+        return text
+
+
+def _financial_statement_rows(items: Any) -> list[dict[str, str]]:
+    """Format retained statement facts without deriving periods or values."""
+    rows: list[dict[str, str]] = []
+    for item in items or ():
+        if not isinstance(item, Mapping):
+            continue
+        rows.append({
+            "Line item": str(item.get("label") or item.get("field") or "Financial evidence"),
+            "Certified value": _financial_value(item.get("value"), str(item.get("unit") or "")),
+            "Fiscal period": _financial_period(item.get("period") or item.get("as_of")),
+            "Source": str(item.get("provider") or "Certified source"),
+            "Evidence ID": str(item.get("evidence_id") or "Unavailable"),
+        })
+    return rows
+
+
+def _render_financial_depth(depth: Mapping[str, Any], *, ticker: str) -> None:
+    """Render premium financial depth with explicit evidence limitations."""
+    status = str(depth.get("status") or "NOT_AVAILABLE")
+    period_depth = str(depth.get("statement_depth") or "LATEST_PERIOD_ONLY")
+    _marker("financial-depth", ticker, status=status, statement_depth=period_depth)
+    st.markdown("### Financial statements")
+    if status == "NOT_AVAILABLE":
+        st.info("Certified income statement, cash-flow, and balance-sheet line items are unavailable for this snapshot.")
+    else:
+        labels = {
+            "income_statement": "Income statement",
+            "cash_flow": "Cash flow",
+            "balance_sheet": "Balance sheet",
+        }
+        statements = depth.get("statements") if isinstance(depth.get("statements"), Mapping) else {}
+        tabs = st.tabs(list(labels.values()))
+        for tab, (lane, title) in zip(tabs, labels.items()):
+            with tab:
+                rows = _financial_statement_rows(statements.get(lane))
+                if rows:
+                    st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True,
+                                 key=f"research-{lane}-{ticker}")
+                else:
+                    st.info(f"Certified {title.lower()} line items are unavailable for this snapshot.")
+        if depth.get("limitation"):
+            st.caption(str(depth["limitation"]))
+
+    models = list(depth.get("valuation_models") or ())
+    st.markdown("### Certified valuation models")
+    if models:
+        rows = []
+        for item in models:
+            weight = item.get("weight")
+            weight_pct = float(weight) * 100 if weight is not None and float(weight) <= 1 else weight
+            rows.append({
+                "Model": item.get("name") or item.get("methodology_id"),
+                "Fair value": _financial_value(item.get("value"), str(item.get("unit") or "")),
+                "Fiscal period": item.get("fiscal_period") or "Unavailable",
+                "Confidence": customer_score(item.get("confidence")),
+                "Governed weight": _pct(weight_pct),
+                "Source": item.get("source") or "Certified ATLAS valuation",
+            })
+        st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True,
+                     key=f"research-valuation-models-{ticker}")
+    else:
+        st.info("Published certified valuation-model detail is unavailable for this snapshot.")
+
+    company_case = depth.get("company_case") if isinstance(depth.get("company_case"), Mapping) else {}
+    st.markdown("### Company-specific investment case")
+    for title, key in (("What supports the case", "thesis"), ("What could go wrong", "risks"),
+                       ("What would invalidate the case", "invalidation")):
+        items = [str(item) for item in company_case.get(key) or () if str(item).strip()]
+        st.markdown(f"**{title}**")
+        if items:
+            _list(items)
+        else:
+            st.caption("No approved company-specific evidence is retained for this item.")
+    if company_case.get("invalidation_limitation"):
+        st.caption(str(company_case["invalidation_limitation"]))
+
+
 def _range_rows(frame: pd.DataFrame, selected: str) -> pd.DataFrame:
     """Return a display-only date window without altering retained values."""
     if frame.empty or selected == "1Y":
@@ -272,7 +360,11 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
     st.markdown("## ATLAS Investment Summary")
     st.write(summary["verdict"])
     st.markdown(
-        '<details class="atlas-research-101"><summary>Research 101 — what these numbers mean</summary>'
+        '<style>.atlas-research-101{margin:.55rem 0 1rem;padding:.7rem .8rem;border:1px solid #243244;'
+        'border-radius:12px;background:#0b1525;color:#cbd5e1}.atlas-research-101 summary{cursor:pointer;'
+        'font-weight:750;color:#f8fafc}.atlas-research-101 li{margin:.35rem 0;line-height:1.45}'
+        '@media(max-width:420px){.atlas-research-101{padding:.65rem;font-size:.9rem}.atlas-research-101 ul{padding-left:1.15rem}}</style>'
+        '<details class="atlas-research-101" data-atlas-qa="research-101"><summary>Research 101 — what these numbers mean</summary>'
         '<ul><li><strong>Action</strong> is the published ATLAS decision for this certified snapshot.</li>'
         '<li><strong>Last Certified Close</strong> is the price and date used by that decision; it is not a live quote.</li>'
         '<li><strong>Fair Value</strong> is an evidence-based estimate, not a guaranteed future price.</li>'
@@ -577,10 +669,16 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
     else:
         st.info(financial_snapshot.get("message") or "Certified financial evidence is unavailable for this snapshot.")
 
+    _render_financial_depth(page.get("financial_depth") or {}, ticker=ticker)
+
     financial_trend = page.get("financial_trend") or {}
     _marker("financial-trend-chart", ticker, status=financial_trend.get("status") or "UNAVAILABLE")
     if financial_trend.get("status") == "AVAILABLE":
-        st.markdown("### Earnings and financial trends")
+        periodicity = str(financial_trend.get("periodicity") or "UNAVAILABLE")
+        heading = "Annual earnings and financial trends" if periodicity == "ANNUAL" else "Reported earnings and financial trends"
+        st.markdown(f"### {heading}")
+        if periodicity == "UNAVAILABLE":
+            st.caption("Reporting frequency is unavailable; periods are shown exactly as retained and are not relabeled as annual or quarterly.")
         all_series = financial_trend["series"]
         units = financial_trend.get("units") or {}
         for unit, title in (("USD", "Reported financial value (USD)"), ("USD_PER_SHARE", "Reported value (USD/share)"), ("PERCENT", "Reported margin (%)")):

@@ -652,6 +652,7 @@ def test_retained_contract_financial_series_projects_only_registered_evidence(mo
     assert trend["series"]["EBITDA"] == (10_000_000.0, 20_000_000.0)
     assert trend["series"]["Gross Margin"] == pytest.approx((50.0, 55.0))
     assert trend["units"] == {"EBITDA": "USD", "Gross Margin": "PERCENT"}
+    assert trend["periodicity"] == "ANNUAL"
     assert set(trend["provenance"]["evidence_ids"]) == {"series:ebitda", "series:gross-margin"}
     reasons = build_customer_research_v2(source)["summary"]["why_rating"]
     assert "EBITDA was $20.0M for Jan 1, 2025." in reasons
@@ -689,6 +690,47 @@ def test_premium_financial_depth_groups_only_lineage_complete_facts_and_certifie
     },)
     assert depth["company_case"]["invalidation"] == ("Certified evidence deteriorates.",)
     assert "no multi-period trend is claimed" in depth["limitation"]
+
+
+def test_financial_depth_renderer_preserves_lineage_and_uses_typed_unavailable_states():
+    from ui.customer_research_v2 import _financial_statement_rows
+
+    rows = _financial_statement_rows(({
+        "field": "net_income", "label": "Net income", "value": 1_250_000_000,
+        "unit": "USD", "period": "2025-12-31", "provider": "FINNHUB",
+        "evidence_id": "statement:net-income:2025",
+    },))
+    assert rows == [{
+        "Line item": "Net income", "Certified value": "$1.25B",
+        "Fiscal period": "Dec 31, 2025", "Source": "FINNHUB",
+        "Evidence ID": "statement:net-income:2025",
+    }]
+    ui_source = __import__("pathlib").Path("ui/customer_research_v2.py").read_text(encoding="utf-8")
+    assert 'data-atlas-qa="research-101"' in ui_source
+    assert '"Income statement"' in ui_source
+    assert '"Cash flow"' in ui_source
+    assert '"Balance sheet"' in ui_source
+    assert "Reporting frequency is unavailable" in ui_source
+    assert "not relabeled as annual or quarterly" in ui_source
+
+
+def test_untyped_trend_frequency_is_not_inferred_as_quarterly(monkeypatch, tmp_path):
+    source = report()
+    bundle = {"tickers": {"NVDA": {"basic_financials": {
+        "payload": {
+            "periods": ["2025-03-31", "2025-06-30"],
+            "revenue_history": [10, 12],
+        },
+        "provenance": {"raw_evidence_id": "financials:nvda"},
+    }}}}
+    path = tmp_path / "qa.json"; path.write_text(json.dumps(bundle))
+    monkeypatch.setenv("ATLAS_QA_MODE", "1")
+    monkeypatch.setenv("ATLAS_RESEARCH_V2_QA_ENRICHMENT", str(path))
+
+    trend = build_customer_research_v2(source)["financial_trend"]
+
+    assert trend["status"] == "AVAILABLE"
+    assert trend["periodicity"] == "UNAVAILABLE"
 
 
 def test_snapshot_recovers_only_exact_value_matched_publication_lineage():
@@ -795,6 +837,10 @@ def test_real_renderer_binds_certified_fair_value_to_each_ticker_chart(monkeypat
 
         @staticmethod
         def info(*_args, **_kwargs):
+            return None
+
+        @staticmethod
+        def warning(*_args, **_kwargs):
             return None
 
         @staticmethod

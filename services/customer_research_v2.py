@@ -409,6 +409,7 @@ def _financial_trend_projection(financials: Mapping[str, Any]) -> dict[str, Any]
         "Free Cash Flow": "USD", "Capital Expenditures": "USD", "EPS": "USD_PER_SHARE",
         "Operating Margin": "PERCENT", "Gross Margin": "PERCENT", "Net Margin": "PERCENT",
     }
+    periodicity = str(payload.get("periodicity") or payload.get("frequency") or "").strip().upper()
     # Finnhub basic-financials retains long-horizon series separately from the
     # normalized latest-period fields. Project only series explicitly present
     # in the signed contract registry and carrying their original evidence ID.
@@ -453,6 +454,7 @@ def _financial_trend_projection(financials: Mapping[str, Any]) -> dict[str, Any]
         common_periods = set.intersection(*(set(values) for values in retained_values.values())) if retained_values else set()
         periods = tuple(sorted(common_periods, reverse=True)[:5][::-1])
         if periods:
+            periodicity = "ANNUAL"
             series = {label: tuple(values[period] for period in periods) for label, values in retained_values.items()}
             units = retained_units
             provenance = {**dict(provenance), "evidence_ids": tuple(sorted(evidence_ids)),
@@ -466,6 +468,7 @@ def _financial_trend_projection(financials: Mapping[str, Any]) -> dict[str, Any]
         "status": "AVAILABLE", "series": series, "periods": tuple(periods),
         "provenance": dict(provenance),
         "units": units,
+        "periodicity": periodicity or "UNAVAILABLE",
     }
 
 
