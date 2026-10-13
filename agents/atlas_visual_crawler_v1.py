@@ -236,6 +236,7 @@ def recovery_candidate_archetypes(candidates: list[dict[str, Any]]) -> list[tupl
     return output
 DESKTOP = {"width": 1440, "height": 900}
 MOBILE = {"width": 390, "height": 844}
+NARROW_MOBILE = {"width": 360, "height": 800}
 GLOBAL_FATALS = {"APP_UNREACHABLE", "AUTHENTICATION_FAILED", "BROWSER_DIED"}
 
 
@@ -3589,6 +3590,30 @@ class AtlasVisualCrawler:
             state="visible", viewport="mobile", complete_surface=True,
         )
         await asyncio.wait_for(self._ask(page, viewport="mobile"), timeout=35)
+
+        # A 360px evidence pass is intentionally separate from the mandatory
+        # 390px mobile certification so the existing gate is not weakened.
+        # It captures each customer route plus published and withheld Research
+        # states under the smallest supported phone width.
+        await page.set_viewport_size(NARROW_MOBILE)
+        await asyncio.wait_for(self._page_visit(page, "Home", viewport="mobile_360"), timeout=30)
+        await self._shot(
+            page, page_name="Home", interaction="customer-role-evidence",
+            state="scroll-zero", viewport="mobile_360", complete_surface=True,
+        )
+        for ticker in ("NVDA", "CRC"):
+            passed = await self._submit_research(page, ticker, tabs=False, viewport="mobile_360")
+            if not passed:
+                raise GlobalCrawlFailure(f"CUSTOMER_ROLE_RESEARCH_FAILED_{ticker}_MOBILE_360")
+        if not await asyncio.wait_for(
+            self._page_visit(page, "Watchlist Intelligence", viewport="mobile_360"), timeout=20,
+        ):
+            raise GlobalCrawlFailure("CUSTOMER_ROLE_WATCHLIST_FAILED_MOBILE_360")
+        await self._shot(
+            page, page_name="Watchlist Intelligence", interaction="customer-role-evidence",
+            state="visible", viewport="mobile_360", complete_surface=True,
+        )
+        await asyncio.wait_for(self._ask(page, viewport="mobile_360"), timeout=35)
 
     async def _supplementary_mobile(self, page: Page) -> None:
         await page.set_viewport_size(MOBILE)

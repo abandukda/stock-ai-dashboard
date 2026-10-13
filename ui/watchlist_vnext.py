@@ -9,7 +9,7 @@ import streamlit as st
 
 from services.session_stability import emit_page_interactive
 from services.customer_authority import customer_authority
-from services.customer_research_view import build_customer_research_view
+from services.customer_research_view import Availability, build_customer_research_view, customer_date
 from services.customer_metric_format import customer_confidence, customer_money, customer_percent, customer_score
 from ui.atlas_design_system import action_badge
 
@@ -155,10 +155,12 @@ def render_watchlist_vnext(
         with st.container(border=True):
             st.markdown('<span class="atlas-watchlist-card-anchor" aria-hidden="true"></span>', unsafe_allow_html=True)
             company = str(_value(row, "Company", "company", "Name") or ticker)
-            authority = build_customer_research_view(row).surface
+            customer_view = build_customer_research_view(row)
+            authority = customer_view.surface
             action, certified_fair_value = _certified_fields(row)
             action = action.replace("_", " ")
-            price, price_as_of = _verified_price(row)
+            price = authority.get("certified_close")
+            price_as_of = authority.get("certified_close_at")
             security_type, supported = _security_type(ticker, row)
             fair_value = certified_fair_value
             distance = None
@@ -182,7 +184,14 @@ def render_watchlist_vnext(
             decision_cols[2].metric("Opportunity", customer_score(authority.get("opportunity")))
             context_cols = st.columns(3)
             context_cols[0].metric("Confidence", customer_confidence(authority.get("confidence")))
-            context_cols[1].metric("Last verified price", customer_money(price), help=(f"As of {price_as_of}" if price_as_of else "Verified date unavailable"))
+            price_label = "Last Certified Close"
+            if authority.get("certified_close_availability") == Availability.CERTIFIED_DATED.value:
+                price_label += " · Dated"
+            context_cols[1].metric(
+                price_label,
+                customer_money(price),
+                help=(f"Certified as of {customer_date(price_as_of)}; this is not a live quote." if price_as_of else "Certified close unavailable"),
+            )
             context_cols[2].metric("Distance to Fair Value", customer_percent(distance, signed=True) if distance is not None else "Unavailable")
             st.write("**What changed:** " + str(_value(row, "What Changed", "change_since_last_scan", "material_change") or "No governed material change is attached."))
             st.caption("Earnings: " + str(_value(row, "Next Earnings", "next_earnings_date", "earnings_date") or "Unavailable") + " · Transcript/context: " + ("Available" if _value(row, "transcript_url", "earnings_transcript_url", "earnings_summary") else "Unavailable"))

@@ -76,3 +76,26 @@ def test_research_summary_101_explains_protected_metrics_without_redefining_them
     assert "not a live quote" in source
     assert "not a guaranteed future price" in source
     assert "not the chance the stock will rise" in source
+
+
+def test_all_four_customer_routes_are_bound_to_the_shared_projection():
+    from pathlib import Path
+
+    sources = {
+        "research": Path("ui/customer_research_v2.py").read_text(),
+        "watchlist": Path("ui/watchlist_vnext.py").read_text(),
+        "ask": Path("engines/ask_atlas_engine.py").read_text(),
+        "home": Path("engines/home_guidance_story_v1.py").read_text(),
+    }
+    assert "build_customer_research_view(report)" in sources["research"]
+    assert "build_customer_research_view(row)" in sources["watchlist"]
+    assert "build_customer_research_view(report)" in sources["ask"]
+    assert "customer_research_surface" in sources["home"]
+
+
+def test_watchlist_does_not_label_a_raw_row_price_as_live_or_certified():
+    source = __import__("pathlib").Path("ui/watchlist_vnext.py").read_text()
+    live_renderer = source[source.index("def render_watchlist_vnext"):]
+    assert 'price = authority.get("certified_close")' in live_renderer
+    assert "this is not a live quote" in live_renderer
+    assert 'price, price_as_of = _verified_price(row)' not in live_renderer

@@ -376,6 +376,7 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
                 _dark_line_chart(indicator_frame, height=260, y_title="Certified indicator value", key=f"research-technical-chart-{ticker}")
             else:
                 _marker("technical-indicators-chart", ticker, status="UNAVAILABLE")
+                st.caption("Certified technical indicator history is unavailable for this evidence bundle; no series was inferred.")
         else:
             st.info("Price history is unavailable under the governed display contract.")
 
