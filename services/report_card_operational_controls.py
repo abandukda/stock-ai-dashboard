@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 import hashlib
 import json
-from typing import Any, Mapping, Sequence
+from typing import Any, Mapping, Protocol, Sequence
 
 
 VERSION = "ATLAS_REPORT_CARD_OPERATIONAL_CONTROLS_V1"
@@ -100,5 +100,23 @@ def heartbeat_decision(*, now: datetime, expected_start: datetime, started_at: d
     return {"status": state, "alert_required": state != "HEALTHY", "independent_of_github_actions": True}
 
 
-__all__ = ["VERSION", "classify_unavailable", "compare_entry_prices", "detect_restatement",
-           "digest", "heartbeat_decision", "reconcile_publication", "validate_entitlement"]
+class AlertAdapter(Protocol):
+    def healthcheck(self) -> bool: ...
+    def send(self, payload: Mapping[str, Any]) -> str: ...
+
+
+def deliver_heartbeat_alert(*, decision: Mapping[str, Any], adapter: AlertAdapter) -> dict[str, Any]:
+    """Fail closed if the independently configured alert destination is unhealthy."""
+    if not decision.get("alert_required"):
+        return {"status": "NO_ALERT_REQUIRED", "delivery_id": None}
+    if adapter.healthcheck() is not True:
+        raise RuntimeError("INDEPENDENT_ALERT_DESTINATION_UNHEALTHY")
+    delivery_id = adapter.send({"event": "REPORT_CARD_DEAD_MAN", "state": decision.get("status")})
+    if not delivery_id:
+        raise RuntimeError("INDEPENDENT_ALERT_DELIVERY_UNCONFIRMED")
+    return {"status": "ALERT_DELIVERED", "delivery_id": str(delivery_id)}
+
+
+__all__ = ["VERSION", "AlertAdapter", "classify_unavailable", "compare_entry_prices",
+           "deliver_heartbeat_alert", "detect_restatement", "digest", "heartbeat_decision",
+           "reconcile_publication", "validate_entitlement"]

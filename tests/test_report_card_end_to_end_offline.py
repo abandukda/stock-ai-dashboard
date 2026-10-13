@@ -10,6 +10,7 @@ from services.report_card_market_evidence_acquisition import (
 )
 from services.report_card_observation_activation import apply_observation_bundle
 from services.report_card_observation_producer import build_observation_bundle
+from services.report_card_offline_drills import run_disposable_drill
 
 
 UTC = timezone.utc
@@ -78,6 +79,12 @@ def test_complete_offline_pipeline_is_deterministic_append_only_and_restorable(t
     assert canonical_digest(first_bundle) == canonical_digest(second_bundle)
     assert first_evidence["provider_calls"] == 7
     assert first_bundle["provider_calls"] == 0
+
+    source_tip = first_ledger.verify()
+    drill = run_disposable_drill(ledger_path=first_ledger.path, evidence=first_evidence, now=CAPTURED)
+    assert drill["status"] == "PASS"
+    assert drill["provider_calls"] == drill["source_ledger_mutations"] == 0
+    assert first_ledger.verify() == source_tip
 
     result = apply_observation_bundle(
         ledger=first_ledger, backup_root=tmp_path / "backup", bundle=first_bundle,

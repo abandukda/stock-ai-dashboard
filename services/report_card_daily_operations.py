@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from zoneinfo import ZoneInfo
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 
 NEW_YORK = ZoneInfo("America/New_York")
@@ -58,5 +58,28 @@ def bounded_call_budget(*, unique_due_tickers: int, due_horizons: int,
     return (3 * unique_due_tickers + 1) * (retry_attempts + 1)
 
 
+def ordered_catch_up(target_sessions: Mapping[int | str, str]) -> list[tuple[int, str]]:
+    """Return missed horizons oldest-session-first, then shortest horizon."""
+    normalized = [(int(horizon), str(session)) for horizon, session in target_sessions.items()]
+    if len({horizon for horizon, _ in normalized}) != len(normalized):
+        raise ValueError("DUPLICATE_CATCH_UP_HORIZON")
+    return sorted(normalized, key=lambda item: (item[1], item[0]))
+
+
+def simulate_scheduler(wakes: Sequence[datetime]) -> dict[str, Any]:
+    """Provider-free DST/retry simulation; exactly one daily wake may proceed."""
+    accepted: list[str] = []
+    for wake in wakes:
+        decision = scheduled_wake_decision(
+            now=wake, enabled=True, kill_switch=False, authorization=AUTOMATION_TOKEN,
+            certifications={name: True for name in REQUIRED_CERTIFICATIONS},
+        )
+        if decision.allowed:
+            accepted.append(decision.local_time)
+    days = [value[:10] for value in accepted]
+    return {"status": "PASS" if len(days) == len(set(days)) else "FAIL",
+            "accepted_wakes": accepted, "provider_calls": 0, "ledger_mutations": 0}
+
+
 __all__ = ["AUTOMATION_TOKEN", "AutomationDecision", "REQUIRED_CERTIFICATIONS",
-           "bounded_call_budget", "scheduled_wake_decision"]
+           "bounded_call_budget", "ordered_catch_up", "scheduled_wake_decision", "simulate_scheduler"]
