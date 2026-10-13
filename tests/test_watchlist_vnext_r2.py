@@ -23,3 +23,14 @@ def test_missing_or_nonpositive_price_is_never_rendered_as_zero():
     assert _money(-2) == "Unavailable"
     assert _verified_price({"Price": 0}) == (None, None)
     assert _verified_price({"Price": 23.5, "Price Date": "2026-10-08"}) == (23.5, "2026-10-08")
+
+
+def test_search_filter_positive_negative_and_clear_states_are_exact():
+    universe = pd.DataFrame([
+        {"Ticker": "NVDA", "Company": "NVIDIA Corporation"},
+        {"Ticker": "MSFT", "Company": "Microsoft Corporation"},
+    ])
+    saved = ["NVDA", "AAAAQ"]
+    assert [ticker for ticker, _ in _watchlist_rows(universe, saved, query="NVD")] == ["NVDA"]
+    assert _watchlist_rows(universe, saved, query="NO_MATCH_QA") == []
+    assert [ticker for ticker, _ in _watchlist_rows(universe, saved, query="")] == ["AAAAQ", "NVDA"]

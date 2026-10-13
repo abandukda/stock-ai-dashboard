@@ -1,6 +1,7 @@
 """Customer Watchlist change surface backed by existing certified rows."""
 from __future__ import annotations
 
+import html
 from typing import Any, Callable, Mapping
 import re
 
@@ -128,6 +129,16 @@ def render_watchlist_vnext(
                 st.success(f"Added {clean}.")
                 st.rerun()
     rows = _watchlist_rows(full_df, tickers, query=query, sort_by=sort_by)
+    visible_tickers = ",".join(ticker for ticker, _ in rows)
+    st.markdown(
+        f'<span data-atlas-qa="watchlist-filter-state" '
+        f'data-atlas-query="{html.escape(query, quote=True)}" '
+        f'data-atlas-visible-count="{len(rows)}" '
+        f'data-atlas-visible-tickers="{html.escape(visible_tickers, quote=True)}" '
+        f'data-atlas-sort="{html.escape(sort_by, quote=True)}" '
+        'aria-hidden="true" style="display:none">watchlist-filter-state</span>',
+        unsafe_allow_html=True,
+    )
     if not rows:
         st.markdown(
             '<div class="atlas-empty-state"><strong>Your certified watchlist is ready.</strong>'

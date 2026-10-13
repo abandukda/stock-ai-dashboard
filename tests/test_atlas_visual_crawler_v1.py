@@ -55,7 +55,11 @@ def test_watchlist_journey_re_resolves_controls_after_streamlit_reruns():
     assert 'name=re.compile(r"Sort$")' in journey
     assert 'await page.reload(wait_until="domcontentloaded")' in journey
     assert '_wait_for_streamlit_shell' not in journey
-    assert 'await _page_render_complete(page, "Watchlist Intelligence")' in journey
+    assert 'self._page_visit(page, "Watchlist Intelligence")' in journey
+    assert 'data-atlas-qa="watchlist-filter-state"' in journey
+    assert '"NO_MATCH_QA"' in journey
+    assert 'await search.first.fill(query)' in journey
+    assert 'press("Control+A")' not in journey
 
 
 def _complete_watchlist_evidence(**overrides):
@@ -73,6 +77,9 @@ def _complete_watchlist_evidence(**overrides):
         "removed": True,
         "reload_persisted": True,
         "reload_route": True,
+        "initial_role": "internal_admin",
+        "reload_role": "internal_admin",
+        "role_preserved": True,
         "final_order": [],
     }
     value.update(overrides)
@@ -93,6 +100,7 @@ def test_watchlist_journey_requires_sort_remove_uniqueness_and_reload_persistenc
         {"unavailable_not_zero": False},
         {"isolated_start": False},
         {"reload_route": False},
+        {"role_preserved": False},
     )
     for mutation in negatives:
         assert watchlist_journey_proven(_complete_watchlist_evidence(**mutation)) is False

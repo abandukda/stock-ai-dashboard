@@ -422,6 +422,7 @@ def watchlist_journey_proven(evidence: dict[str, Any]) -> bool:
         evidence.get("removed") is True,
         evidence.get("reload_persisted") is True,
         evidence.get("reload_route") is True,
+        evidence.get("role_preserved") is True,
         final_order == initial,
     ))
 
@@ -3333,19 +3334,37 @@ class AtlasVisualCrawler:
                         await page.wait_for_timeout(200)
             return False
 
-        async def set_search(query: str) -> bool:
+        async def set_search(query: str) -> dict[str, Any]:
             for scope in _scopes(page):
                 search = scope.get_by_label("Search your watchlist", exact=True)
                 if await search.count() and await search.first.is_visible():
-                    if query:
-                        await search.first.fill(query)
-                    else:
-                        await search.first.press("Control+A")
-                        await search.first.press("Backspace")
+                    await search.first.fill(query)
                     await search.first.press("Enter")
-                    await page.wait_for_timeout(300)
-                    return True
-            return False
+                    expected = query.strip().upper()
+                    for _ in range(30):
+                        for live_scope in _scopes(page):
+                            marker = live_scope.locator('[data-atlas-qa="watchlist-filter-state"]')
+                            if not await marker.count():
+                                continue
+                            current = marker.last
+                            committed = str(await current.get_attribute("data-atlas-query") or "")
+                            if committed == expected:
+                                count = int(await current.get_attribute("data-atlas-visible-count") or 0)
+                                tickers = [
+                                    value for value in str(
+                                        await current.get_attribute("data-atlas-visible-tickers") or ""
+                                    ).split(",") if value
+                                ]
+                                return {"committed": True, "count": count, "tickers": tickers}
+                        await page.wait_for_timeout(200)
+                    return {"committed": False, "count": -1, "tickers": []}
+            return {"committed": False, "count": -1, "tickers": []}
+
+        async def role_category() -> str:
+            marker = page.locator('[data-atlas-qa="customer-navigation-contract"]')
+            if not await marker.count():
+                return ""
+            return str(await marker.last.get_attribute("data-atlas-role-category") or "")
 
         before = await self._shot(
             page, page_name="Watchlist Intelligence", interaction="personal-watchlist-journey",
@@ -3360,6 +3379,9 @@ class AtlasVisualCrawler:
             "supported_added": False,
             "missing_added": False,
             "searched": False,
+            "search_positive": {},
+            "search_negative": {},
+            "search_cleared": {},
             "sorted": False,
             "ticker_order": [],
             "opportunity_order": [],
@@ -3367,6 +3389,9 @@ class AtlasVisualCrawler:
             "removed": False,
             "reload_persisted": False,
             "reload_route": False,
+            "initial_role": await role_category(),
+            "reload_role": "",
+            "role_preserved": False,
             "final_order": [],
             "unavailable_not_zero": False,
         }
@@ -3379,16 +3404,21 @@ class AtlasVisualCrawler:
             text = await _visible_text(page)
             if evidence["supported_added"] and evidence["missing_added"]:
                 evidence["unavailable_not_zero"] = "Unavailable" in text and "$0.00" not in text
-                if await set_search(supported_ticker):
-                    visible = await _visible_text(page)
-                    evidence["searched"] = (
-                        f"Remove {supported_ticker}" in visible
-                        and f"Remove {missing_ticker}" not in visible
-                    )
-                    # Search submission reruns Streamlit.  Re-resolve the input
-                    # before clearing it so the missing-price card is restored for
-                    # the subsequent order and removal proofs.
-                    await set_search("")
+                evidence["search_positive"] = await set_search(supported_ticker)
+                evidence["search_negative"] = await set_search("NO_MATCH_QA")
+                evidence["search_cleared"] = await set_search("")
+                evidence["searched"] = (
+                    evidence["search_positive"] == {
+                        "committed": True, "count": 1, "tickers": [supported_ticker]
+                    }
+                    and evidence["search_negative"] == {
+                        "committed": True, "count": 0, "tickers": []
+                    }
+                    and evidence["search_cleared"].get("committed") is True
+                    and evidence["search_cleared"].get("count") == 2
+                    and set(evidence["search_cleared"].get("tickers") or [])
+                    == {supported_ticker, missing_ticker}
+                )
                 evidence["ticker_order"] = await card_order()
                 for scope in _scopes(page):
                     sort = scope.get_by_role("combobox", name=re.compile(r"Sort$"))
@@ -3419,14 +3449,20 @@ class AtlasVisualCrawler:
             )
             evidence["removed"] = missing_removed and supported_removed
             await page.reload(wait_until="domcontentloaded")
-            # A reload creates a fresh Streamlit document.  Prove the actual
-            # Watchlist page contract is complete before inspecting persisted
-            # card state; do not rely on a helper from another QA module.
-            for _ in range(30):
-                if await _page_render_complete(page, "Watchlist Intelligence"):
-                    evidence["reload_route"] = True
-                    break
-                await page.wait_for_timeout(200)
+            # A full Streamlit reload may legitimately restore its default route.
+            # Navigate back explicitly, then prove route and role before reading
+            # persisted state instead of assuming route persistence.
+            try:
+                evidence["reload_route"] = bool(await asyncio.wait_for(
+                    self._page_visit(page, "Watchlist Intelligence"), timeout=20
+                ))
+            except (asyncio.TimeoutError, RuntimeError):
+                evidence["reload_route"] = False
+            evidence["reload_role"] = await role_category()
+            evidence["role_preserved"] = bool(
+                evidence["initial_role"]
+                and evidence["reload_role"] == evidence["initial_role"]
+            )
             for _ in range(16):
                 evidence["final_order"] = await card_order()
                 if evidence["final_order"] == initial_order:
