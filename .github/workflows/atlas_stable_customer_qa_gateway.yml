@@ -1,0 +1,54 @@
+name: ATLAS Stable Exact-SHA Customer QA Gateway
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_sha:
+        required: true
+        type: string
+      runtime_source_run:
+        required: true
+        type: string
+      runtime_artifact_identity:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: write
+concurrency:
+  group: atlas-stable-customer-qa-${{ inputs.candidate_sha }}
+  cancel-in-progress: false
+
+jobs:
+  exact-sha-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.candidate_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Enforce exact immutable candidate
+        run: |
+          test "$(git rev-parse HEAD)" = "${{ inputs.candidate_sha }}"
+          test "$(git rev-parse HEAD)" != "$(git rev-parse HEAD^)"
+      - name: Require governed runtime handoff without protected provider credentials
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p audit_results/stable_customer_qa/runtime
+          gh run download "${{ inputs.runtime_source_run }}" --name "${{ inputs.runtime_artifact_identity }}" --dir audit_results/stable_customer_qa/runtime
+          test -z "${FINNHUB_API_KEY:-}"
+      - name: Exact-SHA QA adapter remains fail closed until promoted from certified harness
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run atlas_customer_experience_autonomous_qa.yml \
+            --ref main \
+            -f candidate_sha="${{ inputs.candidate_sha }}" \
+            -f mode=certify_only \
+            -f max_repair_attempts=0 \
+            -f runtime_source_run="${{ inputs.runtime_source_run }}" \
+            -f runtime_artifact_identity="${{ inputs.runtime_artifact_identity }}"

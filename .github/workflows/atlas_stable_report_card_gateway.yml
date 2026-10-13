@@ -1,0 +1,70 @@
+name: ATLAS Stable Protected Report Card Gateway
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        required: true
+        type: choice
+        options: [validate, plan, acquire, append]
+      authorization_token:
+        required: true
+        type: string
+      scope_sha256:
+        required: true
+        type: string
+      as_of:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+concurrency:
+  group: atlas-stable-report-card-ledger
+  cancel-in-progress: false
+
+jobs:
+  protected-preflight:
+    environment: atlas-internal-report-card
+    runs-on: [self-hosted, Linux, X64, atlas-worker-1]
+    timeout-minutes: 20
+    env:
+      ATLAS_REPORT_CARD_DURABLE_ROOT: ${{ vars.ATLAS_REPORT_CARD_DURABLE_ROOT }}
+      ATLAS_REPORT_CARD_BACKUP_ROOT: ${{ vars.ATLAS_REPORT_CARD_BACKUP_ROOT }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - name: Enforce roots, operation-specific token and kill switch
+        env:
+          OPERATION: ${{ inputs.operation }}
+          TOKEN: ${{ inputs.authorization_token }}
+        run: |
+          test -n "$ATLAS_REPORT_CARD_DURABLE_ROOT"
+          test -n "$ATLAS_REPORT_CARD_BACKUP_ROOT"
+          test "$ATLAS_REPORT_CARD_DURABLE_ROOT" != "$ATLAS_REPORT_CARD_BACKUP_ROOT"
+          test "$TOKEN" = "REPORT_CARD_${OPERATION^^}_ONCE:${{ inputs.scope_sha256 }}"
+          if [ "$OPERATION" = validate ] || [ "$OPERATION" = plan ]; then test -z "${FINNHUB_API_KEY:-}"; fi
+          if [ -e "$ATLAS_REPORT_CARD_DURABLE_ROOT/OPERATIONS_KILL_SWITCH" ]; then exit 75; fi
+      - name: Registered safe operations
+        env:
+          OPERATION: ${{ inputs.operation }}
+        run: |
+          case "$OPERATION" in
+            validate|plan)
+              python scripts/build_report_card_exchange_calendar.py --start-date 2026-10-08 --as-of "${{ inputs.as_of }}" --output audit_results/report_card_gateway/xnys_calendar.json
+              ;;
+            acquire|append)
+              echo "Mutation/provider adapters remain separately reviewed and intentionally fail closed."
+              exit 78
+              ;;
+          esac
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atlas-report-card-gateway-${{ inputs.operation }}-${{ github.run_id }}
+          path: audit_results/report_card_gateway
+          retention-days: 90
