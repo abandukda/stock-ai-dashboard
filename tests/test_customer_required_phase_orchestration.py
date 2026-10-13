@@ -44,6 +44,13 @@ def test_customer_role_visual_evidence_adds_governed_360_without_weakening_390_g
     assert "CUSTOMER_ROLE_WATCHLIST_FAILED_MOBILE_360" in CRAWLER
 
 
+def test_customer_navigation_keeps_all_four_routes_visible_at_360() -> None:
+    app = Path("app.py").read_text(encoding="utf-8")
+    assert "@media(max-width:380px)" in app
+    assert 'justify-content:space-between;gap:.08rem!important' in app
+    assert 'font-size:.64rem!important' in app
+
+
 def test_required_phase_budget_is_explicit_and_below_ceiling() -> None:
     REQUIRED_PHASE_BUDGET = _crawler_constant("REQUIRED_PHASE_BUDGET")
     REQUIRED_PHASE_TIMEOUT_SECONDS = _crawler_constant("REQUIRED_PHASE_TIMEOUT_SECONDS")
