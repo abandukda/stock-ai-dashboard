@@ -18,7 +18,17 @@ def main() -> int:
     parser.add_argument("--ledger", required=True, type=Path)
     parser.add_argument("--backup-root", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--authorization", required=True)
+    parser.add_argument("--kill-switch", required=True, type=Path)
     args = parser.parse_args()
+    if args.authorization != "REPORT_CARD_APPEND_ONCE":
+        raise PermissionError("REPORT_CARD_APPEND_NOT_AUTHORIZED")
+    try:
+        switch = args.kill_switch.read_text(encoding="utf-8").strip()
+    except OSError as exc:
+        raise PermissionError("REPORT_CARD_APPEND_KILL_SWITCH_CLOSED") from exc
+    if switch != "OPEN":
+        raise PermissionError("REPORT_CARD_APPEND_KILL_SWITCH_CLOSED")
     bundle = json.loads(args.bundle.read_text(encoding="utf-8"))
     result = apply_observation_bundle(ledger=ProspectiveLedger(args.ledger), backup_root=args.backup_root,
                                       bundle=bundle, now=datetime.now(timezone.utc))

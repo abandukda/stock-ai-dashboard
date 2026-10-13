@@ -23,6 +23,26 @@ on:
         description: Exact governed XNYS calendar artifact
         required: true
         type: string
+      approved_plan_run_id:
+        description: Run ID containing the owner-approved provider-free plan
+        required: false
+        type: string
+      approved_plan_artifact:
+        description: Artifact containing the exact owner-approved plan
+        required: false
+        type: string
+      approved_plan_sha256:
+        description: Owner-approved immutable plan hash (required for acquire)
+        required: false
+        type: string
+      entitlement_run_id:
+        description: Run ID containing reviewed contract entitlement evidence
+        required: false
+        type: string
+      entitlement_artifact:
+        description: Artifact containing entitlement.json
+        required: false
+        type: string
 
 permissions:
   actions: read
@@ -57,6 +77,11 @@ jobs:
           else
             test "${{ inputs.authorize_acquisition }}" = "REPORT_CARD_ACQUIRE_ONCE"
             test -n "$FINNHUB_API_KEY"
+            test -n "${{ inputs.approved_plan_run_id }}"
+            test -n "${{ inputs.approved_plan_artifact }}"
+            test -n "${{ inputs.approved_plan_sha256 }}"
+            test -n "${{ inputs.entitlement_run_id }}"
+            test -n "${{ inputs.entitlement_artifact }}"
           fi
           test -n "$ATLAS_REPORT_CARD_DURABLE_ROOT"
           test -n "$ATLAS_REPORT_CARD_BACKUP_ROOT"
@@ -75,6 +100,40 @@ jobs:
           mapfile -t files < <(find audit_results/report_card_calendar -type f \( -name xyns_calendar.json -o -name xnys_calendar.json \))
           test "${#files[@]}" -eq 1
           echo "path=${files[0]}" >> "$GITHUB_OUTPUT"
+      - name: Download exact owner-approved plan
+        if: inputs.execution_mode == 'acquire'
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.approved_plan_run_id }}
+          name: ${{ inputs.approved_plan_artifact }}
+          path: audit_results/report_card_approved_plan
+      - name: Resolve exactly one approved plan
+        if: inputs.execution_mode == 'acquire'
+        id: plan
+        shell: bash
+        run: |
+          mapfile -t files < <(find audit_results/report_card_approved_plan -type f -name report_card_market_evidence.json)
+          test "${#files[@]}" -eq 1
+          echo "path=${files[0]}" >> "$GITHUB_OUTPUT"
+      - name: Download reviewed entitlement evidence
+        if: inputs.execution_mode == 'acquire'
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.entitlement_run_id }}
+          name: ${{ inputs.entitlement_artifact }}
+          path: audit_results/report_card_entitlement
+      - name: Resolve exactly one entitlement contract
+        if: inputs.execution_mode == 'acquire'
+        id: entitlement
+        shell: bash
+        run: |
+          mapfile -t files < <(find audit_results/report_card_entitlement -type f -name entitlement.json)
+          test "${#files[@]}" -eq 1
+          echo "path=${files[0]}" >> "$GITHUB_OUTPUT"
       - name: Acquire bounded internal evidence
         shell: bash
         run: |
@@ -85,6 +144,7 @@ jobs:
             --source-sha "$GITHUB_SHA" \
             --mode "${{ inputs.execution_mode }}" \
             --authorization "${{ inputs.authorize_acquisition }}" \
+            ${{ inputs.execution_mode == 'acquire' && format('--approved-plan "{0}" --approved-plan-sha256 "{1}" --kill-switch "{2}/ACQUISITION_KILL_SWITCH" --entitlement-evidence "{3}"', steps.plan.outputs.path, inputs.approved_plan_sha256, env.ATLAS_REPORT_CARD_DURABLE_ROOT, steps.entitlement.outputs.path) || '' }} \
             --output audit_results/report_card_market_evidence/report_card_market_evidence.json
       - name: Offline acquisition contract tests
         run: pytest -q tests/test_report_card_exchange_calendar.py tests/test_report_card_market_evidence_acquisition.py tests/test_report_card_observation_producer.py tests/test_report_card_observation_activation.py tests/test_report_card_end_to_end_offline.py

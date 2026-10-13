@@ -12,10 +12,9 @@ on:
         required: true
         type: string
       activate_observation:
-        description: Explicit authorization for one matured observation bundle
+        description: Exact one-run G3 append authorization token
         required: true
-        default: false
-        type: boolean
+        type: string
 
 permissions:
   actions: read
@@ -38,7 +37,7 @@ jobs:
       - name: Require explicit internal observation authorization
         shell: bash
         run: |
-          test "${{ inputs.activate_observation }}" = "true"
+          test "${{ inputs.activate_observation }}" = "REPORT_CARD_APPEND_ONCE"
           test -n "$ATLAS_REPORT_CARD_DURABLE_ROOT"
           test -n "$ATLAS_REPORT_CARD_BACKUP_ROOT"
           test "$ATLAS_REPORT_CARD_DURABLE_ROOT" != "$ATLAS_REPORT_CARD_BACKUP_ROOT"
@@ -65,6 +64,8 @@ jobs:
             --bundle "${{ steps.bundle.outputs.path }}" \
             --ledger "$ATLAS_REPORT_CARD_DURABLE_ROOT/report-card.sqlite3" \
             --backup-root "$ATLAS_REPORT_CARD_BACKUP_ROOT" \
+            --authorization "${{ inputs.activate_observation }}" \
+            --kill-switch "$ATLAS_REPORT_CARD_DURABLE_ROOT/APPEND_KILL_SWITCH" \
             --output audit_results/internal_report_card_observation.json
       - name: Assert internal-only zero-provider boundary
         shell: bash
