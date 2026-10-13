@@ -11,7 +11,7 @@ from pathlib import Path
 
 from services.finnhub_shadow_provider import FINNHUB_PAID_CORE_CERTIFICATION_LICENSE, FinnhubShadowAdapter
 from services.prospective_report_card import ProspectiveLedger
-from services.report_card_market_evidence_acquisition import acquire_market_evidence
+from services.report_card_market_evidence_acquisition import acquire_market_evidence, build_acquisition_plan
 from services.report_card_exchange_calendar import verify_xnys_calendar
 from scripts.certify_report_card_durable_readonly import snapshot
 
@@ -49,6 +49,7 @@ def main() -> int:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--source-sha", required=True)
     parser.add_argument("--authorization", required=True)
+    parser.add_argument("--mode", choices=("plan", "acquire"), default="plan")
     args = parser.parse_args()
     if not args.ledger.is_file():
         raise FileNotFoundError("PROTECTED_REPORT_CARD_LEDGER_REQUIRED")
@@ -62,15 +63,22 @@ def main() -> int:
     calendar = json.loads(args.calendar.read_text(encoding="utf-8"))
     generated_at = datetime.fromisoformat(str(calendar.get("generated_at") or ""))
     verify_xnys_calendar(calendar, as_of=generated_at)
-    provider = FinnhubShadowAdapter(license_class=FINNHUB_PAID_CORE_CERTIFICATION_LICENSE)
-    evidence = acquire_market_evidence(
-        ledger=ledger,
-        provider=provider,
-        calendar=calendar,
-        now=datetime.now(timezone.utc),
-        authorization=args.authorization,
-        source_sha=args.source_sha,
-    )
+    if args.mode == "plan":
+        evidence = build_acquisition_plan(
+            ledger=ledger, calendar=calendar, authorization=args.authorization,
+            source_sha=args.source_sha,
+        )
+    else:
+        provider = FinnhubShadowAdapter(license_class=FINNHUB_PAID_CORE_CERTIFICATION_LICENSE)
+        evidence = acquire_market_evidence(
+            ledger=ledger,
+            provider=provider,
+            calendar=calendar,
+            now=datetime.now(timezone.utc),
+            authorization=args.authorization,
+            source_sha=args.source_sha,
+            retry_attempts=0,
+        )
     ledger_hash_after = _sha256(args.ledger)
     backup_hash_after = _sha256(backup_ledger)
     if ledger_hash_after != ledger_hash_before:

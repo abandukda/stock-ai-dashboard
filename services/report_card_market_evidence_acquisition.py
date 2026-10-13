@@ -22,6 +22,7 @@ from services.report_card_observation_producer import EVIDENCE_SCHEMA
 
 ACQUISITION_VERSION = "ATLAS_REPORT_CARD_MARKET_EVIDENCE_ACQUISITION_V1"
 AUTHORIZATION_TOKEN = "REPORT_CARD_ACQUIRE_ONCE"
+PLAN_AUTHORIZATION_TOKEN = "REPORT_CARD_PLAN_ONCE"
 LICENSE_CLASS = "FINNHUB_PAID_CORE_CERTIFICATION"
 REQUIRED_CAPABILITIES = ("historical_ohlcv", "splits", "dividends")
 
@@ -132,10 +133,49 @@ def estimated_provider_calls(scope: AcquisitionScope) -> int:
     return 0 if not scope.horizons else 3 * len(scope.tickers) + 1
 
 
+def build_acquisition_plan(
+    *, ledger: ProspectiveLedger, calendar: Mapping[str, Any], authorization: str,
+    source_sha: str,
+) -> dict[str, Any]:
+    """Describe the exact ledger-derived acquisition scope without provider access."""
+    if authorization != PLAN_AUTHORIZATION_TOKEN:
+        raise PermissionError("REPORT_CARD_PLAN_NOT_AUTHORIZED")
+    if len(source_sha) != 40:
+        raise ValueError("SOURCE_SHA_REQUIRED")
+    sessions = tuple(str(item) for item in calendar.get("trading_sessions") or ())
+    finalized = str(calendar.get("finalized_session") or "")
+    if calendar.get("session_status") != FINALIZED_SESSION_STATUS:
+        raise ValueError("MARKET_SESSION_NOT_FINALIZED")
+    scope = derive_acquisition_scope(
+        ledger=ledger, trading_sessions=sessions, finalized_session=finalized,
+    )
+    plan = {
+        "schema_version": EVIDENCE_SCHEMA,
+        "acquisition_version": ACQUISITION_VERSION,
+        "status": "PLAN_ONLY",
+        "source_sha": source_sha,
+        "ledger_tip": scope.ledger_tip,
+        "activation_timestamp": scope.activation_timestamp,
+        "scope_digest": scope.scope_digest,
+        "signal_ids": list(scope.signal_ids),
+        "due_tickers": list(scope.tickers),
+        "benchmark_ticker": "SPY",
+        "due_horizons": list(scope.horizons),
+        "target_sessions": {str(key): value for key, value in scope.target_sessions.items()},
+        "provider_call_budget": estimated_provider_calls(scope),
+        "provider_calls": 0,
+        "retry_attempts": 0,
+        "customer_visible": False,
+        "ledger_mutation_allowed": False,
+    }
+    plan["artifact_sha256"] = _digest(plan)
+    return plan
+
+
 def acquire_market_evidence(
     *, ledger: ProspectiveLedger, provider: Provider, calendar: Mapping[str, Any],
     now: datetime, authorization: str, source_sha: str,
-    retry_attempts: int = 2, rate_governor: FinnhubRateGovernor | None = None,
+    retry_attempts: int = 0, rate_governor: FinnhubRateGovernor | None = None,
     retryable: Callable[[Mapping[str, Any]], bool] | None = None,
 ) -> dict[str, Any]:
     """Acquire one bounded, replayable internal market-evidence snapshot."""
@@ -322,5 +362,6 @@ def acquire_market_evidence(
 
 __all__ = [
     "ACQUISITION_VERSION", "AUTHORIZATION_TOKEN", "AcquisitionScope",
-    "acquire_market_evidence", "derive_acquisition_scope", "estimated_provider_calls",
+    "PLAN_AUTHORIZATION_TOKEN", "acquire_market_evidence", "build_acquisition_plan",
+    "derive_acquisition_scope", "estimated_provider_calls",
 ]

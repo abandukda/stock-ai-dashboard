@@ -5,6 +5,12 @@ name: ATLAS Report Card Market Evidence Acquisition
 on:
   workflow_dispatch:
     inputs:
+      execution_mode:
+        description: Zero-provider plan or separately authorized live acquisition
+        required: true
+        default: plan
+        type: choice
+        options: [plan, acquire]
       authorize_acquisition:
         description: Exact one-run authorization token
         required: true
@@ -44,10 +50,14 @@ jobs:
       - name: Require explicit bounded authorization
         shell: bash
         run: |
-          test "${{ inputs.authorize_acquisition }}" = "REPORT_CARD_ACQUIRE_ONCE"
+          if [ "${{ inputs.execution_mode }}" = "plan" ]; then
+            test "${{ inputs.authorize_acquisition }}" = "REPORT_CARD_PLAN_ONCE"
+          else
+            test "${{ inputs.authorize_acquisition }}" = "REPORT_CARD_ACQUIRE_ONCE"
+            test -n "$FINNHUB_API_KEY"
+          fi
           test -n "$ATLAS_REPORT_CARD_DURABLE_ROOT"
           test -n "$ATLAS_REPORT_CARD_BACKUP_ROOT"
-          test -n "$FINNHUB_API_KEY"
       - name: Download exact governed exchange calendar
         uses: actions/download-artifact@v4
         with:
@@ -71,6 +81,7 @@ jobs:
             --backup-root "$ATLAS_REPORT_CARD_BACKUP_ROOT" \
             --calendar "${{ steps.calendar.outputs.path }}" \
             --source-sha "$GITHUB_SHA" \
+            --mode "${{ inputs.execution_mode }}" \
             --authorization "${{ inputs.authorize_acquisition }}" \
             --output audit_results/report_card_market_evidence/report_card_market_evidence.json
       - name: Offline acquisition contract tests

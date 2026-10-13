@@ -9,7 +9,8 @@ import pytest
 
 from services.prospective_report_card import ProspectiveLedger
 from services.report_card_market_evidence_acquisition import (
-    AUTHORIZATION_TOKEN, acquire_market_evidence, derive_acquisition_scope, estimated_provider_calls,
+    AUTHORIZATION_TOKEN, PLAN_AUTHORIZATION_TOKEN, acquire_market_evidence,
+    build_acquisition_plan, derive_acquisition_scope, estimated_provider_calls,
 )
 from scripts.acquire_report_card_market_evidence import resolve_verified_backup
 
@@ -92,6 +93,30 @@ def test_scope_is_ledger_derived_and_duplicate_tickers_are_deduplicated(tmp_path
     assert scope.horizons == (1,)
     assert scope.target_sessions == {1: "2026-10-09"}
     assert estimated_provider_calls(scope) == 7
+
+
+def test_plan_mode_is_exact_ledger_scope_and_makes_zero_provider_calls(tmp_path):
+    item = ledger(tmp_path / "ledger.sqlite3", duplicate=True)
+    plan = build_acquisition_plan(
+        ledger=item, calendar=calendar(), authorization=PLAN_AUTHORIZATION_TOKEN,
+        source_sha="a" * 40,
+    )
+    assert plan["status"] == "PLAN_ONLY"
+    assert plan["due_tickers"] == ["MSFT", "NVDA"]
+    assert plan["benchmark_ticker"] == "SPY"
+    assert plan["provider_call_budget"] == 7
+    assert plan["provider_calls"] == 0
+    assert plan["retry_attempts"] == 0
+    assert plan["ledger_mutation_allowed"] is False
+
+
+def test_plan_mode_requires_distinct_authorization(tmp_path):
+    item = ledger(tmp_path / "ledger.sqlite3")
+    with pytest.raises(PermissionError, match="PLAN_NOT_AUTHORIZED"):
+        build_acquisition_plan(
+            ledger=item, calendar=calendar(), authorization=AUTHORIZATION_TOKEN,
+            source_sha="a" * 40,
+        )
 
 
 def test_acquisition_is_deterministic_except_declared_artifact_hash(tmp_path):
@@ -184,6 +209,8 @@ def test_dispatch_workflow_is_inert_and_requires_distinct_primary_and_backup():
         encoding="utf-8"
     )
     assert "schedule:" not in source
+    assert "execution_mode:" in source
+    assert "REPORT_CARD_PLAN_ONCE" in source
     assert 'test "${{ inputs.authorize_acquisition }}" = "REPORT_CARD_ACQUIRE_ONCE"' in source
     assert "ATLAS_REPORT_CARD_DURABLE_ROOT" in source
     assert "ATLAS_REPORT_CARD_BACKUP_ROOT" in source
