@@ -78,8 +78,13 @@ def audit(
     feature_counts = Counter()
     identities = Counter()
     period_examples: dict[str, set[str]] = defaultdict(set)
+    provenance_samples: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    terminal_blocker_sets: Counter[tuple[str, ...]] = Counter()
     coverage_rows: list[dict[str, Any]] = []
     for row in records:
+        blockers = tuple(str(item) for item in (row.get("_terminal_blockers") or ()))
+        if blockers:
+            terminal_blocker_sets[blockers] += 1
         lineage = _mapping(row.get("professional_evidence_lineage"))
         lineage_fields = _mapping(lineage.get("fields"))
         for name in FINANCIAL_FIELDS:
@@ -116,6 +121,15 @@ def audit(
                     else "NOT_RETAINED_IN_SOURCE"
                 ),
             })
+            if value is not None and evidence_id and len(provenance_samples[name]) < 3:
+                provenance_samples[name].append({
+                    "ticker": str(row.get("ticker") or "").upper(),
+                    "field_id": name,
+                    "fiscal_period": period or None,
+                    "unit": unit or None,
+                    "provider": provider or None,
+                    "evidence_id": evidence_id,
+                })
         if row.get("historical_ohlcv_evidence_id"):
             feature_counts["price_history_identity"] += 1
         if row.get("forward_estimate_evidence"):
@@ -135,6 +149,14 @@ def audit(
         else "SOURCE_ARTIFACT_PARTIAL" if total < expected
         else "SOURCE_POPULATION_MISMATCH"
     )
+    terminal_rows = sum(terminal_blocker_sets.values())
+    nonterminal_rows = total - terminal_rows
+    if terminal_rows + nonterminal_rows != total:
+        raise ValueError("RETAINED_ROW_CONSERVATION_FAILED")
+    cell_classes = Counter(row["remediation_class"] for row in coverage_rows)
+    expected_cells = total * len(FINANCIAL_FIELDS)
+    if sum(cell_classes.values()) != expected_cells:
+        raise ValueError("RETAINED_CELL_CONSERVATION_FAILED")
     return {
         "source_identity": dict(source_identity or {}),
         "source_population_expected": expected,
@@ -142,6 +164,25 @@ def audit(
         "source_population_audited": total,
         "population_completeness_state": population_state,
         "published_records": total,
+        "conservation": {
+            "row_total": total,
+            "terminal_rows": terminal_rows,
+            "nonterminal_rows": nonterminal_rows,
+            "field_cell_total": expected_cells,
+            "classified_field_cells": sum(cell_classes.values()),
+            "field_cell_classes": dict(sorted(cell_classes.items())),
+        },
+        "terminal_null_rows": {
+            "count": terminal_rows,
+            "classification": "TERMINAL_BLOCKED_RETAINED_ROW",
+            "blocker_combinations": [
+                {"blockers": list(blockers), "count": count}
+                for blockers, count in sorted(
+                    terminal_blocker_sets.items(), key=lambda item: (-item[1], item[0])
+                )
+            ],
+        },
+        "sampled_provenance_traces": dict(provenance_samples),
         "fields": {
             name: {
                 **counter,
@@ -183,6 +224,17 @@ def markdown(result: Mapping[str, Any], source: Path) -> str:
     lines += ["", "## Other retained identities", ""]
     for key, value in {**result["features"], **result["security_master"]}.items():
         lines.append(f"- {key.replace('_', ' ').title()}: {int(value):,} of {total:,}")
+    conservation = result["conservation"]
+    terminal = result["terminal_null_rows"]
+    lines += [
+        "", "## Conservation and terminal rows", "",
+        f"- Rows: {conservation['terminal_rows']:,} terminal + {conservation['nonterminal_rows']:,} nonterminal = {conservation['row_total']:,}",
+        f"- Field cells: {conservation['classified_field_cells']:,} classified = {conservation['field_cell_total']:,} expected",
+        f"- Terminal retained rows: {terminal['count']:,}, classified as `{terminal['classification']}`",
+        "- Terminal blocker combinations:",
+    ]
+    for item in terminal["blocker_combinations"]:
+        lines.append(f"  - {int(item['count']):,}: {', '.join(item['blockers'])}")
     lines += [
         "",
         "## Decision",
@@ -228,7 +280,7 @@ def main() -> None:
         args.json_out.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     if args.markdown_out:
         args.markdown_out.parent.mkdir(parents=True, exist_ok=True)
-        args.markdown_out.write_text(markdown(result, args.source), encoding="utf-8")
+        args.markdown_out.write_text(markdown(result, args.shard_dir or args.source), encoding="utf-8")
     if args.csv_out:
         args.csv_out.parent.mkdir(parents=True, exist_ok=True)
         rows = result["field_period_rows"]

@@ -1,0 +1,355 @@
+{
+  "conservation": {
+    "classified_field_cells": 90495,
+    "field_cell_classes": {
+      "NOT_RETAINED_IN_SOURCE": 45971,
+      "RETAINED_MISSING_LINEAGE": 29925,
+      "RETAINED_PROJECTABLE": 14599
+    },
+    "field_cell_total": 90495,
+    "nonterminal_rows": 3850,
+    "row_total": 6033,
+    "terminal_rows": 2183
+  },
+  "features": {
+    "forward_estimates": 3850,
+    "price_history_identity": 3850
+  },
+  "field_period_matrix": "NOT_EMITTED",
+  "fields": {
+    "capex": {
+      "coverage_pct": 0.0,
+      "retained_period_examples": [],
+      "value": 3105
+    },
+    "capital_expenditures": {
+      "coverage_pct": 0.0,
+      "retained_period_examples": [],
+      "value": 3105
+    },
+    "cash_and_equivalents": {
+      "certified": 3412,
+      "coverage_pct": 56.56,
+      "period_bound": 3412,
+      "retained_period_examples": [
+        "2012-12-31 00:00:00",
+        "2021-12-31 00:00:00",
+        "2024-12-31 00:00:00",
+        "2025-06-30 00:00:00",
+        "2025-09-27 00:00:00",
+        "2025-10-31 00:00:00",
+        "2025-12-31 00:00:00",
+        "2026-01-03 00:00:00"
+      ],
+      "value": 3412
+    },
+    "forward_ebitda": {
+      "certified": 2809,
+      "coverage_pct": 46.56,
+      "period_bound": 2809,
+      "retained_period_examples": [
+        "2026-12-31",
+        "2027-03-31",
+        "2027-06-30",
+        "2027-09-30",
+        "2027-12-31",
+        "2028-12-31"
+      ],
+      "value": 2809
+    },
+    "forward_eps": {
+      "certified": 3377,
+      "coverage_pct": 55.98,
+      "period_bound": 3377,
+      "retained_period_examples": [
+        "2026-12-31",
+        "2027-03-31",
+        "2027-06-30",
+        "2027-09-30",
+        "2027-12-31"
+      ],
+      "value": 3377
+    },
+    "free_cash_flow": {
+      "certified": 3037,
+      "coverage_pct": 50.34,
+      "period_bound": 3850,
+      "retained_period_examples": [
+        "2012-12-31 00:00:00",
+        "2021-12-31 00:00:00",
+        "2024-12-31 00:00:00",
+        "2025-06-30 00:00:00",
+        "2025-09-27 00:00:00",
+        "2025-10-31 00:00:00",
+        "2025-12-31 00:00:00",
+        "2026-01-03 00:00:00"
+      ],
+      "value": 3037
+    },
+    "gross_margin_pct": {
+      "coverage_pct": 0.0,
+      "retained_period_examples": [],
+      "value": 2927
+    },
+    "latest_revenue": {
+      "coverage_pct": 0.0,
+      "retained_period_examples": [],
+      "value": 2885
+    },
+    "net_debt_to_ebitda": {
+      "coverage_pct": 0.0,
+      "retained_period_examples": []
+    },
+    "net_income": {
+      "coverage_pct": 0.0,
+      "retained_period_examples": [],
+      "value": 3805
+    },
+    "net_margin_pct": {
+      "coverage_pct": 0.0,
+      "retained_period_examples": [],
+      "value": 3527
+    },
+    "operating_cash_flow": {
+      "coverage_pct": 0.0,
+      "retained_period_examples": [],
+      "value": 3723
+    },
+    "operating_margin_pct": {
+      "coverage_pct": 0.0,
+      "retained_period_examples": [],
+      "value": 3520
+    },
+    "revenue_growth_pct": {
+      "coverage_pct": 0.0,
+      "retained_period_examples": [],
+      "value": 3328
+    },
+    "total_debt": {
+      "certified": 1964,
+      "coverage_pct": 32.55,
+      "period_bound": 1964,
+      "retained_period_examples": [
+        "2021-12-31 00:00:00",
+        "2024-12-31 00:00:00",
+        "2025-09-27 00:00:00",
+        "2025-09-30 00:00:00",
+        "2025-10-31 00:00:00",
+        "2025-12-31 00:00:00",
+        "2026-01-03 00:00:00",
+        "2026-02-28 00:00:00"
+      ],
+      "value": 1964
+    }
+  },
+  "population_completeness_state": "COMPLETE",
+  "published_records": 6033,
+  "sampled_provenance_traces": {
+    "cash_and_equivalents": [
+      {
+        "evidence_id": "FINNHUB:FINANCIAL_STATEMENTS:A:990bf202f36c8b8275db",
+        "field_id": "cash_and_equivalents",
+        "fiscal_period": "2025-10-31 00:00:00",
+        "provider": "FINNHUB",
+        "ticker": "A",
+        "unit": "USD"
+      },
+      {
+        "evidence_id": "FINNHUB:FINANCIAL_STATEMENTS:AA:e7564406cc644fcd07e9",
+        "field_id": "cash_and_equivalents",
+        "fiscal_period": "2025-12-31 00:00:00",
+        "provider": "FINNHUB",
+        "ticker": "AA",
+        "unit": "USD"
+      },
+      {
+        "evidence_id": "FINNHUB:FINANCIAL_STATEMENTS:AAME:31ccd8d38a5b5b0455c3",
+        "field_id": "cash_and_equivalents",
+        "fiscal_period": "2024-12-31 00:00:00",
+        "provider": "FINNHUB",
+        "ticker": "AAME",
+        "unit": null
+      }
+    ],
+    "forward_ebitda": [
+      {
+        "evidence_id": "FINNHUB:EBITDA_ESTIMATES:A:0d5ef7a5032bf60361ea",
+        "field_id": "forward_ebitda",
+        "fiscal_period": "2026-12-31",
+        "provider": "FINNHUB",
+        "ticker": "A",
+        "unit": "CURRENCY_ABSOLUTE"
+      },
+      {
+        "evidence_id": "FINNHUB:EBITDA_ESTIMATES:AA:9e10cea755a9c17bcdf3",
+        "field_id": "forward_ebitda",
+        "fiscal_period": "2026-12-31",
+        "provider": "FINNHUB",
+        "ticker": "AA",
+        "unit": "CURRENCY_ABSOLUTE"
+      },
+      {
+        "evidence_id": "FINNHUB:EBITDA_ESTIMATES:AAL:5a444e0db7ba539fdd9d",
+        "field_id": "forward_ebitda",
+        "fiscal_period": "2026-12-31",
+        "provider": "FINNHUB",
+        "ticker": "AAL",
+        "unit": "CURRENCY_ABSOLUTE"
+      }
+    ],
+    "forward_eps": [
+      {
+        "evidence_id": "FINNHUB:EPS_ESTIMATES:A:923a1947da1ae0190d82",
+        "field_id": "forward_eps",
+        "fiscal_period": "2026-12-31",
+        "provider": "FINNHUB",
+        "ticker": "A",
+        "unit": "PER_SHARE"
+      },
+      {
+        "evidence_id": "FINNHUB:EPS_ESTIMATES:AA:0b8b4d5eb0c328911fde",
+        "field_id": "forward_eps",
+        "fiscal_period": "2026-12-31",
+        "provider": "FINNHUB",
+        "ticker": "AA",
+        "unit": "PER_SHARE"
+      },
+      {
+        "evidence_id": "FINNHUB:EPS_ESTIMATES:AAL:0c93a5bd5f99663fccef",
+        "field_id": "forward_eps",
+        "fiscal_period": "2026-12-31",
+        "provider": "FINNHUB",
+        "ticker": "AAL",
+        "unit": "PER_SHARE"
+      }
+    ],
+    "free_cash_flow": [
+      {
+        "evidence_id": "FINNHUB:FINANCIAL_STATEMENTS:A:990bf202f36c8b8275db",
+        "field_id": "free_cash_flow",
+        "fiscal_period": "2025-10-31 00:00:00",
+        "provider": "FINNHUB",
+        "ticker": "A",
+        "unit": "USD"
+      },
+      {
+        "evidence_id": "FINNHUB:FINANCIAL_STATEMENTS:AA:e7564406cc644fcd07e9",
+        "field_id": "free_cash_flow",
+        "fiscal_period": "2025-12-31 00:00:00",
+        "provider": "FINNHUB",
+        "ticker": "AA",
+        "unit": "USD"
+      },
+      {
+        "evidence_id": "FINNHUB:FINANCIAL_STATEMENTS:AAL:15af6807bf5af1179648",
+        "field_id": "free_cash_flow",
+        "fiscal_period": "2025-12-31 00:00:00",
+        "provider": "FINNHUB",
+        "ticker": "AAL",
+        "unit": "USD"
+      }
+    ],
+    "total_debt": [
+      {
+        "evidence_id": "FINNHUB:FINANCIAL_STATEMENTS:A:990bf202f36c8b8275db",
+        "field_id": "total_debt",
+        "fiscal_period": "2025-10-31 00:00:00",
+        "provider": "FINNHUB",
+        "ticker": "A",
+        "unit": "USD"
+      },
+      {
+        "evidence_id": "FINNHUB:FINANCIAL_STATEMENTS:AA:e7564406cc644fcd07e9",
+        "field_id": "total_debt",
+        "fiscal_period": "2025-12-31 00:00:00",
+        "provider": "FINNHUB",
+        "ticker": "AA",
+        "unit": "USD"
+      },
+      {
+        "evidence_id": "FINNHUB:FINANCIAL_STATEMENTS:AAL:15af6807bf5af1179648",
+        "field_id": "total_debt",
+        "fiscal_period": "2025-12-31 00:00:00",
+        "provider": "FINNHUB",
+        "ticker": "AAL",
+        "unit": "USD"
+      }
+    ]
+  },
+  "security_master": {
+    "company_name": 3849,
+    "industry": 3850,
+    "sector": 3850,
+    "security_type": 3850
+  },
+  "source_identity": {
+    "run_identity": "920457469d876b93f84cdcd02122748fd2055356965f19fc8c0350e1837e96ac",
+    "shard_count": 41,
+    "source_path": "/private/tmp/atlas-exact-shards-37216506983",
+    "source_sha": "aa12ff9e89c1ac72e20aadad41decfba9a3d774d",
+    "unique_tickers": 6033
+  },
+  "source_population_accessible": 6033,
+  "source_population_audited": 6033,
+  "source_population_expected": 6033,
+  "terminal_null_rows": {
+    "blocker_combinations": [
+      {
+        "blockers": [
+          "LATEST_FY_FINANCIAL_REPORT_MISSING"
+        ],
+        "count": 1059
+      },
+      {
+        "blockers": [
+          "LATEST_FY_FINANCIAL_REPORT_MISSING",
+          "COMPLETED_TECHNICAL_HISTORY_INSUFFICIENT"
+        ],
+        "count": 362
+      },
+      {
+        "blockers": [
+          "LATEST_FY_FINANCIAL_REPORT_MISSING",
+          "COMPLETED_TECHNICAL_HISTORY_INSUFFICIENT",
+          "GOVERNED_CLASSIFICATION_UNRESOLVED"
+        ],
+        "count": 267
+      },
+      {
+        "blockers": [
+          "COMPLETED_TECHNICAL_HISTORY_INSUFFICIENT",
+          "GOVERNED_CLASSIFICATION_UNRESOLVED"
+        ],
+        "count": 223
+      },
+      {
+        "blockers": [
+          "COMPLETED_TECHNICAL_HISTORY_INSUFFICIENT"
+        ],
+        "count": 214
+      },
+      {
+        "blockers": [
+          "GOVERNED_CLASSIFICATION_UNRESOLVED"
+        ],
+        "count": 39
+      },
+      {
+        "blockers": [
+          "LATEST_FY_FINANCIAL_REPORT_MISSING",
+          "GOVERNED_CLASSIFICATION_UNRESOLVED"
+        ],
+        "count": 18
+      },
+      {
+        "blockers": [
+          "HISTORICAL_OHLCV_NOT_CANONICAL_CERTIFIED",
+          "COMPLETED_TECHNICAL_HISTORY_INSUFFICIENT"
+        ],
+        "count": 1
+      }
+    ],
+    "classification": "TERMINAL_BLOCKED_RETAINED_ROW",
+    "count": 2183
+  }
+}

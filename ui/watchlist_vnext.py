@@ -9,6 +9,7 @@ import streamlit as st
 
 from services.session_stability import emit_page_interactive
 from services.customer_authority import customer_authority
+from services.customer_metric_format import customer_confidence
 from ui.atlas_design_system import action_badge
 
 
@@ -176,7 +177,7 @@ def render_watchlist_vnext(
             decision_cols[1].metric("ATLAS Fair Value", _money(fair_value))
             decision_cols[2].metric("Opportunity", f'{float(authority["opportunity"]):.2f}' if authority.get("opportunity") is not None else "Unavailable")
             context_cols = st.columns(3)
-            context_cols[0].metric("Confidence", f'{float(authority["confidence"]):.1f}/100' if authority.get("confidence") is not None else "Unavailable")
+            context_cols[0].metric("Confidence", customer_confidence(authority.get("confidence")))
             context_cols[1].metric("Last verified price", _money(price), help=(f"As of {price_as_of}" if price_as_of else "Verified date unavailable"))
             context_cols[2].metric("Distance to Fair Value", _pct(distance))
             st.write("**What changed:** " + str(_value(row, "What Changed", "change_since_last_scan", "material_change") or "No governed material change is attached."))

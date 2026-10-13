@@ -525,7 +525,7 @@ def test_customer_metric_formatting_is_identical_and_presentation_only():
     assert customer_money(346.05) == "$346.05"
     assert customer_score(85.96) == "85.96"
     assert customer_percent(85.96, signed=True) == "+85.96%"
-    assert customer_confidence(87.46) == "87/100"
+    assert customer_confidence(87.46) == "87.46/100"
     assert customer_money(None) == "Unavailable"
 
 

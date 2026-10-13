@@ -54,6 +54,43 @@ def test_audit_never_labels_missing_partial_source_data_as_provider_unavailable(
     assert "PROVIDER" not in row["remediation_class"]
 
 
+def test_audit_conserves_rows_cells_and_classifies_terminal_blockers():
+    result = audit([
+        {"ticker": "A", "latest_revenue": 10},
+        {"ticker": "AAC", "_terminal_blockers": ["LATEST_FY_FINANCIAL_REPORT_MISSING"]},
+    ])
+    assert result["conservation"] == {
+        "row_total": 2,
+        "terminal_rows": 1,
+        "nonterminal_rows": 1,
+        "field_cell_total": 30,
+        "classified_field_cells": 30,
+        "field_cell_classes": {
+            "NOT_RETAINED_IN_SOURCE": 29,
+            "RETAINED_MISSING_LINEAGE": 1,
+        },
+    }
+    assert result["terminal_null_rows"] == {
+        "count": 1,
+        "classification": "TERMINAL_BLOCKED_RETAINED_ROW",
+        "blocker_combinations": [{
+            "blockers": ["LATEST_FY_FINANCIAL_REPORT_MISSING"], "count": 1,
+        }],
+    }
+
+
+def test_audit_emits_bounded_provenance_samples():
+    records = [{
+        "ticker": f"T{index}", "free_cash_flow": index,
+        "professional_evidence_lineage": {"fields": {"free_cash_flow": {
+            "evidence_id": f"e{index}", "period": "FY2026", "provider": "FINNHUB", "unit": "USD",
+        }}},
+    } for index in range(5)]
+    samples = audit(records)["sampled_provenance_traces"]["free_cash_flow"]
+    assert [item["ticker"] for item in samples] == ["T0", "T1", "T2"]
+    assert samples[0]["evidence_id"] == "e0"
+
+
 def test_shard_loader_requires_complete_coherent_ticker_owned_set(tmp_path):
     for index in range(41):
         payload = {

@@ -23,7 +23,9 @@ def customer_percent(value: Any, *, signed: bool = False) -> str:
 
 
 def customer_confidence(value: Any) -> str:
-    return "Unavailable" if value is None else f"{float(value):.0f}/100"
+    # Confidence is a protected certified value. Preserve its published
+    # precision so route-specific formatting cannot create a contradiction.
+    return "Unavailable" if value is None else f"{float(value):.2f}/100"
 
 
 __all__ = ["customer_confidence", "customer_money", "customer_percent", "customer_score"]
