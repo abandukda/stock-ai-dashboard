@@ -53,6 +53,7 @@ jobs:
           --ledger "$ATLAS_REPORT_CARD_DURABLE_ROOT/report-card.sqlite3"
           --backup-root "$ATLAS_REPORT_CARD_BACKUP_ROOT"
           --calendar audit_results/report_card_protected/xnys_calendar.json
+          --kill-switch "$ATLAS_REPORT_CARD_DURABLE_ROOT/ACQUISITION_KILL_SWITCH"
           --source-sha "$GITHUB_SHA"
           --output audit_results/report_card_protected/protected_validation.json
       - name: Provider-free control tests

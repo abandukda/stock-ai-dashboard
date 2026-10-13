@@ -17,7 +17,8 @@ def _file_sha(path: Path) -> str:
 def prepare_protected_validation(*, ledger_path: Path, backup_root: Path,
         calendar: Mapping[str, Any], source_sha: str,
         publication_rows: list[Mapping[str, Any]], workspace: Path | None = None,
-        mount_probe: Callable[[Path], Mapping[str, Any]] | None = None) -> dict[str, Any]:
+        mount_probe: Callable[[Path], Mapping[str, Any]] | None = None,
+        kill_switch_path: Path | None = None) -> dict[str, Any]:
     ledger_path, backup_root = ledger_path.resolve(), backup_root.resolve()
     if not ledger_path.is_file() or not backup_root.is_dir():
         raise FileNotFoundError("PROTECTED_LEDGER_AND_BACKUP_ROOT_REQUIRED")
@@ -50,6 +51,17 @@ def prepare_protected_validation(*, ledger_path: Path, backup_root: Path,
     if not verified_backups:
         raise FileNotFoundError("SIDE_CAR_VERIFIED_BACKUP_REQUIRED")
     reconciliation = reconcile_publication(signals=signals, publication_rows=publication_rows)
+    kill_switch = {"status":"NOT_PROVIDED","safe_for_live_calls":False}
+    if kill_switch_path is not None:
+        switch = kill_switch_path.resolve()
+        if not switch.is_file():
+            raise FileNotFoundError("KILL_SWITCH_EVIDENCE_REQUIRED")
+        state = switch.read_text(encoding="utf-8").strip()
+        if state not in {"OPEN", "CLOSED"}:
+            raise ValueError("KILL_SWITCH_STATE_INVALID")
+        kill_switch = {"path":str(switch),"state":state,"sha256":_file_sha(switch),
+                       "mode":oct(stat.S_IMODE(switch.stat().st_mode)),
+                       "safe_for_live_calls":state == "OPEN"}
     after = _file_sha(ledger_path)
     if before != after:
         raise RuntimeError("PROTECTED_LEDGER_CHANGED_DURING_READONLY_AUDIT")
@@ -58,6 +70,7 @@ def prepare_protected_validation(*, ledger_path: Path, backup_root: Path,
         "backup_root":{"path":str(backup_root),"verified_backups":verified_backups},
         "mounts":{"primary":primary_mount,"backup":backup_mount,"isolated":True},
         "publication_reconciliation":reconciliation,
+        "kill_switch_evidence":kill_switch,
         "canonical_plan":plan,"canonical_plan_sha256":plan["artifact_sha256"],
         "due_tickers":plan["due_tickers"],"target_sessions":plan["target_sessions"],
         "planned_calls":plan["provider_call_budget"],"provider_calls":0,"ledger_mutations":0,

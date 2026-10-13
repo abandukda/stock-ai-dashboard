@@ -5,7 +5,8 @@ import subprocess
 import pytest
 
 from services.report_card_operational_controls import (
-    classify_unavailable, compare_entry_prices, deliver_heartbeat_alert, detect_restatement, heartbeat_decision,
+    classify_unavailable, compare_entry_prices, deliver_heartbeat_alert, detect_restatement,
+    heartbeat_contract, heartbeat_decision,
     reconcile_publication, validate_entitlement,
 )
 
@@ -86,3 +87,16 @@ def test_alert_adapter_requires_health_and_confirmed_delivery():
     adapter.healthy = False
     with pytest.raises(RuntimeError, match="DESTINATION_UNHEALTHY"):
         deliver_heartbeat_alert(decision=decision, adapter=adapter)
+
+
+def test_heartbeat_contract_is_run_bound_monotonic_and_deterministic():
+    decision={"status":"NEVER_STARTED","alert_required":True}
+    heartbeat={"run_id":"run-1","sequence":0,"source":"EXTERNAL_SYSTEMD_MONITOR"}
+    first=heartbeat_contract(heartbeat=heartbeat,expected_run_id="run-1",decision=decision)
+    assert first==heartbeat_contract(heartbeat=heartbeat,expected_run_id="run-1",decision=decision)
+    assert first["event_id"] and first["independent_source"]=="EXTERNAL_SYSTEMD_MONITOR"
+    with pytest.raises(ValueError,match="RUN_ID"):
+        heartbeat_contract(heartbeat=heartbeat,expected_run_id="run-2",decision=decision)
+    with pytest.raises(ValueError,match="INDEPENDENT"):
+        heartbeat_contract(heartbeat={**heartbeat,"source":"GITHUB_ACTIONS_NOTIFICATION"},
+                           expected_run_id="run-1",decision=decision)

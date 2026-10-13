@@ -100,23 +100,44 @@ def heartbeat_decision(*, now: datetime, expected_start: datetime, started_at: d
     return {"status": state, "alert_required": state != "HEALTHY", "independent_of_github_actions": True}
 
 
+def heartbeat_contract(*, heartbeat: Mapping[str, Any], expected_run_id: str,
+                       decision: Mapping[str, Any]) -> dict[str, Any]:
+    """Bind a monitor decision to one monotonic external heartbeat record."""
+    if heartbeat.get("run_id") != expected_run_id:
+        raise ValueError("HEARTBEAT_RUN_ID_MISMATCH")
+    sequence = heartbeat.get("sequence")
+    if not isinstance(sequence, int) or sequence < 0:
+        raise ValueError("HEARTBEAT_SEQUENCE_INVALID")
+    if heartbeat.get("source") == "GITHUB_ACTIONS_NOTIFICATION":
+        raise ValueError("HEARTBEAT_MUST_BE_INDEPENDENT")
+    envelope = {"schema_version":"ATLAS_REPORT_CARD_DEAD_MAN_ALERT_V1",
+        "run_id":expected_run_id,"heartbeat_sequence":sequence,
+        "state":decision.get("status"),"alert_required":decision.get("alert_required"),
+        "independent_source":heartbeat.get("source")}
+    envelope["event_id"] = digest(envelope)
+    return envelope
+
+
 class AlertAdapter(Protocol):
     def healthcheck(self) -> bool: ...
     def send(self, payload: Mapping[str, Any]) -> str: ...
 
 
-def deliver_heartbeat_alert(*, decision: Mapping[str, Any], adapter: AlertAdapter) -> dict[str, Any]:
+def deliver_heartbeat_alert(*, decision: Mapping[str, Any], adapter: AlertAdapter,
+                            envelope: Mapping[str, Any] | None = None) -> dict[str, Any]:
     """Fail closed if the independently configured alert destination is unhealthy."""
     if not decision.get("alert_required"):
         return {"status": "NO_ALERT_REQUIRED", "delivery_id": None}
     if adapter.healthcheck() is not True:
         raise RuntimeError("INDEPENDENT_ALERT_DESTINATION_UNHEALTHY")
-    delivery_id = adapter.send({"event": "REPORT_CARD_DEAD_MAN", "state": decision.get("status")})
+    payload = dict(envelope or {"event": "REPORT_CARD_DEAD_MAN", "state": decision.get("status")})
+    delivery_id = adapter.send(payload)
     if not delivery_id:
         raise RuntimeError("INDEPENDENT_ALERT_DELIVERY_UNCONFIRMED")
-    return {"status": "ALERT_DELIVERED", "delivery_id": str(delivery_id)}
+    return {"status": "ALERT_DELIVERED", "delivery_id": str(delivery_id),
+            "event_id": payload.get("event_id")}
 
 
 __all__ = ["VERSION", "AlertAdapter", "classify_unavailable", "compare_entry_prices",
-           "deliver_heartbeat_alert", "detect_restatement", "digest", "heartbeat_decision",
+           "deliver_heartbeat_alert", "detect_restatement", "digest", "heartbeat_contract", "heartbeat_decision",
            "reconcile_publication", "validate_entitlement"]

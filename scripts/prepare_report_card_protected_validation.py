@@ -16,10 +16,12 @@ def main():
     p.add_argument("--ledger",type=Path,required=True); p.add_argument("--backup-root",type=Path,required=True)
     p.add_argument("--calendar",type=Path,required=True); p.add_argument("--publication-evidence",type=Path)
     p.add_argument("--source-sha",required=True); p.add_argument("--output",type=Path,required=True)
+    p.add_argument("--kill-switch",type=Path,required=True)
     a=p.parse_args(); evidence=[] if not a.publication_evidence else json.loads(a.publication_evidence.read_text())
     result=prepare_protected_validation(ledger_path=a.ledger,backup_root=a.backup_root,
         calendar=json.loads(a.calendar.read_text()),source_sha=a.source_sha,publication_rows=evidence,
-        workspace=Path(os.environ["GITHUB_WORKSPACE"]) if os.environ.get("GITHUB_WORKSPACE") else ROOT,mount_probe=mount)
+        workspace=Path(os.environ["GITHUB_WORKSPACE"]) if os.environ.get("GITHUB_WORKSPACE") else ROOT,
+        mount_probe=mount,kill_switch_path=a.kill_switch)
     a.output.parent.mkdir(parents=True,exist_ok=True); pending=a.output.with_suffix(a.output.suffix+".pending")
     pending.write_text(json.dumps(result,indent=2,sort_keys=True)+"\n"); os.replace(pending,a.output); return 0
 if __name__=="__main__": raise SystemExit(main())
