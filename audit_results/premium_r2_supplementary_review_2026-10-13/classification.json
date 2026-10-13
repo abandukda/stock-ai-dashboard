@@ -1,0 +1,44 @@
+{
+  "version": "ATLAS_PREMIUM_R2_SUPPLEMENTARY_REVIEW_V1",
+  "governed_run_id": 38448142193,
+  "tested_sha": "8e4c465bf3ad2d65ae4557a02670448b73f40936",
+  "artifact": {
+    "id": 11839947327,
+    "name": "atlas-customer-experience-qa-8e4c465bf3ad2d65ae4557a02670448b73f40936",
+    "sha256": "44521bd220d39cd75abcb993d70ae2246f11e178055ac6fdc71bff2498a59d1d"
+  },
+  "required_customer_qa": {"passed": 144, "attempted": 144},
+  "required_screenshots": {"generated": 178, "expected": 178},
+  "active_customer_defects": 0,
+  "classifications": [
+    {"index": 1, "viewport": "desktop", "surface": "Earnings Intelligence", "classification": "RETIRED_ROUTE"},
+    {"index": 2, "viewport": "desktop", "surface": "Earnings Intelligence", "classification": "OBSOLETE_TEST_CONTRACT"},
+    {"index": 3, "viewport": "desktop", "surface": "Full Ranked Scan", "classification": "OBSOLETE_DATA_CONTINGENT_TEST_CONTRACT"},
+    {"index": 4, "viewport": "desktop", "surface": "Recovery", "classification": "OBSOLETE_DATA_CONTINGENT_TEST_CONTRACT"},
+    {"index": 5, "viewport": "desktop", "surface": "Recovery", "classification": "DERIVATIVE_OBSOLETE_CONTRACT"},
+    {"index": 6, "viewport": "mobile_390", "surface": "Earnings Intelligence", "classification": "RETIRED_ROUTE"},
+    {"index": 7, "viewport": "mobile_390", "surface": "Earnings Intelligence", "classification": "OBSOLETE_TEST_CONTRACT"},
+    {"index": 8, "viewport": "mobile_390", "surface": "Full Ranked Scan", "classification": "OBSOLETE_DATA_CONTINGENT_TEST_CONTRACT"},
+    {"index": 9, "viewport": "mobile_390", "surface": "Recovery", "classification": "OBSOLETE_DATA_CONTINGENT_TEST_CONTRACT"},
+    {"index": 10, "viewport": "mobile_390", "surface": "Recovery", "classification": "DERIVATIVE_OBSOLETE_CONTRACT"}
+  ],
+  "evidence_coverage": {
+    "summary_101_proxy_frames": 8,
+    "fundamental_financial_frames": 5,
+    "focused_chart_frames": 10,
+    "populated_watchlist_customer_frames": 3,
+    "grounded_ask_customer_frames": 3,
+    "mobile_390_customer_frames": 31,
+    "mobile_360_customer_frames": 21,
+    "dedicated_financial_statements_frame": false,
+    "dedicated_summary_101_frame": false,
+    "dedicated_price_spy_technical_financial_trend_frames": false
+  },
+  "mutations": {
+    "product": false,
+    "crawler_contract": false,
+    "provider": false,
+    "ledger": false,
+    "production": false
+  }
+}
