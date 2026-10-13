@@ -50,6 +50,15 @@ def calendar():
     }
 
 
+def approval(item, *, source_sha="a" * 40, plan=None):
+    plan = plan or build_acquisition_plan(
+        ledger=item, calendar=calendar(), authorization=PLAN_AUTHORIZATION_TOKEN,
+        source_sha=source_sha,
+    )
+    return {"approved_plan": plan, "approved_plan_hash": plan["artifact_sha256"],
+            "kill_switch_check": lambda: False}
+
+
 def governed(payload, ticker, capability, *, status="CERTIFIED"):
     return {
         "provenance": {
@@ -139,11 +148,11 @@ def test_acquisition_is_deterministic_except_declared_artifact_hash(tmp_path):
     item = ledger(tmp_path / "ledger.sqlite3")
     first = acquire_market_evidence(
         ledger=item, provider=Provider(), calendar=calendar(), now=NOW,
-        authorization=AUTHORIZATION_TOKEN, source_sha="a" * 40,
+        authorization=AUTHORIZATION_TOKEN, source_sha="a" * 40, **approval(item),
     )
     second = acquire_market_evidence(
         ledger=item, provider=Provider(), calendar=calendar(), now=NOW,
-        authorization=AUTHORIZATION_TOKEN, source_sha="a" * 40,
+        authorization=AUTHORIZATION_TOKEN, source_sha="a" * 40, **approval(item),
     )
     assert first == second
     assert first["provider_calls"] == 7
@@ -166,6 +175,7 @@ def test_authorization_and_finalized_session_fail_closed(tmp_path):
         acquire_market_evidence(
             ledger=item, provider=Provider(), calendar=opened, now=NOW,
             authorization=AUTHORIZATION_TOKEN, source_sha="a" * 40,
+            **approval(item),
         )
 
 
@@ -173,7 +183,7 @@ def test_missing_price_is_explicit_and_never_zero(tmp_path):
     item = ledger(tmp_path / "ledger.sqlite3")
     result = acquire_market_evidence(
         ledger=item, provider=Provider(missing="NVDA"), calendar=calendar(), now=NOW,
-        authorization=AUTHORIZATION_TOKEN, source_sha="a" * 40,
+        authorization=AUTHORIZATION_TOKEN, source_sha="a" * 40, **approval(item),
     )
     assert result["instruments"]["NVDA"]["data_status"] == "MISSING_PRICE"
     assert result["instruments"]["NVDA"]["unavailable_reason"] == "FINALIZED_DAILY_CLOSE_MISSING"
@@ -184,7 +194,7 @@ def test_stale_price_is_distinct_from_missing_price(tmp_path):
     item = ledger(tmp_path / "ledger.sqlite3")
     result = acquire_market_evidence(
         ledger=item, provider=Provider(stale="NVDA"), calendar=calendar(), now=NOW,
-        authorization=AUTHORIZATION_TOKEN, source_sha="a" * 40,
+        authorization=AUTHORIZATION_TOKEN, source_sha="a" * 40, **approval(item),
     )
     assert result["instruments"]["NVDA"]["data_status"] == "STALE_PRICE"
     assert result["instruments"]["NVDA"]["unavailable_reason"] == "FINALIZED_DAILY_CLOSE_STALE"
@@ -199,6 +209,7 @@ def test_provider_error_retries_then_fails_corporate_action_evidence(tmp_path):
             ledger=item, provider=provider, calendar=calendar(), now=NOW,
             authorization=AUTHORIZATION_TOKEN, source_sha="a" * 40,
             retry_attempts=1,
+            **approval(item),
         )
     assert sum(call[:2] == ("splits", "MSFT") for call in provider.calls) == 2
 
@@ -217,7 +228,76 @@ def test_partial_price_arrays_fail_closed(tmp_path):
         acquire_market_evidence(
             ledger=item, provider=Partial(), calendar=calendar(), now=NOW,
             authorization=AUTHORIZATION_TOKEN, source_sha="a" * 40,
+            **approval(item),
         )
+
+
+def test_price_response_dates_must_match_unique_governed_sessions(tmp_path):
+    item = ledger(tmp_path / "ledger.sqlite3")
+
+    class WrongSession(Provider):
+        def fetch(self, capability, symbol, **parameters):
+            record = super().fetch(capability, symbol, **parameters)
+            if capability == "historical_ohlcv" and symbol == "NVDA":
+                record = deepcopy(record)
+                record["payload"]["timestamps"][1] = 1791590400  # 2026-10-10, not XNYS
+            return record
+
+    with pytest.raises(ValueError, match="PRICE_RESPONSE_SESSION_OUT_OF_SCOPE"):
+        acquire_market_evidence(
+            ledger=item, provider=WrongSession(), calendar=calendar(), now=NOW,
+            authorization=AUTHORIZATION_TOKEN, source_sha="a" * 40,
+            **approval(item),
+        )
+
+
+def test_acquisition_rejects_missing_tampered_or_stale_approved_plan(tmp_path):
+    item = ledger(tmp_path / "ledger.sqlite3")
+    with pytest.raises(PermissionError, match="APPROVED_ACQUISITION_PLAN_REQUIRED"):
+        acquire_market_evidence(
+            ledger=item, provider=Provider(), calendar=calendar(), now=NOW,
+            authorization=AUTHORIZATION_TOKEN, source_sha="a" * 40,
+        )
+    approved = build_acquisition_plan(
+        ledger=item, calendar=calendar(), authorization=PLAN_AUTHORIZATION_TOKEN,
+        source_sha="a" * 40,
+    )
+    tampered = deepcopy(approved)
+    tampered["due_tickers"] = ["EVIL"]
+    with pytest.raises(PermissionError, match="PLAN_HASH_INVALID"):
+        acquire_market_evidence(
+            ledger=item, provider=Provider(), calendar=calendar(), now=NOW,
+            authorization=AUTHORIZATION_TOKEN, source_sha="a" * 40,
+            approved_plan=tampered, approved_plan_hash=approved["artifact_sha256"],
+            kill_switch_check=lambda: False,
+        )
+    with pytest.raises(PermissionError, match="SCOPE_DIFFERS"):
+        acquire_market_evidence(
+            ledger=item, provider=Provider(), calendar=calendar(), now=NOW,
+            authorization=AUTHORIZATION_TOKEN, source_sha="b" * 40,
+            **approval(item, plan=approved),
+        )
+
+
+def test_kill_switch_is_checked_before_every_provider_call(tmp_path):
+    item = ledger(tmp_path / "ledger.sqlite3")
+    provider = Provider()
+    checks = 0
+
+    def switch():
+        nonlocal checks
+        checks += 1
+        return checks == 3
+
+    approved = approval(item)
+    approved["kill_switch_check"] = switch
+    with pytest.raises(PermissionError, match="KILL_SWITCH_ACTIVE"):
+        acquire_market_evidence(
+            ledger=item, provider=provider, calendar=calendar(), now=NOW,
+            authorization=AUTHORIZATION_TOKEN, source_sha="a" * 40, **approved,
+        )
+    assert checks == 3
+    assert len(provider.calls) == 2
 
 
 def test_dispatch_workflow_is_inert_and_requires_distinct_primary_and_backup():

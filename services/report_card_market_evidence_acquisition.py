@@ -25,6 +25,7 @@ AUTHORIZATION_TOKEN = "REPORT_CARD_ACQUIRE_ONCE"
 PLAN_AUTHORIZATION_TOKEN = "REPORT_CARD_PLAN_ONCE"
 LICENSE_CLASS = "FINNHUB_PAID_CORE_CERTIFICATION"
 REQUIRED_CAPABILITIES = ("historical_ohlcv", "splits", "dividends")
+EVIDENCE_ADJUSTMENT_CONVENTION = "PROVIDER_ADJUSTED_DAILY_CLOSE_WITH_SPLIT_AND_DIVIDEND_EVIDENCE"
 
 
 class Provider(Protocol):
@@ -166,6 +167,19 @@ def build_acquisition_plan(
     scope = derive_acquisition_scope(
         ledger=ledger, trading_sessions=sessions, finalized_session=finalized,
     )
+    request_manifest = []
+    if scope.horizons:
+        for ticker in (*scope.tickers, "SPY"):
+            request_manifest.append({
+                "capability": "historical_ohlcv", "ticker": ticker,
+                "parameters": {"resolution": "D", "from": sessions[0], "to": finalized},
+            })
+        for ticker in scope.tickers:
+            for capability in ("splits", "dividends"):
+                request_manifest.append({
+                    "capability": capability, "ticker": ticker,
+                    "parameters": {"from": sessions[0], "to": finalized},
+                })
     plan = {
         "schema_version": EVIDENCE_SCHEMA,
         "acquisition_version": ACQUISITION_VERSION,
@@ -179,6 +193,13 @@ def build_acquisition_plan(
         "benchmark_ticker": "SPY",
         "due_horizons": list(scope.horizons),
         "target_sessions": {str(key): value for key, value in scope.target_sessions.items()},
+        "required_capabilities": list(REQUIRED_CAPABILITIES),
+        "request_manifest": request_manifest,
+        "corporate_action_requirements": {
+            "splits": "REQUIRED_EACH_DUE_TICKER",
+            "dividends": "REQUIRED_EACH_DUE_TICKER",
+        },
+        "evidence_adjustment_convention": EVIDENCE_ADJUSTMENT_CONVENTION,
         "provider_call_budget": estimated_provider_calls(scope),
         "request_budget": request_budget(scope, retry_attempts=0),
         "provider_calls": 0,
@@ -195,12 +216,24 @@ def acquire_market_evidence(
     now: datetime, authorization: str, source_sha: str,
     retry_attempts: int = 0, rate_governor: FinnhubRateGovernor | None = None,
     retryable: Callable[[Mapping[str, Any]], bool] | None = None,
+    approved_plan: Mapping[str, Any] | None = None,
+    approved_plan_hash: str = "",
+    kill_switch_check: Callable[[], bool] | None = None,
 ) -> dict[str, Any]:
     """Acquire one bounded, replayable internal market-evidence snapshot."""
     if authorization != AUTHORIZATION_TOKEN:
         raise PermissionError("REPORT_CARD_ACQUISITION_NOT_AUTHORIZED")
     if len(source_sha) != 40:
         raise ValueError("SOURCE_SHA_REQUIRED")
+    if approved_plan is None or not approved_plan_hash:
+        raise PermissionError("OWNER_APPROVED_ACQUISITION_PLAN_REQUIRED")
+    declared_artifact_hash = str(approved_plan.get("artifact_sha256") or "")
+    unhashed_plan = {key: value for key, value in approved_plan.items() if key != "artifact_sha256"}
+    canonical_plan_hash = str(approved_plan.get("canonical_plan_sha256") or declared_artifact_hash)
+    if _digest(unhashed_plan) != declared_artifact_hash or approved_plan_hash != canonical_plan_hash:
+        raise PermissionError("OWNER_APPROVED_ACQUISITION_PLAN_HASH_INVALID")
+    if kill_switch_check is None:
+        raise PermissionError("PER_CALL_KILL_SWITCH_CHECK_REQUIRED")
     captured = now.astimezone(timezone.utc)
     sessions = tuple(str(item) for item in calendar.get("trading_sessions") or ())
     finalized = str(calendar.get("finalized_session") or "")
@@ -211,6 +244,12 @@ def acquire_market_evidence(
     if captured < closed or closed <= opened or closed.date().isoformat() != finalized:
         raise ValueError("FINALIZED_SESSION_TIMING_INVALID")
     scope = derive_acquisition_scope(ledger=ledger, trading_sessions=sessions, finalized_session=finalized)
+    current_plan = build_acquisition_plan(
+        ledger=ledger, calendar=calendar, authorization=PLAN_AUTHORIZATION_TOKEN,
+        source_sha=source_sha,
+    )
+    if current_plan["artifact_sha256"] != approved_plan_hash:
+        raise PermissionError("ACQUISITION_SCOPE_DIFFERS_FROM_APPROVED_PLAN")
     call_budget = estimated_provider_calls(scope)
     budget = request_budget(scope, retry_attempts=retry_attempts)
     if not scope.horizons:
@@ -229,6 +268,8 @@ def acquire_market_evidence(
     telemetry: list[dict[str, Any]] = []
 
     def fetch(capability: str, ticker: str) -> Mapping[str, Any]:
+        if kill_switch_check():
+            raise PermissionError("ACQUISITION_KILL_SWITCH_ACTIVE")
         authority = display_authority(capability)
         if authority is None:
             raise PermissionError(f"UNCONTRACTED_CAPABILITY:{capability}")
@@ -273,11 +314,17 @@ def acquire_market_evidence(
         if not (len(timestamps) == len(closes) == len(flags)):
             raise ValueError(f"PARTIAL_PRICE_ACQUISITION:{ticker}")
         close_map: dict[str, float] = {}
+        seen_sessions: set[str] = set()
         for stamp, close, completed in zip(timestamps, closes, flags):
             if not completed:
                 continue
             session = datetime.fromtimestamp(float(stamp), timezone.utc).date().isoformat()
-            if session in sessions and close not in (None, ""):
+            if session not in sessions:
+                raise ValueError(f"PRICE_RESPONSE_SESSION_OUT_OF_SCOPE:{ticker}:{session}")
+            if session in seen_sessions:
+                raise ValueError(f"DUPLICATE_PRICE_RESPONSE_SESSION:{ticker}:{session}")
+            seen_sessions.add(session)
+            if close not in (None, ""):
                 close_map[session] = float(close)
         missing_targets = [session for session in scope.target_sessions.values() if session not in close_map]
         latest_available_session = max(close_map) if close_map else None
@@ -362,6 +409,8 @@ def acquire_market_evidence(
         "ledger_tip": scope.ledger_tip,
         "activation_timestamp": scope.activation_timestamp,
         "scope_digest": scope.scope_digest,
+        "approved_plan_sha256": approved_plan_hash,
+        "evidence_adjustment_convention": EVIDENCE_ADJUSTMENT_CONVENTION,
         "signal_ids": list(scope.signal_ids),
         "due_horizons": list(scope.horizons),
         "target_sessions": {str(key): value for key, value in scope.target_sessions.items()},
@@ -383,6 +432,7 @@ def acquire_market_evidence(
 
 __all__ = [
     "ACQUISITION_VERSION", "AUTHORIZATION_TOKEN", "AcquisitionScope",
+    "EVIDENCE_ADJUSTMENT_CONVENTION",
     "PLAN_AUTHORIZATION_TOKEN", "acquire_market_evidence", "build_acquisition_plan",
     "derive_acquisition_scope", "estimated_provider_calls", "request_budget",
 ]

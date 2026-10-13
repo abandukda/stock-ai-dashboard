@@ -50,6 +50,9 @@ def main() -> int:
     parser.add_argument("--source-sha", required=True)
     parser.add_argument("--authorization", required=True)
     parser.add_argument("--mode", choices=("plan", "acquire"), default="plan")
+    parser.add_argument("--approved-plan", type=Path)
+    parser.add_argument("--approved-plan-sha256", default="")
+    parser.add_argument("--kill-switch", type=Path)
     args = parser.parse_args()
     if not args.ledger.is_file():
         raise FileNotFoundError("PROTECTED_REPORT_CARD_LEDGER_REQUIRED")
@@ -68,7 +71,23 @@ def main() -> int:
             ledger=ledger, calendar=calendar, authorization=args.authorization,
             source_sha=args.source_sha,
         )
+        # Preserve the hash of the canonical acquisition contract even though
+        # this entrypoint subsequently adds storage-isolation evidence to the
+        # artifact envelope.
+        evidence["canonical_plan_sha256"] = evidence["artifact_sha256"]
     else:
+        if args.approved_plan is None or not args.approved_plan.is_file():
+            raise FileNotFoundError("OWNER_APPROVED_ACQUISITION_PLAN_REQUIRED")
+        if args.kill_switch is None:
+            raise ValueError("PER_CALL_KILL_SWITCH_PATH_REQUIRED")
+        approved_plan = json.loads(args.approved_plan.read_text(encoding="utf-8"))
+
+        def kill_switch_active() -> bool:
+            try:
+                return args.kill_switch.read_text(encoding="utf-8").strip() != "OPEN"
+            except OSError:
+                return True
+
         provider = FinnhubShadowAdapter(license_class=FINNHUB_PAID_CORE_CERTIFICATION_LICENSE)
         evidence = acquire_market_evidence(
             ledger=ledger,
@@ -78,6 +97,9 @@ def main() -> int:
             authorization=args.authorization,
             source_sha=args.source_sha,
             retry_attempts=0,
+            approved_plan=approved_plan,
+            approved_plan_hash=args.approved_plan_sha256,
+            kill_switch_check=kill_switch_active,
         )
     ledger_hash_after = _sha256(args.ledger)
     backup_hash_after = _sha256(backup_ledger)

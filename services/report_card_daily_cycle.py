@@ -47,7 +47,9 @@ def verify_alert_sink(path: Path) -> None:
 
 def run_daily_cycle(*, ledger_path: Path, backup_root: Path, alert_root: Path,
                     provider: Any, calendar: dict[str, Any], now: datetime,
-                    authorization: str, source_sha: str, retry_attempts: int = 0) -> dict[str, Any]:
+                    authorization: str, source_sha: str, approved_plan: dict[str, Any],
+                    approved_plan_hash: str, kill_switch_check: Any,
+                    retry_attempts: int = 0) -> dict[str, Any]:
     """Acquire once, then validate and append due horizons oldest-first."""
     verify_alert_sink(alert_root)
     ledger = ProspectiveLedger(ledger_path)
@@ -55,6 +57,8 @@ def run_daily_cycle(*, ledger_path: Path, backup_root: Path, alert_root: Path,
     evidence = acquire_market_evidence(
         ledger=ledger, provider=provider, calendar=calendar, now=now,
         authorization=authorization, source_sha=source_sha, retry_attempts=retry_attempts,
+        approved_plan=approved_plan, approved_plan_hash=approved_plan_hash,
+        kill_switch_check=kill_switch_check,
     )
     if evidence.get("status") == "NO_DUE_OBSERVATIONS":
         return {"status": "NO_DUE_OBSERVATIONS", "ledger_tip_before": tip_before,

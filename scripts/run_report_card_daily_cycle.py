@@ -24,6 +24,9 @@ def main() -> int:
     parser.add_argument("--authorization", required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--retry-attempts", type=int, default=0)
+    parser.add_argument("--approved-plan", type=Path, required=True)
+    parser.add_argument("--approved-plan-sha256", required=True)
+    parser.add_argument("--kill-switch", type=Path, required=True)
     args = parser.parse_args()
     if os.getenv("ATLAS_REPORT_CARD_AUTOMATION_ENABLED") != "true":
         raise PermissionError("REPORT_CARD_AUTOMATION_NOT_ENABLED")
@@ -32,12 +35,22 @@ def main() -> int:
     if args.authorization != AUTHORIZATION_TOKEN:
         raise PermissionError("REPORT_CARD_ACQUISITION_NOT_AUTHORIZED")
     calendar = json.loads(args.calendar.read_text(encoding="utf-8"))
+    approved_plan = json.loads(args.approved_plan.read_text(encoding="utf-8"))
+
+    def kill_switch_active() -> bool:
+        try:
+            return args.kill_switch.read_text(encoding="utf-8").strip() != "OPEN"
+        except OSError:
+            return True
+
     verify_xnys_calendar(calendar, as_of=datetime.fromisoformat(calendar["generated_at"]))
     result = run_daily_cycle(
         ledger_path=args.ledger, backup_root=args.backup_root, alert_root=args.alert_root,
         provider=FinnhubShadowAdapter(license_class=FINNHUB_PAID_CORE_CERTIFICATION_LICENSE),
         calendar=calendar, now=datetime.now(timezone.utc), authorization=args.authorization,
         source_sha=args.source_sha, retry_attempts=args.retry_attempts,
+        approved_plan=approved_plan, approved_plan_hash=args.approved_plan_sha256,
+        kill_switch_check=kill_switch_active,
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     pending = args.output.with_suffix(args.output.suffix + ".pending")
