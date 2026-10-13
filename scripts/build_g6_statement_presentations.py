@@ -26,15 +26,23 @@ def build(normalized_root:Path,series_root:Path,population_path:Path,output:Path
     pop=json.loads(population_path.read_text()); symbols=sorted({str(x).upper() for x in pop.get("symbols",[]) if x})
     if pop.get("count")!=len(symbols) or len(symbols)!=6033: raise ValueError("PUBLISHED_POPULATION_CONTRACT_MISMATCH")
     remaining=[x for x in symbols if x not in set(tickers)]
-    expansion={"contract":"ATLAS_G6_PUBLISHED_POPULATION_EXPANSION_MANIFEST_V1","execution_authorized":False,"provider_calls":0,
+    expansion={"contract":"ATLAS_G6_FULL_UNIVERSE_EXPANSION_MANIFEST_V1","population_classification":"GOVERNED_FULL_UNIVERSE_NOT_CUSTOMER_PUBLISHED",
+               "execution_authorized":False,"provider_calls":0,
                "source_population":{"count":6033,"universe_sha256":pop.get("universe_sha256"),"source_sha":pop.get("source_sha"),
                                     "candidate_digest":pop.get("candidate_digest")},
                "pilot_symbols":sorted(tickers),"remaining_symbol_count":len(remaining),"endpoint":"/stock/financials-reported",
                "frequency":"annual","batch_size":batch_size,"batches":[{"batch_id":i+1,"symbols":x} for i,x in enumerate(batches(remaining,batch_size))]}
     expansion["sha256"]=digest(expansion)
+    published_blocked={"contract":"ATLAS_G6_PUBLISHED_POPULATION_EXPANSION_BLOCK_V1",
+                       "status":"BLOCKED_AUTHORITATIVE_PUBLISHED_SYMBOL_IDENTITY_REQUIRED",
+                       "known_expected_count":1298,"symbols":None,"batches":[],"execution_authorized":False,"provider_calls":0,
+                       "reason":"LOCAL_PUBLICATION_MANIFEST_HAS_COUNT_ONLY_NO_IMMUTABLE_SYMBOL_MEMBERSHIP"}
+    published_blocked["sha256"]=digest(published_blocked)
     (output/'quarterly_immutable_batches.json').write_bytes(canonical_bytes(quarterly)+b"\n")
-    (output/'published_population_expansion_manifest.json').write_bytes(canonical_bytes(expansion)+b"\n")
-    return {"presentations":len(tickers),"quarterly":quarterly,"expansion":expansion}
+    (output/'full_universe_expansion_manifest.json').write_bytes(canonical_bytes(expansion)+b"\n")
+    (output/'published_population_expansion_blocked.json').write_bytes(canonical_bytes(published_blocked)+b"\n")
+    return {"presentations":len(tickers),"quarterly":quarterly,"full_universe_expansion":expansion,
+            "published_population_expansion":published_blocked}
 
 def main():
     p=argparse.ArgumentParser();p.add_argument('--normalized-root',type=Path,required=True);p.add_argument('--series-root',type=Path,required=True);p.add_argument('--population',type=Path,required=True);p.add_argument('--output-root',type=Path,required=True);p.add_argument('--batch-size',type=int,default=25);a=p.parse_args()

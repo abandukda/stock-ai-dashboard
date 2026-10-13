@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 import pytest
 from services.g6_annual_statement_presentation import build_statement_presentation
-from scripts.build_g6_statement_presentations import batches
+from scripts.build_g6_statement_presentations import batches, build
 
 def fixture():
     fact={"fact_id":"a:ic:0:Revenue","statement":"INCOME_STATEMENT","concept":"Revenue","label":"Revenue","value":10,
@@ -34,3 +34,11 @@ def test_contract_and_ticker_mismatch_fail_closed():
 
 def test_batches_are_bounded_and_deterministic():
     assert batches(["A","B","C"],2)==[["A","B"],["C"]]
+
+
+def test_full_universe_is_never_labeled_published(tmp_path: Path):
+    source=Path(__file__).resolve().parents[1]/"scripts"/"build_g6_statement_presentations.py"
+    text=source.read_text()
+    assert "ATLAS_G6_FULL_UNIVERSE_EXPANSION_MANIFEST_V1" in text
+    assert "GOVERNED_FULL_UNIVERSE_NOT_CUSTOMER_PUBLISHED" in text
+    assert "BLOCKED_AUTHORITATIVE_PUBLISHED_SYMBOL_IDENTITY_REQUIRED" in text
