@@ -3419,11 +3419,14 @@ class AtlasVisualCrawler:
             )
             evidence["removed"] = missing_removed and supported_removed
             await page.reload(wait_until="domcontentloaded")
-            await _wait_for_streamlit_shell(page)
-            evidence["reload_route"] = any([
-                await scope.locator('[data-atlas-qa="watchlist-vnext"]').count() > 0
-                for scope in _scopes(page)
-            ])
+            # A reload creates a fresh Streamlit document.  Prove the actual
+            # Watchlist page contract is complete before inspecting persisted
+            # card state; do not rely on a helper from another QA module.
+            for _ in range(30):
+                if await _page_render_complete(page, "Watchlist Intelligence"):
+                    evidence["reload_route"] = True
+                    break
+                await page.wait_for_timeout(200)
             for _ in range(16):
                 evidence["final_order"] = await card_order()
                 if evidence["final_order"] == initial_order:

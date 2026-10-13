@@ -54,6 +54,8 @@ def test_watchlist_journey_re_resolves_controls_after_streamlit_reruns():
     assert fill_at < live_scope_at < button_at < click_at
     assert 'name=re.compile(r"Sort$")' in journey
     assert 'await page.reload(wait_until="domcontentloaded")' in journey
+    assert '_wait_for_streamlit_shell' not in journey
+    assert 'await _page_render_complete(page, "Watchlist Intelligence")' in journey
 
 
 def _complete_watchlist_evidence(**overrides):
