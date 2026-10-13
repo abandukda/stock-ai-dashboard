@@ -13,8 +13,10 @@ def test_component_is_manual_environment_bound_and_provider_free():
     job=workflow["jobs"]["validate"]
     assert job["environment"]=="atlas-internal-report-card"
     assert job["runs-on"]==["self-hosted","Linux","X64","atlas-worker-1"]
+    assert job["env"]["PYTHONPATH"]=="."
     assert "REPORT_CARD_PROTECTED_VALIDATE_ONCE" in source
     assert 'test -z "${FINNHUB_API_KEY:-}"' in source
+    assert "python -m pip install exchange_calendars==4.13.2" in source
     assert "prepare_report_card_protected_validation.py" in source
     assert "ACQUISITION_KILL_SWITCH" in source
     assert "schedule:" not in source and "acquire_market_evidence" not in source
