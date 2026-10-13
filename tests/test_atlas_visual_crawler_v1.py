@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import asyncio
 import json
+import inspect
 from pathlib import Path
 
 from agents.atlas_visual_crawler_v1 import (
@@ -1238,3 +1239,10 @@ def test_customer_listener_attaches_before_customer_authentication():
     )[0]
     assert 'self._attach_streamlit_transport(viewer_page, role="customer_viewer")' in viewer
     assert viewer.index("_attach_streamlit_transport") < viewer.index("_open_and_authenticate(")
+
+
+def test_customer_copy_contract_rejects_space_separated_timestamps_and_empty_core_sections():
+    source = inspect.getsource(AtlasVisualCrawler._submit_research)
+    assert r'\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}' in source
+    assert "'Decision', 'ATLAS Investment Summary', 'Risk & Evidence'" in source
+    assert "'What Changed Recently'" in source

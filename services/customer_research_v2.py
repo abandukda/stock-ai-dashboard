@@ -519,6 +519,47 @@ def _financial_snapshot_projection(report: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def _financial_snapshot_with_trend(
+    snapshot: Mapping[str, Any], trend: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Use the same retained trend fields for the brief and supporting panel.
+
+    This is a presentation projection only. It copies the latest exact retained
+    value, period, unit and evidence identity; it never calculates a new fact.
+    """
+    items = [dict(item) for item in _seq(snapshot.get("items")) if isinstance(item, Mapping)]
+    existing = {str(item.get("label")) for item in items}
+    periods = _seq(trend.get("periods"))
+    provenance = _map(trend.get("provenance"))
+    evidence_ids = tuple(str(item) for item in _seq(provenance.get("evidence_ids")) if item)
+    if trend.get("status") == "AVAILABLE" and periods and evidence_ids:
+        for label, values in _map(trend.get("series")).items():
+            sequence = _seq(values)
+            if not sequence or str(label) in existing:
+                continue
+            try:
+                value = float(sequence[-1])
+            except (TypeError, ValueError):
+                continue
+            if not math.isfinite(value):
+                continue
+            items.append({
+                "field": re.sub(r"[^a-z0-9]+", "_", str(label).lower()).strip("_"),
+                "label": str(label),
+                "value": value,
+                "unit": str(_map(trend.get("units")).get(label) or ""),
+                "period": periods[-1],
+                "as_of": provenance.get("capture_timestamp") or provenance.get("as_of"),
+                "provider": provenance.get("source") or provenance.get("provider"),
+                "evidence_id": evidence_ids[0],
+            })
+    return {
+        "status": "AVAILABLE" if items else "UNAVAILABLE",
+        "items": tuple(items),
+        "message": None if items else "Certified financial evidence is unavailable for this snapshot.",
+    }
+
+
 def _financial_business_evidence(snapshot: Mapping[str, Any]) -> tuple[str, ...]:
     by_field = {str(item.get("field")): item for item in _seq(snapshot.get("items")) if isinstance(item, Mapping)}
     output = []
@@ -655,7 +696,21 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
     authority = customer_authority(report)
     identity = customer_authority_identity(report)
     if authority.get("status") != "AVAILABLE":
-        return {"version": VERSION, "status": "RATING_NOT_PUBLISHED", "ticker": authority.get("ticker")}
+        ticker = str(authority.get("ticker") or report.get("ticker") or report.get("Ticker") or "").strip().upper()
+        company = str(report.get("company") or report.get("company_name") or report.get("Company") or ticker).strip()
+        disposition = str(
+            report.get("terminal_data_state")
+            or _map(report.get("publication_certification")).get("state")
+            or "RATING_NOT_PUBLISHED"
+        ).strip().upper()
+        return {
+            "version": VERSION,
+            "status": "RATING_NOT_PUBLISHED",
+            "ticker": ticker,
+            "company": company,
+            "sector": report.get("sector"),
+            "withheld_disposition": disposition,
+        }
     certified = _map(authority.get("certified_customer_evaluation"))
     price_env = _field(certified, "price")
     fv_env = _field(certified, "atlas_fair_value")
@@ -723,8 +778,10 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
         risks = [balance_sheet_risk, *risks][:4]
     action_text = _display_action(authority["action"])
     pillar_projection = _six_pillar_projection(certified, report)
-    financial_snapshot = _financial_snapshot_projection(report)
     financial_trend = _financial_trend_projection(financials)
+    financial_snapshot = _financial_snapshot_with_trend(
+        _financial_snapshot_projection(report), financial_trend,
+    )
     summary = _research_brief(
         ticker=ticker, action=action_text, gap=gap, pillars=pillar_projection,
         facts=facts, risks=risks, conditions=conditions,

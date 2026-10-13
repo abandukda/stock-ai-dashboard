@@ -24894,6 +24894,9 @@ def v72_fetch_market_tape():
     return out
 
 def render_v72_market_tape(always_show=True):
+    if is_viewer():
+        st.caption("Market context uses the latest retained completed-session evidence available to ATLAS.")
+        return
     st.markdown('<div class="v72-tape-title">Live market tape · near real-time context</div>', unsafe_allow_html=True)
     rows=v72_fetch_market_tape()
     if not rows:
@@ -25714,6 +25717,9 @@ def v74_market_quote(symbol):
 
 def render_v72_market_tape(always_show=True):
     symbols = [("SPY","S&P 500"),("QQQ","Nasdaq"),("DIA","Dow"),("IWM","Russell"),("VIXY","Volatility"),("GLD","Gold"),("USO","Oil"),("BTC-USD","Bitcoin")]
+    if is_viewer():
+        st.caption("Market context uses the latest retained completed-session evidence available to ATLAS.")
+        return
     cards = []
     for sym, name in symbols:
         q = v74_market_quote(sym)

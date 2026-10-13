@@ -1,0 +1,136 @@
+{
+  "features": {
+    "forward_estimates": 21,
+    "price_history_identity": 21
+  },
+  "fields": {
+    "capex": {
+      "coverage_pct": 0.0,
+      "retained_period_examples": [],
+      "value": 20
+    },
+    "capital_expenditures": {
+      "coverage_pct": 0.0,
+      "retained_period_examples": [],
+      "value": 20
+    },
+    "cash_and_equivalents": {
+      "certified": 20,
+      "coverage_pct": 57.14,
+      "period_bound": 20,
+      "retained_period_examples": [
+        "2024-12-31 00:00:00",
+        "2025-06-28 00:00:00",
+        "2025-06-30 00:00:00",
+        "2025-07-26 00:00:00",
+        "2025-09-27 00:00:00",
+        "2025-10-31 00:00:00",
+        "2025-12-31 00:00:00",
+        "2026-01-03 00:00:00"
+      ],
+      "value": 20
+    },
+    "forward_ebitda": {
+      "certified": 20,
+      "coverage_pct": 57.14,
+      "period_bound": 20,
+      "retained_period_examples": [
+        "2026-12-31",
+        "2027-03-31",
+        "2027-06-30",
+        "2027-09-30"
+      ],
+      "value": 20
+    },
+    "forward_eps": {
+      "certified": 20,
+      "coverage_pct": 57.14,
+      "period_bound": 20,
+      "retained_period_examples": [
+        "2026-12-31",
+        "2027-03-31",
+        "2027-06-30",
+        "2027-09-30"
+      ],
+      "value": 20
+    },
+    "free_cash_flow": {
+      "certified": 20,
+      "coverage_pct": 57.14,
+      "period_bound": 21,
+      "retained_period_examples": [
+        "2024-12-31 00:00:00",
+        "2025-06-28 00:00:00",
+        "2025-06-30 00:00:00",
+        "2025-07-26 00:00:00",
+        "2025-09-27 00:00:00",
+        "2025-10-31 00:00:00",
+        "2025-12-31 00:00:00",
+        "2026-01-03 00:00:00"
+      ],
+      "value": 20
+    },
+    "gross_margin_pct": {
+      "coverage_pct": 0.0,
+      "retained_period_examples": [],
+      "value": 18
+    },
+    "latest_revenue": {
+      "coverage_pct": 0.0,
+      "retained_period_examples": [],
+      "value": 17
+    },
+    "net_debt_to_ebitda": {
+      "coverage_pct": 0.0,
+      "retained_period_examples": []
+    },
+    "net_income": {
+      "coverage_pct": 0.0,
+      "retained_period_examples": [],
+      "value": 21
+    },
+    "net_margin_pct": {
+      "coverage_pct": 0.0,
+      "retained_period_examples": [],
+      "value": 20
+    },
+    "operating_cash_flow": {
+      "coverage_pct": 0.0,
+      "retained_period_examples": [],
+      "value": 21
+    },
+    "operating_margin_pct": {
+      "coverage_pct": 0.0,
+      "retained_period_examples": [],
+      "value": 20
+    },
+    "revenue_growth_pct": {
+      "coverage_pct": 0.0,
+      "retained_period_examples": [],
+      "value": 20
+    },
+    "total_debt": {
+      "certified": 13,
+      "coverage_pct": 37.14,
+      "period_bound": 13,
+      "retained_period_examples": [
+        "2025-06-28 00:00:00",
+        "2025-06-30 00:00:00",
+        "2025-07-26 00:00:00",
+        "2025-09-27 00:00:00",
+        "2025-10-31 00:00:00",
+        "2025-12-31 00:00:00",
+        "2026-01-03 00:00:00",
+        "2026-01-25 00:00:00"
+      ],
+      "value": 13
+    }
+  },
+  "published_records": 35,
+  "security_master": {
+    "company_name": 21,
+    "industry": 21,
+    "sector": 21,
+    "security_type": 21
+  }
+}

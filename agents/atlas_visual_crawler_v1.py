@@ -2812,11 +2812,15 @@ class AtlasVisualCrawler:
                     token for token in ("COMMON_STOCK", "GENERIC_EQUITY", "Live Atlas Research") if token in first_text
                 })
                 raw_iso_timestamps = sorted(set(re.findall(
-                    r"\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})\b",
+                    r"\b\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?\b",
                     first_text,
                 )))
                 empty_sections = await page.evaluate("""() => {
-                  const labels = new Set(['Since ATLAS Flagged It', 'Technical history', 'Catalysts', 'What Changed', 'Risks']);
+                  const labels = new Set([
+                    'Decision', 'ATLAS Investment Summary', 'Risk & Evidence',
+                    'Since ATLAS Flagged It', 'Technical history', 'Catalysts',
+                    'What Changed', 'What Changed Recently', 'Risks', 'Risks in plain language'
+                  ]);
                   const empty = [];
                   for (const node of document.querySelectorAll('h1,h2,h3,h4,h5,h6,[data-testid="stSubheader"]')) {
                     const label = (node.textContent || '').trim();

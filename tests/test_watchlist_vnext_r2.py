@@ -1,4 +1,5 @@
 import pandas as pd
+from pathlib import Path
 
 from ui.watchlist_vnext import _clean_ticker, _money, _security_type, _verified_price, _watchlist_rows
 
@@ -34,3 +35,12 @@ def test_search_filter_positive_negative_and_clear_states_are_exact():
     assert [ticker for ticker, _ in _watchlist_rows(universe, saved, query="NVD")] == ["NVDA"]
     assert _watchlist_rows(universe, saved, query="NO_MATCH_QA") == []
     assert [ticker for ticker, _ in _watchlist_rows(universe, saved, query="")] == ["AAAAQ", "NVDA"]
+
+
+def test_customer_market_tape_hides_internal_fallback_language():
+    source = Path("app.py").read_text(encoding="utf-8")
+    start = source.rindex("def render_v72_market_tape(always_show=True):")
+    function = source[start:source.index("\ndef v74_market_regime", start)]
+    assert "if is_viewer():" in function
+    assert function.index("if is_viewer():") < function.index("Live source unavailable")
+    assert "latest retained completed-session evidence" in function

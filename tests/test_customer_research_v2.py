@@ -551,8 +551,8 @@ def test_renderer_uses_customer_safe_labels_and_escapes_currency():
     assert 'metric("Confidence", _pct' not in source
     assert '("TTM P/E", fundamentals.get("pe_ttm")' in source
     assert "_escape_markdown_currency(item)" in source
-    assert "**Why this rating**" in source
-    assert "**Material risks**" in source
+    assert "**Why the stock may be attractive**" in source
+    assert "**Biggest verified risks**" in source
     assert "Strengthens the case" in source
     assert "Weakens the case" in source
     assert "Invalidates the case" in source
@@ -681,6 +681,10 @@ def test_real_renderer_binds_certified_fair_value_to_each_ticker_chart(monkeypat
             return None
 
         @staticmethod
+        def write(*_args, **_kwargs):
+            return None
+
+        @staticmethod
         def columns(count):
             return [Column() for _ in range(count)]
 
@@ -725,9 +729,36 @@ def test_real_renderer_binds_certified_fair_value_to_each_ticker_chart(monkeypat
             renderer.render_customer_research_v2(source, ask_cta=lambda _report: None)
 
         assert captured["key"] == f"research-price-chart-{ticker}"
-        assert list(captured["frame"].columns) == [ticker, "ATLAS Fair Value"]
-        assert captured["frame"]["ATLAS Fair Value"].tolist() == [fair_value, fair_value]
+        assert list(captured["frame"].columns) == [ticker]
         assert captured["frame"][ticker].tolist() == [100.0, 101.0]
+
+
+def test_customer_trust_content_contracts_are_not_presence_only():
+    source = __import__("pathlib").Path("ui/customer_research_v2.py").read_text(encoding="utf-8")
+    assert 'st.markdown("## Decision")' not in source
+    assert 'st.markdown("## Risk & Evidence")' in source
+    assert 'if summary["risks"] or conditions_present:' in source
+    assert "_friendly_time(wall.get(\"as_of\"))" in source
+    assert 'st.markdown("### Price history")' in source
+    assert 'st.markdown("### Stock performance compared with SPY")' in source
+    assert 'price_frame["ATLAS Fair Value"]' not in source
+    assert "This security requires additional review" not in source
+
+
+def test_withheld_projection_preserves_verified_identity_without_financial_values():
+    source = report()
+    source.update({"ticker": "CRC", "company": "California Resources Corp", "sector": "Energy"})
+    source["certified_customer_evaluation"]["ticker"] = "CRC"
+    source["certified_customer_evaluation"]["customer_publication_allowed"] = False
+    result = build_customer_research_v2(source)
+    assert result == {
+        "version": result["version"],
+        "status": "RATING_NOT_PUBLISHED",
+        "ticker": "CRC",
+        "company": "California Resources Corp",
+        "sector": "Energy",
+        "withheld_disposition": "RATING_NOT_PUBLISHED",
+    }
 
 
 def test_real_renderer_withheld_terminal_does_not_enter_chart_path(monkeypatch):

@@ -190,14 +190,23 @@ def render_customer_research_first_screen(report: Mapping[str, Any]) -> dict[str
     ticker = str(page.get("ticker") or "UNKNOWN")
     if page.get("status") != "AVAILABLE":
         _marker("terminal", ticker, state="RATING_NOT_PUBLISHED")
+        company = str(page.get("company") or ticker)
+        identity = ticker if company.upper() == ticker else f"{ticker} · {company}"
+        disposition = str(page.get("withheld_disposition") or "RATING_NOT_PUBLISHED")
+        reason = (
+            "ATLAS does not currently publish an investment rating for this security under its certified model."
+            if disposition != "HUMAN_REVIEW_QUEUED"
+            else "ATLAS has not published a rating while an authorized review is pending."
+        )
         st.markdown(
             '<section data-atlas-qa="research-withheld-message" '
             f'data-atlas-ticker="{escape(ticker)}" role="status" '
             'style="padding:.9rem 1rem;border:1px solid rgba(251,191,36,.35);'
             'border-radius:12px;background:rgba(120,53,15,.18);color:#f8fafc;'
             'font-size:1rem;line-height:1.5;margin:.5rem 0 1rem">'
-            f'<strong>A certified ATLAS rating is not available for {escape(ticker)}.</strong><br>'
-            'This security requires additional review before ATLAS can publish an investment rating.'
+            f'<strong>{escape(identity)}</strong><br>'
+            f'A certified ATLAS rating is not available for {escape(ticker)}.<br>'
+            f'{escape(reason)}'
             '</section>',
             unsafe_allow_html=True,
         )
@@ -254,8 +263,22 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
     header = page["header"]
     ask_cta(report)
 
+    summary = page["summary"]
     _marker("section", ticker, section_name="Decision")
-    st.markdown("## Decision")
+    st.markdown("## ATLAS Investment Summary")
+    st.write(summary["verdict"])
+    st.caption(
+        "ATLAS Fair Value is an evidence-based estimate under the certified ATLAS method, "
+        "not a guaranteed future price. Opportunity measures relative attractiveness inside "
+        "that method. Confidence measures the completeness and consistency of the evidence, "
+        "not the chance that the stock will rise."
+    )
+    if summary["why_rating"]:
+        st.markdown("**Why the stock may be attractive**")
+        _list(summary["why_rating"])
+    if summary["risks"]:
+        st.markdown("**Biggest verified risks**")
+        _list(summary["risks"])
     _marker("since-signal", ticker, status=page["signal"]["status"])
     signal = page["signal"]
     if signal["status"] == "AVAILABLE":
@@ -270,7 +293,7 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
 
     _marker("section", ticker, section_name="Technical & Trade State")
     st.markdown("## Technical & Trade State")
-    st.markdown("### Price history and SPY comparison")
+    st.markdown("### Price history")
     _marker("chart-root", ticker, status=page["chart"]["status"])
     chart = page["chart"]
     ownership = chart.get("ownership") or {}
@@ -300,13 +323,15 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
             # The chart is rendered after the first-screen helper has returned,
             # so its local ``h`` binding is intentionally unavailable here.
             # Use the already-certified projection carried by this page.
-            fair_value = header.get("fair_value")
             price_frame = stock_rows.copy()
-            if fair_value is not None:
-                price_frame["ATLAS Fair Value"] = float(fair_value)
             _dark_line_chart(price_frame, height=300, y_title="Price (USD/share)", key=f"research-price-chart-{ticker}")
+            fair_value = header.get("fair_value")
             if fair_value is not None:
-                st.caption(f"ATLAS Fair Value reference: {_money(fair_value)} per share · certified snapshot")
+                st.caption(
+                    f"ATLAS Fair Value: {_money(fair_value)} per share, compared with the last certified "
+                    f"close of {_money(header.get('price'))}. It is shown separately so it does not compress "
+                    "the historical price chart."
+                )
             spy = chart.get("spy_comparison") or {}
             spy_rows = pd.DataFrame(spy.get("series") or [])
             if spy.get("status") == "AVAILABLE" and not spy_rows.empty:
@@ -319,6 +344,7 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
                     if not joined.empty and float(joined.iloc[0][ticker]) and float(joined.iloc[0]["SPY"]):
                         normalized = joined[[ticker, "SPY"]].divide(joined.iloc[0][[ticker, "SPY"]]).multiply(100.0)
                         _marker("spy-comparison-chart", ticker, status="AVAILABLE", unit="NORMALIZED_INDEX_100")
+                        st.markdown("### Stock performance compared with SPY")
                         _dark_line_chart(normalized, height=320, y_title="Normalized performance (start = 100)", key=f"research-spy-chart-{ticker}")
                         st.caption(_provenance_caption(spy.get("provenance") or {}))
                     else:
@@ -345,19 +371,13 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
         else:
             st.info("Price history is unavailable under the governed display contract.")
 
-    st.markdown("## AI Investment Brief")
     _marker("summary", ticker, classification="CERTIFIED_ATLAS")
-    summary = page["summary"]
-    st.markdown("**Verdict**")
-    st.write(summary["verdict"])
-    st.markdown("**Why this rating**")
-    _list(summary["why_rating"] or ["The available certified evidence does not support additional explanatory claims."])
-    if summary["risks"]:
-        st.markdown("**Material risks**")
-        _list(summary["risks"])
     weakest = summary.get("weakest_pillar") or {}
     if weakest:
-        st.caption(f'Weakest certified pillar: {weakest["name"]} · {float(weakest["score"]):.1f}/100')
+        st.caption(
+            f'Weakest certified pillar: {weakest["name"]} · {float(weakest["score"]):.1f} out of 100. '
+            'A lower pillar score identifies an area where the certified investment case is less supportive.'
+        )
     condition_labels = {"strengthen": "Strengthens the case", "weaken": "Weakens the case", "invalidate": "Invalidates the case"}
     for key, label in condition_labels.items():
         items = list((summary.get("watch_conditions") or {}).get(key) or ())
@@ -457,7 +477,7 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
         b[2].metric("Wall St. Average", _money(wall.get("target_average")))
         b[3].metric("Wall St. High", _money(wall.get("target_high")))
         b[4].metric("ATLAS Fair Value", _money(header["fair_value"]))
-        st.caption(f'{wall.get("analyst_count") or "Unavailable"} analysts · as of {wall.get("as_of") or "Unavailable"} · contextual and non-scoring')
+        st.caption(f'{wall.get("analyst_count") or "Unavailable"} analysts · as of {_friendly_time(wall.get("as_of"))} · contextual and non-scoring')
 
     valuation = page.get("valuation_chart") or {}
     _marker("valuation-comparison-chart", ticker, status=valuation.get("status") or "UNAVAILABLE", unit=valuation.get("unit") or "")
@@ -472,12 +492,14 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
     else:
         st.info(valuation.get("message") or "Comparable certified valuation points are unavailable.")
 
-    _marker("section", ticker, section_name="Risk & Evidence")
-    st.markdown("## Risk & Evidence")
     _marker("risks", ticker)
     _marker("view-change-conditions", ticker)
+    conditions_present = any((summary.get("watch_conditions") or {}).get(key) for key in ("strengthen", "weaken", "invalidate"))
+    _marker("section", ticker, section_name="Risk & Evidence")
+    if summary["risks"] or conditions_present:
+        st.markdown("## Risk & Evidence")
     if summary["risks"]:
-        st.markdown("### Risks")
+        st.markdown("### Risks in plain language")
         _list(summary["risks"])
 
     _marker("what-changed", ticker, status=page["recent_changes"]["status"])
@@ -535,6 +557,14 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
                 "Evidence ID": item.get("evidence_id"),
             } for item in items]
             st.dataframe(pd.DataFrame(evidence_rows), hide_index=True, use_container_width=True)
+        st.markdown("### What this means")
+        st.caption(
+            "Revenue shows how much the company sells. Operating margin shows how much operating profit "
+            "it keeps from each $100 of revenue. Free cash flow is cash left after operating costs and major "
+            "investments; it can support growth, debt repayment, or shareholder returns. Debt reduces financial "
+            "flexibility when it is large relative to cash and earnings. A single period describes the current "
+            "snapshot but does not prove that the business is improving or weakening."
+        )
     else:
         st.info(financial_snapshot.get("message") or "Certified financial evidence is unavailable for this snapshot.")
 
