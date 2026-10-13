@@ -325,12 +325,34 @@ def _grounding_metadata(question: str, report: Mapping[str, Any]) -> dict[str, A
         available = item.get("status") in {"available", "partial"}
         used = [section] if available else []
         missing = [] if available else [f"{section}:DATA_UNAVAILABLE"]
+    # A direct overview answer can be grounded exclusively in the certified
+    # customer evaluation even when no optional evidence-family registry is
+    # present. Preserve that authority as an explicit evidence source instead
+    # of rendering a grounded answer whose evidence metadata is empty.
+    authority_identity = (
+        report.get("customer_authority_identity")
+        if isinstance(report.get("customer_authority_identity"), Mapping)
+        else {}
+    )
+    certified_authority_used = (
+        section == "overview"
+        and canonical_ask_decision(report).get("status") == "AVAILABLE"
+        and bool(authority_identity)
+    )
+    if certified_authority_used and "certified_customer_evaluation" not in used:
+        used.append("certified_customer_evaluation")
     context = report.get("research_context") or {}
     family_envelopes = context.get("evidence_families") if isinstance(context, Mapping) else {}
     family_envelopes = family_envelopes if isinstance(family_envelopes, Mapping) else {}
     evidence_ids: list[str] = []
     as_of_dates: list[str] = []
     limitations: list[str] = []
+    if certified_authority_used:
+        evidence_ids.extend(
+            str(item)
+            for item in safe_sequence(authority_identity.get("evidence_ids"))
+            if str(item).strip()
+        )
     canonical_family_aliases = {
         "news": ("company_news", "press_releases"),
         "earnings": ("earnings_history",),

@@ -56,6 +56,10 @@ def test_direct_ask_uses_certified_authority_and_fields(question):
     report = bind_report_to_customer_authority({"ticker": "NVDA", "sections": {}}, _row())
     result = ask_atlas(question, report)
     assert result["canonical_decision_state"] == "BUY_NOW"
+    assert result["evidence_used"] == ["certified_customer_evaluation"]
+    # The fixture has no evidence IDs; the grounding contract identifies the
+    # certified authority without fabricating an identity.
+    assert result["evidence_ids_used"] == []
     for text in ("BUY NOW", "$346.05", "85.96", "87.46"):
         assert text in result["answer"]
 
