@@ -66,6 +66,8 @@ def test_complete_offline_pipeline_is_deterministic_append_only_and_restorable(t
             authorization=AUTHORIZATION_TOKEN, source_sha="a" * 40,
             approved_plan=plan, approved_plan_hash=plan["artifact_sha256"],
             kill_switch_check=lambda: False,
+            entitlement_evidence={"status":"APPROVED", "contract_id":"test", "effective_at":"2026-10-08",
+                                  "capabilities":["historical_ohlcv","splits","dividends"]},
         )
         bundle = build_observation_bundle(ledger=item, evidence=evidence, horizon=1, certified_at=CAPTURED)
         return evidence, bundle

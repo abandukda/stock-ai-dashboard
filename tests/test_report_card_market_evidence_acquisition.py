@@ -56,7 +56,10 @@ def approval(item, *, source_sha="a" * 40, plan=None):
         source_sha=source_sha,
     )
     return {"approved_plan": plan, "approved_plan_hash": plan["artifact_sha256"],
-            "kill_switch_check": lambda: False}
+            "kill_switch_check": lambda: False,
+            "entitlement_evidence": {"status": "APPROVED", "contract_id": "test-contract",
+                "effective_at": "2026-10-08T00:00:00+00:00",
+                "capabilities": ["historical_ohlcv", "splits", "dividends"]}}
 
 
 def governed(payload, ticker, capability, *, status="CERTIFIED"):
@@ -269,7 +272,7 @@ def test_acquisition_rejects_missing_tampered_or_stale_approved_plan(tmp_path):
             ledger=item, provider=Provider(), calendar=calendar(), now=NOW,
             authorization=AUTHORIZATION_TOKEN, source_sha="a" * 40,
             approved_plan=tampered, approved_plan_hash=approved["artifact_sha256"],
-            kill_switch_check=lambda: False,
+            kill_switch_check=lambda: False, entitlement_evidence=approval(item)["entitlement_evidence"],
         )
     with pytest.raises(PermissionError, match="SCOPE_DIFFERS"):
         acquire_market_evidence(

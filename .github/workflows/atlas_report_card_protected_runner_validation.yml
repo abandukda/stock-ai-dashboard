@@ -1,0 +1,69 @@
+name: ATLAS Report Card Protected Runner Validation
+
+# Manual, provider-free, read-only certification. G2/G3/G4 remain closed.
+on:
+  workflow_dispatch:
+    inputs:
+      authorize_validation:
+        description: Exact provider-free validation token
+        required: true
+        type: string
+      start_date:
+        required: true
+        default: "2026-10-08"
+        type: string
+      as_of:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+concurrency:
+  group: atlas-report-card-protected-runner-validation
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    environment: atlas-internal-report-card
+    runs-on: [self-hosted, Linux, X64, atlas-worker-1]
+    timeout-minutes: 20
+    env:
+      ATLAS_REPORT_CARD_DURABLE_ROOT: ${{ vars.ATLAS_REPORT_CARD_DURABLE_ROOT }}
+      ATLAS_REPORT_CARD_BACKUP_ROOT: ${{ vars.ATLAS_REPORT_CARD_BACKUP_ROOT }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - run: pip install -r requirements.txt
+      - name: Enforce provider-free authorization and roots
+        run: |
+          test "${{ inputs.authorize_validation }}" = "REPORT_CARD_PROTECTED_VALIDATE_ONCE"
+          test -n "$ATLAS_REPORT_CARD_DURABLE_ROOT"
+          test -n "$ATLAS_REPORT_CARD_BACKUP_ROOT"
+          test -z "${FINNHUB_API_KEY:-}"
+      - name: Validate storage, locking, backup and restore
+        run: >-
+          python3 scripts/validate_report_card_storage.py
+          --primary-root "$ATLAS_REPORT_CARD_DURABLE_ROOT"
+          --backup-root "$ATLAS_REPORT_CARD_BACKUP_ROOT"
+          --output audit_results/report_card_protected/storage.json
+      - name: Produce and replay-verify XNYS calendar
+        run: >-
+          python3 scripts/build_report_card_exchange_calendar.py
+          --start-date "${{ inputs.start_date }}"
+          --as-of "${{ inputs.as_of }}"
+          --output audit_results/report_card_protected/xnys_calendar.json
+      - name: Provider-free control tests
+        run: >-
+          pytest -q tests/test_report_card_exchange_calendar.py
+          tests/test_report_card_operational_controls.py
+          tests/test_report_card_market_evidence_acquisition.py
+          tests/test_report_card_observation_producer.py
+          tests/test_report_card_observation_activation.py
+          tests/test_report_card_end_to_end_offline.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atlas-report-card-protected-validation-${{ github.run_id }}
+          path: audit_results/report_card_protected
+          retention-days: 90

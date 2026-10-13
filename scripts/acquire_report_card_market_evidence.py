@@ -53,6 +53,7 @@ def main() -> int:
     parser.add_argument("--approved-plan", type=Path)
     parser.add_argument("--approved-plan-sha256", default="")
     parser.add_argument("--kill-switch", type=Path)
+    parser.add_argument("--entitlement-evidence", type=Path)
     args = parser.parse_args()
     if not args.ledger.is_file():
         raise FileNotFoundError("PROTECTED_REPORT_CARD_LEDGER_REQUIRED")
@@ -80,7 +81,10 @@ def main() -> int:
             raise FileNotFoundError("OWNER_APPROVED_ACQUISITION_PLAN_REQUIRED")
         if args.kill_switch is None:
             raise ValueError("PER_CALL_KILL_SWITCH_PATH_REQUIRED")
+        if args.entitlement_evidence is None or not args.entitlement_evidence.is_file():
+            raise FileNotFoundError("FINNHUB_CONTRACT_ENTITLEMENT_EVIDENCE_REQUIRED")
         approved_plan = json.loads(args.approved_plan.read_text(encoding="utf-8"))
+        entitlement_evidence = json.loads(args.entitlement_evidence.read_text(encoding="utf-8"))
 
         def kill_switch_active() -> bool:
             try:
@@ -100,6 +104,7 @@ def main() -> int:
             approved_plan=approved_plan,
             approved_plan_hash=args.approved_plan_sha256,
             kill_switch_check=kill_switch_active,
+            entitlement_evidence=entitlement_evidence,
         )
     ledger_hash_after = _sha256(args.ledger)
     backup_hash_after = _sha256(backup_ledger)

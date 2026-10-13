@@ -27,6 +27,7 @@ def main() -> int:
     parser.add_argument("--approved-plan", type=Path, required=True)
     parser.add_argument("--approved-plan-sha256", required=True)
     parser.add_argument("--kill-switch", type=Path, required=True)
+    parser.add_argument("--entitlement-evidence", type=Path, required=True)
     args = parser.parse_args()
     if os.getenv("ATLAS_REPORT_CARD_AUTOMATION_ENABLED") != "true":
         raise PermissionError("REPORT_CARD_AUTOMATION_NOT_ENABLED")
@@ -36,6 +37,7 @@ def main() -> int:
         raise PermissionError("REPORT_CARD_ACQUISITION_NOT_AUTHORIZED")
     calendar = json.loads(args.calendar.read_text(encoding="utf-8"))
     approved_plan = json.loads(args.approved_plan.read_text(encoding="utf-8"))
+    entitlement_evidence = json.loads(args.entitlement_evidence.read_text(encoding="utf-8"))
 
     def kill_switch_active() -> bool:
         try:
@@ -51,6 +53,7 @@ def main() -> int:
         source_sha=args.source_sha, retry_attempts=args.retry_attempts,
         approved_plan=approved_plan, approved_plan_hash=args.approved_plan_sha256,
         kill_switch_check=kill_switch_active,
+        entitlement_evidence=entitlement_evidence,
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     pending = args.output.with_suffix(args.output.suffix + ".pending")

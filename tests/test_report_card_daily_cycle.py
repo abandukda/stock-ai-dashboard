@@ -74,6 +74,8 @@ def test_daily_cycle_deduplicates_requests_and_appends_missed_horizons_in_order(
         source_sha="a" * 40,
         approved_plan=plan, approved_plan_hash=plan["artifact_sha256"],
         kill_switch_check=lambda: False,
+        entitlement_evidence={"status":"APPROVED", "contract_id":"test", "effective_at":"2026-10-08",
+                              "capabilities":["historical_ohlcv","splits","dividends"]},
     )
     assert result["status"] == "DAILY_CYCLE_COMPLETE"
     assert [(row["horizon"], row["target_session"]) for row in result["horizons"]] == [
@@ -94,6 +96,8 @@ def test_daily_cycle_deduplicates_requests_and_appends_missed_horizons_in_order(
         source_sha="a" * 40,
         approved_plan=replay_plan, approved_plan_hash=replay_plan["artifact_sha256"],
         kill_switch_check=lambda: False,
+        entitlement_evidence={"status":"APPROVED", "contract_id":"test", "effective_at":"2026-10-08",
+                              "capabilities":["historical_ohlcv","splits","dividends"]},
     )
     assert replay["status"] == "NO_DUE_OBSERVATIONS"
     assert replay["provider_calls"] == 0

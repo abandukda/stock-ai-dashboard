@@ -7,6 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CALENDAR = ROOT / ".github/workflows/atlas_report_card_exchange_calendar.yml"
 ACQUISITION = ROOT / ".github/workflows/atlas_report_card_market_evidence_acquisition.yml"
 DAILY = ROOT / ".github/workflows/atlas_report_card_daily_operations.yml"
+PROTECTED = ROOT / ".github/workflows/atlas_report_card_protected_runner_validation.yml"
 
 
 def _workflow(path: Path) -> tuple[str, dict]:
@@ -62,3 +63,16 @@ def test_daily_schedule_is_dst_gated_serialized_and_inert_until_certified():
     assert "FINNHUB_API_KEY" not in source
     assert "run_internal_report_card_observations.py" not in source
     assert "Live operation remains separately gated" in source
+
+
+def test_protected_runner_validation_is_manual_provider_free_and_non_mutating():
+    source, workflow = _workflow(PROTECTED)
+    assert set(workflow["on"]) == {"workflow_dispatch"}
+    assert "schedule:" not in source
+    assert workflow["permissions"] == {"contents": "read"}
+    assert "REPORT_CARD_PROTECTED_VALIDATE_ONCE" in source
+    assert 'test -z "${FINNHUB_API_KEY:-}"' in source
+    assert "validate_report_card_storage.py" in source
+    assert "build_report_card_exchange_calendar.py" in source
+    assert "acquire_market_evidence" not in source
+    assert "append_observation" not in source

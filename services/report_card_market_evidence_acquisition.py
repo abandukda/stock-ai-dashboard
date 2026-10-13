@@ -18,6 +18,7 @@ from services.prospective_report_card import ProspectiveLedger, _utc
 from services.report_card import HORIZONS
 from services.report_card_observation_activation import FINALIZED_SESSION_STATUS
 from services.report_card_observation_producer import EVIDENCE_SCHEMA
+from services.report_card_operational_controls import validate_entitlement
 
 
 ACQUISITION_VERSION = "ATLAS_REPORT_CARD_MARKET_EVIDENCE_ACQUISITION_V1"
@@ -219,6 +220,7 @@ def acquire_market_evidence(
     approved_plan: Mapping[str, Any] | None = None,
     approved_plan_hash: str = "",
     kill_switch_check: Callable[[], bool] | None = None,
+    entitlement_evidence: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Acquire one bounded, replayable internal market-evidence snapshot."""
     if authorization != AUTHORIZATION_TOKEN:
@@ -234,6 +236,7 @@ def acquire_market_evidence(
         raise PermissionError("OWNER_APPROVED_ACQUISITION_PLAN_HASH_INVALID")
     if kill_switch_check is None:
         raise PermissionError("PER_CALL_KILL_SWITCH_CHECK_REQUIRED")
+    entitlement = validate_entitlement(entitlement_evidence or {})
     captured = now.astimezone(timezone.utc)
     sessions = tuple(str(item) for item in calendar.get("trading_sessions") or ())
     finalized = str(calendar.get("finalized_session") or "")
@@ -410,6 +413,7 @@ def acquire_market_evidence(
         "activation_timestamp": scope.activation_timestamp,
         "scope_digest": scope.scope_digest,
         "approved_plan_sha256": approved_plan_hash,
+        "entitlement_evidence_sha256": entitlement["evidence_sha256"],
         "evidence_adjustment_convention": EVIDENCE_ADJUSTMENT_CONVENTION,
         "signal_ids": list(scope.signal_ids),
         "due_horizons": list(scope.horizons),
