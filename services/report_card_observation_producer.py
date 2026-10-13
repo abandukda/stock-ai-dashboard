@@ -134,8 +134,11 @@ def build_observation_bundle(
                 benchmark_reference = 0.0
             if not observed or not benchmark_observed or benchmark_reference <= 0:
                 raise ValueError(f"OBSERVATION_PRICE_MISSING:{ticker}")
-            reference_at = _utc((reference or {}).get("as_of"), "BENCHMARK_REFERENCE")
-            if reference_at > executable:
+            try:
+                reference_session = datetime.fromisoformat(str((reference or {}).get("as_of"))).date()
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"BENCHMARK_REFERENCE_INVALID:{ticker}") from exc
+            if reference_session > executable.date():
                 raise ValueError(f"BENCHMARK_REFERENCE_LOOKAHEAD:{ticker}")
             observation.update(
                 observed_price=observed,
