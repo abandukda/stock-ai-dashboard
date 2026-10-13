@@ -64,6 +64,29 @@ class CustomerResearchView:
     def as_mapping(self) -> dict[str, Any]:
         return dict(self.payload)
 
+    @property
+    def surface(self) -> Mapping[str, Any]:
+        """Minimal protected projection shared by customer entry points."""
+        header = self.payload.get("header") if isinstance(self.payload.get("header"), Mapping) else {}
+        authority = self.payload.get("authority") if isinstance(self.payload.get("authority"), Mapping) else {}
+        return MappingProxyType({
+            "ticker": self.ticker,
+            "company": self.payload.get("company") or self.ticker,
+            "status": self.status,
+            "action": authority.get("action") if self.status == "AVAILABLE" else "RATING_NOT_PUBLISHED",
+            "fair_value": authority.get("fair_value") if self.status == "AVAILABLE" else None,
+            "opportunity": authority.get("opportunity") if self.status == "AVAILABLE" else None,
+            "confidence": authority.get("confidence") if self.status == "AVAILABLE" else None,
+            "publication_allowed": self.publication_allowed,
+            "evaluation_snapshot": self.identity.get("evaluation_snapshot"),
+            "candidate_digest": self.identity.get("candidate_digest"),
+            "publication_digest": self.identity.get("publication_digest"),
+            "source_sha": self.identity.get("source_sha"),
+            "certified_close": header.get("price") if self.status == "AVAILABLE" else None,
+            "certified_close_at": header.get("price_timestamp") if self.status == "AVAILABLE" else None,
+            "certified_close_availability": self.availability.get("certified_close"),
+        })
+
 
 def build_customer_research_view(report: Mapping[str, Any], *, now: datetime | None = None) -> CustomerResearchView:
     projected = build_customer_research_v2(report)

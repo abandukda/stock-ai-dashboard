@@ -187,9 +187,9 @@ def _decision_sentence(report: Mapping[str, Any]) -> str:
 
 def _certified_investment_view(report: Mapping[str, Any]) -> str:
     """Render protected customer fields without recalculation or inference."""
-    from services.customer_authority import customer_authority
+    from services.customer_research_view import build_customer_research_view
     from services.customer_metric_format import customer_confidence, customer_money, customer_score
-    authority = customer_authority(report)
+    authority = build_customer_research_view(report).surface
     ticker = str(report.get("ticker") or authority.get("ticker") or "This security").upper()
     if authority.get("status") != "AVAILABLE":
         decision = canonical_ask_decision(report)

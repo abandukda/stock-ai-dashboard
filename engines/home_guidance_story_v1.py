@@ -796,6 +796,22 @@ def build_home_guidance_candidate(
         "evidence_map": summary_evidence_map(customer_payload), "authority": "PRESENTATION_ONLY",
         "consistency": consistency,
     }
+    if use_certified:
+        # Route Home through the same customer projection consumed by
+        # Research, Watchlist and Ask. This is presentation-only and keeps the
+        # existing candidate fields for compatibility with older renderers.
+        from services.customer_research_view import build_customer_research_view
+        projection_source = {
+            **dict(row),
+            "ticker": ticker,
+            "company": str(company),
+            "certified_customer_evaluation": certified,
+            "canonical_investment_evaluation": evaluation,
+            "publication_certification": dict(publication),
+        }
+        candidate["customer_research_surface"] = dict(
+            build_customer_research_view(projection_source).surface
+        )
     from services.customer.provider_neutral import provider_neutral_customer_projection
     return provider_neutral_customer_projection(candidate)
 

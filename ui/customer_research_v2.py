@@ -271,11 +271,15 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
     _marker("section", ticker, section_name="Decision")
     st.markdown("## ATLAS Investment Summary")
     st.write(summary["verdict"])
-    st.caption(
-        "ATLAS Fair Value is an evidence-based estimate under the certified ATLAS method, "
-        "not a guaranteed future price. Opportunity measures relative attractiveness inside "
-        "that method. Confidence measures the completeness and consistency of the evidence, "
-        "not the chance that the stock will rise."
+    st.markdown(
+        '<details class="atlas-research-101"><summary>Research 101 — what these numbers mean</summary>'
+        '<ul><li><strong>Action</strong> is the published ATLAS decision for this certified snapshot.</li>'
+        '<li><strong>Last Certified Close</strong> is the price and date used by that decision; it is not a live quote.</li>'
+        '<li><strong>Fair Value</strong> is an evidence-based estimate, not a guaranteed future price.</li>'
+        '<li><strong>Opportunity</strong> compares relative attractiveness inside the certified ATLAS method.</li>'
+        '<li><strong>Evidence Confidence</strong> measures evidence completeness and consistency, not the chance the stock will rise.</li>'
+        '</ul></details>',
+        unsafe_allow_html=True,
     )
     if summary["why_rating"]:
         st.markdown("**Why the stock may be attractive**")
