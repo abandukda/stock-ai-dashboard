@@ -42,3 +42,13 @@ def test_full_universe_is_never_labeled_published(tmp_path: Path):
     assert "ATLAS_G6_FULL_UNIVERSE_EXPANSION_MANIFEST_V1" in text
     assert "GOVERNED_FULL_UNIVERSE_NOT_CUSTOMER_PUBLISHED" in text
     assert "BLOCKED_AUTHORITATIVE_PUBLISHED_SYMBOL_IDENTITY_REQUIRED" in text
+
+
+def test_quarterly_approval_is_inert_bounded_and_globally_governed():
+    text=(Path(__file__).resolve().parents[1]/"scripts"/"build_g6_statement_presentations.py").read_text()
+    assert '"execution_authorized":False' in text
+    assert '"scope":"SINGLE_GLOBAL_ACCOUNT_LEVEL_LIMITER"' in text
+    assert '"requests_per_minute":500' in text
+    assert '"burst_requests_per_second_ceiling":20' in text
+    assert '"HTTP_429"' in text and '"RAW_DIGEST_FAILURE"' in text
+    assert '"absolute_provider_attempt_ceiling":len(tickers)*3' in text
