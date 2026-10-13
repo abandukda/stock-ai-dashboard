@@ -1,0 +1,275 @@
+{
+  "authorization_rule": "Execution is authorized only by an exact, case-sensitive match of authorization_token.",
+  "authorization_token": "AUTHORIZE_G6_STAGE0:3ca088a01a2fb220d08761df764ccacc3d605a217e510d599905864df0f3ea2b",
+  "manifest": {
+    "acceptance": {
+      "annual_periods_deduplicated": true,
+      "empty_or_malformed_response": "FAIL_CLOSED_NO_RETRY",
+      "methodology_change": false,
+      "same_ticker_response_required": true,
+      "values_must_retain_period_unit_provider_and_evidence_id": true
+    },
+    "contract": "ATLAS_G6_STAGE0_FINANCIAL_HISTORY_V1",
+    "contract_evidence": {
+      "canonical_authority_state": "CANONICAL_CERTIFIED",
+      "repository_contract_id": "FINNHUB_MARKET_DATA_AGREEMENT_SIGNED_APPENDIX_A",
+      "repository_endpoint": "/stock/financials-reported",
+      "signed_agreement_relevant_pages": [
+        2,
+        9
+      ],
+      "signed_agreement_sha256": "8173797de91bb9463cc777f390cba1686c7ac18f21d7930fa61cde99b990691e",
+      "signed_terms": [
+        "US Equity Financials: 30 years",
+        "Appendix A includes /stock/financials-reported",
+        "local storage permitted during contracted period",
+        "raw machine-readable redistribution prohibited"
+      ]
+    },
+    "execution_policy": {
+      "concurrency": 1,
+      "fail_fast": true,
+      "minimum_inter_request_seconds": 1.0,
+      "rate_limit_rpm": 60,
+      "redirects": "PROVIDER_DEFAULT_ONLY",
+      "retry_count": 0,
+      "scope_expansion": false
+    },
+    "provider_calls_performed": 0,
+    "raw_persistence": {
+      "http_status_and_headers_required": true,
+      "mode": "WRITE_ONCE_BEFORE_NORMALIZATION",
+      "path_template": "<authorized-run-root>/raw/{ordinal:02d}-{ticker}-financials-reported.json",
+      "per_response_sha256_required": true,
+      "redact": [
+        "request token",
+        "authorization headers"
+      ],
+      "redistribution": "PROHIBITED",
+      "required": true,
+      "retention": "CONTRACT_PERIOD_ONLY"
+    },
+    "request_cap": 12,
+    "request_count": 11,
+    "requests": [
+      {
+        "endpoint": "/stock/financials-reported",
+        "expected_history": {
+          "contracted_financial_history": "UP_TO_30_YEARS",
+          "minimum_useful_result": "At least 3 distinct annual periods where the issuer reports them",
+          "quarterly_depth": "OUT_OF_SCOPE_FOR_THIS_ANNUAL_STAGE0_PILOT",
+          "requested_frequency": "ANNUAL"
+        },
+        "method": "GET",
+        "ordinal": 1,
+        "parameters": {
+          "freq": "annual",
+          "symbol": "AVT"
+        },
+        "target_fields": [
+          "cash_and_equivalents",
+          "latest_revenue",
+          "total_debt"
+        ],
+        "ticker": "AVT"
+      },
+      {
+        "endpoint": "/stock/financials-reported",
+        "expected_history": {
+          "contracted_financial_history": "UP_TO_30_YEARS",
+          "minimum_useful_result": "At least 3 distinct annual periods where the issuer reports them",
+          "quarterly_depth": "OUT_OF_SCOPE_FOR_THIS_ANNUAL_STAGE0_PILOT",
+          "requested_frequency": "ANNUAL"
+        },
+        "method": "GET",
+        "ordinal": 2,
+        "parameters": {
+          "freq": "annual",
+          "symbol": "BKTI"
+        },
+        "target_fields": [
+          "latest_revenue",
+          "total_debt"
+        ],
+        "ticker": "BKTI"
+      },
+      {
+        "endpoint": "/stock/financials-reported",
+        "expected_history": {
+          "contracted_financial_history": "UP_TO_30_YEARS",
+          "minimum_useful_result": "At least 3 distinct annual periods where the issuer reports them",
+          "quarterly_depth": "OUT_OF_SCOPE_FOR_THIS_ANNUAL_STAGE0_PILOT",
+          "requested_frequency": "ANNUAL"
+        },
+        "method": "GET",
+        "ordinal": 3,
+        "parameters": {
+          "freq": "annual",
+          "symbol": "CODA"
+        },
+        "target_fields": [
+          "cash_and_equivalents",
+          "latest_revenue",
+          "total_debt"
+        ],
+        "ticker": "CODA"
+      },
+      {
+        "endpoint": "/stock/financials-reported",
+        "expected_history": {
+          "contracted_financial_history": "UP_TO_30_YEARS",
+          "minimum_useful_result": "At least 3 distinct annual periods where the issuer reports them",
+          "quarterly_depth": "OUT_OF_SCOPE_FOR_THIS_ANNUAL_STAGE0_PILOT",
+          "requested_frequency": "ANNUAL"
+        },
+        "method": "GET",
+        "ordinal": 4,
+        "parameters": {
+          "freq": "annual",
+          "symbol": "CSCO"
+        },
+        "target_fields": [
+          "latest_revenue"
+        ],
+        "ticker": "CSCO"
+      },
+      {
+        "endpoint": "/stock/financials-reported",
+        "expected_history": {
+          "contracted_financial_history": "UP_TO_30_YEARS",
+          "minimum_useful_result": "At least 3 distinct annual periods where the issuer reports them",
+          "quarterly_depth": "OUT_OF_SCOPE_FOR_THIS_ANNUAL_STAGE0_PILOT",
+          "requested_frequency": "ANNUAL"
+        },
+        "method": "GET",
+        "ordinal": 5,
+        "parameters": {
+          "freq": "annual",
+          "symbol": "CTS"
+        },
+        "target_fields": [
+          "latest_revenue",
+          "total_debt"
+        ],
+        "ticker": "CTS"
+      },
+      {
+        "endpoint": "/stock/financials-reported",
+        "expected_history": {
+          "contracted_financial_history": "UP_TO_30_YEARS",
+          "minimum_useful_result": "At least 3 distinct annual periods where the issuer reports them",
+          "quarterly_depth": "OUT_OF_SCOPE_FOR_THIS_ANNUAL_STAGE0_PILOT",
+          "requested_frequency": "ANNUAL"
+        },
+        "method": "GET",
+        "ordinal": 6,
+        "parameters": {
+          "freq": "annual",
+          "symbol": "DIOD"
+        },
+        "target_fields": [
+          "latest_revenue"
+        ],
+        "ticker": "DIOD"
+      },
+      {
+        "endpoint": "/stock/financials-reported",
+        "expected_history": {
+          "contracted_financial_history": "UP_TO_30_YEARS",
+          "minimum_useful_result": "At least 3 distinct annual periods where the issuer reports them",
+          "quarterly_depth": "OUT_OF_SCOPE_FOR_THIS_ANNUAL_STAGE0_PILOT",
+          "requested_frequency": "ANNUAL"
+        },
+        "method": "GET",
+        "ordinal": 7,
+        "parameters": {
+          "freq": "annual",
+          "symbol": "EXTR"
+        },
+        "target_fields": [
+          "latest_revenue"
+        ],
+        "ticker": "EXTR"
+      },
+      {
+        "endpoint": "/stock/financials-reported",
+        "expected_history": {
+          "contracted_financial_history": "UP_TO_30_YEARS",
+          "minimum_useful_result": "At least 3 distinct annual periods where the issuer reports them",
+          "quarterly_depth": "OUT_OF_SCOPE_FOR_THIS_ANNUAL_STAGE0_PILOT",
+          "requested_frequency": "ANNUAL"
+        },
+        "method": "GET",
+        "ordinal": 8,
+        "parameters": {
+          "freq": "annual",
+          "symbol": "GNE"
+        },
+        "target_fields": [
+          "latest_revenue"
+        ],
+        "ticker": "GNE"
+      },
+      {
+        "endpoint": "/stock/financials-reported",
+        "expected_history": {
+          "contracted_financial_history": "UP_TO_30_YEARS",
+          "minimum_useful_result": "At least 3 distinct annual periods where the issuer reports them",
+          "quarterly_depth": "OUT_OF_SCOPE_FOR_THIS_ANNUAL_STAGE0_PILOT",
+          "requested_frequency": "ANNUAL"
+        },
+        "method": "GET",
+        "ordinal": 9,
+        "parameters": {
+          "freq": "annual",
+          "symbol": "MSFT"
+        },
+        "target_fields": [
+          "latest_revenue"
+        ],
+        "ticker": "MSFT"
+      },
+      {
+        "endpoint": "/stock/financials-reported",
+        "expected_history": {
+          "contracted_financial_history": "UP_TO_30_YEARS",
+          "minimum_useful_result": "At least 3 distinct annual periods where the issuer reports them",
+          "quarterly_depth": "OUT_OF_SCOPE_FOR_THIS_ANNUAL_STAGE0_PILOT",
+          "requested_frequency": "ANNUAL"
+        },
+        "method": "GET",
+        "ordinal": 10,
+        "parameters": {
+          "freq": "annual",
+          "symbol": "NVDA"
+        },
+        "target_fields": [
+          "latest_revenue"
+        ],
+        "ticker": "NVDA"
+      },
+      {
+        "endpoint": "/stock/financials-reported",
+        "expected_history": {
+          "contracted_financial_history": "UP_TO_30_YEARS",
+          "minimum_useful_result": "At least 3 distinct annual periods where the issuer reports them",
+          "quarterly_depth": "OUT_OF_SCOPE_FOR_THIS_ANNUAL_STAGE0_PILOT",
+          "requested_frequency": "ANNUAL"
+        },
+        "method": "GET",
+        "ordinal": 11,
+        "parameters": {
+          "freq": "annual",
+          "symbol": "SBC"
+        },
+        "target_fields": [
+          "latest_revenue",
+          "total_debt"
+        ],
+        "ticker": "SBC"
+      }
+    ],
+    "state": "AWAITING_EXACT_OWNER_AUTHORIZATION"
+  },
+  "manifest_sha256": "3ca088a01a2fb220d08761df764ccacc3d605a217e510d599905864df0f3ea2b"
+}
