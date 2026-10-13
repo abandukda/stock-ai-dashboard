@@ -1,0 +1,68 @@
+name: ATLAS G6 Stage 0 Financial History
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Frozen customer-research source SHA
+        required: true
+        type: string
+      authorization_token:
+        description: Exact owner-issued G6 Stage 0 token
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: atlas-g6-stage0-financial-history
+  cancel-in-progress: false
+
+jobs:
+  acquire:
+    environment: atlas-premium-g6-stage0
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+      ATLAS_FINNHUB_LICENSE_CLASS: PAID_CORE_CERTIFICATION
+      G6_EXECUTE: "1"
+      PYTHONPATH: .
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install bounded runner dependency
+        run: python -m pip install --disable-pip-version-check requests==2.32.3
+      - name: Fail closed unless protected inputs and secret are exact
+        env:
+          G6_SOURCE_SHA: ${{ inputs.source_sha }}
+          G6_AUTHORIZATION_TOKEN: ${{ inputs.authorization_token }}
+        run: |
+          test "$G6_SOURCE_SHA" = "3418d83dbf304b3fbe62805291f08025a90b22ac"
+          test "$G6_AUTHORIZATION_TOKEN" = "AUTHORIZE_G6_STAGE0:3ca088a01a2fb220d08761df764ccacc3d605a217e510d599905864df0f3ea2b"
+          test -n "$FINNHUB_API_KEY"
+          test "$ATLAS_FINNHUB_LICENSE_CLASS" = "PAID_CORE_CERTIFICATION"
+      - name: Execute exact serial Stage 0 manifest
+        env:
+          G6_SOURCE_SHA: ${{ inputs.source_sha }}
+          G6_AUTHORIZATION_TOKEN: ${{ inputs.authorization_token }}
+        run: |
+          python scripts/run_g6_stage0.py \
+            --package output/joint/r2_reconciliation/g6_stage0_approval.json \
+            --output-root output/g6-stage0 \
+            --source-sha "$G6_SOURCE_SHA" \
+            --authorization-token "$G6_AUTHORIZATION_TOKEN"
+      - name: Upload immutable raw evidence and sanitized telemetry
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: atlas-g6-stage0-${{ github.run_id }}
+          path: output/g6-stage0
+          if-no-files-found: error
+          retention-days: 30
