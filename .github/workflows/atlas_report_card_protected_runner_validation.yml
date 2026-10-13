@@ -12,7 +12,8 @@ on:
         required: true
         default: "2026-10-08"
         type: string
-      as_of:
+      cutoff_utc:
+        description: Explicit finalized-session cutoff in UTC (for example 2026-10-13T21:00:00Z)
         required: true
         type: string
 
@@ -48,7 +49,7 @@ jobs:
         run: >-
           python3 scripts/build_report_card_exchange_calendar.py
           --start-date "${{ inputs.start_date }}"
-          --as-of "${{ inputs.as_of }}"
+          --cutoff-utc "${{ inputs.cutoff_utc }}"
           --output audit_results/report_card_protected/xnys_calendar.json
       - name: Read-only ledger, mount, backup, history and scope audit
         run: >-

@@ -1,7 +1,7 @@
 """Read-only protected storage audit and provider-free plan preparation."""
 from __future__ import annotations
 from datetime import datetime
-import hashlib, json, os, sqlite3, stat, tempfile
+import hashlib, json, os, pwd, sqlite3, stat, tempfile
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
@@ -18,7 +18,8 @@ def prepare_protected_validation(*, ledger_path: Path, backup_root: Path,
         calendar: Mapping[str, Any], source_sha: str,
         publication_rows: list[Mapping[str, Any]], workspace: Path | None = None,
         mount_probe: Callable[[Path], Mapping[str, Any]] | None = None,
-        kill_switch_path: Path | None = None) -> dict[str, Any]:
+        kill_switch_path: Path | None = None,
+        owner_probe: Callable[[Path], str] | None = None) -> dict[str, Any]:
     ledger_path, backup_root = ledger_path.resolve(), backup_root.resolve()
     if not ledger_path.is_file() or not backup_root.is_dir():
         raise FileNotFoundError("PROTECTED_LEDGER_AND_BACKUP_ROOT_REQUIRED")
@@ -59,8 +60,17 @@ def prepare_protected_validation(*, ledger_path: Path, backup_root: Path,
         state = switch.read_text(encoding="utf-8").strip()
         if state not in {"OPEN", "CLOSED"}:
             raise ValueError("KILL_SWITCH_STATE_INVALID")
+        switch_mode = oct(stat.S_IMODE(switch.stat().st_mode))
+        if switch_mode != "0o600":
+            raise PermissionError("KILL_SWITCH_MODE_MUST_BE_0600")
+        identify_owner = owner_probe or (lambda path: pwd.getpwuid(path.stat().st_uid).pw_name)
+        switch_owner = identify_owner(switch)
+        if switch_owner != "atlasrunner":
+            raise PermissionError("KILL_SWITCH_OWNER_MUST_BE_ATLASRUNNER")
+        if state != "CLOSED":
+            raise PermissionError("READONLY_VALIDATION_REQUIRES_ACQUISITION_DISABLED")
         kill_switch = {"path":str(switch),"state":state,"sha256":_file_sha(switch),
-                       "mode":oct(stat.S_IMODE(switch.stat().st_mode)),
+                       "mode":switch_mode,"owner":switch_owner,
                        "safe_for_live_calls":state == "OPEN"}
     after = _file_sha(ledger_path)
     if before != after:
