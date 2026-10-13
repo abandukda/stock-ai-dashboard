@@ -95,6 +95,7 @@ def audit(
             provider = str(field_lineage.get("provider") or field_lineage.get("source") or "").strip()
             unit = str(field_lineage.get("unit") or row.get(f"{name}_unit") or "").strip()
             frequency = str(field_lineage.get("frequency") or field_lineage.get("period_type") or "").strip()
+            projectable = bool(value is not None and evidence_id and period and provider and unit)
             if value is not None:
                 fields[name]["value"] += 1
             if value is not None and evidence_id:
@@ -114,14 +115,14 @@ def audit(
                 "evidence_id": evidence_id or None,
                 "retained_accessible": value is not None,
                 "certified": bool(value is not None and evidence_id),
-                "customer_projected": bool(value is not None and evidence_id),
+                "customer_projected": projectable,
                 "remediation_class": (
-                    "RETAINED_PROJECTABLE" if value is not None and evidence_id
+                    "RETAINED_PROJECTABLE" if projectable
                     else "RETAINED_MISSING_LINEAGE" if value is not None
                     else "NOT_RETAINED_IN_SOURCE"
                 ),
             })
-            if value is not None and evidence_id and len(provenance_samples[name]) < 3:
+            if projectable and len(provenance_samples[name]) < 3:
                 provenance_samples[name].append({
                     "ticker": str(row.get("ticker") or "").upper(),
                     "field_id": name,
