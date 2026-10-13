@@ -11,6 +11,7 @@ import json
 from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any, Mapping
+import zipfile
 
 
 FINANCIAL_FIELDS = (
@@ -23,6 +24,50 @@ FINANCIAL_FIELDS = (
 
 def _mapping(value: Any) -> Mapping[str, Any]:
     return value if isinstance(value, Mapping) else {}
+
+
+def load_shard_records(shard_dir: Path) -> tuple[list[Mapping[str, Any]], dict[str, Any]]:
+    """Load the exact 41-shard retained universe without extracting archives."""
+    archives = sorted(shard_dir.glob("atlas-finnhub-full-shard-*-*.zip"))
+    if len(archives) != 41:
+        raise ValueError(f"RETAINED_SHARD_COUNT_MISMATCH:{len(archives)}")
+    records: list[Mapping[str, Any]] = []
+    indexes: set[int] = set()
+    run_identities: set[str] = set()
+    source_shas: set[str] = set()
+    for archive in archives:
+        with zipfile.ZipFile(archive) as zipped:
+            bad = zipped.testzip()
+            if bad:
+                raise ValueError(f"RETAINED_SHARD_CRC_FAILED:{archive.name}:{bad}")
+            members = [name for name in zipped.namelist() if name.endswith(".json")]
+            if len(members) != 1:
+                raise ValueError(f"RETAINED_SHARD_MEMBER_MISMATCH:{archive.name}")
+            payload = json.loads(zipped.read(members[0]))
+        shard = _mapping(payload.get("shard"))
+        indexes.add(int(shard.get("index")))
+        identity = _mapping(payload.get("run_identity"))
+        run_identities.add(str(identity.get("run_identity_sha256") or identity.get("run_identity") or ""))
+        source_shas.add(str(identity.get("source_sha") or ""))
+        for item in payload.get("records") or ():
+            retained = dict(_mapping(item.get("row")))
+            retained.setdefault("ticker", item.get("ticker"))
+            retained["_terminal_blockers"] = list(item.get("blockers") or ())
+            retained["_bars_count"] = len(item.get("bars") or ())
+            records.append(retained)
+    if indexes != set(range(41)):
+        raise ValueError("RETAINED_SHARD_INDEX_SET_MISMATCH")
+    tickers = [str(row.get("ticker") or "").upper() for row in records]
+    if not all(tickers) or len(set(tickers)) != len(tickers):
+        raise ValueError("RETAINED_SHARD_TICKER_OWNERSHIP_INVALID")
+    if len(run_identities) != 1 or "" in run_identities or len(source_shas) != 1 or "" in source_shas:
+        raise ValueError("RETAINED_SHARD_SOURCE_IDENTITY_MISMATCH")
+    return records, {
+        "shard_count": len(archives),
+        "run_identity": next(iter(run_identities)),
+        "source_sha": next(iter(source_shas)),
+        "unique_tickers": len(set(tickers)),
+    }
 
 
 def audit(
@@ -117,9 +162,9 @@ def markdown(result: Mapping[str, Any], source: Path) -> str:
         "# ATLAS R2 Retained Data Coverage",
         "",
         f"Source: `{source}`  ",
-        f"Customer-published records inspected: **{total:,}**  ",
-        f"Expected source population: **{int(result['source_population_expected']):,}**  ",
-        f"Population completeness: **{result['population_completeness_state']}**  ",
+        f"Retained security records inspected: **{total:,}**",
+        f"Expected source population: **{int(result['source_population_expected']):,}**",
+        f"Population completeness: **{result['population_completeness_state']}**",
         "Provider calls: **0**",
         "",
         "This audit counts values already retained in the customer publication. A value is called certified here only when its field-level evidence identity is also present. It does not treat QA enrichment as production authority.",
@@ -152,6 +197,7 @@ def markdown(result: Mapping[str, Any], source: Path) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--source", type=Path, default=Path("market_full_scan.json"))
+    parser.add_argument("--shard-dir", type=Path)
     parser.add_argument("--expected-population", type=int)
     parser.add_argument("--source-run-id")
     parser.add_argument("--source-sha")
@@ -159,20 +205,27 @@ def main() -> None:
     parser.add_argument("--markdown-out", type=Path)
     parser.add_argument("--csv-out", type=Path)
     args = parser.parse_args()
-    records = json.loads(args.source.read_text(encoding="utf-8"))
+    shard_identity: dict[str, Any] = {}
+    if args.shard_dir:
+        records, shard_identity = load_shard_records(args.shard_dir)
+    else:
+        records = json.loads(args.source.read_text(encoding="utf-8"))
     result = audit(
         records, expected_population=args.expected_population,
         source_identity={
             key: value for key, value in {
                 "source_run_id": args.source_run_id,
                 "source_sha": args.source_sha,
-                "source_path": str(args.source),
+                "source_path": str(args.shard_dir or args.source),
+                **shard_identity,
             }.items() if value
         },
     )
     if args.json_out:
         args.json_out.parent.mkdir(parents=True, exist_ok=True)
-        args.json_out.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        summary = {key: value for key, value in result.items() if key != "field_period_rows"}
+        summary["field_period_matrix"] = str(args.csv_out) if args.csv_out else "NOT_EMITTED"
+        args.json_out.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     if args.markdown_out:
         args.markdown_out.parent.mkdir(parents=True, exist_ok=True)
         args.markdown_out.write_text(markdown(result, args.source), encoding="utf-8")
@@ -180,7 +233,10 @@ def main() -> None:
         args.csv_out.parent.mkdir(parents=True, exist_ok=True)
         rows = result["field_period_rows"]
         with args.csv_out.open("w", newline="", encoding="utf-8") as handle:
-            writer = csv.DictWriter(handle, fieldnames=list(rows[0]) if rows else ["ticker", "field_id"])
+            writer = csv.DictWriter(
+                handle, fieldnames=list(rows[0]) if rows else ["ticker", "field_id"],
+                lineterminator="\n",
+            )
             writer.writeheader()
             writer.writerows(rows)
     print(json.dumps(result, sort_keys=True))

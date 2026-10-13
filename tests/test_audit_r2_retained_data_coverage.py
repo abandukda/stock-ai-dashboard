@@ -1,4 +1,9 @@
-from scripts.audit_r2_retained_data_coverage import audit, markdown
+import json
+import zipfile
+
+import pytest
+
+from scripts.audit_r2_retained_data_coverage import audit, load_shard_records, markdown
 from pathlib import Path
 
 
@@ -47,3 +52,25 @@ def test_audit_never_labels_missing_partial_source_data_as_provider_unavailable(
     row = next(item for item in result["field_period_rows"] if item["field_id"] == "latest_revenue")
     assert row["remediation_class"] == "NOT_RETAINED_IN_SOURCE"
     assert "PROVIDER" not in row["remediation_class"]
+
+
+def test_shard_loader_requires_complete_coherent_ticker_owned_set(tmp_path):
+    for index in range(41):
+        payload = {
+            "shard": {"index": index},
+            "run_identity": {"run_identity": "run-1", "source_sha": "a" * 40},
+            "records": [{"ticker": f"T{index}", "row": {"ticker": f"T{index}"}}],
+        }
+        path = tmp_path / f"atlas-finnhub-full-shard-{index}-1.zip"
+        with zipfile.ZipFile(path, "w") as zipped:
+            zipped.writestr(f"shard-{index:03d}.json", json.dumps(payload))
+    records, identity = load_shard_records(tmp_path)
+    assert len(records) == 41
+    assert identity == {
+        "shard_count": 41, "run_identity": "run-1", "source_sha": "a" * 40,
+        "unique_tickers": 41,
+    }
+
+    (tmp_path / "atlas-finnhub-full-shard-40-1.zip").unlink()
+    with pytest.raises(ValueError, match="SHARD_COUNT_MISMATCH"):
+        load_shard_records(tmp_path)
