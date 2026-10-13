@@ -3449,6 +3449,22 @@ class AtlasVisualCrawler:
             )
             evidence["removed"] = missing_removed and supported_removed
             await page.reload(wait_until="domcontentloaded")
+            # The local governed app intentionally does not persist an admin
+            # login across a full document reload. Re-establish the same role
+            # through the supported authentication path before asserting route
+            # and Watchlist persistence. This is not a product route-persistence
+            # requirement and must not be inferred from the login screen.
+            if not await page.locator('[data-atlas-qa="customer-navigation-contract"]').count():
+                reload_auth_dir = self.output_dir / "watchlist-reload-auth"
+                reload_auth_dir.mkdir(parents=True, exist_ok=True)
+                await _open_and_authenticate(
+                    page, self.url, reload_auth_dir,
+                    expected_sha=self.expected_deployed_source_sha,
+                    allow_local_exact_candidate=(
+                        os.getenv("ATLAS_EXACT_CANDIDATE_QA", "").strip().lower()
+                        in {"1", "true", "yes"}
+                    ),
+                )
             # A full Streamlit reload may legitimately restore its default route.
             # Navigate back explicitly, then prove route and role before reading
             # persisted state instead of assuming route persistence.

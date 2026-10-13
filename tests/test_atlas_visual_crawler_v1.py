@@ -56,6 +56,8 @@ def test_watchlist_journey_re_resolves_controls_after_streamlit_reruns():
     assert 'await page.reload(wait_until="domcontentloaded")' in journey
     assert '_wait_for_streamlit_shell' not in journey
     assert 'self._page_visit(page, "Watchlist Intelligence")' in journey
+    assert "watchlist-reload-auth" in journey
+    assert "await _open_and_authenticate(" in journey
     assert 'data-atlas-qa="watchlist-filter-state"' in journey
     assert '"NO_MATCH_QA"' in journey
     assert 'await search.first.fill(query)' in journey
