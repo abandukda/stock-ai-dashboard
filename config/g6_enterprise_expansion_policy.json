@@ -1,0 +1,23 @@
+{
+  "contract": "ATLAS_G6_ENTERPRISE_EXPANSION_PLAN_V1",
+  "state": "PLANNING_ONLY_NO_PROVIDER_CALLS",
+  "published_scope": {
+    "expected_count": 1298,
+    "source_run_id": "37216506983",
+    "source_sha": "aa12ff9e89c1ac72e20aadad41decfba9a3d774d",
+    "source_archive_sha256": "9612c6b9fa02c74de710c7af0c9e644c5976392e2e9efa0c47b20522316d7c1e",
+    "ticker_scope_sha256": "d6be219fdb882bb451f604b23d93f6eb2856a370140e70e895edfc0f2c2327f9",
+    "selection": "publication_certification.customer_publication_allowed == true"
+  },
+  "requested_frequencies": ["annual", "quarterly"],
+  "batch_size": 50,
+  "stage0": {
+    "authorization_is_not_reusable": true,
+    "manifest_sha256": "3ca088a01a2fb220d08761df764ccacc3d605a217e510d599905864df0f3ea2b",
+    "request_count": 11
+  },
+  "authorization": {
+    "rule": "Each batch requires a distinct exact owner token after its manifest hash is reviewed.",
+    "token_template": "AUTHORIZE_G6_EXPANSION_BATCH:<batch_id>:<batch_manifest_sha256>"
+  }
+}

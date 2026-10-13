@@ -1,0 +1,30 @@
+{
+  "contract": "ATLAS_FINNHUB_FINANCIALS_GATEWAY_V1",
+  "endpoint": "/stock/financials-reported",
+  "method": "GET",
+  "allowed_frequencies": ["annual", "quarterly"],
+  "license_class": "PAID_CORE_CERTIFICATION",
+  "pacing": {
+    "concurrency": 1,
+    "minimum_inter_request_seconds": 1.0,
+    "rate_limit_rpm": 60,
+    "retry_count": 0
+  },
+  "raw_persistence": {
+    "required_before_inspection": true,
+    "per_response_sha256_required": true,
+    "credentials_in_telemetry": false,
+    "redistribution": "PROHIBITED",
+    "retention": "CONTRACT_PERIOD_ONLY"
+  },
+  "stop_conditions": [
+    "AUTHORIZATION_TOKEN_MISMATCH",
+    "BATCH_MANIFEST_HASH_MISMATCH",
+    "ENTITLEMENT_OR_AUTH_HTTP_FAILURE",
+    "MALFORMED_OR_CONTRACT_INVALID_RESPONSE",
+    "RAW_PERSISTENCE_FAILURE",
+    "RATE_LIMIT_EXHAUSTED",
+    "REQUEST_SCOPE_DRIFT",
+    "REQUEST_CAP_REACHED"
+  ]
+}
