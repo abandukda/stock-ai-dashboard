@@ -16,12 +16,15 @@ from typing import Any
 
 import requests
 
-from scripts.build_g6_stage0_approval import canonical_bytes
-
 EXPECTED_SOURCE_SHA = "3418d83dbf304b3fbe62805291f08025a90b22ac"
 EXPECTED_MANIFEST_SHA = "3ca088a01a2fb220d08761df764ccacc3d605a217e510d599905864df0f3ea2b"
 EXPECTED_TOKEN = f"AUTHORIZE_G6_STAGE0:{EXPECTED_MANIFEST_SHA}"
 BASE_URL = "https://finnhub.io/api/v1"
+
+
+def canonical_bytes(value: dict[str, Any]) -> bytes:
+    """Canonicalize the frozen manifest without importing product code."""
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
 
 
 def _sha256(value: bytes) -> str:
