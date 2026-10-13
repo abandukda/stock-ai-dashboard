@@ -6,6 +6,7 @@ provider requests and does not mutate certified artifacts.
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -24,11 +25,15 @@ def _mapping(value: Any) -> Mapping[str, Any]:
     return value if isinstance(value, Mapping) else {}
 
 
-def audit(records: list[Mapping[str, Any]]) -> dict[str, Any]:
+def audit(
+    records: list[Mapping[str, Any]], *, expected_population: int | None = None,
+    source_identity: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
     fields: dict[str, Counter[str]] = {name: Counter() for name in FINANCIAL_FIELDS}
     feature_counts = Counter()
     identities = Counter()
     period_examples: dict[str, set[str]] = defaultdict(set)
+    coverage_rows: list[dict[str, Any]] = []
     for row in records:
         lineage = _mapping(row.get("professional_evidence_lineage"))
         lineage_fields = _mapping(lineage.get("fields"))
@@ -37,6 +42,9 @@ def audit(records: list[Mapping[str, Any]]) -> dict[str, Any]:
             field_lineage = _mapping(lineage_fields.get(name))
             period = str(field_lineage.get("period") or row.get(f"{name}_period") or "").strip()
             evidence_id = str(field_lineage.get("evidence_id") or "").strip()
+            provider = str(field_lineage.get("provider") or field_lineage.get("source") or "").strip()
+            unit = str(field_lineage.get("unit") or row.get(f"{name}_unit") or "").strip()
+            frequency = str(field_lineage.get("frequency") or field_lineage.get("period_type") or "").strip()
             if value is not None:
                 fields[name]["value"] += 1
             if value is not None and evidence_id:
@@ -45,6 +53,24 @@ def audit(records: list[Mapping[str, Any]]) -> dict[str, Any]:
                 fields[name]["period_bound"] += 1
                 if len(period_examples[name]) < 8:
                     period_examples[name].add(period)
+            coverage_rows.append({
+                "ticker": str(row.get("ticker") or "").upper(),
+                "field_id": name,
+                "value_present": value is not None,
+                "unit": unit or None,
+                "frequency": frequency or None,
+                "fiscal_period": period or None,
+                "provider": provider or None,
+                "evidence_id": evidence_id or None,
+                "retained_accessible": value is not None,
+                "certified": bool(value is not None and evidence_id),
+                "customer_projected": bool(value is not None and evidence_id),
+                "remediation_class": (
+                    "RETAINED_PROJECTABLE" if value is not None and evidence_id
+                    else "RETAINED_MISSING_LINEAGE" if value is not None
+                    else "NOT_RETAINED_IN_SOURCE"
+                ),
+            })
         if row.get("historical_ohlcv_evidence_id"):
             feature_counts["price_history_identity"] += 1
         if row.get("forward_estimate_evidence"):
@@ -58,7 +84,18 @@ def audit(records: list[Mapping[str, Any]]) -> dict[str, Any]:
         if row.get("security_type"):
             identities["security_type"] += 1
     total = len(records)
+    expected = int(expected_population) if expected_population is not None else total
+    population_state = (
+        "COMPLETE" if expected == total
+        else "SOURCE_ARTIFACT_PARTIAL" if total < expected
+        else "SOURCE_POPULATION_MISMATCH"
+    )
     return {
+        "source_identity": dict(source_identity or {}),
+        "source_population_expected": expected,
+        "source_population_accessible": total,
+        "source_population_audited": total,
+        "population_completeness_state": population_state,
         "published_records": total,
         "fields": {
             name: {
@@ -70,6 +107,7 @@ def audit(records: list[Mapping[str, Any]]) -> dict[str, Any]:
         },
         "features": dict(feature_counts),
         "security_master": dict(identities),
+        "field_period_rows": coverage_rows,
     }
 
 
@@ -80,6 +118,8 @@ def markdown(result: Mapping[str, Any], source: Path) -> str:
         "",
         f"Source: `{source}`  ",
         f"Customer-published records inspected: **{total:,}**  ",
+        f"Expected source population: **{int(result['source_population_expected']):,}**  ",
+        f"Population completeness: **{result['population_completeness_state']}**  ",
         "Provider calls: **0**",
         "",
         "This audit counts values already retained in the customer publication. A value is called certified here only when its field-level evidence identity is also present. It does not treat QA enrichment as production authority.",
@@ -102,7 +142,7 @@ def markdown(result: Mapping[str, Any], source: Path) -> str:
         "",
         "## Decision",
         "",
-        "The customer publication retains broad latest-period financial coverage with field-level evidence, but it does not contain complete annual and quarterly statement tables. Multi-period statement acquisition is therefore not authorized by this audit. The existing latest-period facts and any explicitly retained historical series may be projected now; missing periods must remain Not reported.",
+        "The customer publication retains latest-period financial evidence where the field rows above prove a value, period and evidence identity. This audit does not claim complete annual or quarterly depth when the accessible source population is partial. Existing evidence-bound facts and explicitly retained series may be projected now; missing periods must remain Not reported.",
         "",
         "SPY history, analyst modules, earnings calendars, and licensed news used in governed QA reside in a QA-scoped contextual bundle and are not production authority. They must not be promoted to customer production merely because the QA bundle contains them.",
     ]
@@ -112,17 +152,37 @@ def markdown(result: Mapping[str, Any], source: Path) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--source", type=Path, default=Path("market_full_scan.json"))
+    parser.add_argument("--expected-population", type=int)
+    parser.add_argument("--source-run-id")
+    parser.add_argument("--source-sha")
     parser.add_argument("--json-out", type=Path)
     parser.add_argument("--markdown-out", type=Path)
+    parser.add_argument("--csv-out", type=Path)
     args = parser.parse_args()
     records = json.loads(args.source.read_text(encoding="utf-8"))
-    result = audit(records)
+    result = audit(
+        records, expected_population=args.expected_population,
+        source_identity={
+            key: value for key, value in {
+                "source_run_id": args.source_run_id,
+                "source_sha": args.source_sha,
+                "source_path": str(args.source),
+            }.items() if value
+        },
+    )
     if args.json_out:
         args.json_out.parent.mkdir(parents=True, exist_ok=True)
         args.json_out.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     if args.markdown_out:
         args.markdown_out.parent.mkdir(parents=True, exist_ok=True)
         args.markdown_out.write_text(markdown(result, args.source), encoding="utf-8")
+    if args.csv_out:
+        args.csv_out.parent.mkdir(parents=True, exist_ok=True)
+        rows = result["field_period_rows"]
+        with args.csv_out.open("w", newline="", encoding="utf-8") as handle:
+            writer = csv.DictWriter(handle, fieldnames=list(rows[0]) if rows else ["ticker", "field_id"])
+            writer.writeheader()
+            writer.writerows(rows)
     print(json.dumps(result, sort_keys=True))
 
 

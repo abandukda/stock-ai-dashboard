@@ -1,0 +1,526 @@
+ticker,field_id,value_present,unit,frequency,fiscal_period,provider,evidence_id,retained_accessible,certified,customer_projected,remediation_class
+A,latest_revenue,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+A,net_income,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+A,operating_cash_flow,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+A,free_cash_flow,True,USD,,2025-10-31 00:00:00,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:A:990bf202f36c8b8275db,True,True,True,RETAINED_PROJECTABLE
+A,capex,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+A,capital_expenditures,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+A,cash_and_equivalents,True,USD,,2025-10-31 00:00:00,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:A:990bf202f36c8b8275db,True,True,True,RETAINED_PROJECTABLE
+A,total_debt,True,USD,,2025-10-31 00:00:00,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:A:990bf202f36c8b8275db,True,True,True,RETAINED_PROJECTABLE
+A,forward_eps,True,PER_SHARE,annual,2026-12-31,FINNHUB,FINNHUB:EPS_ESTIMATES:A:923a1947da1ae0190d82,True,True,True,RETAINED_PROJECTABLE
+A,forward_ebitda,True,CURRENCY_ABSOLUTE,annual,2026-12-31,FINNHUB,FINNHUB:EBITDA_ESTIMATES:A:0d5ef7a5032bf60361ea,True,True,True,RETAINED_PROJECTABLE
+A,revenue_growth_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+A,gross_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+A,operating_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+A,net_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+A,net_debt_to_ebitda,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AA,latest_revenue,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AA,net_income,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AA,operating_cash_flow,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AA,free_cash_flow,True,USD,,2025-12-31 00:00:00,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:AA:e7564406cc644fcd07e9,True,True,True,RETAINED_PROJECTABLE
+AA,capex,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AA,capital_expenditures,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AA,cash_and_equivalents,True,USD,,2025-12-31 00:00:00,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:AA:e7564406cc644fcd07e9,True,True,True,RETAINED_PROJECTABLE
+AA,total_debt,True,USD,,2025-12-31 00:00:00,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:AA:e7564406cc644fcd07e9,True,True,True,RETAINED_PROJECTABLE
+AA,forward_eps,True,PER_SHARE,annual,2026-12-31,FINNHUB,FINNHUB:EPS_ESTIMATES:AA:0b8b4d5eb0c328911fde,True,True,True,RETAINED_PROJECTABLE
+AA,forward_ebitda,True,CURRENCY_ABSOLUTE,annual,2026-12-31,FINNHUB,FINNHUB:EBITDA_ESTIMATES:AA:9e10cea755a9c17bcdf3,True,True,True,RETAINED_PROJECTABLE
+AA,revenue_growth_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AA,gross_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AA,operating_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AA,net_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AA,net_debt_to_ebitda,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAC,latest_revenue,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAC,net_income,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAC,operating_cash_flow,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAC,free_cash_flow,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAC,capex,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAC,capital_expenditures,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAC,cash_and_equivalents,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAC,total_debt,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAC,forward_eps,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAC,forward_ebitda,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAC,revenue_growth_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAC,gross_margin_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAC,operating_margin_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAC,net_margin_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAC,net_debt_to_ebitda,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAC.UN,latest_revenue,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAC.UN,net_income,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAC.UN,operating_cash_flow,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAC.UN,free_cash_flow,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAC.UN,capex,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAC.UN,capital_expenditures,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAC.UN,cash_and_equivalents,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAC.UN,total_debt,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAC.UN,forward_eps,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAC.UN,forward_ebitda,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAC.UN,revenue_growth_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAC.UN,gross_margin_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAC.UN,operating_margin_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAC.UN,net_margin_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAC.UN,net_debt_to_ebitda,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAC.WT,latest_revenue,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAC.WT,net_income,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAC.WT,operating_cash_flow,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAC.WT,free_cash_flow,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAC.WT,capex,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAC.WT,capital_expenditures,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAC.WT,cash_and_equivalents,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAC.WT,total_debt,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAC.WT,forward_eps,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAC.WT,forward_ebitda,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAC.WT,revenue_growth_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAC.WT,gross_margin_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAC.WT,operating_margin_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAC.WT,net_margin_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAC.WT,net_debt_to_ebitda,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACB,latest_revenue,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACB,net_income,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACB,operating_cash_flow,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACB,free_cash_flow,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACB,capex,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACB,capital_expenditures,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACB,cash_and_equivalents,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACB,total_debt,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACB,forward_eps,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACB,forward_ebitda,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACB,revenue_growth_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACB,gross_margin_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACB,operating_margin_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACB,net_margin_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACB,net_debt_to_ebitda,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACBR,latest_revenue,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACBR,net_income,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACBR,operating_cash_flow,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACBR,free_cash_flow,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACBR,capex,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACBR,capital_expenditures,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACBR,cash_and_equivalents,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACBR,total_debt,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACBR,forward_eps,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACBR,forward_ebitda,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACBR,revenue_growth_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACBR,gross_margin_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACBR,operating_margin_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACBR,net_margin_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACBR,net_debt_to_ebitda,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACG,latest_revenue,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACG,net_income,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACG,operating_cash_flow,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACG,free_cash_flow,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACG,capex,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACG,capital_expenditures,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACG,cash_and_equivalents,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACG,total_debt,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACG,forward_eps,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACG,forward_ebitda,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACG,revenue_growth_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACG,gross_margin_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACG,operating_margin_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACG,net_margin_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACG,net_debt_to_ebitda,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACI,latest_revenue,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACI,net_income,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACI,operating_cash_flow,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACI,free_cash_flow,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACI,capex,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACI,capital_expenditures,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACI,cash_and_equivalents,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACI,total_debt,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACI,forward_eps,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACI,forward_ebitda,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACI,revenue_growth_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACI,gross_margin_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACI,operating_margin_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACI,net_margin_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACI,net_debt_to_ebitda,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACO,latest_revenue,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACO,net_income,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACO,operating_cash_flow,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACO,free_cash_flow,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACO,capex,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACO,capital_expenditures,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACO,cash_and_equivalents,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACO,total_debt,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACO,forward_eps,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACO,forward_ebitda,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACO,revenue_growth_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACO,gross_margin_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACO,operating_margin_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACO,net_margin_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACO,net_debt_to_ebitda,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACOU,latest_revenue,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACOU,net_income,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACOU,operating_cash_flow,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACOU,free_cash_flow,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACOU,capex,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACOU,capital_expenditures,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACOU,cash_and_equivalents,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACOU,total_debt,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACOU,forward_eps,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACOU,forward_ebitda,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACOU,revenue_growth_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACOU,gross_margin_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACOU,operating_margin_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACOU,net_margin_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACOU,net_debt_to_ebitda,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACP,latest_revenue,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACP,net_income,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACP,operating_cash_flow,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACP,free_cash_flow,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACP,capex,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACP,capital_expenditures,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACP,cash_and_equivalents,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACP,total_debt,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACP,forward_eps,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACP,forward_ebitda,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACP,revenue_growth_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACP,gross_margin_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACP,operating_margin_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACP,net_margin_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACP,net_debt_to_ebitda,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACT,latest_revenue,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACT,net_income,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACT,operating_cash_flow,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACT,free_cash_flow,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACT,capex,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACT,capital_expenditures,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACT,cash_and_equivalents,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACT,total_debt,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACT,forward_eps,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACT,forward_ebitda,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACT,revenue_growth_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACT,gross_margin_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACT,operating_margin_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACT,net_margin_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AACT,net_debt_to_ebitda,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AADX,latest_revenue,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AADX,net_income,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AADX,operating_cash_flow,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AADX,free_cash_flow,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AADX,capex,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AADX,capital_expenditures,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AADX,cash_and_equivalents,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AADX,total_debt,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AADX,forward_eps,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AADX,forward_ebitda,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AADX,revenue_growth_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AADX,gross_margin_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AADX,operating_margin_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AADX,net_margin_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AADX,net_debt_to_ebitda,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAL,latest_revenue,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAL,net_income,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAL,operating_cash_flow,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAL,free_cash_flow,True,USD,,2025-12-31 00:00:00,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:AAL:15af6807bf5af1179648,True,True,True,RETAINED_PROJECTABLE
+AAL,capex,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAL,capital_expenditures,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAL,cash_and_equivalents,False,USD,,,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:AAL:15af6807bf5af1179648,False,False,False,NOT_RETAINED_IN_SOURCE
+AAL,total_debt,True,USD,,2025-12-31 00:00:00,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:AAL:15af6807bf5af1179648,True,True,True,RETAINED_PROJECTABLE
+AAL,forward_eps,True,PER_SHARE,annual,2026-12-31,FINNHUB,FINNHUB:EPS_ESTIMATES:AAL:0c93a5bd5f99663fccef,True,True,True,RETAINED_PROJECTABLE
+AAL,forward_ebitda,True,CURRENCY_ABSOLUTE,annual,2026-12-31,FINNHUB,FINNHUB:EBITDA_ESTIMATES:AAL:5a444e0db7ba539fdd9d,True,True,True,RETAINED_PROJECTABLE
+AAL,revenue_growth_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAL,gross_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAL,operating_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAL,net_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAL,net_debt_to_ebitda,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAME,latest_revenue,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAME,net_income,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAME,operating_cash_flow,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAME,free_cash_flow,True,USD,,2024-12-31 00:00:00,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:AAME:31ccd8d38a5b5b0455c3,True,True,True,RETAINED_PROJECTABLE
+AAME,capex,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAME,capital_expenditures,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAME,cash_and_equivalents,True,,,2024-12-31 00:00:00,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:AAME:31ccd8d38a5b5b0455c3,True,True,True,RETAINED_PROJECTABLE
+AAME,total_debt,False,,,,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:AAME:31ccd8d38a5b5b0455c3,False,False,False,NOT_RETAINED_IN_SOURCE
+AAME,forward_eps,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAME,forward_ebitda,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAME,revenue_growth_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAME,gross_margin_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAME,operating_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAME,net_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAME,net_debt_to_ebitda,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAMI,latest_revenue,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAMI,net_income,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAMI,operating_cash_flow,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAMI,free_cash_flow,True,USD,,2025-12-31 00:00:00,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:AAMI:7390568bb53054aa2259,True,True,True,RETAINED_PROJECTABLE
+AAMI,capex,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAMI,capital_expenditures,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAMI,cash_and_equivalents,True,USD,,2025-12-31 00:00:00,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:AAMI:7390568bb53054aa2259,True,True,True,RETAINED_PROJECTABLE
+AAMI,total_debt,False,USD,,,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:AAMI:7390568bb53054aa2259,False,False,False,NOT_RETAINED_IN_SOURCE
+AAMI,forward_eps,True,PER_SHARE,annual,2026-12-31,FINNHUB,FINNHUB:EPS_ESTIMATES:AAMI:e08d21640bfe0c5c3b16,True,True,True,RETAINED_PROJECTABLE
+AAMI,forward_ebitda,True,CURRENCY_ABSOLUTE,annual,2026-12-31,FINNHUB,FINNHUB:EBITDA_ESTIMATES:AAMI:fab8eb7c8a5247063094,True,True,True,RETAINED_PROJECTABLE
+AAMI,revenue_growth_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAMI,gross_margin_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAMI,operating_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAMI,net_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAMI,net_debt_to_ebitda,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAOI,latest_revenue,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAOI,net_income,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAOI,operating_cash_flow,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAOI,free_cash_flow,True,USD,,2025-12-31 00:00:00,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:AAOI:651c43dbaf2c1d051438,True,True,True,RETAINED_PROJECTABLE
+AAOI,capex,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAOI,capital_expenditures,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAOI,cash_and_equivalents,True,USD,,2025-12-31 00:00:00,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:AAOI:651c43dbaf2c1d051438,True,True,True,RETAINED_PROJECTABLE
+AAOI,total_debt,False,USD,,,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:AAOI:651c43dbaf2c1d051438,False,False,False,NOT_RETAINED_IN_SOURCE
+AAOI,forward_eps,True,PER_SHARE,annual,2026-12-31,FINNHUB,FINNHUB:EPS_ESTIMATES:AAOI:600c21d63212e1b89af2,True,True,True,RETAINED_PROJECTABLE
+AAOI,forward_ebitda,True,CURRENCY_ABSOLUTE,annual,2026-12-31,FINNHUB,FINNHUB:EBITDA_ESTIMATES:AAOI:5ed1547dc3518b384312,True,True,True,RETAINED_PROJECTABLE
+AAOI,revenue_growth_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAOI,gross_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAOI,operating_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAOI,net_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAOI,net_debt_to_ebitda,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAON,latest_revenue,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAON,net_income,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAON,operating_cash_flow,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAON,free_cash_flow,False,USD,,2025-12-31 00:00:00,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:AAON:9e899de75ed56530e93d,False,False,False,NOT_RETAINED_IN_SOURCE
+AAON,capex,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAON,capital_expenditures,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAON,cash_and_equivalents,True,USD,,2025-12-31 00:00:00,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:AAON:9e899de75ed56530e93d,True,True,True,RETAINED_PROJECTABLE
+AAON,total_debt,True,USD,,2025-12-31 00:00:00,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:AAON:9e899de75ed56530e93d,True,True,True,RETAINED_PROJECTABLE
+AAON,forward_eps,True,PER_SHARE,annual,2026-12-31,FINNHUB,FINNHUB:EPS_ESTIMATES:AAON:a3d5efad6691d423212e,True,True,True,RETAINED_PROJECTABLE
+AAON,forward_ebitda,True,CURRENCY_ABSOLUTE,annual,2026-12-31,FINNHUB,FINNHUB:EBITDA_ESTIMATES:AAON:266baaba4116304c7e73,True,True,True,RETAINED_PROJECTABLE
+AAON,revenue_growth_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAON,gross_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAON,operating_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAON,net_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAON,net_debt_to_ebitda,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAP,latest_revenue,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAP,net_income,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAP,operating_cash_flow,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAP,free_cash_flow,True,USD,,2026-01-03 00:00:00,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:AAP:66f18dacfca6f745bdca,True,True,True,RETAINED_PROJECTABLE
+AAP,capex,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAP,capital_expenditures,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAP,cash_and_equivalents,True,USD,,2026-01-03 00:00:00,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:AAP:66f18dacfca6f745bdca,True,True,True,RETAINED_PROJECTABLE
+AAP,total_debt,True,USD,,2026-01-03 00:00:00,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:AAP:66f18dacfca6f745bdca,True,True,True,RETAINED_PROJECTABLE
+AAP,forward_eps,True,PER_SHARE,annual,2026-12-31,FINNHUB,FINNHUB:EPS_ESTIMATES:AAP:9323aa619fcba9d2ff25,True,True,True,RETAINED_PROJECTABLE
+AAP,forward_ebitda,True,CURRENCY_ABSOLUTE,annual,2026-12-31,FINNHUB,FINNHUB:EBITDA_ESTIMATES:AAP:6ecd86a9fda0555c9231,True,True,True,RETAINED_PROJECTABLE
+AAP,revenue_growth_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAP,gross_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAP,operating_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAP,net_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAP,net_debt_to_ebitda,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAPG,latest_revenue,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAPG,net_income,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAPG,operating_cash_flow,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAPG,free_cash_flow,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAPG,capex,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAPG,capital_expenditures,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAPG,cash_and_equivalents,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAPG,total_debt,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAPG,forward_eps,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAPG,forward_ebitda,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAPG,revenue_growth_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAPG,gross_margin_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAPG,operating_margin_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAPG,net_margin_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAPG,net_debt_to_ebitda,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAPL,latest_revenue,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAPL,net_income,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAPL,operating_cash_flow,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAPL,free_cash_flow,True,USD,,2025-09-27 00:00:00,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:AAPL:10d2be09d3c5a0e6840c,True,True,True,RETAINED_PROJECTABLE
+AAPL,capex,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAPL,capital_expenditures,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAPL,cash_and_equivalents,True,USD,,2025-09-27 00:00:00,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:AAPL:10d2be09d3c5a0e6840c,True,True,True,RETAINED_PROJECTABLE
+AAPL,total_debt,True,USD,,2025-09-27 00:00:00,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:AAPL:10d2be09d3c5a0e6840c,True,True,True,RETAINED_PROJECTABLE
+AAPL,forward_eps,True,PER_SHARE,annual,2027-09-30,FINNHUB,FINNHUB:EPS_ESTIMATES:AAPL:0282ad493c6886ea8b1b,True,True,True,RETAINED_PROJECTABLE
+AAPL,forward_ebitda,True,CURRENCY_ABSOLUTE,annual,2027-09-30,FINNHUB,FINNHUB:EBITDA_ESTIMATES:AAPL:11a566eeee477f92f33d,True,True,True,RETAINED_PROJECTABLE
+AAPL,revenue_growth_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAPL,gross_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAPL,operating_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAPL,net_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AAPL,net_debt_to_ebitda,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAQC,latest_revenue,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAQC,net_income,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAQC,operating_cash_flow,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAQC,free_cash_flow,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAQC,capex,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAQC,capital_expenditures,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAQC,cash_and_equivalents,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAQC,total_debt,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAQC,forward_eps,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAQC,forward_ebitda,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAQC,revenue_growth_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAQC,gross_margin_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAQC,operating_margin_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAQC,net_margin_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AAQC,net_debt_to_ebitda,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AARD,latest_revenue,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AARD,net_income,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AARD,operating_cash_flow,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AARD,free_cash_flow,True,USD,,2025-12-31 00:00:00,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:AARD:650634c5592a678f63ec,True,True,True,RETAINED_PROJECTABLE
+AARD,capex,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AARD,capital_expenditures,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AARD,cash_and_equivalents,True,USD,,2025-12-31 00:00:00,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:AARD:650634c5592a678f63ec,True,True,True,RETAINED_PROJECTABLE
+AARD,total_debt,False,USD,,,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:AARD:650634c5592a678f63ec,False,False,False,NOT_RETAINED_IN_SOURCE
+AARD,forward_eps,True,PER_SHARE,annual,2026-12-31,FINNHUB,FINNHUB:EPS_ESTIMATES:AARD:7668f3fabb1e49faf0d1,True,True,True,RETAINED_PROJECTABLE
+AARD,forward_ebitda,True,CURRENCY_ABSOLUTE,annual,2026-12-31,FINNHUB,FINNHUB:EBITDA_ESTIMATES:AARD:d394485970d1ee078273,True,True,True,RETAINED_PROJECTABLE
+AARD,revenue_growth_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AARD,gross_margin_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AARD,operating_margin_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AARD,net_margin_pct,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AARD,net_debt_to_ebitda,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AVT,latest_revenue,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+AVT,net_income,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AVT,operating_cash_flow,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AVT,free_cash_flow,True,USD,,2025-06-28 00:00:00,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:AVT:3dbcce8072a1e7040779,True,True,True,RETAINED_PROJECTABLE
+AVT,capex,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AVT,capital_expenditures,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AVT,cash_and_equivalents,True,,,2025-06-28 00:00:00,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:AVT:3dbcce8072a1e7040779,True,True,True,RETAINED_PROJECTABLE
+AVT,total_debt,True,,,2025-06-28 00:00:00,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:AVT:3dbcce8072a1e7040779,True,True,True,RETAINED_PROJECTABLE
+AVT,forward_eps,True,PER_SHARE,annual,2027-06-30,FINNHUB,FINNHUB:EPS_ESTIMATES:AVT:cdee082d64796ba0fe9c,True,True,True,RETAINED_PROJECTABLE
+AVT,forward_ebitda,True,CURRENCY_ABSOLUTE,annual,2027-06-30,FINNHUB,FINNHUB:EBITDA_ESTIMATES:AVT:5697cbe3ea1554fb8d7f,True,True,True,RETAINED_PROJECTABLE
+AVT,revenue_growth_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AVT,gross_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AVT,operating_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AVT,net_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+AVT,net_debt_to_ebitda,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+BKTI,latest_revenue,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+BKTI,net_income,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+BKTI,operating_cash_flow,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+BKTI,free_cash_flow,True,USD,,2025-12-31 00:00:00,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:BKTI:df9ffd8a6b0aa88dd91e,True,True,True,RETAINED_PROJECTABLE
+BKTI,capex,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+BKTI,capital_expenditures,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+BKTI,cash_and_equivalents,True,USD,,2025-12-31 00:00:00,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:BKTI:df9ffd8a6b0aa88dd91e,True,True,True,RETAINED_PROJECTABLE
+BKTI,total_debt,False,USD,,,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:BKTI:df9ffd8a6b0aa88dd91e,False,False,False,NOT_RETAINED_IN_SOURCE
+BKTI,forward_eps,True,PER_SHARE,annual,2026-12-31,FINNHUB,FINNHUB:EPS_ESTIMATES:BKTI:678fe7a454cd953277f6,True,True,True,RETAINED_PROJECTABLE
+BKTI,forward_ebitda,True,CURRENCY_ABSOLUTE,annual,2026-12-31,FINNHUB,FINNHUB:EBITDA_ESTIMATES:BKTI:a9ee69821bca04446e5f,True,True,True,RETAINED_PROJECTABLE
+BKTI,revenue_growth_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+BKTI,gross_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+BKTI,operating_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+BKTI,net_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+BKTI,net_debt_to_ebitda,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+CODA,latest_revenue,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+CODA,net_income,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+CODA,operating_cash_flow,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+CODA,free_cash_flow,True,USD,,2025-10-31 00:00:00,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:CODA:1f367f2728609bcfbf9e,True,True,True,RETAINED_PROJECTABLE
+CODA,capex,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+CODA,capital_expenditures,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+CODA,cash_and_equivalents,True,,,2025-10-31 00:00:00,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:CODA:1f367f2728609bcfbf9e,True,True,True,RETAINED_PROJECTABLE
+CODA,total_debt,False,,,,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:CODA:1f367f2728609bcfbf9e,False,False,False,NOT_RETAINED_IN_SOURCE
+CODA,forward_eps,True,PER_SHARE,annual,2026-12-31,FINNHUB,FINNHUB:EPS_ESTIMATES:CODA:190614d695190847210a,True,True,True,RETAINED_PROJECTABLE
+CODA,forward_ebitda,True,CURRENCY_ABSOLUTE,annual,2026-12-31,FINNHUB,FINNHUB:EBITDA_ESTIMATES:CODA:3e5972cf2ebfafdbcf94,True,True,True,RETAINED_PROJECTABLE
+CODA,revenue_growth_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+CODA,gross_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+CODA,operating_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+CODA,net_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+CODA,net_debt_to_ebitda,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+CSCO,latest_revenue,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+CSCO,net_income,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+CSCO,operating_cash_flow,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+CSCO,free_cash_flow,True,USD,,2025-07-26 00:00:00,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:CSCO:cc64f8b3a94c0607358e,True,True,True,RETAINED_PROJECTABLE
+CSCO,capex,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+CSCO,capital_expenditures,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+CSCO,cash_and_equivalents,True,USD,,2025-07-26 00:00:00,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:CSCO:cc64f8b3a94c0607358e,True,True,True,RETAINED_PROJECTABLE
+CSCO,total_debt,True,USD,,2025-07-26 00:00:00,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:CSCO:cc64f8b3a94c0607358e,True,True,True,RETAINED_PROJECTABLE
+CSCO,forward_eps,True,PER_SHARE,annual,2027-09-30,FINNHUB,FINNHUB:EPS_ESTIMATES:CSCO:88e00b199dad45da922d,True,True,True,RETAINED_PROJECTABLE
+CSCO,forward_ebitda,True,CURRENCY_ABSOLUTE,annual,2027-09-30,FINNHUB,FINNHUB:EBITDA_ESTIMATES:CSCO:0725d2fed58c4c181e42,True,True,True,RETAINED_PROJECTABLE
+CSCO,revenue_growth_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+CSCO,gross_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+CSCO,operating_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+CSCO,net_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+CSCO,net_debt_to_ebitda,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+CTS,latest_revenue,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+CTS,net_income,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+CTS,operating_cash_flow,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+CTS,free_cash_flow,True,USD,,2025-12-31 00:00:00,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:CTS:d8980a2c01cec9158c24,True,True,True,RETAINED_PROJECTABLE
+CTS,capex,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+CTS,capital_expenditures,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+CTS,cash_and_equivalents,True,USD,,2025-12-31 00:00:00,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:CTS:d8980a2c01cec9158c24,True,True,True,RETAINED_PROJECTABLE
+CTS,total_debt,False,USD,,,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:CTS:d8980a2c01cec9158c24,False,False,False,NOT_RETAINED_IN_SOURCE
+CTS,forward_eps,True,PER_SHARE,annual,2026-12-31,FINNHUB,FINNHUB:EPS_ESTIMATES:CTS:a43173430325d0f344c7,True,True,True,RETAINED_PROJECTABLE
+CTS,forward_ebitda,True,CURRENCY_ABSOLUTE,annual,2026-12-31,FINNHUB,FINNHUB:EBITDA_ESTIMATES:CTS:252512d036d796766d3d,True,True,True,RETAINED_PROJECTABLE
+CTS,revenue_growth_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+CTS,gross_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+CTS,operating_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+CTS,net_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+CTS,net_debt_to_ebitda,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+DIOD,latest_revenue,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+DIOD,net_income,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+DIOD,operating_cash_flow,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+DIOD,free_cash_flow,True,USD,,2025-12-31 00:00:00,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:DIOD:d386a15a81101355c730,True,True,True,RETAINED_PROJECTABLE
+DIOD,capex,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+DIOD,capital_expenditures,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+DIOD,cash_and_equivalents,True,USD,,2025-12-31 00:00:00,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:DIOD:d386a15a81101355c730,True,True,True,RETAINED_PROJECTABLE
+DIOD,total_debt,True,USD,,2025-12-31 00:00:00,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:DIOD:d386a15a81101355c730,True,True,True,RETAINED_PROJECTABLE
+DIOD,forward_eps,True,PER_SHARE,annual,2026-12-31,FINNHUB,FINNHUB:EPS_ESTIMATES:DIOD:21d110f6162bfde17ca5,True,True,True,RETAINED_PROJECTABLE
+DIOD,forward_ebitda,True,CURRENCY_ABSOLUTE,annual,2026-12-31,FINNHUB,FINNHUB:EBITDA_ESTIMATES:DIOD:0fe24bb7277dc566a117,True,True,True,RETAINED_PROJECTABLE
+DIOD,revenue_growth_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+DIOD,gross_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+DIOD,operating_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+DIOD,net_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+DIOD,net_debt_to_ebitda,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+EXTR,latest_revenue,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+EXTR,net_income,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+EXTR,operating_cash_flow,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+EXTR,free_cash_flow,True,USD,,2025-06-30 00:00:00,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:EXTR:fe9cd72e82226cf24845,True,True,True,RETAINED_PROJECTABLE
+EXTR,capex,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+EXTR,capital_expenditures,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+EXTR,cash_and_equivalents,True,USD,,2025-06-30 00:00:00,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:EXTR:fe9cd72e82226cf24845,True,True,True,RETAINED_PROJECTABLE
+EXTR,total_debt,True,USD,,2025-06-30 00:00:00,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:EXTR:fe9cd72e82226cf24845,True,True,True,RETAINED_PROJECTABLE
+EXTR,forward_eps,True,PER_SHARE,annual,2027-06-30,FINNHUB,FINNHUB:EPS_ESTIMATES:EXTR:0e764458a877cef1123f,True,True,True,RETAINED_PROJECTABLE
+EXTR,forward_ebitda,True,CURRENCY_ABSOLUTE,annual,2027-06-30,FINNHUB,FINNHUB:EBITDA_ESTIMATES:EXTR:f1c87da3e0462c78526a,True,True,True,RETAINED_PROJECTABLE
+EXTR,revenue_growth_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+EXTR,gross_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+EXTR,operating_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+EXTR,net_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+EXTR,net_debt_to_ebitda,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+GNE,latest_revenue,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+GNE,net_income,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+GNE,operating_cash_flow,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+GNE,free_cash_flow,True,USD,,2025-12-31 00:00:00,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:GNE:d9d3696efe515075f23e,True,True,True,RETAINED_PROJECTABLE
+GNE,capex,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+GNE,capital_expenditures,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+GNE,cash_and_equivalents,True,USD,,2025-12-31 00:00:00,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:GNE:d9d3696efe515075f23e,True,True,True,RETAINED_PROJECTABLE
+GNE,total_debt,True,USD,,2025-12-31 00:00:00,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:GNE:d9d3696efe515075f23e,True,True,True,RETAINED_PROJECTABLE
+GNE,forward_eps,True,PER_SHARE,annual,2026-12-31,FINNHUB,FINNHUB:EPS_ESTIMATES:GNE:e3754841960942cba420,True,True,True,RETAINED_PROJECTABLE
+GNE,forward_ebitda,True,CURRENCY_ABSOLUTE,annual,2026-12-31,FINNHUB,FINNHUB:EBITDA_ESTIMATES:GNE:3246a9cf03adfd851b40,True,True,True,RETAINED_PROJECTABLE
+GNE,revenue_growth_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+GNE,gross_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+GNE,operating_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+GNE,net_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+GNE,net_debt_to_ebitda,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+MSFT,latest_revenue,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+MSFT,net_income,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+MSFT,operating_cash_flow,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+MSFT,free_cash_flow,True,USD,,2025-06-30 00:00:00,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:MSFT:978712ef114afce7e8d6,True,True,True,RETAINED_PROJECTABLE
+MSFT,capex,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+MSFT,capital_expenditures,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+MSFT,cash_and_equivalents,True,USD,,2025-06-30 00:00:00,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:MSFT:978712ef114afce7e8d6,True,True,True,RETAINED_PROJECTABLE
+MSFT,total_debt,True,USD,,2025-06-30 00:00:00,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:MSFT:978712ef114afce7e8d6,True,True,True,RETAINED_PROJECTABLE
+MSFT,forward_eps,True,PER_SHARE,annual,2027-06-30,FINNHUB,FINNHUB:EPS_ESTIMATES:MSFT:eee3a866c833bb616b66,True,True,True,RETAINED_PROJECTABLE
+MSFT,forward_ebitda,True,CURRENCY_ABSOLUTE,annual,2027-06-30,FINNHUB,FINNHUB:EBITDA_ESTIMATES:MSFT:70d36de12bc2f686aad8,True,True,True,RETAINED_PROJECTABLE
+MSFT,revenue_growth_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+MSFT,gross_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+MSFT,operating_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+MSFT,net_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+MSFT,net_debt_to_ebitda,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+NVDA,latest_revenue,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+NVDA,net_income,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+NVDA,operating_cash_flow,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+NVDA,free_cash_flow,True,USD,,2026-01-25 00:00:00,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:NVDA:b4d88ac2355e04e2700c,True,True,True,RETAINED_PROJECTABLE
+NVDA,capex,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+NVDA,capital_expenditures,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+NVDA,cash_and_equivalents,True,USD,,2026-01-25 00:00:00,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:NVDA:b4d88ac2355e04e2700c,True,True,True,RETAINED_PROJECTABLE
+NVDA,total_debt,True,USD,,2026-01-25 00:00:00,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:NVDA:b4d88ac2355e04e2700c,True,True,True,RETAINED_PROJECTABLE
+NVDA,forward_eps,True,PER_SHARE,annual,2027-03-31,FINNHUB,FINNHUB:EPS_ESTIMATES:NVDA:ec4a82a99550f10b0d72,True,True,True,RETAINED_PROJECTABLE
+NVDA,forward_ebitda,True,CURRENCY_ABSOLUTE,annual,2027-03-31,FINNHUB,FINNHUB:EBITDA_ESTIMATES:NVDA:42b0028934cd3b618311,True,True,True,RETAINED_PROJECTABLE
+NVDA,revenue_growth_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+NVDA,gross_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+NVDA,operating_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+NVDA,net_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+NVDA,net_debt_to_ebitda,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
+SBC,latest_revenue,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+SBC,net_income,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+SBC,operating_cash_flow,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+SBC,free_cash_flow,True,USD,,2025-12-31 00:00:00,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:SBC:24d61aee4498ec041c4d,True,True,True,RETAINED_PROJECTABLE
+SBC,capex,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+SBC,capital_expenditures,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+SBC,cash_and_equivalents,True,USD,,2025-12-31 00:00:00,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:SBC:24d61aee4498ec041c4d,True,True,True,RETAINED_PROJECTABLE
+SBC,total_debt,False,USD,,,FINNHUB,FINNHUB:FINANCIAL_STATEMENTS:SBC:24d61aee4498ec041c4d,False,False,False,NOT_RETAINED_IN_SOURCE
+SBC,forward_eps,True,PER_SHARE,annual,2026-12-31,FINNHUB,FINNHUB:EPS_ESTIMATES:SBC:54f25ce77f61ce502b25,True,True,True,RETAINED_PROJECTABLE
+SBC,forward_ebitda,True,CURRENCY_ABSOLUTE,annual,2026-12-31,FINNHUB,FINNHUB:EBITDA_ESTIMATES:SBC:d34044a427966c6ecfeb,True,True,True,RETAINED_PROJECTABLE
+SBC,revenue_growth_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+SBC,gross_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+SBC,operating_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+SBC,net_margin_pct,True,,,,,,True,False,False,RETAINED_MISSING_LINEAGE
+SBC,net_debt_to_ebitda,False,,,,,,False,False,False,NOT_RETAINED_IN_SOURCE
