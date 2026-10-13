@@ -658,6 +658,58 @@ def test_retained_contract_financial_series_projects_only_registered_evidence(mo
     assert "Gross Margin was 55.0% for Jan 1, 2025." in reasons
 
 
+def test_premium_financial_depth_groups_only_lineage_complete_facts_and_certified_models():
+    source = report()
+    source.update({"net_income": 10, "operating_cash_flow": 12, "cash_and_equivalents": 8})
+    source["professional_evidence_lineage"] = {"fields": {
+        key: {"evidence_id": f"e:{key}", "period": "FY2025", "unit": "USD", "provider": "FINNHUB"}
+        for key in ("net_income", "operating_cash_flow", "cash_and_equivalents")
+    }}
+    evaluation = source.setdefault("canonical_investment_evaluation", {})
+    evaluation["atlas_valuation"] = {"professional_valuation_v2": {
+        "model_weights": {"VAL_FORWARD_PE_V1": .6},
+        "models": [
+            {"methodology_id": "VAL_FORWARD_PE_V1", "name": "Forward earnings", "status": "PUBLISHED",
+             "value": 346.05, "confidence": 80, "fiscal_period": "FY2026", "key_assumptions": {"forward_eps": 8}},
+            {"methodology_id": "VAL_FCFF_DCF_V1", "name": "DCF", "status": "INSUFFICIENT_INPUTS", "value": None},
+        ],
+    }}
+
+    depth = build_customer_research_v2(source)["financial_depth"]
+
+    assert depth["status"] == "LIMITED"
+    assert depth["statement_depth"] == "LATEST_PERIOD_ONLY"
+    assert depth["statements"]["income_statement"][0]["evidence_id"] == "e:net_income"
+    assert depth["statements"]["cash_flow"][0]["field"] == "operating_cash_flow"
+    assert depth["statements"]["balance_sheet"][0]["field"] == "cash_and_equivalents"
+    assert depth["valuation_models"] == ({
+        "methodology_id": "VAL_FORWARD_PE_V1", "name": "Forward earnings", "value": 346.05,
+        "unit": "USD_PER_SHARE", "fiscal_period": "FY2026", "confidence": 80, "weight": .6,
+        "assumptions": {"forward_eps": 8}, "source": "CERTIFIED_ATLAS_VALUATION",
+    },)
+    assert depth["company_case"]["invalidation"] == ("Certified evidence deteriorates.",)
+    assert "no multi-period trend is claimed" in depth["limitation"]
+
+
+def test_snapshot_recovers_only_exact_value_matched_publication_lineage():
+    source = report()
+    source.update({"net_income": 10, "operating_cash_flow": 12})
+    source["professional_evidence_lineage"] = {"fields": {}}
+    source["publication_certification"] = {"components": {"valuation": {"lineage": {"inputs": {
+        "net_income": {"canonical_value": 10, "evidence_id": "statement:1", "period": "FY2025",
+                       "unit": "USD", "source": "FINNHUB", "as_of": "2026-10-04"},
+        "operating_cash_flow": {"canonical_value": 999, "evidence_id": "statement:1", "period": "FY2025",
+                                "unit": "USD", "source": "FINNHUB", "as_of": "2026-10-04"},
+    }}}}}
+
+    snapshot = build_customer_research_v2(source)["financial_snapshot"]
+
+    by_field = {item["field"]: item for item in snapshot["items"]}
+    assert by_field["net_income"]["evidence_id"] == "statement:1"
+    assert by_field["net_income"]["provider"] == "FINNHUB"
+    assert "operating_cash_flow" not in by_field
+
+
 def test_research_first_screen_is_rendered_before_search_and_market_context():
     app_source = __import__("pathlib").Path("app.py").read_text(encoding="utf-8")
     route = app_source.split("def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=None):", 1)[1]

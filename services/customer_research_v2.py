@@ -473,6 +473,14 @@ def _financial_snapshot_projection(report: Mapping[str, Any]) -> dict[str, Any]:
     """Project retained field-level financial evidence without deriving values."""
     lineage = _map(report.get("professional_evidence_lineage"))
     fields = _map(lineage.get("fields"))
+    certified_inputs = _map(
+        _map(_map(_map(report.get("publication_certification")).get("components")).get("valuation")).get("lineage")
+    )
+    certified_inputs = _map(certified_inputs.get("inputs"))
+    input_aliases = {
+        "latest_revenue": "revenue", "capex": "capex",
+        "cash_and_equivalents": "cash", "total_debt": "debt",
+    }
     definitions = (
         ("latest_revenue", "Revenue", "USD"),
         ("net_income", "Net income", "USD"),
@@ -493,6 +501,14 @@ def _financial_snapshot_projection(report: Mapping[str, Any]) -> dict[str, Any]:
     for key, label, default_unit in definitions:
         field_lineage = _map(fields.get(key))
         value = report.get(key)
+        fallback = _map(certified_inputs.get(input_aliases.get(key, key)))
+        if not field_lineage.get("evidence_id") and fallback.get("evidence_id"):
+            try:
+                values_match = float(value) == float(fallback.get("canonical_value", fallback.get("value")))
+            except (TypeError, ValueError):
+                values_match = False
+            if values_match:
+                field_lineage = fallback
         evidence_id = field_lineage.get("evidence_id")
         if value is None or not evidence_id:
             continue
@@ -508,7 +524,7 @@ def _financial_snapshot_projection(report: Mapping[str, Any]) -> dict[str, Any]:
             "currency": field_lineage.get("currency"),
             "period": field_lineage.get("period") or report.get(f"{key}_period"),
             "as_of": field_lineage.get("as_of") or report.get("professional_evidence_as_of"),
-            "provider": field_lineage.get("provider") or lineage.get("provider"),
+            "provider": field_lineage.get("provider") or field_lineage.get("source") or lineage.get("provider"),
             "evidence_id": str(evidence_id),
             "analyst_count": field_lineage.get("analyst_count"),
         })
@@ -557,6 +573,63 @@ def _financial_snapshot_with_trend(
         "status": "AVAILABLE" if items else "UNAVAILABLE",
         "items": tuple(items),
         "message": None if items else "Certified financial evidence is unavailable for this snapshot.",
+    }
+
+
+def _premium_financial_depth(
+    report: Mapping[str, Any], snapshot: Mapping[str, Any], trend: Mapping[str, Any],
+    summary: Mapping[str, Any], conditions: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Group retained facts into paid-research lanes without deriving facts."""
+    lanes = {
+        "latest_revenue": "income_statement", "net_income": "income_statement",
+        "operating_margin_pct": "income_statement", "gross_margin_pct": "income_statement",
+        "net_margin_pct": "income_statement", "operating_cash_flow": "cash_flow",
+        "free_cash_flow": "cash_flow", "capex": "cash_flow",
+        "cash_and_equivalents": "balance_sheet", "total_debt": "balance_sheet",
+    }
+    statements = {key: [] for key in ("income_statement", "cash_flow", "balance_sheet")}
+    for source in _seq(snapshot.get("items")):
+        fact = dict(_map(source)); lane = lanes.get(str(fact.get("field") or ""))
+        if lane and all(fact.get(key) not in (None, "") for key in ("period", "unit", "provider", "evidence_id")):
+            statements[lane].append(fact)
+    evaluation = _map(report.get("canonical_investment_evaluation"))
+    professional = _map(_map(evaluation.get("atlas_valuation")).get("professional_valuation_v2"))
+    weights = _map(professional.get("model_weights"))
+    models = []
+    for source in _seq(professional.get("models")):
+        model = _map(source)
+        if model.get("status") != "PUBLISHED" or model.get("value") is None:
+            continue
+        models.append({
+            "methodology_id": model.get("methodology_id"), "name": model.get("name"),
+            "value": model.get("value"), "unit": "USD_PER_SHARE",
+            "fiscal_period": model.get("fiscal_period"), "confidence": model.get("confidence"),
+            "weight": weights.get(model.get("methodology_id")),
+            "assumptions": dict(_map(model.get("key_assumptions"))),
+            "source": "CERTIFIED_ATLAS_VALUATION",
+        })
+    periods = tuple(trend.get("periods") or ()) if trend.get("status") == "AVAILABLE" else ()
+    multi_period = len(periods) >= 2
+    invalidation = tuple(
+        str(item) for item in _seq(conditions.get("invalidates") or conditions.get("invalidate") or conditions.get("invalidation"))
+        if str(item).strip()
+    )
+    return {
+        "status": "FULL" if multi_period and all(statements.values()) and models else
+                  "LIMITED" if any(statements.values()) or models else "NOT_AVAILABLE",
+        "statement_depth": "MULTI_PERIOD" if multi_period else "LATEST_PERIOD_ONLY",
+        "periods": periods, "statements": {key: tuple(value) for key, value in statements.items()},
+        "valuation_models": tuple(models),
+        "company_case": {
+            "thesis": tuple(str(item) for item in _seq(summary.get("why_rating")) if str(item).strip()),
+            "risks": tuple(str(item) for item in _seq(summary.get("risks")) if str(item).strip()),
+            "invalidation": invalidation,
+            "invalidation_limitation": None if invalidation else
+                "No approved quantitative invalidation condition is retained for this snapshot.",
+        },
+        "limitation": None if multi_period else
+            "Only the latest certified fiscal period is retained; no multi-period trend is claimed.",
     }
 
 
@@ -790,6 +863,9 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
             *_financial_trend_business_evidence(financial_trend),
         ),
     )
+    financial_depth = _premium_financial_depth(
+        report, financial_snapshot, financial_trend, summary, conditions,
+    )
     wall_street = ({
         "status": wall_status, "classification": CONTEXTUAL,
         "consensus": consensus, "recommendation_period": latest_rec.get("period"), "buy_count": buy_count if latest_rec else None,
@@ -845,6 +921,7 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
         "valuation_chart": valuation_chart,
         "financial_trend": financial_trend,
         "financial_snapshot": financial_snapshot,
+        "financial_depth": financial_depth,
         "fundamentals": [asdict(card) for card in facts],
         "recent_changes": {"status": "AVAILABLE" if news_items else "UNAVAILABLE", "items": news_items, "classification": CONTEXTUAL},
         "catalysts": {"status": "AVAILABLE" if future_events else "UNAVAILABLE", "items": (),

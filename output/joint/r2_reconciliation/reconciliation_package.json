@@ -4,8 +4,8 @@
     "classified_field_cells": 90495,
     "field_cell_classes": {
       "NOT_RETAINED_IN_SOURCE": 45971,
-      "RETAINED_MISSING_LINEAGE": 30474,
-      "RETAINED_PROJECTABLE": 14050
+      "RETAINED_MISSING_LINEAGE": 30430,
+      "RETAINED_PROJECTABLE": 14094
     },
     "field_cell_total": 90495,
     "nonterminal_rows": 3850,
@@ -14,12 +14,11 @@
   },
   "contract": "ATLAS_R2_RETAINED_RECONCILIATION_V1",
   "displayable_period_manifest": {
-    "count": 14050,
+    "count": 14094,
     "path": "displayable_periods.csv",
-    "sha256": "84afe852756cc57751793dad2d8b0bbe22cadcf2284e86901559aa2129ab87f3"
+    "sha256": "7d2f031750925d7efdf03136a746abb14b7980c85b8e789262a083ef832cb7f6"
   },
   "g6_request": {
-    "deduplicated_request_count": 2767,
     "endpoint_families": {
       "basic_financials": "/stock/metric",
       "ebitda_estimates": "/stock/ebitda-estimate",
@@ -28,8 +27,6 @@
     },
     "execution": "BLOCKED_PENDING_G6_OWNER_APPROVAL_AND_CONTRACT_ENTITLEMENT",
     "methodology_change": false,
-    "missing_cell_count": 13899,
-    "missing_cell_manifest_sha256": "2d3e2e08e4a4b4511fd8765855f8d712e2fd17b71dbfd4872e37d41eea36fded",
     "parameter_contract": {
       "basic_financials": {
         "metric": "all",
@@ -49,9 +46,103 @@
       }
     },
     "provider": "FINNHUB",
-    "request_scope_sha256": "9ba178ca7a75670fa8ec0571a1a2b0ada1845012f339b4bd3950d59fe4a423a3",
-    "scope": "Only non-projectable ticker/field cells in customer-published and publishable BUY NOW populations.",
+    "request_cap": 12,
+    "request_count": 11,
+    "request_scope_sha256": "c545602590f35d51585236bd9f54e90d1b0da533e4fb1596573a0878133bd7e4",
+    "requests": [
+      {
+        "endpoint_family": "financial_statements",
+        "fields": [
+          "cash_and_equivalents",
+          "latest_revenue",
+          "total_debt"
+        ],
+        "ticker": "AVT"
+      },
+      {
+        "endpoint_family": "financial_statements",
+        "fields": [
+          "latest_revenue",
+          "total_debt"
+        ],
+        "ticker": "BKTI"
+      },
+      {
+        "endpoint_family": "financial_statements",
+        "fields": [
+          "cash_and_equivalents",
+          "latest_revenue",
+          "total_debt"
+        ],
+        "ticker": "CODA"
+      },
+      {
+        "endpoint_family": "financial_statements",
+        "fields": [
+          "latest_revenue"
+        ],
+        "ticker": "CSCO"
+      },
+      {
+        "endpoint_family": "financial_statements",
+        "fields": [
+          "latest_revenue",
+          "total_debt"
+        ],
+        "ticker": "CTS"
+      },
+      {
+        "endpoint_family": "financial_statements",
+        "fields": [
+          "latest_revenue"
+        ],
+        "ticker": "DIOD"
+      },
+      {
+        "endpoint_family": "financial_statements",
+        "fields": [
+          "latest_revenue"
+        ],
+        "ticker": "EXTR"
+      },
+      {
+        "endpoint_family": "financial_statements",
+        "fields": [
+          "latest_revenue"
+        ],
+        "ticker": "GNE"
+      },
+      {
+        "endpoint_family": "financial_statements",
+        "fields": [
+          "latest_revenue"
+        ],
+        "ticker": "MSFT"
+      },
+      {
+        "endpoint_family": "financial_statements",
+        "fields": [
+          "latest_revenue"
+        ],
+        "ticker": "NVDA"
+      },
+      {
+        "endpoint_family": "financial_statements",
+        "fields": [
+          "latest_revenue",
+          "total_debt"
+        ],
+        "ticker": "SBC"
+      }
+    ],
+    "scope": "Capped publishable BUY NOW pilot; each ticker/endpoint pair already has retained contracted evidence in the same family.",
     "status": "PROPOSED_NOT_AUTHORIZED"
+  },
+  "gap_inventory": {
+    "deduplicated_request_count": 2767,
+    "missing_cell_count": 13855,
+    "missing_cell_manifest_sha256": "20c1ed8b81c9fcf5279ed1a8089922aebbe79a300f74edac7415d80e316ebb30",
+    "request_scope_sha256": "9ba178ca7a75670fa8ec0571a1a2b0ada1845012f339b4bd3950d59fe4a423a3"
   },
   "population_matrix": {
     "customer_published": {
@@ -60,18 +151,20 @@
         "capex": {
           "cells": 1298,
           "classes": {
-            "RETAINED_MISSING_LINEAGE": 1298
+            "RETAINED_MISSING_LINEAGE": 1287,
+            "RETAINED_PROJECTABLE": 11
           },
-          "exact_g6_gap": 1298,
-          "immediately_displayable": 0
+          "exact_g6_gap": 1287,
+          "immediately_displayable": 11
         },
         "capital_expenditures": {
           "cells": 1298,
           "classes": {
-            "RETAINED_MISSING_LINEAGE": 1298
+            "RETAINED_MISSING_LINEAGE": 1287,
+            "RETAINED_PROJECTABLE": 11
           },
-          "exact_g6_gap": 1298,
-          "immediately_displayable": 0
+          "exact_g6_gap": 1287,
+          "immediately_displayable": 11
         },
         "cash_and_equivalents": {
           "cells": 1298,
@@ -139,10 +232,11 @@
           "cells": 1298,
           "classes": {
             "NOT_RETAINED_IN_SOURCE": 5,
-            "RETAINED_MISSING_LINEAGE": 1293
+            "RETAINED_MISSING_LINEAGE": 1282,
+            "RETAINED_PROJECTABLE": 11
           },
-          "exact_g6_gap": 1298,
-          "immediately_displayable": 0
+          "exact_g6_gap": 1287,
+          "immediately_displayable": 11
         },
         "net_margin_pct": {
           "cells": 1298,
@@ -156,10 +250,11 @@
         "operating_cash_flow": {
           "cells": 1298,
           "classes": {
-            "RETAINED_MISSING_LINEAGE": 1298
+            "RETAINED_MISSING_LINEAGE": 1287,
+            "RETAINED_PROJECTABLE": 11
           },
-          "exact_g6_gap": 1298,
-          "immediately_displayable": 0
+          "exact_g6_gap": 1287,
+          "immediately_displayable": 11
         },
         "operating_margin_pct": {
           "cells": 1298,
@@ -199,18 +294,18 @@
         "capex": {
           "cells": 11,
           "classes": {
-            "RETAINED_MISSING_LINEAGE": 11
+            "RETAINED_PROJECTABLE": 11
           },
-          "exact_g6_gap": 11,
-          "immediately_displayable": 0
+          "exact_g6_gap": 0,
+          "immediately_displayable": 11
         },
         "capital_expenditures": {
           "cells": 11,
           "classes": {
-            "RETAINED_MISSING_LINEAGE": 11
+            "RETAINED_PROJECTABLE": 11
           },
-          "exact_g6_gap": 11,
-          "immediately_displayable": 0
+          "exact_g6_gap": 0,
+          "immediately_displayable": 11
         },
         "cash_and_equivalents": {
           "cells": 11,
@@ -273,10 +368,10 @@
         "net_income": {
           "cells": 11,
           "classes": {
-            "RETAINED_MISSING_LINEAGE": 11
+            "RETAINED_PROJECTABLE": 11
           },
-          "exact_g6_gap": 11,
-          "immediately_displayable": 0
+          "exact_g6_gap": 0,
+          "immediately_displayable": 11
         },
         "net_margin_pct": {
           "cells": 11,
@@ -289,10 +384,10 @@
         "operating_cash_flow": {
           "cells": 11,
           "classes": {
-            "RETAINED_MISSING_LINEAGE": 11
+            "RETAINED_PROJECTABLE": 11
           },
-          "exact_g6_gap": 11,
-          "immediately_displayable": 0
+          "exact_g6_gap": 0,
+          "immediately_displayable": 11
         },
         "operating_margin_pct": {
           "cells": 11,
@@ -331,19 +426,21 @@
           "cells": 6033,
           "classes": {
             "NOT_RETAINED_IN_SOURCE": 2928,
-            "RETAINED_MISSING_LINEAGE": 3105
+            "RETAINED_MISSING_LINEAGE": 3094,
+            "RETAINED_PROJECTABLE": 11
           },
-          "exact_g6_gap": 6033,
-          "immediately_displayable": 0
+          "exact_g6_gap": 6022,
+          "immediately_displayable": 11
         },
         "capital_expenditures": {
           "cells": 6033,
           "classes": {
             "NOT_RETAINED_IN_SOURCE": 2928,
-            "RETAINED_MISSING_LINEAGE": 3105
+            "RETAINED_MISSING_LINEAGE": 3094,
+            "RETAINED_PROJECTABLE": 11
           },
-          "exact_g6_gap": 6033,
-          "immediately_displayable": 0
+          "exact_g6_gap": 6022,
+          "immediately_displayable": 11
         },
         "cash_and_equivalents": {
           "cells": 6033,
@@ -412,10 +509,11 @@
           "cells": 6033,
           "classes": {
             "NOT_RETAINED_IN_SOURCE": 2228,
-            "RETAINED_MISSING_LINEAGE": 3805
+            "RETAINED_MISSING_LINEAGE": 3794,
+            "RETAINED_PROJECTABLE": 11
           },
-          "exact_g6_gap": 6033,
-          "immediately_displayable": 0
+          "exact_g6_gap": 6022,
+          "immediately_displayable": 11
         },
         "net_margin_pct": {
           "cells": 6033,
@@ -430,10 +528,11 @@
           "cells": 6033,
           "classes": {
             "NOT_RETAINED_IN_SOURCE": 2310,
-            "RETAINED_MISSING_LINEAGE": 3723
+            "RETAINED_MISSING_LINEAGE": 3712,
+            "RETAINED_PROJECTABLE": 11
           },
-          "exact_g6_gap": 6033,
-          "immediately_displayable": 0
+          "exact_g6_gap": 6022,
+          "immediately_displayable": 11
         },
         "operating_margin_pct": {
           "cells": 6033,
@@ -469,7 +568,64 @@
     }
   },
   "provider_calls": 0,
+  "recovered_lineage": {
+    "authority": "FROZEN_PUBLICATION_CERTIFICATION_EXACT_VALUE_MATCH_ONLY",
+    "field_count": 62,
+    "ticker_count": 11
+  },
   "sampled_provenance_traces": {
+    "capex": [
+      {
+        "evidence_id": "FINNHUB:FINANCIAL_STATEMENTS:DIOD:d386a15a81101355c730",
+        "field_id": "capex",
+        "fiscal_period": "2025-12-31 00:00:00",
+        "provider": "FINNHUB",
+        "ticker": "DIOD",
+        "unit": "USD"
+      },
+      {
+        "evidence_id": "FINNHUB:FINANCIAL_STATEMENTS:EXTR:fe9cd72e82226cf24845",
+        "field_id": "capex",
+        "fiscal_period": "2025-06-30 00:00:00",
+        "provider": "FINNHUB",
+        "ticker": "EXTR",
+        "unit": "USD"
+      },
+      {
+        "evidence_id": "FINNHUB:FINANCIAL_STATEMENTS:GNE:d9d3696efe515075f23e",
+        "field_id": "capex",
+        "fiscal_period": "2025-12-31 00:00:00",
+        "provider": "FINNHUB",
+        "ticker": "GNE",
+        "unit": "USD"
+      }
+    ],
+    "capital_expenditures": [
+      {
+        "evidence_id": "FINNHUB:FINANCIAL_STATEMENTS:DIOD:d386a15a81101355c730",
+        "field_id": "capital_expenditures",
+        "fiscal_period": "2025-12-31 00:00:00",
+        "provider": "FINNHUB",
+        "ticker": "DIOD",
+        "unit": "USD"
+      },
+      {
+        "evidence_id": "FINNHUB:FINANCIAL_STATEMENTS:EXTR:fe9cd72e82226cf24845",
+        "field_id": "capital_expenditures",
+        "fiscal_period": "2025-06-30 00:00:00",
+        "provider": "FINNHUB",
+        "ticker": "EXTR",
+        "unit": "USD"
+      },
+      {
+        "evidence_id": "FINNHUB:FINANCIAL_STATEMENTS:GNE:d9d3696efe515075f23e",
+        "field_id": "capital_expenditures",
+        "fiscal_period": "2025-12-31 00:00:00",
+        "provider": "FINNHUB",
+        "ticker": "GNE",
+        "unit": "USD"
+      }
+    ],
     "cash_and_equivalents": [
       {
         "evidence_id": "FINNHUB:FINANCIAL_STATEMENTS:A:990bf202f36c8b8275db",
@@ -574,6 +730,58 @@
         "unit": "USD"
       }
     ],
+    "net_income": [
+      {
+        "evidence_id": "FINNHUB:FINANCIAL_STATEMENTS:DIOD:d386a15a81101355c730",
+        "field_id": "net_income",
+        "fiscal_period": "2025-12-31 00:00:00",
+        "provider": "FINNHUB",
+        "ticker": "DIOD",
+        "unit": "USD"
+      },
+      {
+        "evidence_id": "FINNHUB:FINANCIAL_STATEMENTS:EXTR:fe9cd72e82226cf24845",
+        "field_id": "net_income",
+        "fiscal_period": "2025-06-30 00:00:00",
+        "provider": "FINNHUB",
+        "ticker": "EXTR",
+        "unit": "USD"
+      },
+      {
+        "evidence_id": "FINNHUB:FINANCIAL_STATEMENTS:GNE:d9d3696efe515075f23e",
+        "field_id": "net_income",
+        "fiscal_period": "2025-12-31 00:00:00",
+        "provider": "FINNHUB",
+        "ticker": "GNE",
+        "unit": "USD"
+      }
+    ],
+    "operating_cash_flow": [
+      {
+        "evidence_id": "FINNHUB:FINANCIAL_STATEMENTS:DIOD:d386a15a81101355c730",
+        "field_id": "operating_cash_flow",
+        "fiscal_period": "2025-12-31 00:00:00",
+        "provider": "FINNHUB",
+        "ticker": "DIOD",
+        "unit": "USD"
+      },
+      {
+        "evidence_id": "FINNHUB:FINANCIAL_STATEMENTS:EXTR:fe9cd72e82226cf24845",
+        "field_id": "operating_cash_flow",
+        "fiscal_period": "2025-06-30 00:00:00",
+        "provider": "FINNHUB",
+        "ticker": "EXTR",
+        "unit": "USD"
+      },
+      {
+        "evidence_id": "FINNHUB:FINANCIAL_STATEMENTS:GNE:d9d3696efe515075f23e",
+        "field_id": "operating_cash_flow",
+        "fiscal_period": "2025-12-31 00:00:00",
+        "provider": "FINNHUB",
+        "ticker": "GNE",
+        "unit": "USD"
+      }
+    ],
     "total_debt": [
       {
         "evidence_id": "FINNHUB:FINANCIAL_STATEMENTS:A:990bf202f36c8b8275db",
@@ -604,8 +812,8 @@
   "six_boundary_mapping": {
     "proven_classes_preserved_without_double_count": {
       "NOT_RETAINED_IN_SOURCE": 45971,
-      "RETAINED_MISSING_LINEAGE": 30474,
-      "RETAINED_PROJECTABLE": 14050
+      "RETAINED_MISSING_LINEAGE": 30430,
+      "RETAINED_PROJECTABLE": 14094
     },
     "reason": "Authoritative names and definitions for the six approved boundaries are absent from the governing addendum and repository.",
     "status": "BLOCKED_MAPPING"

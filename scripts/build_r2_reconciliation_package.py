@@ -27,6 +27,11 @@ FIELD_ENDPOINT_FAMILY = {
     "operating_margin_pct": "basic_financials", "net_margin_pct": "basic_financials",
     "net_debt_to_ebitda": "basic_financials",
 }
+PUBLICATION_INPUT_ALIASES = {
+    "latest_revenue": "revenue", "net_income": "net_income",
+    "operating_cash_flow": "operating_cash_flow", "capex": "capex",
+    "capital_expenditures": "capex", "cash_and_equivalents": "cash", "total_debt": "debt",
+}
 
 
 def publication_tickers(archive: Path) -> set[str]:
@@ -59,6 +64,37 @@ def publishable_buy_now_tickers(archive: Path) -> set[str]:
     }
 
 
+def recover_publication_lineage(archive: Path, tickers: set[str]) -> dict[str, dict[str, Any]]:
+    """Recover only exact value-matched lineage already frozen in publication."""
+    recovered: dict[str, dict[str, Any]] = {}
+    with zipfile.ZipFile(archive) as zipped, zipped.open(
+        "publication_bundle/full_evaluation_pool.json"
+    ) as handle:
+        for record in ijson.items(handle, "item"):
+            ticker = str(record.get("ticker") or "").upper()
+            if ticker not in tickers:
+                continue
+            inputs = (((record.get("publication_certification") or {}).get("components") or {})
+                      .get("valuation") or {}).get("lineage") or {}
+            inputs = inputs.get("inputs") or {}
+            fields: dict[str, Any] = {}
+            for field, source_field in PUBLICATION_INPUT_ALIASES.items():
+                source = inputs.get(source_field) or {}
+                value = record.get(field)
+                try:
+                    matches = float(value) == float(source.get("canonical_value", source.get("value")))
+                except (TypeError, ValueError):
+                    matches = False
+                if matches and all(source.get(key) not in (None, "") for key in ("evidence_id", "period", "unit")):
+                    fields[field] = {
+                        "evidence_id": source["evidence_id"], "period": source["period"],
+                        "unit": source["unit"], "provider": source.get("provider") or source.get("source"),
+                        "as_of": source.get("as_of"), "recovered_from": "FROZEN_PUBLICATION_CERTIFICATION",
+                    }
+            recovered[ticker] = fields
+    return recovered
+
+
 def _digest(values: Iterable[str]) -> str:
     canonical = "\n".join(sorted(set(values))) + "\n"
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
@@ -67,8 +103,22 @@ def _digest(values: Iterable[str]) -> str:
 def build_package(
     records: list[Mapping[str, Any]], published: set[str], buy_now: set[str],
     *, source_identity: Mapping[str, Any], archive_sha256: str,
+    recovered_lineage: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-    result = audit(records, expected_population=len(records), source_identity=source_identity)
+    recovered_lineage = recovered_lineage or {}
+    audited_records = []
+    for source in records:
+        row = dict(source)
+        recovered = recovered_lineage.get(str(row.get("ticker") or "").upper()) or {}
+        if recovered:
+            lineage = dict(row.get("professional_evidence_lineage") or {})
+            fields = dict(lineage.get("fields") or {})
+            for field, evidence in recovered.items():
+                if not (fields.get(field) or {}).get("evidence_id"):
+                    fields[field] = dict(evidence)
+            lineage["fields"] = fields; row["professional_evidence_lineage"] = lineage
+        audited_records.append(row)
+    result = audit(audited_records, expected_population=len(records), source_identity=source_identity)
     rows = result.pop("field_period_rows")
     populations = {
         "retained": {str(row.get("ticker") or "").upper() for row in records},
@@ -107,6 +157,23 @@ def build_package(
     for row in missing_rows:
         row["endpoint_family"] = FIELD_ENDPOINT_FAMILY[row["field_id"]]
     requests = sorted({(row["ticker"], row["endpoint_family"]) for row in missing_rows})
+    proven_contracts = {
+        (row["ticker"], FIELD_ENDPOINT_FAMILY[row["field_id"]])
+        for row in rows if row["remediation_class"] == "RETAINED_PROJECTABLE"
+    }
+    pilot_candidates = sorted({
+        (row["ticker"], row["endpoint_family"])
+        for row in missing_rows
+        if row["publishable_buy_now"] and (row["ticker"], row["endpoint_family"]) in proven_contracts
+    })
+    pilot_requests = pilot_candidates[:12]
+    pilot_request_rows = [{
+        "ticker": ticker, "endpoint_family": family,
+        "fields": sorted({
+            row["field_id"] for row in missing_rows
+            if row["ticker"] == ticker and row["endpoint_family"] == family
+        }),
+    } for ticker, family in pilot_requests]
     missing_keys = [
         f"{row['ticker']}|{row['field_id']}|{row['current_boundary']}|"
         f"{int(row['customer_published'])}|{int(row['publishable_buy_now'])}"
@@ -117,6 +184,11 @@ def build_package(
         "provider_calls": 0,
         "source_identity": dict(source_identity),
         "archive_sha256": archive_sha256,
+        "recovered_lineage": {
+            "ticker_count": len(recovered_lineage),
+            "field_count": sum(len(fields) for fields in recovered_lineage.values()),
+            "authority": "FROZEN_PUBLICATION_CERTIFICATION_EXACT_VALUE_MATCH_ONLY",
+        },
         "six_boundary_mapping": {
             "status": "BLOCKED_MAPPING",
             "reason": "Authoritative names and definitions for the six approved boundaries are absent from the governing addendum and repository.",
@@ -134,11 +206,15 @@ def build_package(
             }
             for row in rows if row["remediation_class"] == "RETAINED_PROJECTABLE"
         ],
-        "g6_request": {
-            "status": "PROPOSED_NOT_AUTHORIZED",
-            "scope": "Only non-projectable ticker/field cells in customer-published and publishable BUY NOW populations.",
+        "gap_inventory": {
             "missing_cell_count": len(missing_rows),
             "missing_cell_manifest_sha256": _digest(missing_keys),
+            "deduplicated_request_count": len(requests),
+            "request_scope_sha256": _digest(f"{ticker}|{family}" for ticker, family in requests),
+        },
+        "g6_request": {
+            "status": "PROPOSED_NOT_AUTHORIZED",
+            "scope": "Capped publishable BUY NOW pilot; each ticker/endpoint pair already has retained contracted evidence in the same family.",
             "provider": "FINNHUB",
             "endpoint_families": {
                 "financial_statements": "/stock/financials-reported",
@@ -152,8 +228,10 @@ def build_package(
                 "eps_estimates": {"symbol": "<manifest ticker>", "freq": "annual"},
                 "ebitda_estimates": {"symbol": "<manifest ticker>", "freq": "annual"},
             },
-            "deduplicated_request_count": len(requests),
-            "request_scope_sha256": _digest(f"{ticker}|{family}" for ticker, family in requests),
+            "request_count": len(pilot_requests),
+            "request_cap": 12,
+            "requests": pilot_request_rows,
+            "request_scope_sha256": _digest(f"{ticker}|{family}" for ticker, family in pilot_requests),
             "execution": "BLOCKED_PENDING_G6_OWNER_APPROVAL_AND_CONTRACT_ENTITLEMENT",
             "methodology_change": False,
         },
@@ -186,4 +264,4 @@ def write_package(package: Mapping[str, Any], missing: list[Mapping[str, Any]], 
         writer.writeheader(); writer.writerows(missing)
 
 
-__all__ = ["build_package", "publication_tickers", "publishable_buy_now_tickers", "write_package"]
+__all__ = ["build_package", "publication_tickers", "publishable_buy_now_tickers", "recover_publication_lineage", "write_package"]
