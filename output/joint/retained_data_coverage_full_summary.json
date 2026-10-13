@@ -3,8 +3,8 @@
     "classified_field_cells": 90495,
     "field_cell_classes": {
       "NOT_RETAINED_IN_SOURCE": 45971,
-      "RETAINED_MISSING_LINEAGE": 29925,
-      "RETAINED_PROJECTABLE": 14599
+      "RETAINED_MISSING_LINEAGE": 30474,
+      "RETAINED_PROJECTABLE": 14050
     },
     "field_cell_total": 90495,
     "nonterminal_rows": 3850,
@@ -163,12 +163,12 @@
         "unit": "USD"
       },
       {
-        "evidence_id": "FINNHUB:FINANCIAL_STATEMENTS:AAME:31ccd8d38a5b5b0455c3",
+        "evidence_id": "FINNHUB:FINANCIAL_STATEMENTS:AAMI:7390568bb53054aa2259",
         "field_id": "cash_and_equivalents",
-        "fiscal_period": "2024-12-31 00:00:00",
+        "fiscal_period": "2025-12-31 00:00:00",
         "provider": "FINNHUB",
-        "ticker": "AAME",
-        "unit": null
+        "ticker": "AAMI",
+        "unit": "USD"
       }
     ],
     "forward_ebitda": [
