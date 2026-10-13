@@ -86,6 +86,25 @@ class Provider:
         return governed({"corporate_actions": []}, symbol, capability)
 
 
+def authorized_acquire(*, item, provider, calendar_value=None, retry_attempts=0):
+    calendar_value = calendar_value or calendar()
+    plan = build_acquisition_plan(
+        ledger=item, calendar=calendar_value, authorization=PLAN_AUTHORIZATION_TOKEN,
+        source_sha="a" * 40,
+    )
+    return acquire_market_evidence(
+        ledger=item, provider=provider, calendar=calendar_value, now=NOW,
+        authorization=AUTHORIZATION_TOKEN, source_sha="a" * 40,
+        retry_attempts=retry_attempts, approved_plan=plan,
+        approved_plan_hash=plan["artifact_sha256"],
+        kill_switch_check=lambda: False,
+        entitlement_evidence={
+            "status": "APPROVED", "contract_id": "test-contract", "effective_at": "2026-10-08",
+            "capabilities": ["historical_ohlcv", "splits", "dividends"],
+        },
+    )
+
+
 def test_scope_is_ledger_derived_and_duplicate_tickers_are_deduplicated(tmp_path):
     item = ledger(tmp_path / "ledger.sqlite3", duplicate=True)
     scope = derive_acquisition_scope(ledger=item, trading_sessions=SESSIONS, finalized_session="2026-10-09")
@@ -121,14 +140,8 @@ def test_plan_mode_requires_distinct_authorization(tmp_path):
 
 def test_acquisition_is_deterministic_except_declared_artifact_hash(tmp_path):
     item = ledger(tmp_path / "ledger.sqlite3")
-    first = acquire_market_evidence(
-        ledger=item, provider=Provider(), calendar=calendar(), now=NOW,
-        authorization=AUTHORIZATION_TOKEN, source_sha="a" * 40,
-    )
-    second = acquire_market_evidence(
-        ledger=item, provider=Provider(), calendar=calendar(), now=NOW,
-        authorization=AUTHORIZATION_TOKEN, source_sha="a" * 40,
-    )
+    first = authorized_acquire(item=item, provider=Provider())
+    second = authorized_acquire(item=item, provider=Provider())
     assert first == second
     assert first["provider_calls"] == 7
     assert first["customer_visible"] is False
@@ -147,18 +160,12 @@ def test_authorization_and_finalized_session_fail_closed(tmp_path):
         )
     opened = calendar(); opened["session_status"] = "OPEN"
     with pytest.raises(ValueError, match="NOT_FINALIZED"):
-        acquire_market_evidence(
-            ledger=item, provider=Provider(), calendar=opened, now=NOW,
-            authorization=AUTHORIZATION_TOKEN, source_sha="a" * 40,
-        )
+        authorized_acquire(item=item, provider=Provider(), calendar_value=opened)
 
 
 def test_missing_price_is_explicit_and_never_zero(tmp_path):
     item = ledger(tmp_path / "ledger.sqlite3")
-    result = acquire_market_evidence(
-        ledger=item, provider=Provider(missing="NVDA"), calendar=calendar(), now=NOW,
-        authorization=AUTHORIZATION_TOKEN, source_sha="a" * 40,
-    )
+    result = authorized_acquire(item=item, provider=Provider(missing="NVDA"))
     assert result["instruments"]["NVDA"]["data_status"] == "MISSING_PRICE"
     assert result["instruments"]["NVDA"]["unavailable_reason"] == "FINALIZED_DAILY_CLOSE_MISSING"
     assert "2026-10-09" not in result["instruments"]["NVDA"]["closes"]
@@ -166,10 +173,7 @@ def test_missing_price_is_explicit_and_never_zero(tmp_path):
 
 def test_stale_price_is_distinct_from_missing_price(tmp_path):
     item = ledger(tmp_path / "ledger.sqlite3")
-    result = acquire_market_evidence(
-        ledger=item, provider=Provider(stale="NVDA"), calendar=calendar(), now=NOW,
-        authorization=AUTHORIZATION_TOKEN, source_sha="a" * 40,
-    )
+    result = authorized_acquire(item=item, provider=Provider(stale="NVDA"))
     assert result["instruments"]["NVDA"]["data_status"] == "STALE_PRICE"
     assert result["instruments"]["NVDA"]["unavailable_reason"] == "FINALIZED_DAILY_CLOSE_STALE"
     assert result["instruments"]["NVDA"]["latest_available_session"] == "2026-10-08"
@@ -179,11 +183,7 @@ def test_provider_error_retries_then_fails_corporate_action_evidence(tmp_path):
     item = ledger(tmp_path / "ledger.sqlite3")
     provider = Provider(failed=("splits", "MSFT"))
     with pytest.raises(ValueError, match="CORPORATE_ACTION_EVIDENCE_UNAVAILABLE"):
-        acquire_market_evidence(
-            ledger=item, provider=provider, calendar=calendar(), now=NOW,
-            authorization=AUTHORIZATION_TOKEN, source_sha="a" * 40,
-            retry_attempts=1,
-        )
+        authorized_acquire(item=item, provider=provider, retry_attempts=1)
     assert sum(call[:2] == ("splits", "MSFT") for call in provider.calls) == 2
 
 
@@ -198,10 +198,7 @@ def test_partial_price_arrays_fail_closed(tmp_path):
             return record
 
     with pytest.raises(ValueError, match="PARTIAL_PRICE_ACQUISITION"):
-        acquire_market_evidence(
-            ledger=item, provider=Partial(), calendar=calendar(), now=NOW,
-            authorization=AUTHORIZATION_TOKEN, source_sha="a" * 40,
-        )
+        authorized_acquire(item=item, provider=Partial())
 
 
 def test_dispatch_workflow_is_inert_and_requires_distinct_primary_and_backup():
