@@ -229,13 +229,52 @@ def _financial_depth_status_rows(depth: Mapping[str, Any]) -> list[dict[str, str
     rows: list[dict[str, str]] = []
     for lane, label in labels.items():
         facts = list(statements.get(lane) or ())
+        periods = {
+            str(item.get("period") or item.get("as_of") or "").strip()
+            for item in facts if isinstance(item, Mapping)
+            and str(item.get("period") or item.get("as_of") or "").strip()
+        }
+        if not facts:
+            depth_label = "No retained periods"
+        elif periods:
+            depth_label = f"{len(periods)} retained period{'s' if len(periods) != 1 else ''}"
+        else:
+            depth_label = "Period unavailable"
         rows.append({
             "Statement": label,
             "Coverage": "Available" if facts else "Unavailable",
             "Certified line items": str(len(facts)),
-            "Period depth": "Multiple retained periods" if depth.get("statement_depth") == "MULTI_PERIOD" else "Latest retained period",
+            "Period depth": depth_label,
         })
     return rows
+
+
+def _financial_depth_status_markup(rows: list[dict[str, str]], *, ticker: str) -> str:
+    cards = []
+    for row in rows:
+        available = row["Coverage"] == "Available"
+        state = "available" if available else "unavailable"
+        cards.append(
+            f'<article class="atlas-financial-coverage-card atlas-financial-coverage-{state}" '
+            f'data-atlas-qa="research-v2-financial-coverage-card" data-atlas-ticker="{escape(ticker)}" '
+            f'data-atlas-state="{state}"><small>{escape(row["Statement"])}</small>'
+            f'<strong>{escape(row["Coverage"])}</strong>'
+            f'<span>{escape(row["Certified line items"])} certified line items · '
+            f'{escape(row["Period depth"])}</span></article>'
+        )
+    return (
+        '<style>.atlas-financial-coverage{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));'
+        'gap:.5rem;margin:.55rem 0 .75rem}.atlas-financial-coverage-card{padding:.65rem .7rem;'
+        'border:1px solid rgba(148,163,184,.2);border-radius:11px;background:#0b1525;min-width:0}'
+        '.atlas-financial-coverage-card small,.atlas-financial-coverage-card strong,'
+        '.atlas-financial-coverage-card span{display:block}.atlas-financial-coverage-card small{color:#94a3b8;'
+        'font-size:.7rem}.atlas-financial-coverage-card strong{margin:.2rem 0;color:#5eead4;font-size:.92rem}'
+        '.atlas-financial-coverage-card span{color:#cbd5e1;font-size:.76rem;line-height:1.35}'
+        '.atlas-financial-coverage-unavailable strong{color:#94a3b8}'
+        '@media(max-width:700px){.atlas-financial-coverage{grid-template-columns:1fr}.atlas-financial-coverage-card{padding:.55rem .62rem}}'
+        '</style><section class="atlas-financial-coverage" aria-label="Certified financial statement coverage">'
+        + "".join(cards) + "</section>"
+    )
 
 
 def _render_financial_depth(depth: Mapping[str, Any], *, ticker: str) -> None:
@@ -248,10 +287,13 @@ def _render_financial_depth(depth: Mapping[str, Any], *, ticker: str) -> None:
         "These tables show retained certified line items, not a reconstructed filing. "
         "Unavailable statements and periods remain explicitly unavailable."
     )
-    st.dataframe(
-        pd.DataFrame(_financial_depth_status_rows(depth)), hide_index=True,
-        use_container_width=True, key=f"research-statement-coverage-{ticker}",
-    )
+    coverage_rows = _financial_depth_status_rows(depth)
+    st.markdown(_financial_depth_status_markup(coverage_rows, ticker=ticker), unsafe_allow_html=True)
+    with st.expander("Statement coverage details", expanded=False):
+        st.dataframe(
+            pd.DataFrame(coverage_rows), hide_index=True,
+            use_container_width=True, key=f"research-statement-coverage-{ticker}",
+        )
     if status == "NOT_AVAILABLE":
         st.info("Certified income statement, cash-flow, and balance-sheet line items are unavailable for this snapshot.")
     else:

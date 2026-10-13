@@ -693,7 +693,9 @@ def test_premium_financial_depth_groups_only_lineage_complete_facts_and_certifie
 
 
 def test_financial_depth_renderer_preserves_lineage_and_uses_typed_unavailable_states():
-    from ui.customer_research_v2 import _financial_depth_status_rows, _financial_statement_rows
+    from ui.customer_research_v2 import (
+        _financial_depth_status_markup, _financial_depth_status_rows, _financial_statement_rows,
+    )
 
     rows = _financial_statement_rows(({
         "field": "net_income", "label": "Net income", "value": 1_250_000_000,
@@ -714,12 +716,41 @@ def test_financial_depth_renderer_preserves_lineage_and_uses_typed_unavailable_s
     assert "not relabeled as annual or quarterly" in ui_source
     coverage = _financial_depth_status_rows({
         "statement_depth": "LATEST_PERIOD_ONLY",
-        "statements": {"income_statement": ({"field": "net_income"},), "cash_flow": (), "balance_sheet": ()},
+        "statements": {
+            "income_statement": ({"field": "net_income", "period": "2025-12-31"},),
+            "cash_flow": (), "balance_sheet": (),
+        },
     })
     assert coverage == [
-        {"Statement": "Income statement", "Coverage": "Available", "Certified line items": "1", "Period depth": "Latest retained period"},
-        {"Statement": "Cash flow", "Coverage": "Unavailable", "Certified line items": "0", "Period depth": "Latest retained period"},
-        {"Statement": "Balance sheet", "Coverage": "Unavailable", "Certified line items": "0", "Period depth": "Latest retained period"},
+        {"Statement": "Income statement", "Coverage": "Available", "Certified line items": "1", "Period depth": "1 retained period"},
+        {"Statement": "Cash flow", "Coverage": "Unavailable", "Certified line items": "0", "Period depth": "No retained periods"},
+        {"Statement": "Balance sheet", "Coverage": "Unavailable", "Certified line items": "0", "Period depth": "No retained periods"},
+    ]
+    markup = _financial_depth_status_markup(coverage, ticker='A&<')
+    assert markup.count('data-atlas-qa="research-v2-financial-coverage-card"') == 3
+    assert 'data-atlas-ticker="A&amp;&lt;"' in markup
+    assert 'data-atlas-state="unavailable"' in markup
+    assert "@media(max-width:700px)" in markup
+
+
+def test_financial_depth_period_counts_are_lane_specific_and_do_not_infer_depth():
+    from ui.customer_research_v2 import _financial_depth_status_rows
+
+    rows = _financial_depth_status_rows({
+        "statement_depth": "MULTI_PERIOD",
+        "statements": {
+            "income_statement": (
+                {"field": "revenue", "period": "2024-12-31"},
+                {"field": "operating_income", "period": "2024-12-31"},
+                {"field": "revenue", "period": "2025-12-31"},
+            ),
+            "cash_flow": ({"field": "free_cash_flow"},),
+            "balance_sheet": (),
+        },
+    })
+
+    assert [row["Period depth"] for row in rows] == [
+        "2 retained periods", "Period unavailable", "No retained periods",
     ]
 
 
