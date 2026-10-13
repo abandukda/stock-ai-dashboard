@@ -31,6 +31,9 @@ def _compact_context(report: Mapping[str, Any]) -> dict[str, Any]:
     customer_projection = customer_view.as_mapping()
     customer_header = customer_projection.get("header") if isinstance(customer_projection.get("header"), Mapping) else {}
     customer_summary = customer_projection.get("summary") if isinstance(customer_projection.get("summary"), Mapping) else {}
+    customer_wall = customer_projection.get("wall_street") if isinstance(customer_projection.get("wall_street"), Mapping) else {}
+    customer_valuation = customer_projection.get("valuation_chart") if isinstance(customer_projection.get("valuation_chart"), Mapping) else {}
+    customer_published = customer_projection.get("status") == "AVAILABLE"
     intelligence = report.get("intelligence") or build_executive_intelligence(report)
     sections = report.get("sections") or {}
     valuation = report.get("valuation_families") or valuation_families(report)
@@ -65,13 +68,21 @@ def _compact_context(report: Mapping[str, Any]) -> dict[str, Any]:
         "evidence_confidence": customer_header.get("confidence"),
         "evidence_confidence_band": customer_header.get("confidence_band"),
         "atlas_fair_value": customer_header.get("fair_value") if customer_header else valuation.get("atlas_fair_value"),
-        "atlas_valuation_status": valuation.get("atlas_valuation_status"),
-        "atlas_fv_upside_pct": valuation.get("atlas_fv_upside_pct"),
-        "analyst_consensus": valuation.get("analyst_target_mean"),
-        "analyst_low": valuation.get("analyst_target_low"),
-        "analyst_high": valuation.get("analyst_target_high"),
-        "analyst_implied_upside_pct": valuation.get("analyst_upside_pct"),
-        "wall_street_implied_upside_pct": valuation.get("analyst_upside_pct"),
+        "atlas_valuation_status": (
+            customer_valuation.get("status") if customer_published else valuation.get("atlas_valuation_status")
+        ),
+        "atlas_fv_upside_pct": (
+            customer_header.get("fair_value_gap_pct") if customer_published else valuation.get("atlas_fv_upside_pct")
+        ),
+        "analyst_consensus": (
+            customer_wall.get("target_average") if customer_published else valuation.get("analyst_target_mean")
+        ),
+        "analyst_low": customer_wall.get("target_low") if customer_published else valuation.get("analyst_target_low"),
+        "analyst_high": customer_wall.get("target_high") if customer_published else valuation.get("analyst_target_high"),
+        # The customer projection intentionally does not calculate analyst
+        # implied upside. Never revive a legacy value for a published report.
+        "analyst_implied_upside_pct": None if customer_published else valuation.get("analyst_upside_pct"),
+        "wall_street_implied_upside_pct": None if customer_published else valuation.get("analyst_upside_pct"),
         "decision_target": report.get("decision_valuation_target"),
         "decision_target_source": report.get("decision_target_source"),
         "decision_target_implied_upside_pct": (
@@ -177,6 +188,7 @@ def _decision_sentence(report: Mapping[str, Any]) -> str:
 def _certified_investment_view(report: Mapping[str, Any]) -> str:
     """Render protected customer fields without recalculation or inference."""
     from services.customer_authority import customer_authority
+    from services.customer_metric_format import customer_confidence, customer_money, customer_score
     authority = customer_authority(report)
     ticker = str(report.get("ticker") or authority.get("ticker") or "This security").upper()
     if authority.get("status") != "AVAILABLE":
@@ -187,9 +199,9 @@ def _certified_investment_view(report: Mapping[str, Any]) -> str:
     return (
         f"### Certified ATLAS view for {ticker}\n\n"
         f"**Action:** {str(authority['action']).replace('_', ' ')}  \n"
-        f"**ATLAS Fair Value:** ${float(authority['fair_value']):,.2f}  \n"
-        f"**Opportunity:** {float(authority['opportunity']):.2f}  \n"
-        f"**Evidence Confidence:** {float(authority['confidence']):.1f}/100\n\n"
+        f"**ATLAS Fair Value:** {customer_money(authority['fair_value'])}  \n"
+        f"**Opportunity:** {customer_score(authority['opportunity'])}  \n"
+        f"**Evidence Confidence:** {customer_confidence(authority['confidence'])}\n\n"
         "These values come from the customer-publishable certified evaluation; no protected field was recalculated."
     )
 

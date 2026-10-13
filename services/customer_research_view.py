@@ -82,6 +82,16 @@ def build_customer_research_view(report: Mapping[str, Any], *, now: datetime | N
                 if (projected.get("wall_street") or {}).get("status") in {"AVAILABLE", "PARTIAL"}
                 else Availability.MISSING_RETAINED_EVIDENCE.value
             ),
+            "valuation": (
+                Availability.CERTIFIED_CURRENT.value
+                if (projected.get("valuation_chart") or {}).get("status") == "AVAILABLE"
+                else Availability.MISSING_RETAINED_EVIDENCE.value
+            ),
+            "financials": (
+                Availability.CERTIFIED_CURRENT.value
+                if (projected.get("financial_snapshot") or {}).get("status") in {"AVAILABLE", "PARTIAL"}
+                else Availability.MISSING_RETAINED_EVIDENCE.value
+            ),
             "news": (
                 Availability.EXTERNAL_CONTEXT.value
                 if (projected.get("recent_changes") or {}).get("status") == "AVAILABLE"

@@ -7,6 +7,8 @@ import pytest
 
 from services.customer_authority import bind_report_to_customer_authority, bind_runtime_publication_identity
 from services.customer_research_v2 import FactCard, build_customer_research_v2, validate_grounded_text
+from services.customer_metric_format import customer_confidence, customer_money, customer_percent, customer_score
+from engines.ask_atlas_engine import _compact_context
 from ui.customer_research_v2 import _six_pillar_frame
 
 
@@ -478,6 +480,53 @@ def test_qa_enrichment_renders_partial_modules_without_changing_authority(monkey
     assert result["about"]["status"] == "AVAILABLE"
     assert result["recent_changes"]["status"] == "AVAILABLE"
     assert source == before
+
+
+def test_research_and_ask_share_customer_wall_street_and_valuation_contract(monkeypatch, tmp_path):
+    source = report()
+    # These legacy fields intentionally disagree. A published customer report
+    # must use the same final customer projection in both Research and Ask.
+    source["valuation_families"] = {
+        "atlas_valuation_status": "LEGACY_STALE",
+        "atlas_fv_upside_pct": -99,
+        "analyst_target_mean": 999,
+        "analyst_target_low": 998,
+        "analyst_target_high": 1000,
+        "analyst_upside_pct": 400,
+    }
+    bundle = {"tickers": {"NVDA": {
+        "recommendations": {"payload": {"periods": [{
+            "period": "2026-10-01", "strong_buy": 10, "buy": 8,
+            "hold": 3, "sell": 1, "strong_sell": 0,
+        }]}, "provenance": {"raw_evidence_id": "rec:1"}},
+        "price_targets": {"payload": {
+            "target_low": 180, "target_mean": 240, "target_high": 300,
+            "last_updated": "2026-10-08",
+        }, "provenance": {"raw_evidence_id": "target:1"}},
+    }}}
+    path = tmp_path / "qa.json"
+    path.write_text(json.dumps(bundle))
+    monkeypatch.setenv("ATLAS_QA_MODE", "1")
+    monkeypatch.setenv("ATLAS_RESEARCH_V2_QA_ENRICHMENT", str(path))
+    monkeypatch.setenv("ATLAS_WALL_STREET_CONTEXT_ENABLED", "true")
+
+    research = build_customer_research_v2(source)
+    ask = _compact_context(source)
+    assert ask["atlas_fair_value"] == research["header"]["fair_value"]
+    assert ask["atlas_fv_upside_pct"] == research["header"]["fair_value_gap_pct"]
+    assert ask["analyst_consensus"] == research["wall_street"]["target_average"] == 240
+    assert ask["analyst_low"] == research["wall_street"]["target_low"] == 180
+    assert ask["analyst_high"] == research["wall_street"]["target_high"] == 300
+    assert ask["wall_street_implied_upside_pct"] is None
+    assert ask["atlas_valuation_status"] == research["valuation_chart"]["status"]
+
+
+def test_customer_metric_formatting_is_identical_and_presentation_only():
+    assert customer_money(346.05) == "$346.05"
+    assert customer_score(85.96) == "85.96"
+    assert customer_percent(85.96, signed=True) == "+85.96%"
+    assert customer_confidence(87.46) == "87/100"
+    assert customer_money(None) == "Unavailable"
 
 
 def test_missing_rsi_zero_is_not_presented_as_real_risk():

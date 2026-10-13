@@ -12,6 +12,12 @@ import pandas as pd
 import streamlit as st
 
 from services.customer_research_view import Availability, build_customer_research_view
+from services.customer_metric_format import (
+    customer_confidence,
+    customer_money,
+    customer_percent,
+    customer_score,
+)
 
 
 def _six_pillar_display_rows(pillars: Mapping[str, Any]) -> tuple[dict[str, Any], ...]:
@@ -47,13 +53,11 @@ def _six_pillar_frame(pillars: Mapping[str, Any]) -> pd.DataFrame:
 
 
 def _money(value: Any) -> str:
-    return "Unavailable" if value is None else f"${float(value):,.2f}"
+    return customer_money(value)
 
 
 def _pct(value: Any, *, signed: bool = False) -> str:
-    if value is None:
-        return "Pending"
-    return f"{float(value):+,.2f}%" if signed else f"{float(value):,.2f}%"
+    return customer_percent(value, signed=signed)
 
 
 def _escape_markdown_currency(value: Any) -> str:
@@ -212,7 +216,7 @@ def render_customer_research_first_screen(report: Mapping[str, Any]) -> dict[str
         )
         return page
     h = page["header"]
-    confidence_score = f'{float(h["confidence"]):.0f}/100'
+    confidence_score = customer_confidence(h["confidence"])
     _marker("root", ticker, version=page["version"], authority="certified_customer_evaluation", section_count=5)
     st.markdown("""<style>
     .atlas-r2-head{padding:.9rem 1rem;border:1px solid rgba(45,212,191,.25);border-radius:16px;background:linear-gradient(145deg,rgba(15,23,42,.96),rgba(18,39,51,.88));margin-bottom:.55rem}.atlas-r2-kicker{color:#61d8c3;font-size:.68rem;font-weight:800;letter-spacing:.13em}.atlas-r2-title{display:flex;align-items:baseline;justify-content:space-between;gap:.8rem;flex-wrap:wrap}.atlas-r2-head h1{margin:.18rem 0;font-size:1.55rem}.atlas-r2-action{color:#5eead4;font-size:.82rem;font-weight:850;letter-spacing:.07em}.atlas-r2-meta{color:#94a3b8;font-size:.76rem}.atlas-r2-metrics{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:.55rem;margin:.65rem 0}.atlas-r2-metric{padding:.7rem .75rem;border:1px solid rgba(148,163,184,.18);border-radius:12px;background:#0f192b;min-width:0}.atlas-r2-metric small{display:block;color:#8ea1bb;font-size:.62rem;letter-spacing:.08em;text-transform:uppercase}.atlas-r2-metric strong{display:block;color:#f8fafc;font-size:1.15rem;line-height:1.15;margin-top:.25rem;overflow-wrap:anywhere}.atlas-r2-grid{display:grid;grid-template-columns:1fr 1fr;gap:.7rem}.atlas-r2-panel{padding:.9rem;border:1px solid rgba(148,163,184,.16);border-radius:14px;background:rgba(15,23,42,.55)}
@@ -226,7 +230,7 @@ def render_customer_research_first_screen(report: Mapping[str, Any]) -> dict[str
         f'<div class="atlas-r2-metric"><small>Last Certified Close</small><strong>{escape(_money(h["price"]))}</strong></div>'
         f'<div class="atlas-r2-metric"><small>ATLAS Fair Value</small><strong>{escape(_money(h["fair_value"]))}</strong></div>'
         f'<div class="atlas-r2-metric"><small>Fair Value Gap</small><strong>{escape(_pct(h["fair_value_gap_pct"], signed=True))}</strong></div>'
-        f'<div class="atlas-r2-metric"><small>Opportunity</small><strong>{float(h["opportunity"]):.2f}</strong></div>'
+        f'<div class="atlas-r2-metric"><small>Opportunity</small><strong>{escape(customer_score(h["opportunity"]))}</strong></div>'
         f'<div class="atlas-r2-metric"><small>Evidence Confidence</small><strong>{escape(str(h.get("confidence_band") or "Unavailable"))} · {escape(confidence_score)}</strong></div>'
         f'</div></section>', unsafe_allow_html=True,
     )
