@@ -1,0 +1,172 @@
+{
+  "authority_boundary": "New evidence is research context only until separately governed reevaluation and publication approval.",
+  "contract": "ATLAS_G6_ENTERPRISE_RESEARCH_EXPANSION_V1",
+  "contractual_rights": {
+    "basis": "OWNER_CONFIRMED_SIGNED_AGREEMENT_2026_09_23",
+    "commercial_website_mobile_display": true,
+    "explicit_numeric_rpm": null,
+    "history_years": 30,
+    "potentially_unlimited_subject_to_reasonable_use": true,
+    "raw_api_redistribution": false
+  },
+  "engineering_controls": {
+    "adaptive_rule": "Increase only after clean batches; decrease on latency or rate-limit signals; halt on first HTTP 429 during initial acquisition.",
+    "automatic_retry": false,
+    "concurrency": 1,
+    "implementation_ceiling_rpm": 500,
+    "initial_rpm": 60
+  },
+  "expanded_scope": {
+    "batch_size": 100,
+    "batches": [
+      {
+        "batch": 1,
+        "request_count": 512,
+        "scope_sha256": "c0beca476834e52eeb5b1ef3e64d56eece161d0610c8f49cda297bf7d887a631",
+        "ticker_count": 100,
+        "ticker_first": "A",
+        "ticker_last": "ARAY"
+      },
+      {
+        "batch": 2,
+        "request_count": 526,
+        "scope_sha256": "0bc98d847395977639b48974e61e1e0b00d5750c6751367bd77d48a4bc4ebb9a",
+        "ticker_count": 100,
+        "ticker_first": "ARCB",
+        "ticker_last": "BYD"
+      },
+      {
+        "batch": 3,
+        "request_count": 524,
+        "scope_sha256": "83cdc5e0b104ac11b22d6b80a901c15076adc630d90083cbdceb828b3371bb96",
+        "ticker_count": 100,
+        "ticker_first": "BZH",
+        "ticker_last": "CSL"
+      },
+      {
+        "batch": 4,
+        "request_count": 524,
+        "scope_sha256": "da8412e984a91fe670c6808695a69e10c9478148a00664113ef4296f663c42ce",
+        "ticker_count": 100,
+        "ticker_first": "CSPI",
+        "ticker_last": "ESOA"
+      },
+      {
+        "batch": 5,
+        "request_count": 528,
+        "scope_sha256": "b0974db14d8d328844d77242f8d812ed1670e393ee10b46a8590c5631a5693a2",
+        "ticker_count": 100,
+        "ticker_first": "ESP",
+        "ticker_last": "GRC"
+      },
+      {
+        "batch": 6,
+        "request_count": 532,
+        "scope_sha256": "85ad4dc148eb96a37c3645661de8d11a0ad84f394ebcfe603d0f6807c8a308a6",
+        "ticker_count": 100,
+        "ticker_first": "GRDN",
+        "ticker_last": "IRWD"
+      },
+      {
+        "batch": 7,
+        "request_count": 524,
+        "scope_sha256": "fa5b939388cce5b98bb7b84365978879f4e88566e8e4e786105445cf3920921c",
+        "ticker_count": 100,
+        "ticker_first": "ISRG",
+        "ticker_last": "MAN"
+      },
+      {
+        "batch": 8,
+        "request_count": 538,
+        "scope_sha256": "d8f0de447ca8812b744e2957eed297c6d7db7d93f7f8f915068d7373cf1b1f41",
+        "ticker_count": 100,
+        "ticker_first": "MANH",
+        "ticker_last": "NMIH"
+      },
+      {
+        "batch": 9,
+        "request_count": 532,
+        "scope_sha256": "307fbd909cc4a6e6167d22db0a261789d4cf8737f1ca80015eed54ebdbfc6ed2",
+        "ticker_count": 100,
+        "ticker_first": "NNI",
+        "ticker_last": "PHIN"
+      },
+      {
+        "batch": 10,
+        "request_count": 522,
+        "scope_sha256": "94f5505f36818f0c56f43315067dca6e39ddf9803e2cbb5938ac4a9e917cf1f1",
+        "ticker_count": 100,
+        "ticker_first": "PHM",
+        "ticker_last": "RS"
+      },
+      {
+        "batch": 11,
+        "request_count": 536,
+        "scope_sha256": "f2745684240e4c0beee667bed45c507addf68cd0ca38654b507998cf50c180fc",
+        "ticker_count": 100,
+        "ticker_first": "RSG",
+        "ticker_last": "SWIM"
+      },
+      {
+        "batch": 12,
+        "request_count": 518,
+        "scope_sha256": "db61ef49caa0816b035798d8b87d5fb0d86e59dc51d939080aad71ef3f4818d4",
+        "ticker_count": 100,
+        "ticker_first": "SWKS",
+        "ticker_last": "UVE"
+      },
+      {
+        "batch": 13,
+        "request_count": 516,
+        "scope_sha256": "79194ae5d17e6175feef409e7ae67e5615dd99e4bea542f0822c1dc8c1333bf5",
+        "ticker_count": 98,
+        "ticker_first": "UWMC",
+        "ticker_last": "ZYME"
+      }
+    ],
+    "request_count": 6832,
+    "request_count_by_endpoint": {
+      "basic_financials": 1298,
+      "ebitda_estimates": 274,
+      "eps_estimates": 68,
+      "reported_financials": 2596,
+      "standardized_financials": 2596
+    },
+    "scope_sha256": "40dba10a0c42477a1ed68b85d9e51f842b0f88f4c35e08e34d1b9f1c00e6e9c0"
+  },
+  "observed_behavior": {
+    "rate_limit_headers": null,
+    "schema_conformance": null,
+    "status": "UNOBSERVED_FOR_THIS_SCOPE",
+    "sustainable_rpm": null
+  },
+  "provider_calls": 0,
+  "refresh_policy": {
+    "basic_financials": "Weekly for published securities; content-hash deduplication.",
+    "estimates": "Weekly and after earnings; skip when source snapshot is unchanged.",
+    "immutable_raw_store": "Content-addressed response bytes plus endpoint, parameters, acquisition time, HTTP metadata, entitlement identity and SHA-256.",
+    "reported_and_standardized_financials": "Event-driven after a new filing; monthly stale-check only."
+  },
+  "source_gap_inventory": {
+    "deduplicated_ticker_family_gaps": 2767,
+    "published_tickers": 1298,
+    "scope_sha256": "9ba178ca7a75670fa8ec0571a1a2b0ada1845012f339b4bd3950d59fe4a423a3"
+  },
+  "stage_0_response_validation": {
+    "description": "Original BUY NOW annual reported-financial pilot retained as a response/schema validation stage, not a contractual maximum.",
+    "operational_cap": 12,
+    "request_count": 11,
+    "scope_sha256": "09295e8cf7327e52df7f15697a94673c39a718a7141f8db9c78d2d4b8873b0fa",
+    "ticker_count": 11
+  },
+  "status": "PROPOSED_NOT_AUTHORIZED",
+  "stop_conditions": [
+    "HTTP 401 or 403 entitlement/authentication response",
+    "First HTTP 429 during initial validation or any exhausted approved retry allowance later",
+    "Unexpected response schema or missing identity/period/unit fields",
+    "Reported and standardized values disagree outside registered tolerance",
+    "Currency, fiscal-period or ticker identity mismatch",
+    "Planned request differs from the owner-approved scope hash",
+    "Raw response cannot be durably persisted and hash-verified before normalization"
+  ]
+}
