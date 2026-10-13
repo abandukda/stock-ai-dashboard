@@ -9,7 +9,8 @@ import streamlit as st
 
 from services.session_stability import emit_page_interactive
 from services.customer_authority import customer_authority
-from services.customer_metric_format import customer_confidence
+from services.customer_research_view import build_customer_research_view
+from services.customer_metric_format import customer_confidence, customer_money, customer_percent, customer_score
 from ui.atlas_design_system import action_badge
 
 
@@ -38,6 +39,9 @@ def _pct(value: Any) -> str:
 
 
 def _certified_fields(row: Mapping[str, Any]) -> tuple[str, Any]:
+    # Retained for the legacy helper contract. The live renderer below uses
+    # CustomerResearchView so all complete customer records share one route
+    # projection; this helper accepts older minimal certified fixtures too.
     authority = customer_authority(row)
     return (
         str(authority.get("action") or "RATING_NOT_PUBLISHED"),
@@ -95,7 +99,7 @@ def _watchlist_rows(full_df: Any, tickers: list[str], *, query: str = "", sort_b
             rows.append((ticker, {"ticker": ticker}))
     if sort_by in {"Opportunity", "Confidence"}:
         key_name = "opportunity" if sort_by == "Opportunity" else "confidence"
-        rows.sort(key=lambda pair: float(customer_authority(pair[1]).get(key_name) or -1), reverse=True)
+        rows.sort(key=lambda pair: float(build_customer_research_view(pair[1]).surface.get(key_name) or -1), reverse=True)
     else:
         rows.sort(key=lambda pair: pair[0])
     return rows
@@ -151,7 +155,7 @@ def render_watchlist_vnext(
         with st.container(border=True):
             st.markdown('<span class="atlas-watchlist-card-anchor" aria-hidden="true"></span>', unsafe_allow_html=True)
             company = str(_value(row, "Company", "company", "Name") or ticker)
-            authority = customer_authority(row)
+            authority = build_customer_research_view(row).surface
             action, certified_fair_value = _certified_fields(row)
             action = action.replace("_", " ")
             price, price_as_of = _verified_price(row)
@@ -174,12 +178,12 @@ def render_watchlist_vnext(
             )
             decision_cols = st.columns(3)
             decision_cols[0].metric("Certified Action", action)
-            decision_cols[1].metric("ATLAS Fair Value", _money(fair_value))
-            decision_cols[2].metric("Opportunity", f'{float(authority["opportunity"]):.2f}' if authority.get("opportunity") is not None else "Unavailable")
+            decision_cols[1].metric("ATLAS Fair Value", customer_money(fair_value))
+            decision_cols[2].metric("Opportunity", customer_score(authority.get("opportunity")))
             context_cols = st.columns(3)
             context_cols[0].metric("Confidence", customer_confidence(authority.get("confidence")))
-            context_cols[1].metric("Last verified price", _money(price), help=(f"As of {price_as_of}" if price_as_of else "Verified date unavailable"))
-            context_cols[2].metric("Distance to Fair Value", _pct(distance))
+            context_cols[1].metric("Last verified price", customer_money(price), help=(f"As of {price_as_of}" if price_as_of else "Verified date unavailable"))
+            context_cols[2].metric("Distance to Fair Value", customer_percent(distance, signed=True) if distance is not None else "Unavailable")
             st.write("**What changed:** " + str(_value(row, "What Changed", "change_since_last_scan", "material_change") or "No governed material change is attached."))
             st.caption("Earnings: " + str(_value(row, "Next Earnings", "next_earnings_date", "earnings_date") or "Unavailable") + " · Transcript/context: " + ("Available" if _value(row, "transcript_url", "earnings_transcript_url", "earnings_summary") else "Unavailable"))
             if st.button(f"Open Research — {ticker}", key=f"watchlist-vnext-{ticker}", use_container_width=True):

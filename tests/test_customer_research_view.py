@@ -18,6 +18,41 @@ def test_view_preserves_certified_projection_and_source_input():
     assert source == before
 
 
+def test_surface_is_the_minimal_cross_route_authority_contract():
+    view = build_customer_research_view(report(), now=datetime(2026, 10, 9, tzinfo=timezone.utc))
+    surface = view.surface
+
+    assert surface == {
+        "ticker": "NVDA",
+        "company": "NVIDIA Corporation",
+        "status": "AVAILABLE",
+        "action": "BUY_NOW",
+        "fair_value": 346.05,
+        "opportunity": 85.96,
+        "confidence": 87.46,
+        "publication_allowed": True,
+        "evaluation_snapshot": "snapshot-nvda",
+        "candidate_digest": "candidate",
+        "publication_digest": "publication",
+        "source_sha": "source",
+        "certified_close": 186.09,
+        "certified_close_at": "2026-10-08T20:00:00Z",
+        "certified_close_availability": Availability.CERTIFIED_CURRENT.value,
+    }
+
+
+def test_withheld_surface_fails_closed_without_protected_values():
+    source = report()
+    source["certified_customer_evaluation"]["customer_publication_allowed"] = False
+    surface = build_customer_research_view(source).surface
+    assert surface["status"] == "RATING_NOT_PUBLISHED"
+    assert surface["action"] == "RATING_NOT_PUBLISHED"
+    assert surface["fair_value"] is None
+    assert surface["opportunity"] is None
+    assert surface["confidence"] is None
+    assert surface["publication_allowed"] is False
+
+
 def test_view_marks_dated_and_withheld_states_without_recomputation():
     source = report()
     view = build_customer_research_view(source, now=datetime(2026, 11, 1, tzinfo=timezone.utc))
@@ -33,3 +68,11 @@ def test_customer_dates_are_human_readable_and_invalid_dates_fail_closed():
     assert customer_date("2026-10-08T20:00:00Z") == "Oct 08, 2026"
     assert customer_date("not-a-date") == "Date unavailable"
     assert certified_freshness(None) == Availability.MISSING_RETAINED_EVIDENCE
+
+
+def test_research_summary_101_explains_protected_metrics_without_redefining_them():
+    source = __import__("pathlib").Path("ui/customer_research_v2.py").read_text()
+    assert "Research 101 — what these numbers mean" in source
+    assert "not a live quote" in source
+    assert "not a guaranteed future price" in source
+    assert "not the chance the stock will rise" in source
