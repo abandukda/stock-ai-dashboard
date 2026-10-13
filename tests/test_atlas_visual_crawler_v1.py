@@ -29,6 +29,7 @@ from agents.atlas_visual_crawler_v1 import (
     research_submission_failure,
     research_submission_proven,
     required_research_authority_failures,
+    watchlist_journey_proven,
     VisualResult,
 )
 from agents.atlas_runtime_qa_v3 import DeploymentReadinessError
@@ -40,8 +41,8 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "agents" / "atlas_visual_crawler_v1.py"
 
 
-def test_watchlist_journey_re_resolves_add_button_after_streamlit_input_rerun():
-    """The governed journey must never reuse a pre-fill Streamlit button node."""
+def test_watchlist_journey_re_resolves_controls_after_streamlit_reruns():
+    """The governed journey must never reuse pre-rerun Streamlit controls."""
     source = SOURCE.read_text()
     start = source.index("async def _watchlist_edit_journey")
     end = source.index("async def _supplementary_desktop", start)
@@ -51,7 +52,48 @@ def test_watchlist_journey_re_resolves_add_button_after_streamlit_input_rerun():
     button_at = journey.index('live_scope.get_by_role("button", name="Add"', live_scope_at)
     click_at = journey.index('await button.first.click()', button_at)
     assert fill_at < live_scope_at < button_at < click_at
-    assert 'evidence["added"] = f"Remove {ticker}" in text' in journey
+    assert 'name=re.compile(r"Sort$")' in journey
+    assert 'await page.reload(wait_until="domcontentloaded")' in journey
+
+
+def _complete_watchlist_evidence(**overrides):
+    value = {
+        "initial_order": [],
+        "isolated_start": True,
+        "supported_added": True,
+        "missing_added": True,
+        "searched": True,
+        "unavailable_not_zero": True,
+        "sorted": True,
+        "ticker_order": ["AAAAQ", "NVDA"],
+        "opportunity_order": ["NVDA", "AAAAQ"],
+        "duplicates": 0,
+        "removed": True,
+        "reload_persisted": True,
+        "reload_route": True,
+        "final_order": [],
+    }
+    value.update(overrides)
+    return value
+
+
+def test_watchlist_journey_requires_sort_remove_uniqueness_and_reload_persistence():
+    assert watchlist_journey_proven(_complete_watchlist_evidence()) is True
+    negatives = (
+        {"sorted": False},
+        {"opportunity_order": ["AAAAQ", "NVDA"]},
+        {"removed": False},
+        {"duplicates": 1},
+        {"reload_persisted": False},
+        {"final_order": ["AAAAQ"]},
+        {"supported_added": False},
+        {"missing_added": False},
+        {"unavailable_not_zero": False},
+        {"isolated_start": False},
+        {"reload_route": False},
+    )
+    for mutation in negatives:
+        assert watchlist_journey_proven(_complete_watchlist_evidence(**mutation)) is False
 
 
 def test_open_failure_classification_does_not_mislabel_deployment_identity_as_authentication():

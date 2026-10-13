@@ -404,6 +404,28 @@ def research_submission_failure(
     return "RESEARCH_SUBMISSION_PROOF_UNAVAILABLE"
 
 
+def watchlist_journey_proven(evidence: dict[str, Any]) -> bool:
+    """Fail closed unless the complete isolated edit lifecycle is proven."""
+    initial = list(evidence.get("initial_order") or [])
+    ticker_order = list(evidence.get("ticker_order") or [])
+    opportunity_order = list(evidence.get("opportunity_order") or [])
+    final_order = list(evidence.get("final_order") or [])
+    return all((
+        evidence.get("isolated_start") is True,
+        evidence.get("supported_added") is True,
+        evidence.get("missing_added") is True,
+        evidence.get("searched") is True,
+        evidence.get("unavailable_not_zero") is True,
+        evidence.get("sorted") is True,
+        ticker_order != opportunity_order,
+        evidence.get("duplicates") == 0,
+        evidence.get("removed") is True,
+        evidence.get("reload_persisted") is True,
+        evidence.get("reload_route") is True,
+        final_order == initial,
+    ))
+
+
 def normalize_research_action(value: str) -> str:
     """Normalize only presentation-equivalent customer Action spelling."""
     return re.sub(r"[^A-Z0-9]+", "_", str(value or "").strip().upper()).strip("_")
@@ -3269,83 +3291,152 @@ class AtlasVisualCrawler:
 
     async def _watchlist_edit_journey(self, page: Page) -> None:
         """Prove add/search/sort/remove persistence without retaining QA state."""
-        ticker = "ZZZZQ"
+        supported_ticker = "NVDA"
+        missing_ticker = "AAAAQ"
         started = time.monotonic()
-        before = await self._shot(
-            page, page_name="Watchlist Intelligence", interaction="personal-watchlist-journey",
-            state="before", viewport="desktop",
-        )
-        evidence = {"added": False, "searched": False, "sorted": False, "removed": False,
-                    "unavailable_not_zero": False}
-        after = before
-        try:
+
+        async def card_order() -> list[str]:
+            values: list[str] = []
+            for scope in _scopes(page):
+                markers = scope.locator('[data-atlas-qa="watchlist-certified-authority"]')
+                for marker in await markers.all():
+                    value = str(await marker.get_attribute("data-atlas-ticker") or "").upper()
+                    if value and value not in values:
+                        values.append(value)
+            return values
+
+        async def add(ticker: str) -> bool:
             for scope in _scopes(page):
                 field = scope.get_by_label("Add ticker", exact=True)
                 if await field.count() and await field.first.is_visible():
                     await field.first.fill(ticker)
-                    # Streamlit may replace the widget tree after the input event.  A
-                    # button locator captured before fill() can remain syntactically
-                    # valid while pointing at the detached pre-rerun node, producing a
-                    # silent no-op.  Re-resolve the control from the live frame before
-                    # clicking and prove the resulting ticker card, rather than
-                    # treating the populated input as evidence of an add.
-                    await page.wait_for_timeout(250)
-                    clicked = False
+                    await page.wait_for_timeout(200)
                     for live_scope in _scopes(page):
                         button = live_scope.get_by_role("button", name="Add", exact=True)
                         if await button.count() and await button.first.is_visible():
                             await button.first.click()
-                            clicked = True
-                            break
-                    if clicked:
-                        for _ in range(12):
-                            if f"Remove {ticker}" in await _visible_text(page):
-                                break
-                            await page.wait_for_timeout(250)
-                    break
+                            for _ in range(16):
+                                if f"Remove {ticker}" in await _visible_text(page):
+                                    return True
+                                await page.wait_for_timeout(200)
+                            return False
+            return False
+
+        async def remove(ticker: str) -> bool:
+            for scope in _scopes(page):
+                button = scope.get_by_role("button", name=f"Remove {ticker}", exact=True)
+                if await button.count():
+                    await button.first.click()
+                    for _ in range(16):
+                        if f"Remove {ticker}" not in await _visible_text(page):
+                            return True
+                        await page.wait_for_timeout(200)
+            return False
+
+        async def set_search(query: str) -> bool:
+            for scope in _scopes(page):
+                search = scope.get_by_label("Search your watchlist", exact=True)
+                if await search.count() and await search.first.is_visible():
+                    if query:
+                        await search.first.fill(query)
+                    else:
+                        await search.first.press("Control+A")
+                        await search.first.press("Backspace")
+                    await search.first.press("Enter")
+                    await page.wait_for_timeout(300)
+                    return True
+            return False
+
+        before = await self._shot(
+            page, page_name="Watchlist Intelligence", interaction="personal-watchlist-journey",
+            state="before", viewport="desktop",
+        )
+        initial_order = await card_order()
+        evidence: dict[str, Any] = {
+            "initial_order": initial_order,
+            "isolated_start": (
+                supported_ticker not in initial_order and missing_ticker not in initial_order
+            ),
+            "supported_added": False,
+            "missing_added": False,
+            "searched": False,
+            "sorted": False,
+            "ticker_order": [],
+            "opportunity_order": [],
+            "duplicates": -1,
+            "removed": False,
+            "reload_persisted": False,
+            "reload_route": False,
+            "final_order": [],
+            "unavailable_not_zero": False,
+        }
+        after = before
+        try:
+            if not evidence["isolated_start"]:
+                raise RuntimeError("Watchlist QA requires an isolated starting state")
+            evidence["supported_added"] = await add(supported_ticker)
+            evidence["missing_added"] = await add(missing_ticker)
             text = await _visible_text(page)
-            evidence["added"] = f"Remove {ticker}" in text
-            if evidence["added"]:
+            if evidence["supported_added"] and evidence["missing_added"]:
                 evidence["unavailable_not_zero"] = "Unavailable" in text and "$0.00" not in text
+                if await set_search(supported_ticker):
+                    visible = await _visible_text(page)
+                    evidence["searched"] = (
+                        f"Remove {supported_ticker}" in visible
+                        and f"Remove {missing_ticker}" not in visible
+                    )
+                    # Search submission reruns Streamlit.  Re-resolve the input
+                    # before clearing it so the missing-price card is restored for
+                    # the subsequent order and removal proofs.
+                    await set_search("")
+                evidence["ticker_order"] = await card_order()
                 for scope in _scopes(page):
-                    search = scope.get_by_label("Search your watchlist", exact=True)
-                    if await search.count() and await search.first.is_visible():
-                        await search.first.fill(ticker)
-                        await page.wait_for_timeout(450)
-                        evidence["searched"] = f"Remove {ticker}" in await _visible_text(page)
-                        await search.first.fill("")
-                        await page.wait_for_timeout(250)
-                        break
-                for scope in _scopes(page):
-                    sort = scope.get_by_label("Sort", exact=True)
+                    sort = scope.get_by_role("combobox", name=re.compile(r"Sort$"))
                     if await sort.count() and await sort.first.is_visible():
                         await sort.first.click()
-                        option = scope.get_by_role("option", name="Opportunity", exact=True)
-                        if not await option.count():
-                            option = page.get_by_role("option", name="Opportunity", exact=True)
-                        await option.first.click()
-                        await page.wait_for_timeout(450)
-                        evidence["sorted"] = True
+                        option = page.get_by_role("option", name="Opportunity", exact=True)
+                        if await option.count():
+                            await option.first.click()
+                            for _ in range(12):
+                                evidence["opportunity_order"] = await card_order()
+                                if evidence["opportunity_order"] != evidence["ticker_order"]:
+                                    evidence["sorted"] = True
+                                    break
+                                await page.wait_for_timeout(200)
                         break
+                order = await card_order()
+                evidence["duplicates"] = len(order) - len(set(order))
             after = await self._shot(
                 page, page_name="Watchlist Intelligence", interaction="personal-watchlist-journey",
-                state="added-searched-sorted", viewport="desktop", ticker=ticker,
+                state="added-searched-sorted", viewport="desktop", ticker=supported_ticker,
             )
         finally:
-            for scope in _scopes(page):
-                remove = scope.get_by_role("button", name=f"Remove {ticker}", exact=True)
-                if await remove.count() and await remove.first.is_visible():
-                    await remove.first.click()
-                    await page.wait_for_timeout(900)
-                    evidence["removed"] = f"Remove {ticker}" not in await _visible_text(page)
+            missing_removed = (
+                await remove(missing_ticker) if missing_ticker not in initial_order else True
+            )
+            supported_removed = (
+                await remove(supported_ticker) if supported_ticker not in initial_order else True
+            )
+            evidence["removed"] = missing_removed and supported_removed
+            await page.reload(wait_until="domcontentloaded")
+            await _wait_for_streamlit_shell(page)
+            evidence["reload_route"] = any([
+                await scope.locator('[data-atlas-qa="watchlist-vnext"]').count() > 0
+                for scope in _scopes(page)
+            ])
+            for _ in range(16):
+                evidence["final_order"] = await card_order()
+                if evidence["final_order"] == initial_order:
+                    evidence["reload_persisted"] = True
                     break
-        passed = all(evidence.values())
+                await page.wait_for_timeout(200)
+        passed = watchlist_journey_proven(evidence)
         await self._record(
             category="WATCHLIST", page_name="Watchlist Intelligence",
             interaction="add-search-sort-remove-persistence",
-            expected="Customer can add, search, sort and remove a saved symbol; absent prices remain Unavailable",
+            expected="Isolated customer can add supported/missing-price symbols, search, reorder, remove and reload to the original state",
             observed=json.dumps(evidence, sort_keys=True), passed=passed,
-            elapsed=time.monotonic() - started, ticker=ticker, viewport="desktop",
+            elapsed=time.monotonic() - started, ticker=supported_ticker, viewport="desktop",
             screenshots=(before, after), severity="P1",
         )
         if not passed:
