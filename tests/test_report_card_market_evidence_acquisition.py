@@ -10,7 +10,7 @@ import pytest
 from services.prospective_report_card import ProspectiveLedger
 from services.report_card_market_evidence_acquisition import (
     AUTHORIZATION_TOKEN, PLAN_AUTHORIZATION_TOKEN, acquire_market_evidence,
-    build_acquisition_plan, derive_acquisition_scope, estimated_provider_calls,
+    build_acquisition_plan, derive_acquisition_scope, estimated_provider_calls, request_budget,
 )
 from scripts.acquire_report_card_market_evidence import resolve_verified_backup
 
@@ -93,6 +93,22 @@ def test_scope_is_ledger_derived_and_duplicate_tickers_are_deduplicated(tmp_path
     assert scope.horizons == (1,)
     assert scope.target_sessions == {1: "2026-10-09"}
     assert estimated_provider_calls(scope) == 7
+    assert request_budget(scope, retry_attempts=0) == {
+        "unique_due_tickers": 2, "due_horizons": 1, "distinct_requests": 7,
+        "zero_retry_ceiling": 7, "retry_ceiling": 7,
+    }
+
+
+def test_horizons_share_successful_requests_but_retry_ceiling_remains_conservative(tmp_path):
+    item = ledger(tmp_path / "ledger.sqlite3")
+    sessions = ["2026-10-08", "2026-10-09", "2026-10-12", "2026-10-13", "2026-10-14", "2026-10-15"]
+    scope = derive_acquisition_scope(ledger=item, trading_sessions=sessions, finalized_session="2026-10-15")
+    assert scope.horizons == (1, 5)
+    assert scope.target_sessions == {1: "2026-10-09", 5: "2026-10-15"}
+    assert request_budget(scope, retry_attempts=0)["distinct_requests"] == 7
+    assert request_budget(scope, retry_attempts=1)["retry_ceiling"] == 14
+    with pytest.raises(ValueError, match="RETRY_LIMIT"):
+        request_budget(scope, retry_attempts=2)
 
 
 def test_plan_mode_is_exact_ledger_scope_and_makes_zero_provider_calls(tmp_path):

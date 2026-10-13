@@ -43,6 +43,8 @@ def test_wrong_dst_wake_and_token_fail_closed():
 
 def test_bounded_budget_counts_horizons_and_retries():
     assert bounded_call_budget(unique_due_tickers=20, due_horizons=1, retry_attempts=0) == 61
-    assert bounded_call_budget(unique_due_tickers=20, due_horizons=2, retry_attempts=1) == 244
+    assert bounded_call_budget(unique_due_tickers=20, due_horizons=2, retry_attempts=0) == 61
+    assert bounded_call_budget(unique_due_tickers=20, due_horizons=2, retry_attempts=1) == 122
+    assert bounded_call_budget(unique_due_tickers=20, due_horizons=0, retry_attempts=0) == 0
     with pytest.raises(ValueError, match="RETRY_LIMIT"):
         bounded_call_budget(unique_due_tickers=20, due_horizons=1, retry_attempts=2)

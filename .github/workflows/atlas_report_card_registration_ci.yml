@@ -36,6 +36,7 @@ jobs:
           tests/test_report_card_observation_activation.py
           tests/test_report_card_end_to_end_offline.py
           tests/test_report_card_daily_operations.py
+          tests/test_report_card_daily_cycle.py
       - name: Compile bounded Report Card modules
         run: >-
           python -m py_compile
@@ -47,3 +48,5 @@ jobs:
           scripts/acquire_report_card_market_evidence.py
           scripts/preflight_report_card_daily_operations.py
           services/report_card_daily_operations.py
+          services/report_card_daily_cycle.py
+          scripts/run_report_card_daily_cycle.py

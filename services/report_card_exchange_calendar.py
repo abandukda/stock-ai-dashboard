@@ -34,6 +34,14 @@ def build_xnys_calendar(*, start_date: str, as_of: datetime) -> dict[str, Any]:
     last_label = finalized.index[-1].date().isoformat()
     last = finalized.iloc[-1]
     sessions = [item.date().isoformat() for item in finalized.index]
+    session_windows = {
+        label.date().isoformat(): {
+            "open_at": row["open"].to_pydatetime().astimezone(timezone.utc).isoformat(),
+            "close_at": row["close"].to_pydatetime().astimezone(timezone.utc).isoformat(),
+            "early_close": bool((row["close"] - row["open"]) < timedelta(hours=6, minutes=30)),
+        }
+        for label, row in finalized.iterrows()
+    }
     value: dict[str, Any] = {
         "schema_version": CALENDAR_SCHEMA,
         "source": "exchange_calendars",
@@ -42,6 +50,7 @@ def build_xnys_calendar(*, start_date: str, as_of: datetime) -> dict[str, Any]:
         "timezone": CALENDAR_TIMEZONE,
         "generated_at": observed.isoformat(),
         "trading_sessions": sessions,
+        "session_windows": session_windows,
         "finalized_session": last_label,
         "session_status": FINALIZED_SESSION_STATUS,
         "session_open_at": last["open"].to_pydatetime().astimezone(timezone.utc).isoformat(),
@@ -65,7 +74,7 @@ def verify_xnys_calendar(value: dict[str, Any], *, as_of: datetime) -> None:
     regenerated = build_xnys_calendar(
         start_date=str(value["trading_sessions"][0]), as_of=as_of,
     )
-    for key in ("trading_sessions", "finalized_session", "session_open_at", "session_close_at", "early_close"):
+    for key in ("trading_sessions", "session_windows", "finalized_session", "session_open_at", "session_close_at", "early_close"):
         if regenerated[key] != value.get(key):
             raise ValueError(f"XNYS_CALENDAR_REPLAY_MISMATCH:{key}")
 

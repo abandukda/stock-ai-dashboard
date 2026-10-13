@@ -243,7 +243,10 @@ class ProspectiveLedger:
         if destination_root == self.path.parent or destination_root.is_relative_to(self.path.parent):
             raise ValueError("BACKUP_MUST_USE_SEPARATE_DURABLE_ROOT")
         destination_root.mkdir(parents=True, exist_ok=True, mode=0o700)
-        destination = destination_root / f"report-card-{now.astimezone(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.sqlite3"
+        tip = self.verify()
+        destination = destination_root / (
+            f"report-card-{now.astimezone(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}-{tip[:12]}.sqlite3"
+        )
         with self._connect() as source, sqlite3.connect(destination) as target:
             source.backup(target)
         os.chmod(destination, 0o600)

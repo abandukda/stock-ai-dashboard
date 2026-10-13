@@ -49,10 +49,11 @@ Both prevent acquisition and append before credentials are used.
 
 ## Acquisition and retry budget
 
-For `N` unique due tickers and `H` due horizons, the zero-retry ceiling is
-`H × (3N + 1)`: daily prices for each ticker plus SPY, and split and dividend
-evidence for each ticker. A maximum of one retry may later be approved for
-retryable transport/5xx failures, making the ceiling `2 × H × (3N + 1)`.
+For `N` unique due tickers and one or more due horizons, the distinct zero-retry
+ceiling is `3N + 1`: daily price history for each ticker plus SPY, and split and
+dividend evidence for each ticker. Successful retained responses are shared
+across horizons. A maximum of one retry may later be approved for retryable
+transport/5xx failures, making the conservative ceiling `2 × (3N + 1)`.
 Missing, stale, provider-empty, partial, entitlement-rejected, or inconsistent
 evidence is never retried automatically and fails closed or receives an
 explicit unavailable state according to the certified producer contract.

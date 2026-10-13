@@ -133,6 +133,23 @@ def estimated_provider_calls(scope: AcquisitionScope) -> int:
     return 0 if not scope.horizons else 3 * len(scope.tickers) + 1
 
 
+def request_budget(scope: AcquisitionScope, *, retry_attempts: int = 0) -> dict[str, int]:
+    """Return deduplicated and conservative ceilings without assuming reusable failures."""
+    if retry_attempts < 0 or retry_attempts > 1:
+        raise ValueError("ACQUISITION_RETRY_LIMIT_EXCEEDED")
+    n = len(scope.tickers)
+    distinct = 0 if not scope.horizons else 3 * n + 1
+    # A successful response is reused across due horizons. The conservative
+    # ceiling reserves one separately authorized retry for every request.
+    return {
+        "unique_due_tickers": n,
+        "due_horizons": len(scope.horizons),
+        "distinct_requests": distinct,
+        "zero_retry_ceiling": distinct,
+        "retry_ceiling": distinct * (retry_attempts + 1),
+    }
+
+
 def build_acquisition_plan(
     *, ledger: ProspectiveLedger, calendar: Mapping[str, Any], authorization: str,
     source_sha: str,
@@ -163,6 +180,7 @@ def build_acquisition_plan(
         "due_horizons": list(scope.horizons),
         "target_sessions": {str(key): value for key, value in scope.target_sessions.items()},
         "provider_call_budget": estimated_provider_calls(scope),
+        "request_budget": request_budget(scope, retry_attempts=0),
         "provider_calls": 0,
         "retry_attempts": 0,
         "customer_visible": False,
@@ -194,6 +212,7 @@ def acquire_market_evidence(
         raise ValueError("FINALIZED_SESSION_TIMING_INVALID")
     scope = derive_acquisition_scope(ledger=ledger, trading_sessions=sessions, finalized_session=finalized)
     call_budget = estimated_provider_calls(scope)
+    budget = request_budget(scope, retry_attempts=retry_attempts)
     if not scope.horizons:
         return {
             "schema_version": EVIDENCE_SCHEMA,
@@ -346,7 +365,9 @@ def acquire_market_evidence(
         "signal_ids": list(scope.signal_ids),
         "due_horizons": list(scope.horizons),
         "target_sessions": {str(key): value for key, value in scope.target_sessions.items()},
+        "session_windows": dict(calendar.get("session_windows") or {}),
         "provider_call_budget": call_budget,
+        "request_budget": budget,
         "provider_calls": len(telemetry),
         "provider_telemetry": telemetry,
         "benchmark_references": benchmark_references,
@@ -363,5 +384,5 @@ def acquire_market_evidence(
 __all__ = [
     "ACQUISITION_VERSION", "AUTHORIZATION_TOKEN", "AcquisitionScope",
     "PLAN_AUTHORIZATION_TOKEN", "acquire_market_evidence", "build_acquisition_plan",
-    "derive_acquisition_scope", "estimated_provider_calls",
+    "derive_acquisition_scope", "estimated_provider_calls", "request_budget",
 ]

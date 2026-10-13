@@ -50,7 +50,12 @@ def bounded_call_budget(*, unique_due_tickers: int, due_horizons: int,
         raise ValueError("CALL_BUDGET_INPUT_INVALID")
     if retry_attempts > 1:
         raise ValueError("AUTOMATION_RETRY_LIMIT_EXCEEDED")
-    return due_horizons * (3 * unique_due_tickers + 1) * (retry_attempts + 1)
+    if due_horizons == 0:
+        return 0
+    # One successful historical/corporate-action snapshot is retained and
+    # shared by every due horizon in the cycle. Failures are never assumed to
+    # be reusable; the retry multiplier reserves a fresh attempt per request.
+    return (3 * unique_due_tickers + 1) * (retry_attempts + 1)
 
 
 __all__ = ["AUTOMATION_TOKEN", "AutomationDecision", "REQUIRED_CERTIFICATIONS",

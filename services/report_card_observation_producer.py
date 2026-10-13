@@ -57,14 +57,20 @@ def build_observation_bundle(
         raise ValueError("MARKET_SESSION_NOT_FINALIZED")
     if not evidence.get("trading_calendar_source") or not evidence.get("trading_calendar_version"):
         raise ValueError("TRADING_CALENDAR_IDENTITY_REQUIRED")
-    opened = _utc(evidence.get("session_open_at"), "SESSION_OPEN")
-    closed = _utc(evidence.get("session_close_at"), "SESSION_CLOSE")
+    fallback_close = _utc(evidence.get("session_close_at"), "SESSION_CLOSE")
+    target_session = str(
+        (evidence.get("target_sessions") or {}).get(str(horizon))
+        or fallback_close.date().isoformat()
+    )
+    window_identity = (evidence.get("session_windows") or {}).get(target_session) or {}
+    opened = _utc(window_identity.get("open_at") or evidence.get("session_open_at"), "SESSION_OPEN")
+    closed = _utc(window_identity.get("close_at") or evidence.get("session_close_at"), "SESSION_CLOSE")
     captured = _utc(evidence.get("captured_at"), "EVIDENCE_CAPTURE")
     current = certified_at.astimezone(timezone.utc)
     if closed <= opened or captured < closed or current < captured:
         raise ValueError("FINALIZED_SESSION_TIMING_INVALID")
     sessions = [str(value) for value in evidence.get("trading_sessions") or ()]
-    if sessions != sorted(set(sessions)) or not sessions or sessions[-1] != closed.date().isoformat():
+    if sessions != sorted(set(sessions)) or not sessions or target_session not in sessions:
         raise ValueError("TRADING_SESSION_SEQUENCE_INVALID")
     instruments = evidence.get("instruments")
     references = evidence.get("benchmark_references")
@@ -87,7 +93,7 @@ def build_observation_bundle(
         if len(eligible) < horizon:
             raise ValueError(f"OBSERVATION_HORIZON_IMMATURE:{signal_id}")
         window = eligible[:horizon]
-        if window[-1] != closed.date().isoformat():
+        if window[-1] != target_session:
             raise ValueError(f"OBSERVATION_NOT_DUE_FOR_SESSION:{signal_id}")
         instrument = instruments.get(ticker)
         if not isinstance(instrument, Mapping):
@@ -104,6 +110,10 @@ def build_observation_bundle(
         if price_source not in ALLOWED_PRICE_SOURCES:
             raise ValueError(f"PRICE_SOURCE_INVALID:{ticker}")
         provenance = dict(instrument.get("price_provenance") or {})
+        # The acquired historical payload may cover several due horizons. Bind
+        # each observation to its own target close while retaining the original
+        # retrieval timestamp and evidence identity.
+        provenance["as_of"] = closed.isoformat()
         if provenance.get("session_status") != FINALIZED_SESSION_STATUS:
             raise ValueError(f"PRICE_NOT_FINALIZED:{ticker}")
         required_provenance = ("provider", "instrument", "as_of", "retrieved_at", "currency")
