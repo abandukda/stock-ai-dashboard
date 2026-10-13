@@ -72,7 +72,7 @@ def test_protected_runner_validation_is_manual_provider_free_and_non_mutating():
     assert workflow["permissions"] == {"contents": "read"}
     assert "REPORT_CARD_PROTECTED_VALIDATE_ONCE" in source
     assert 'test -z "${FINNHUB_API_KEY:-}"' in source
-    assert "validate_report_card_storage.py" in source
+    assert "prepare_report_card_protected_validation.py" in source
     assert "build_report_card_exchange_calendar.py" in source
     assert "acquire_market_evidence" not in source
     assert "append_observation" not in source

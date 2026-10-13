@@ -41,18 +41,20 @@ jobs:
           test -n "$ATLAS_REPORT_CARD_DURABLE_ROOT"
           test -n "$ATLAS_REPORT_CARD_BACKUP_ROOT"
           test -z "${FINNHUB_API_KEY:-}"
-      - name: Validate storage, locking, backup and restore
-        run: >-
-          python3 scripts/validate_report_card_storage.py
-          --primary-root "$ATLAS_REPORT_CARD_DURABLE_ROOT"
-          --backup-root "$ATLAS_REPORT_CARD_BACKUP_ROOT"
-          --output audit_results/report_card_protected/storage.json
       - name: Produce and replay-verify XNYS calendar
         run: >-
           python3 scripts/build_report_card_exchange_calendar.py
           --start-date "${{ inputs.start_date }}"
           --as-of "${{ inputs.as_of }}"
           --output audit_results/report_card_protected/xnys_calendar.json
+      - name: Read-only ledger, mount, backup, history and scope audit
+        run: >-
+          python3 scripts/prepare_report_card_protected_validation.py
+          --ledger "$ATLAS_REPORT_CARD_DURABLE_ROOT/report-card.sqlite3"
+          --backup-root "$ATLAS_REPORT_CARD_BACKUP_ROOT"
+          --calendar audit_results/report_card_protected/xnys_calendar.json
+          --source-sha "$GITHUB_SHA"
+          --output audit_results/report_card_protected/protected_validation.json
       - name: Provider-free control tests
         run: >-
           pytest -q tests/test_report_card_exchange_calendar.py
