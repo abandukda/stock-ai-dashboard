@@ -41,7 +41,7 @@ exchange_calendars 4.13.2 (XNYS)
 - Backup: timestamped SQLite plus SHA-256 sidecar under `/mnt/atlas_report_card_backup` on `/dev/sdb`.
 - Both hash chains pass with ledger tip `c503983257261e202b3ffc87d1f08ac1b1ea1753cae34319d8171f4c09e2a54a`.
 - Activation: `2026-10-08T03:20:17+00:00`; signals: 20; unique tickers: 20; observations: 0.
-- Current base provider budget: `3N + 1 = 61`; maximum attempts under two retries: 183.
+- Current base provider budget: `3N + 1 = 61` for the documented 20-ticker ledger. Live acquisition performs zero automatic retries; any retry requires separate G5 authorization and a newly stated ceiling.
 
 ## Activation sequence
 
