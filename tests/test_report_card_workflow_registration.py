@@ -6,6 +6,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 CALENDAR = ROOT / ".github/workflows/atlas_report_card_exchange_calendar.yml"
 ACQUISITION = ROOT / ".github/workflows/atlas_report_card_market_evidence_acquisition.yml"
+DAILY = ROOT / ".github/workflows/atlas_report_card_daily_operations.yml"
 
 
 def _workflow(path: Path) -> tuple[str, dict]:
@@ -45,3 +46,19 @@ def test_registration_ci_is_provider_free_and_does_not_dispatch_operations():
     assert "workflow_dispatch:" not in source
     assert "FINNHUB_API_KEY" not in source
     assert "acquire_report_card_market_evidence.py --" not in source
+
+
+def test_daily_schedule_is_dst_gated_serialized_and_inert_until_certified():
+    source, workflow = _workflow(DAILY)
+    assert set(workflow["on"]) == {"schedule", "workflow_dispatch"}
+    crons = {item["cron"] for item in workflow["on"]["schedule"]}
+    assert crons == {"30 22 * * 1-5", "30 23 * * 1-5"}
+    assert workflow["permissions"] == {"contents": "read"}
+    assert workflow["concurrency"]["cancel-in-progress"] == "false"
+    assert "ATLAS_REPORT_CARD_AUTOMATION_ENABLED == 'true'" in source
+    assert "ATLAS_REPORT_CARD_KILL_SWITCH" in source
+    assert "SECOND_CYCLE_RELIABILITY_PASS" in source
+    assert "preflight_report_card_daily_operations.py" in source
+    assert "FINNHUB_API_KEY" not in source
+    assert "run_internal_report_card_observations.py" not in source
+    assert "Live operation remains separately gated" in source

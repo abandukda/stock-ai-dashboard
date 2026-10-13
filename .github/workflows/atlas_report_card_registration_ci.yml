@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - ".github/workflows/atlas_report_card_*.yml"
+      - "scripts/preflight_report_card_daily_operations.py"
       - "scripts/acquire_report_card_market_evidence.py"
       - "scripts/build_report_card_exchange_calendar.py"
       - "services/report_card_*.py"
@@ -34,6 +35,7 @@ jobs:
           tests/test_report_card_observation_producer.py
           tests/test_report_card_observation_activation.py
           tests/test_report_card_end_to_end_offline.py
+          tests/test_report_card_daily_operations.py
       - name: Compile bounded Report Card modules
         run: >-
           python -m py_compile
@@ -43,3 +45,5 @@ jobs:
           services/report_card_observation_activation.py
           scripts/build_report_card_exchange_calendar.py
           scripts/acquire_report_card_market_evidence.py
+          scripts/preflight_report_card_daily_operations.py
+          services/report_card_daily_operations.py
