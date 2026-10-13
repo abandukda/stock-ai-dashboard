@@ -693,7 +693,7 @@ def test_premium_financial_depth_groups_only_lineage_complete_facts_and_certifie
 
 
 def test_financial_depth_renderer_preserves_lineage_and_uses_typed_unavailable_states():
-    from ui.customer_research_v2 import _financial_statement_rows
+    from ui.customer_research_v2 import _financial_depth_status_rows, _financial_statement_rows
 
     rows = _financial_statement_rows(({
         "field": "net_income", "label": "Net income", "value": 1_250_000_000,
@@ -712,6 +712,38 @@ def test_financial_depth_renderer_preserves_lineage_and_uses_typed_unavailable_s
     assert '"Balance sheet"' in ui_source
     assert "Reporting frequency is unavailable" in ui_source
     assert "not relabeled as annual or quarterly" in ui_source
+    coverage = _financial_depth_status_rows({
+        "statement_depth": "LATEST_PERIOD_ONLY",
+        "statements": {"income_statement": ({"field": "net_income"},), "cash_flow": (), "balance_sheet": ()},
+    })
+    assert coverage == [
+        {"Statement": "Income statement", "Coverage": "Available", "Certified line items": "1", "Period depth": "Latest retained period"},
+        {"Statement": "Cash flow", "Coverage": "Unavailable", "Certified line items": "0", "Period depth": "Latest retained period"},
+        {"Statement": "Balance sheet", "Coverage": "Unavailable", "Certified line items": "0", "Period depth": "Latest retained period"},
+    ]
+
+
+def test_technical_presentation_separates_price_overlays_from_rsi():
+    from ui.customer_research_v2 import _technical_chart_frames
+    import pandas as pd
+
+    rows = pd.DataFrame({
+        "date": pd.to_datetime(["2026-10-01", "2026-10-02"], utc=True),
+        "close": [100.0, 101.0], "sma20": [98.0, 99.0], "rsi": [55.0, 57.0],
+    })
+    prices, oscillators = _technical_chart_frames(
+        rows, date_key="date", ticker="NVDA", close_key="close",
+        indicator_keys=["sma20", "rsi"],
+    )
+
+    assert list(prices.columns) == ["NVDA", "sma20"]
+    assert prices.iloc[-1].to_dict() == {"NVDA": 101.0, "sma20": 99.0}
+    assert list(oscillators.columns) == ["RSI (0-100)"]
+    assert oscillators.iloc[-1, 0] == 57.0
+    ui_source = __import__("pathlib").Path("ui/customer_research_v2.py").read_text(encoding="utf-8")
+    assert 'unit="TYPED_SEPARATE_AXES"' in ui_source
+    assert 'y_title="RSI (0-100)"' in ui_source
+    assert 'key=f"research-technical-price-chart-{ticker}"' in ui_source
 
 
 def test_untyped_trend_frequency_is_not_inferred_as_quarterly(monkeypatch, tmp_path):

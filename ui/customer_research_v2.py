@@ -203,12 +203,55 @@ def _financial_statement_rows(items: Any) -> list[dict[str, str]]:
     return rows
 
 
+def _technical_chart_frames(rows: pd.DataFrame, *, date_key: str, ticker: str,
+                            close_key: str, indicator_keys: list[str]) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Separate price-unit overlays from bounded oscillators.
+
+    A moving average may share the stock-price axis. RSI may not: combining
+    dollars and a 0-100 oscillator on one axis is visually misleading even
+    when every retained value is correct.
+    """
+    dated = rows.dropna(subset=[date_key]).set_index(date_key)
+    price_keys = [key for key in indicator_keys if key != "rsi"]
+    price_columns = [key for key in [close_key, *price_keys] if key in dated]
+    price_frame = dated[price_columns].rename(columns={close_key: ticker}) if price_columns else pd.DataFrame()
+    oscillator_frame = dated[["rsi"]].rename(columns={"rsi": "RSI (0-100)"}) if "rsi" in indicator_keys else pd.DataFrame()
+    return price_frame, oscillator_frame
+
+
+def _financial_depth_status_rows(depth: Mapping[str, Any]) -> list[dict[str, str]]:
+    statements = depth.get("statements") if isinstance(depth.get("statements"), Mapping) else {}
+    labels = {
+        "income_statement": "Income statement",
+        "cash_flow": "Cash flow",
+        "balance_sheet": "Balance sheet",
+    }
+    rows: list[dict[str, str]] = []
+    for lane, label in labels.items():
+        facts = list(statements.get(lane) or ())
+        rows.append({
+            "Statement": label,
+            "Coverage": "Available" if facts else "Unavailable",
+            "Certified line items": str(len(facts)),
+            "Period depth": "Multiple retained periods" if depth.get("statement_depth") == "MULTI_PERIOD" else "Latest retained period",
+        })
+    return rows
+
+
 def _render_financial_depth(depth: Mapping[str, Any], *, ticker: str) -> None:
     """Render premium financial depth with explicit evidence limitations."""
     status = str(depth.get("status") or "NOT_AVAILABLE")
     period_depth = str(depth.get("statement_depth") or "LATEST_PERIOD_ONLY")
     _marker("financial-depth", ticker, status=status, statement_depth=period_depth)
     st.markdown("### Financial statements")
+    st.caption(
+        "These tables show retained certified line items, not a reconstructed filing. "
+        "Unavailable statements and periods remain explicitly unavailable."
+    )
+    st.dataframe(
+        pd.DataFrame(_financial_depth_status_rows(depth)), hide_index=True,
+        use_container_width=True, key=f"research-statement-coverage-{ticker}",
+    )
     if status == "NOT_AVAILABLE":
         st.info("Certified income statement, cash-flow, and balance-sheet line items are unavailable for this snapshot.")
     else:
@@ -364,13 +407,15 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
         'border-radius:12px;background:#0b1525;color:#cbd5e1}.atlas-research-101 summary{cursor:pointer;'
         'font-weight:750;color:#f8fafc}.atlas-research-101 li{margin:.35rem 0;line-height:1.45}'
         '@media(max-width:420px){.atlas-research-101{padding:.65rem;font-size:.9rem}.atlas-research-101 ul{padding-left:1.15rem}}</style>'
-        '<details class="atlas-research-101" data-atlas-qa="research-101"><summary>Research 101 — what these numbers mean</summary>'
+        '<div class="atlas-research-101" data-atlas-qa="research-101"><strong>Research 101 — what these numbers mean</strong>'
+        '<div style="margin-top:.35rem">Start with the published Action and dated price, then compare Fair Value, evidence confidence, and the risks that could weaken the case.</div>'
+        '<details style="margin-top:.45rem"><summary>What each number means</summary>'
         '<ul><li><strong>Action</strong> is the published ATLAS decision for this certified snapshot.</li>'
         '<li><strong>Last Certified Close</strong> is the price and date used by that decision; it is not a live quote.</li>'
         '<li><strong>Fair Value</strong> is an evidence-based estimate, not a guaranteed future price.</li>'
         '<li><strong>Opportunity</strong> compares relative attractiveness inside the certified ATLAS method.</li>'
         '<li><strong>Evidence Confidence</strong> measures evidence completeness and consistency, not the chance the stock will rise.</li>'
-        '</ul></details>',
+        '</ul></details></div>',
         unsafe_allow_html=True,
     )
     if summary["why_rating"]:
@@ -463,9 +508,25 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
             technical = chart.get("technical_indicators") or {}
             indicator_keys = [key for key in technical.get("keys") or () if key in rows]
             if technical.get("status") == "AVAILABLE" and indicator_keys:
-                _marker("technical-indicators-chart", ticker, status="AVAILABLE", unit="USD_PER_SHARE_OR_INDEX")
-                indicator_frame = rows.dropna(subset=[date_key]).set_index(date_key)[indicator_keys]
-                _dark_line_chart(indicator_frame, height=260, y_title="Certified indicator value", key=f"research-technical-chart-{ticker}")
+                price_indicators, oscillators = _technical_chart_frames(
+                    rows, date_key=date_key, ticker=ticker, close_key=close_key,
+                    indicator_keys=indicator_keys,
+                )
+                _marker("technical-indicators-chart", ticker, status="AVAILABLE", unit="TYPED_SEPARATE_AXES")
+                st.markdown("### Technical context")
+                if not price_indicators.empty and len(price_indicators.columns) > 1:
+                    _dark_line_chart(
+                        price_indicators, height=260, y_title="Price and moving averages (USD/share)",
+                        key=f"research-technical-price-chart-{ticker}",
+                    )
+                if not oscillators.empty:
+                    _dark_line_chart(
+                        oscillators, height=220, y_title="RSI (0-100)",
+                        key=f"research-technical-rsi-chart-{ticker}",
+                    )
+                st.caption(
+                    "Technical indicators describe the retained historical series; they do not independently change the certified Action."
+                )
             else:
                 _marker("technical-indicators-chart", ticker, status="UNAVAILABLE")
                 st.caption("Certified technical indicator history is unavailable for this evidence bundle; no series was inferred.")
