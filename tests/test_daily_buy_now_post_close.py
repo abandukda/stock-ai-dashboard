@@ -100,5 +100,6 @@ def test_workflow_has_dual_wakeups_concurrency_and_live_fail_closed_contract():
     assert "ATLAS_DAILY_BUY_NOW_ALERT_WEBHOOK" in source
     assert "promote_daily_buy_now_snapshot.py" in source
     assert 'test -z "${TWELVE_DATA_API_KEY:-}"' in source
+    assert source.count("--strict-provider-health") == 4
     assert "provider-free-end-to-end" in source
     assert "needs.post-close-coordinator.outputs.run_live == 'true'" in source
