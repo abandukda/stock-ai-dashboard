@@ -7,6 +7,7 @@
   ],
   "contract_id": "FINNHUB-SIGNED-MARKET-DATA-AGREEMENT-SHA256-5e5ae19500b4585eda185b66e196aaa21684e7346f227be4d40c704000e6a18c",
   "customer_signature_date": "2026-09-25",
+  "api_activation_date": "2026-09-28",
   "effective_at": "2026-09-25",
   "endpoint_evidence": {
     "agreement_appendix": [

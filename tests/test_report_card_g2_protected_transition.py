@@ -150,6 +150,7 @@ def test_entitlement_separates_owner_status_from_contract_dates():
         "timezone": "America/New_York",
     }
     assert evidence["customer_signature_date"] == "2026-09-25"
+    assert evidence["api_activation_date"] == "2026-09-28"
     assert evidence["effective_at"] == "2026-09-25"
     assert evidence["endpoint_evidence"]["provider_signature_date"] == "2026-09-23"
 
