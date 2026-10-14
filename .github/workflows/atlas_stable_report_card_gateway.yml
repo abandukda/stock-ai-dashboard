@@ -50,6 +50,7 @@ jobs:
       ATLAS_REPORT_CARD_DURABLE_ROOT: ${{ vars.ATLAS_REPORT_CARD_DURABLE_ROOT }}
       ATLAS_REPORT_CARD_BACKUP_ROOT: ${{ vars.ATLAS_REPORT_CARD_BACKUP_ROOT }}
       REPORT_CARD_CUTOFF_UTC: ${{ inputs.cutoff_utc }}
+      PYTHONPATH: .
     steps:
       - uses: actions/checkout@v4
         with:
