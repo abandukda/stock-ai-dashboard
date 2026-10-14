@@ -4,6 +4,7 @@ from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
 import hashlib
+import json
 
 import pytest
 
@@ -13,6 +14,7 @@ from services.report_card_market_evidence_acquisition import (
     build_acquisition_plan, derive_acquisition_scope, estimated_provider_calls,
 )
 from scripts.acquire_report_card_market_evidence import resolve_verified_backup
+from scripts.acquire_report_card_market_evidence import load_approved_plan, protected_kill_switch
 
 
 UTC = timezone.utc
@@ -212,8 +214,35 @@ def test_dispatch_workflow_is_inert_and_requires_distinct_primary_and_backup():
     assert "ATLAS_REPORT_CARD_DURABLE_ROOT" in source
     assert "ATLAS_REPORT_CARD_BACKUP_ROOT" in source
     assert '--backup-root "$ATLAS_REPORT_CARD_BACKUP_ROOT"' in source
+    assert '--approved-plan "${{ steps.g2.outputs.plan }}"' in source
+    assert '--approved-plan-sha256 "${{ inputs.approved_plan_sha256 }}"' in source
+    assert '--entitlement "${{ steps.g2.outputs.entitlement }}"' in source
+    assert '--entitlement-sha256 "${{ inputs.entitlement_sha256 }}"' in source
+    assert 'ACQUISITION_KILL_SWITCH' in source
     assert "append_observation" not in source
     assert "REPORT_CARD_APPEND_ONCE" not in source
+
+
+def test_g2_plan_binding_and_kill_switch_fail_closed(tmp_path, monkeypatch):
+    plan = {"schema_version":"PLAN", "source_sha":"a"*40}
+    unhashed = json.dumps(plan, sort_keys=True, separators=(",", ":"))
+    plan["artifact_sha256"] = hashlib.sha256(unhashed.encode()).hexdigest()
+    package = tmp_path / "protected_validation.json"
+    package.write_text(json.dumps({"canonical_plan": plan}))
+    assert load_approved_plan(package, plan["artifact_sha256"]) == plan
+    with pytest.raises(PermissionError, match="PLAN_HASH_INVALID"):
+        load_approved_plan(package, "0"*64)
+
+    switch = tmp_path / "ACQUISITION_KILL_SWITCH"
+    switch.write_text("CLOSED\n"); switch.chmod(0o600)
+    monkeypatch.setattr("scripts.acquire_report_card_market_evidence.pwd.getpwuid",
+                        lambda _uid: type("Owner", (), {"pw_name":"atlasrunner"})())
+    probe = protected_kill_switch(switch)
+    assert probe() is True
+    switch.write_text("OPEN\n"); switch.chmod(0o600)
+    assert probe() is False
+    switch.chmod(0o644)
+    assert probe() is True
 
 
 def test_timestamped_backup_requires_sidecar_and_matching_logical_tip(tmp_path):

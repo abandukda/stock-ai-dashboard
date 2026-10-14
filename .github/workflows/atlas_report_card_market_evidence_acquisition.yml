@@ -23,6 +23,30 @@ on:
         description: Exact governed XNYS calendar artifact
         required: true
         type: string
+      approved_plan_run_id:
+        description: Protected-validation run holding the owner-reviewed plan
+        required: true
+        type: string
+      approved_plan_artifact:
+        description: Exact protected-validation artifact name
+        required: true
+        type: string
+      approved_plan_sha256:
+        description: Owner-approved canonical plan SHA-256
+        required: true
+        type: string
+      entitlement_run_id:
+        description: Run holding reviewed provider entitlement evidence
+        required: true
+        type: string
+      entitlement_artifact:
+        description: Exact entitlement evidence artifact name
+        required: true
+        type: string
+      entitlement_sha256:
+        description: Owner-approved canonical entitlement evidence SHA-256
+        required: true
+        type: string
 
 permissions:
   actions: read
@@ -75,6 +99,31 @@ jobs:
           mapfile -t files < <(find audit_results/report_card_calendar -type f \( -name xyns_calendar.json -o -name xnys_calendar.json \))
           test "${#files[@]}" -eq 1
           echo "path=${files[0]}" >> "$GITHUB_OUTPUT"
+      - name: Download owner-approved plan and entitlement evidence
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.approved_plan_run_id }}
+          name: ${{ inputs.approved_plan_artifact }}
+          path: audit_results/report_card_approved_plan
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.entitlement_run_id }}
+          name: ${{ inputs.entitlement_artifact }}
+          path: audit_results/report_card_entitlement
+      - name: Resolve exactly one plan package and entitlement document
+        id: g2
+        shell: bash
+        run: |
+          mapfile -t plans < <(find audit_results/report_card_approved_plan -type f -name protected_validation.json)
+          mapfile -t entitlements < <(find audit_results/report_card_entitlement -type f -name entitlement.json)
+          test "${#plans[@]}" -eq 1
+          test "${#entitlements[@]}" -eq 1
+          echo "plan=${plans[0]}" >> "$GITHUB_OUTPUT"
+          echo "entitlement=${entitlements[0]}" >> "$GITHUB_OUTPUT"
       - name: Acquire bounded internal evidence
         shell: bash
         run: |
@@ -85,6 +134,11 @@ jobs:
             --source-sha "$GITHUB_SHA" \
             --mode "${{ inputs.execution_mode }}" \
             --authorization "${{ inputs.authorize_acquisition }}" \
+            --approved-plan "${{ steps.g2.outputs.plan }}" \
+            --approved-plan-sha256 "${{ inputs.approved_plan_sha256 }}" \
+            --entitlement "${{ steps.g2.outputs.entitlement }}" \
+            --entitlement-sha256 "${{ inputs.entitlement_sha256 }}" \
+            --kill-switch "$ATLAS_REPORT_CARD_DURABLE_ROOT/ACQUISITION_KILL_SWITCH" \
             --output audit_results/report_card_market_evidence/report_card_market_evidence.json
       - name: Offline acquisition contract tests
         run: pytest -q tests/test_report_card_exchange_calendar.py tests/test_report_card_market_evidence_acquisition.py tests/test_report_card_observation_producer.py tests/test_report_card_observation_activation.py tests/test_report_card_end_to_end_offline.py
