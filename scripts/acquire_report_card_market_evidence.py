@@ -7,17 +7,44 @@ from datetime import datetime, timezone
 import hashlib
 import json
 import os
+import pwd
+import stat
 from pathlib import Path
 
 from services.finnhub_shadow_provider import FINNHUB_PAID_CORE_CERTIFICATION_LICENSE, FinnhubShadowAdapter
 from services.prospective_report_card import ProspectiveLedger
 from services.report_card_market_evidence_acquisition import acquire_market_evidence, build_acquisition_plan
+from services.report_card_operational_controls import digest
 from services.report_card_exchange_calendar import verify_xnys_calendar
 from scripts.certify_report_card_durable_readonly import snapshot
 
 
 def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def protected_kill_switch(path: Path):
+    """Return a per-call fail-closed probe; CLOSED remains the safe default."""
+    path = path.resolve()
+
+    def is_closed() -> bool:
+        if not path.is_file() or not stat.S_ISREG(path.stat().st_mode):
+            return True
+        if stat.S_IMODE(path.stat().st_mode) != 0o600:
+            return True
+        if pwd.getpwuid(path.stat().st_uid).pw_name != "atlasrunner":
+            return True
+        return path.read_bytes() != b"OPEN\n"
+
+    return is_closed
+
+
+def load_approved_plan(path: Path, expected_hash: str) -> dict:
+    package = json.loads(path.read_text(encoding="utf-8"))
+    plan = package.get("canonical_plan", package)
+    if not isinstance(plan, dict) or plan.get("artifact_sha256") != expected_hash:
+        raise PermissionError("OWNER_APPROVED_ACQUISITION_PLAN_HASH_INVALID")
+    return plan
 
 
 def resolve_verified_backup(*, backup_root: Path, primary_tip: str) -> Path:
@@ -50,6 +77,11 @@ def main() -> int:
     parser.add_argument("--source-sha", required=True)
     parser.add_argument("--authorization", required=True)
     parser.add_argument("--mode", choices=("plan", "acquire"), default="plan")
+    parser.add_argument("--approved-plan")
+    parser.add_argument("--approved-plan-sha256", default="")
+    parser.add_argument("--entitlement")
+    parser.add_argument("--entitlement-sha256", default="")
+    parser.add_argument("--kill-switch")
     args = parser.parse_args()
     if not args.ledger.is_file():
         raise FileNotFoundError("PROTECTED_REPORT_CARD_LEDGER_REQUIRED")
@@ -69,6 +101,13 @@ def main() -> int:
             source_sha=args.source_sha,
         )
     else:
+        if not all((args.approved_plan, args.approved_plan_sha256,
+                    args.entitlement, args.entitlement_sha256, args.kill_switch)):
+            raise PermissionError("G2_APPROVED_PLAN_ENTITLEMENT_AND_KILL_SWITCH_REQUIRED")
+        approved_plan = load_approved_plan(Path(args.approved_plan), args.approved_plan_sha256)
+        entitlement = json.loads(Path(args.entitlement).read_text(encoding="utf-8"))
+        if digest(entitlement) != args.entitlement_sha256:
+            raise PermissionError("OWNER_APPROVED_ENTITLEMENT_HASH_INVALID")
         provider = FinnhubShadowAdapter(license_class=FINNHUB_PAID_CORE_CERTIFICATION_LICENSE)
         evidence = acquire_market_evidence(
             ledger=ledger,
@@ -78,6 +117,10 @@ def main() -> int:
             authorization=args.authorization,
             source_sha=args.source_sha,
             retry_attempts=0,
+            approved_plan=approved_plan,
+            approved_plan_hash=args.approved_plan_sha256,
+            kill_switch_check=protected_kill_switch(Path(args.kill_switch)),
+            entitlement_evidence=entitlement,
         )
     ledger_hash_after = _sha256(args.ledger)
     backup_hash_after = _sha256(backup_ledger)
