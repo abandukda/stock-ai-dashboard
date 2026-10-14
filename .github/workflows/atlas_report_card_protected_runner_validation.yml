@@ -42,7 +42,7 @@ jobs:
         with: {python-version: "3.11"}
       - run: pip install -r requirements.txt
       - name: Install protected-validation calendar dependency
-        run: python -m pip install exchange_calendars==4.13.2
+        run: python -m pip install exchange_calendars==4.13.2 PyYAML==6.0.3
       - name: Enforce provider-free authorization and roots
         run: |
           test "$REPORT_CARD_VALIDATION_AUTHORIZATION" = "REPORT_CARD_PROTECTED_VALIDATE_ONCE"
