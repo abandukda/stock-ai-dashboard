@@ -4,6 +4,7 @@ from collections import defaultdict
 from typing import Any,Mapping
 
 from services.customer_annual_statement_projection import project_customer_annual_statements
+from services.customer_per_share_credibility import project_per_share_credibility
 
 CONTRACT="ATLAS_CUSTOMER_STATEMENT_HISTORY_PROJECTION_V1"
 
@@ -47,8 +48,10 @@ def project_customer_statement_history(annual_presentation:Mapping[str,Any],quar
     quarterly=_quarterly_projection(quarterly_normalized,quarterly_series,max_quarterly_periods)
     tickers={annual.get('ticker'),quarterly_normalized.get('ticker'),quarterly_series.get('ticker')}
     if len(tickers)!=1:raise ValueError('ANNUAL_QUARTERLY_TICKER_MISMATCH')
+    per_share_credibility=project_per_share_credibility(annual_presentation)
     return {'contract':CONTRACT,'status':'AVAILABLE' if annual['status']=='AVAILABLE' or quarterly['status']=='AVAILABLE' else 'UNAVAILABLE',
             'ticker':annual.get('ticker'),'annual':annual,'quarterly':quarterly,'read_only':True,
+            'per_share_credibility':per_share_credibility,
             'rating_authority':'UNCHANGED','publication_authority':'UNCHANGED','provider_calls':0}
 
 __all__=['CONTRACT','project_customer_statement_history']

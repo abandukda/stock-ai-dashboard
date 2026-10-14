@@ -19,9 +19,12 @@ def main():
                         'quarterly_periods':result['quarterly']['retained_period_count'],
                         'annual_visible_cells':sum(result['annual']['cell_coverage'].values()),
                         'quarterly_visible_cells':sum(result['quarterly']['cell_coverage'].values()),
-                        'quarterly_available_cells':result['quarterly']['cell_coverage']['available']})
+                        'quarterly_available_cells':result['quarterly']['cell_coverage']['available'],
+                        'diluted_eps_available_periods':sum(x['diluted_eps']['status']=='AVAILABLE' for x in result['per_share_credibility']['records']),
+                        'unverified_share_basis_periods':sum(x['share_basis']['status']=='PROVIDER_REPORTED_SHARE_BASIS_UNVERIFIED' for x in result['per_share_credibility']['records']),
+                        'share_basis_discontinuities':sum(x['share_basis']['discontinuity_from_prior_period'] for x in result['per_share_credibility']['records'])})
     summary={'contract':'ATLAS_G6_CUSTOMER_STATEMENT_HISTORY_SUMMARY_V1','records':records,
-             'totals':{key:sum(x[key] for x in records) for key in ('annual_periods','quarterly_periods','annual_visible_cells','quarterly_visible_cells','quarterly_available_cells')},
+             'totals':{key:sum(x[key] for x in records) for key in ('annual_periods','quarterly_periods','annual_visible_cells','quarterly_visible_cells','quarterly_available_cells','diluted_eps_available_periods','unverified_share_basis_periods','share_basis_discontinuities')},
              'provider_calls':0,'rating_authority':'UNCHANGED','publication_authority':'UNCHANGED'}
     (a.output_root/'customer_statement_history_summary.json').write_bytes(canonical_bytes(summary)+b'\n');print(json.dumps(summary,indent=2));return 0
 if __name__=='__main__':raise SystemExit(main())

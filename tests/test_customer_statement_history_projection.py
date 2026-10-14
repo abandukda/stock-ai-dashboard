@@ -17,6 +17,7 @@ def test_combined_projection_is_read_only_source_bound_and_never_zero_fills():
     assert projection['annual']['retained_period_count']==6 and projection['quarterly']['retained_period_count']==1
     assert projection['quarterly']['statements']['INCOME_STATEMENT'][0]['cells'][0]['value']==25
     assert projection['rating_authority']==projection['publication_authority']=='UNCHANGED'
+    assert projection['per_share_credibility']['contract']=='ATLAS_CUSTOMER_PER_SHARE_CREDIBILITY_V1'
 
 def test_research_accepts_only_exact_ticker_read_only_projection_without_changing_authority():
     annual=annual_fixture();annual['ticker']='NVDA';q,s=quarterly_fixture();q['ticker']=s['ticker']='NVDA'
