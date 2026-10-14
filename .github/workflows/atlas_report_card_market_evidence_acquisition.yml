@@ -86,8 +86,8 @@ jobs:
             test "${{ inputs.authorize_acquisition }}" = "REPORT_CARD_ACQUIRE_ONCE"
             test -n "$FINNHUB_API_KEY"
             test "${{ inputs.approved_plan_sha256 }}" = "457aab35abd2c5e02f9d06dfeaffc2dd9ffa15e7083d601f2737b7a11b4829a3"
-            test "${{ inputs.authorization_package_sha256 }}" = "08e138047e9e474762d548bf7c3d39750ad46387e4acb226d75b57384abce308"
-            test "${{ inputs.entitlement_sha256 }}" = "680f9dd41d3df5d0dd30d8d5c9306ad000b319b696edc4cf7d01607d31c0e477"
+            test "${{ inputs.authorization_package_sha256 }}" = "7e52b221e7da843f68d52d5a71795d6f64c5db7951d041a4c582ef5e8e1fe83f"
+            test "${{ inputs.entitlement_sha256 }}" = "388e0a6424c61a437990b611ccfa2822d24095bbab6914a26f2691aa62d2e3f9"
           fi
           test -n "$ATLAS_REPORT_CARD_DURABLE_ROOT"
           test -n "$ATLAS_REPORT_CARD_BACKUP_ROOT"

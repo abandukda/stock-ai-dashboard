@@ -149,5 +149,14 @@ def test_entitlement_separates_owner_status_from_contract_dates():
         "as_of": "2026-10-14",
         "timezone": "America/New_York",
     }
-    assert evidence["customer_signature_date"] is None
+    assert evidence["customer_signature_date"] == "2026-09-25"
+    assert evidence["effective_at"] == "2026-09-25"
     assert evidence["endpoint_evidence"]["provider_signature_date"] == "2026-09-23"
+
+    package = json.loads(Path("config/report_card_g2_execution_package_20261014.json").read_text())
+    assert digest(package) == transition.BOUND_PACKAGE_SHA256
+    assert package["authorization_package_sha256"] == (
+        "08e138047e9e474762d548bf7c3d39750ad46387e4acb226d75b57384abce308"
+    )
+    assert package["entitlement_sha256"] == OWNER_APPROVED_ENTITLEMENT_SHA256
+    assert package["status"] == "REVIEW_REQUIRED_NOT_AUTHORIZED"
