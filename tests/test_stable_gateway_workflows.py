@@ -37,6 +37,17 @@ def test_report_card_is_default_branch_scope_bound_and_mutations_stay_closed():
     assert "OPERATIONS_KILL_SWITCH" not in text
     assert "ACQUISITION_KILL_SWITCH" in text
     assert w["jobs"]["protected-preflight"]["env"]["PYTHONPATH"] == "."
+    assert "gh run download" not in text and "GH_TOKEN" not in text
+    download = next(s for s in w["jobs"]["protected-preflight"]["steps"]
+                    if s.get("name") == "Download exact immutable scope")
+    assert download["uses"] == "actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093"
+    assert download["with"] == {
+        "name": "${{ inputs.scope_artifact }}",
+        "path": "${{ runner.temp }}/scope",
+        "run-id": "${{ inputs.scope_run_id }}",
+        "github-token": "${{ github.token }}",
+        "repository": "${{ github.repository }}",
+    }
     assert '--scope "${{ inputs.scope_path }}"' not in text
     assert "schedule:" not in text
     assert "entitlement.json" in text and "execution_package.json" in text
