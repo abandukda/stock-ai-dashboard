@@ -51,6 +51,10 @@ on:
         description: Exact reviewed G2 authorization package SHA-256
         required: true
         type: string
+      runtime_code_sha:
+        description: Exact registered commit checked out by this run
+        required: true
+        type: string
 
 permissions:
   actions: read
@@ -84,10 +88,11 @@ jobs:
           if [ "${{ inputs.execution_mode }}" = "plan" ]; then
             test "${{ inputs.authorize_acquisition }}" = "REPORT_CARD_PLAN_ONCE"
           else
-            test "${{ inputs.authorize_acquisition }}" = "REPORT_CARD_ACQUIRE_ONCE:219c5453b58bfe838a58f73a666a630637747f67fa5cf419526f4a3a9908764a"
+            test "${{ inputs.runtime_code_sha }}" = "$GITHUB_SHA"
+            test "${{ inputs.authorize_acquisition }}" = "REPORT_CARD_ACQUIRE_ONCE:56d7bc70a3479569595e9d51836476cd11dc510c808ef99c219ad066607a07b8"
             test -n "$FINNHUB_API_KEY"
-            test "${{ inputs.approved_plan_sha256 }}" = "87fd4a0c6a86396aa4c1da60384eb5f15bc7259b1aaaae2e812c748b4e733e44"
-            test "${{ inputs.authorization_package_sha256 }}" = "219c5453b58bfe838a58f73a666a630637747f67fa5cf419526f4a3a9908764a"
+            test "${{ inputs.approved_plan_sha256 }}" = "e6cdf1cfd931a630861feb289f1eeca481d94083f4f1604a08bad8dc12cfc38d"
+            test "${{ inputs.authorization_package_sha256 }}" = "56d7bc70a3479569595e9d51836476cd11dc510c808ef99c219ad066607a07b8"
             test "${{ inputs.entitlement_sha256 }}" = "161b2799b0ea935185d5fddcd53ffbf3fdd755d6a939d3898e0effe58c8c83d4"
           fi
           test -n "$ATLAS_REPORT_CARD_DURABLE_ROOT"
@@ -139,7 +144,8 @@ jobs:
             --ledger "$ATLAS_REPORT_CARD_DURABLE_ROOT/report-card.sqlite3" \
             --backup-root "$ATLAS_REPORT_CARD_BACKUP_ROOT" \
             --calendar "${{ steps.calendar.outputs.path }}" \
-            --source-sha "fae6a94f96f8f7ed6b24a96a8cdd2fe21ffa703a" \
+            --source-sha "38355476e02998a7d9e5a4fb3566775f8b9add31" \
+            --runtime-code-sha "${{ inputs.runtime_code_sha }}" \
             --mode "${{ inputs.execution_mode }}" \
             --authorization "${{ inputs.authorize_acquisition }}" \
             --approved-plan "${{ steps.g2.outputs.plan }}" \

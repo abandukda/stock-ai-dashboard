@@ -223,6 +223,8 @@ def test_dispatch_workflow_is_inert_and_requires_distinct_primary_and_backup():
     assert '--approved-plan-sha256 "${{ inputs.approved_plan_sha256 }}"' in source
     assert '--entitlement "${{ steps.g2.outputs.entitlement }}"' in source
     assert '--entitlement-sha256 "${{ inputs.entitlement_sha256 }}"' in source
+    assert 'test "${{ inputs.runtime_code_sha }}" = "$GITHUB_SHA"' in source
+    assert '--runtime-code-sha "${{ inputs.runtime_code_sha }}"' in source
     assert 'ACQUISITION_KILL_SWITCH' in source
     assert "append_observation" not in source
     assert "REPORT_CARD_APPEND_ONCE" not in source
