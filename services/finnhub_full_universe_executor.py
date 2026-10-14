@@ -24,6 +24,7 @@ from services.finnhub_canonical_authority import AUTHORITY_VERSION, FinnhubCanon
 from services.finnhub_shadow_provider import FINNHUB_PAID_CORE_CERTIFICATION_LICENSE, FinnhubShadowAdapter
 from services.finnhub_forward_valuation_bridge import apply_forward_inputs
 from services.finnhub_rate_governance import FinnhubRateGovernor
+from services.finnhub_freshness_policy import VERSION as FRESHNESS_POLICY_VERSION, certify_family_freshness
 from services.executor_publication_bridge import build_publication_bundle, bridge_evaluation
 from services.full_universe_brain_certification import (
     REPORT_CARD_PROSPECTIVE_ACTIVE, build_immutable_candidate, certify_complete_run,
@@ -359,6 +360,8 @@ def acquire_shard(
     started = time.monotonic()
     started_epoch = time.time()
     rows, failures, calls, cache_hits, retry_count = [], [], 0, 0, 0
+    maximum_http_attempts = len(shard.get("symbols") or ()) * len(AUTHORIZED_ACQUISITION_FAMILIES) * (MAX_TRANSIENT_RETRIES + 1)
+    freshness_receipts: list[dict[str, Any]] = []
     rate_limit_events, provider_errors = 0, 0
     http_4xx_count, http_5xx_count, timeout_count = 0, 0, 0
     request_attempts: dict[tuple[str, str], int] = {}
@@ -389,12 +392,21 @@ def acquire_shard(
                 params = {"freq": "annual"}
             transport = (estimate_adapter or adapter) if capability in CERTIFIED_FORWARD_ACQUISITION_FAMILIES else adapter
             for attempt in range(MAX_TRANSIENT_RETRIES + 1):
+                if calls >= maximum_http_attempts:
+                    raise RuntimeError("PROVIDER_HTTP_ATTEMPT_CEILING_EXCEEDED")
                 if rate_governor is not None:
                     rate_governor.before_request()
                 request_start_epoch_seconds.append(time.time())
                 record = _fetch(transport, capability, symbol, 0.0 if rate_governor else pace_seconds, **params)
                 calls += 1
                 request_attempts[key] = request_attempts.get(key, 0) + 1
+                try:
+                    freshness_receipts.append(certify_family_freshness(
+                        capability=capability, record=record,
+                        acquisition_started_at=datetime.fromtimestamp(started_epoch, timezone.utc),
+                    ))
+                except ValueError as exc:
+                    raise RuntimeError(f"FRESHNESS_POLICY_STOP:{symbol}:{capability}:{exc}") from exc
                 reason = str((record.get("payload") or {}).get("reason") or "").upper()
                 if reason == "HTTP_429":
                     rate_limit_events += 1
@@ -481,6 +493,10 @@ def acquire_shard(
         "shard": dict(shard), "records": rows,
         "provider_telemetry": {
             "provider_calls": calls, "cache_hits": cache_hits,
+            "maximum_http_attempts": maximum_http_attempts,
+            "attempt_ceiling_status": "PASS" if calls <= maximum_http_attempts else "FAIL",
+            "freshness_policy_version": FRESHNESS_POLICY_VERSION,
+            "freshness_status_counts": dict(Counter(item["status"] for item in freshness_receipts)),
             "fresh_provider_calls": len(request_attempts),
             "retry_provider_calls": retry_count,
             "calls_avoided": cache_hits, "retry_count": retry_count,

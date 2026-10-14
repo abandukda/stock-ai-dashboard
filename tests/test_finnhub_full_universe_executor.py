@@ -42,7 +42,10 @@ def test_acquisition_cache_calls_each_authorized_family_once(monkeypatch, tmp_pa
 
     def fake_fetch(_adapter, capability, symbol, _pace, **_params):
         calls.append((symbol, capability))
-        return {"provenance": {"certification_status": "CERTIFIED", "raw_evidence_id": f"{symbol}:{capability}"}}
+        return {"provenance": {
+            "certification_status": "CERTIFIED", "raw_evidence_id": f"{symbol}:{capability}",
+            "capture_timestamp": datetime.now(timezone.utc).isoformat(),
+        }}
 
     def fake_normalized(symbol, _classification, _records):
         return NormalizedEvidence({"ticker": symbol}, {}, {"ticker": symbol}, [], [])
@@ -78,7 +81,10 @@ def test_acquisition_checkpoint_from_other_run_is_not_reused(monkeypatch, tmp_pa
     calls = []
     monkeypatch.setattr(executor, "_fetch", lambda _adapter, capability, symbol, _pace, **_params: (
         calls.append((symbol, capability)) or
-        {"provenance": {"certification_status": "CERTIFIED", "raw_evidence_id": f"{symbol}:{capability}"}}
+        {"provenance": {
+            "certification_status": "CERTIFIED", "raw_evidence_id": f"{symbol}:{capability}",
+            "capture_timestamp": datetime.now(timezone.utc).isoformat(),
+        }}
     ))
     monkeypatch.setattr(executor, "_normalized_row", lambda symbol, _classification, _records: NormalizedEvidence(
         {"ticker": symbol}, {}, {"ticker": symbol}, [], [],
@@ -92,6 +98,35 @@ def test_acquisition_checkpoint_from_other_run_is_not_reused(monkeypatch, tmp_pa
                                     checkpoint_dir=tmp_path)
     assert report["provider_telemetry"]["provider_calls"] == len(executor.AUTHORIZED_ACQUISITION_FAMILIES)
     assert len(calls) == 2 * len(executor.AUTHORIZED_ACQUISITION_FAMILIES)
+
+
+def test_http_attempt_counter_never_exceeds_shard_ceiling(monkeypatch):
+    calls = []
+
+    def always_transient(_adapter, capability, symbol, _pace, **_params):
+        calls.append((symbol, capability))
+        return {
+            "provenance": {
+                "capture_timestamp": datetime.now(timezone.utc).isoformat(),
+                "certification_status": "DATA_UNAVAILABLE",
+            },
+            "payload": {"reason": "HTTP_503"},
+        }
+
+    monkeypatch.setattr(executor, "_fetch", always_transient)
+    monkeypatch.setattr(executor.time, "sleep", lambda _seconds: None)
+    monkeypatch.setattr(executor, "_normalized_row", lambda symbol, _classification, _records: NormalizedEvidence(
+        {"ticker": symbol}, {}, {"ticker": symbol}, [], [],
+    ))
+    shard = executor.deterministic_shards(["A"], shard_size=1)[0]
+    result = executor.acquire_shard(
+        adapter=object(), shard=shard, identity=identity(universe(("A",))),
+        catalog={}, pace_seconds=0,
+    )
+    ceiling = len(executor.AUTHORIZED_ACQUISITION_FAMILIES) * (executor.MAX_TRANSIENT_RETRIES + 1)
+    assert len(calls) == ceiling
+    assert result["provider_telemetry"]["provider_calls"] == ceiling
+    assert result["provider_telemetry"]["attempt_ceiling_status"] == "PASS"
 
 
 def _shard_payload(scope, ident, symbols, shard_id="shard-000"):
