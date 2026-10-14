@@ -60,3 +60,30 @@ def test_market_history_requires_recent_completed_session():
             acquisition_started_at=START,
             checked_at=datetime(2026, 10, 14, 22, 1, tzinfo=timezone.utc),
         )
+
+
+def test_forward_estimate_freshness_requires_parseable_period_identity():
+    result = certify_family_freshness(
+        capability="eps_estimates",
+        record=record({"estimates": [{"period": "2027-12-31", "value": 14.2}]}),
+        acquisition_started_at=START,
+        checked_at=datetime(2026, 10, 14, 22, 1, tzinfo=timezone.utc),
+    )
+    assert result["status"] == "FRESH"
+    assert result["latest_effective_period"] == "2027-12-31"
+
+    with pytest.raises(ValueError, match="ESTIMATE_PERIOD_MISSING"):
+        certify_family_freshness(
+            capability="ebitda_estimates",
+            record=record({"estimates": [{"value": 1_000_000}]}),
+            acquisition_started_at=START,
+            checked_at=datetime(2026, 10, 14, 22, 1, tzinfo=timezone.utc),
+        )
+
+    with pytest.raises(ValueError, match="ESTIMATE_PERIOD_INVALID"):
+        certify_family_freshness(
+            capability="eps_estimates",
+            record=record({"estimates": [{"period": "FY+1", "value": 14.2}]}),
+            acquisition_started_at=START,
+            checked_at=datetime(2026, 10, 14, 22, 1, tzinfo=timezone.utc),
+        )

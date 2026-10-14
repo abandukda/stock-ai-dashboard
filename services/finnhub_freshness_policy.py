@@ -76,6 +76,19 @@ def certify_family_freshness(
                 raise ValueError("FRESHNESS_MARKET_SESSION_STALE")
         else:
             status = "UNAVAILABLE"
+    elif capability in {"eps_estimates", "ebitda_estimates"}:
+        estimates = list(payload.get("estimates") or ())
+        period_values = [item.get("period") for item in estimates]
+        if estimates and any(not value for value in period_values):
+            raise ValueError("FRESHNESS_ESTIMATE_PERIOD_MISSING")
+        periods = []
+        for value in period_values:
+            # Forward periods may legitimately follow capture time. The freshness
+            # invariant is therefore identity completeness and parseability, not
+            # a historical-period cutoff.
+            periods.append(_utc(str(value) + "T00:00:00+00:00", "ESTIMATE_PERIOD"))
+        latest_period = max(periods).date().isoformat() if periods else None
+        status = "FRESH" if estimates else "UNAVAILABLE"
     elif not payload:
         status = "UNAVAILABLE"
 
