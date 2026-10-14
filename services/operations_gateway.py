@@ -114,7 +114,35 @@ class GatewayApproval:
 
 def verify_scope(path: Path, approval: GatewayApproval) -> dict[str, Any]:
     scope = json.loads(path.read_text(encoding="utf-8"))
-    actual = sha256(canonical_bytes(scope))
+    # Report Card validation artifacts wrap the exact acquisition plan with
+    # ledger, mount, backup and kill-switch evidence. Authorization binds the
+    # self-hashed nested plan, not the surrounding audit envelope.
+    if scope.get("schema_version") == "ATLAS_REPORT_CARD_PROTECTED_READONLY_V1":
+        plan = scope.get("canonical_plan")
+        if not isinstance(plan, Mapping):
+            raise PermissionError("GATEWAY_REPORT_CARD_PLAN_MISSING")
+        declared = str(plan.get("artifact_sha256") or "")
+        if scope.get("canonical_plan_sha256") != declared:
+            raise PermissionError("GATEWAY_REPORT_CARD_PLAN_BINDING_MISMATCH")
+        unhashed = {key: value for key, value in plan.items() if key != "artifact_sha256"}
+        actual = sha256(canonical_bytes(unhashed))
+        capability_endpoints = {
+            "historical_ohlcv": "/stock/candle",
+            "splits": "/stock/split",
+            "dividends": "/stock/dividend2",
+        }
+        requests = []
+        for ordinal, row in enumerate(plan.get("request_manifest") or (), 1):
+            capability = str(row.get("capability") or "")
+            endpoint = capability_endpoints.get(capability)
+            if endpoint is None:
+                raise PermissionError("GATEWAY_ENDPOINT_NOT_ALLOWED")
+            requests.append({"ordinal": ordinal, "method": "GET", "endpoint": endpoint,
+                             "parameters": {"symbol": row.get("ticker"),
+                                            **dict(row.get("parameters") or {})}})
+        scope = {**plan, "requests": requests}
+    else:
+        actual = sha256(canonical_bytes(scope))
     if actual != approval.scope_sha256:
         raise PermissionError("GATEWAY_SCOPE_DIGEST_MISMATCH")
     if scope.get("source_sha") != approval.source_sha:
