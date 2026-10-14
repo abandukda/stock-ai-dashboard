@@ -76,6 +76,9 @@ RESEARCH_V2_MARKERS = (
     "analyst-module", "risks", "view-change-conditions", "what-changed",
     "fundamentals", "catalysts", "about-company", "evidence-methodology",
 )
+DEDICATED_SECTION_TAB_LABELS = frozenset({
+    "Annual income statement", "Annual cash flow", "Annual balance sheet",
+})
 
 EXPANDER_ICON_TOKENS = {
     "keyboard_arrow_right", "keyboard_arrow_down", "expand_more", "expand_less",
@@ -2343,6 +2346,12 @@ class AtlasVisualCrawler:
                     continue
         seen: set[str] = set()
         for name in tabs:
+            # The annual filing surface has its own exact-SHA section capture.
+            # Re-running the generic tab-panel stability loop for its large
+            # dataframes duplicates evidence work inside the bounded aggregate
+            # Home-card phase and can consume the phase budget.
+            if name in DEDICATED_SECTION_TAB_LABELS:
+                continue
             if name in seen:
                 continue
             seen.add(name)
