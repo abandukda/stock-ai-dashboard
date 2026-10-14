@@ -36,6 +36,21 @@ def test_required_phase_has_exact_customer_routes_and_mobile_coverage() -> None:
     assert not {"Recovery", "ETFs", "Full Ranked Scan"} & required_mobile
 
 
+def test_customer_role_visual_evidence_adds_governed_360_without_weakening_390_gate() -> None:
+    assert 'MOBILE = {"width": 390, "height": 844}' in CRAWLER
+    assert 'NARROW_MOBILE = {"width": 360, "height": 800}' in CRAWLER
+    assert 'viewport="mobile_360"' in CRAWLER
+    assert 'for ticker in ("NVDA", "CRC")' in CRAWLER
+    assert "CUSTOMER_ROLE_WATCHLIST_FAILED_MOBILE_360" in CRAWLER
+
+
+def test_customer_navigation_keeps_all_four_routes_visible_at_390_and_360() -> None:
+    app = Path("app.py").read_text(encoding="utf-8")
+    assert "@media(max-width:420px)" in app
+    assert 'justify-content:space-between;gap:.08rem!important' in app
+    assert 'font-size:.64rem!important' in app
+
+
 def test_required_phase_budget_is_explicit_and_below_ceiling() -> None:
     REQUIRED_PHASE_BUDGET = _crawler_constant("REQUIRED_PHASE_BUDGET")
     REQUIRED_PHASE_TIMEOUT_SECONDS = _crawler_constant("REQUIRED_PHASE_TIMEOUT_SECONDS")

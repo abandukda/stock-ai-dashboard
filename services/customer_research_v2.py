@@ -11,6 +11,8 @@ from datetime import datetime, timezone
 from typing import Any, Iterable, Mapping
 
 from services.customer_authority import customer_authority, customer_authority_identity
+from services.annual_financial_statements import annual_financial_statements
+from services.customer_statement_history_bundle import customer_statement_history
 
 
 VERSION = "ATLAS_CUSTOMER_RESEARCH_V2_P0"
@@ -159,11 +161,21 @@ def _research_brief(
     facts: Iterable[FactCard],
     risks: Iterable[str],
     conditions: Mapping[str, Any],
+    business_evidence: Iterable[str] = (),
 ) -> dict[str, Any]:
     """Build a concise deterministic brief from customer-publishable evidence only."""
     reasons: list[str] = []
     seen: set[str] = set()
+    for raw in business_evidence:
+        sentence = str(raw or "").strip()
+        if sentence and sentence not in seen:
+            reasons.append(sentence)
+            seen.add(sentence)
+        if len(reasons) == 3:
+            break
     for fact in facts:
+        if len(reasons) == 3:
+            break
         sentence = f"{fact.fact_name} is {fact.display_value} for {_period_label(fact.period)}."
         if sentence not in seen:
             reasons.append(sentence)
@@ -385,15 +397,301 @@ def _financial_trend_projection(financials: Mapping[str, Any]) -> dict[str, Any]
     candidates = {
         "Revenue": _seq(payload.get("revenue_history")),
         "EPS": _seq(payload.get("eps_history")),
+        "Net Income": _seq(payload.get("net_income_history")),
+        "Operating Cash Flow": _seq(payload.get("operating_cash_flow_history")),
+        "Free Cash Flow": _seq(payload.get("free_cash_flow_history")),
+        "Capital Expenditures": _seq(payload.get("capex_history")),
         "Operating Margin": _seq(payload.get("operating_margin_history")),
+        "Gross Margin": _seq(payload.get("gross_margin_history")),
+        "Net Margin": _seq(payload.get("net_margin_history")),
     }
     series = {label: values for label, values in candidates.items() if periods and len(values) == len(periods)}
+    units = {
+        "Revenue": "USD", "Net Income": "USD", "Operating Cash Flow": "USD",
+        "Free Cash Flow": "USD", "Capital Expenditures": "USD", "EPS": "USD_PER_SHARE",
+        "Operating Margin": "PERCENT", "Gross Margin": "PERCENT", "Net Margin": "PERCENT",
+    }
+    periodicity = str(payload.get("periodicity") or payload.get("frequency") or "").strip().upper()
+    # Finnhub basic-financials retains long-horizon series separately from the
+    # normalized latest-period fields. Project only series explicitly present
+    # in the signed contract registry and carrying their original evidence ID.
+    if not series:
+        retained = _map(_map(payload.get("series")).get("annual"))
+        contracts = _map(payload.get("provider_contract_series"))
+        definitions = (
+            ("ebitda", "EBITDA", "USD"),
+            ("eps", "EPS", "USD_PER_SHARE"),
+            ("grossMargin", "Gross Margin", "PERCENT"),
+            ("operatingMargin", "Operating Margin", "PERCENT"),
+            ("netMargin", "Net Margin", "PERCENT"),
+            ("fcfMargin", "Free Cash Flow Margin", "PERCENT"),
+        )
+        retained_values: dict[str, dict[str, float]] = {}
+        retained_units: dict[str, str] = {}
+        evidence_ids: set[str] = set()
+        for source_key, label, unit in definitions:
+            contract = _map(contracts.get(f"annual.{source_key}"))
+            evidence_id = str(contract.get("evidence_reference") or "").strip()
+            if contract.get("status") not in {"CERTIFIED_PROVIDER_CONTRACT", "PARTIALLY_CERTIFIED"} or not evidence_id:
+                continue
+            values = {}
+            for row in _seq(retained.get(source_key)):
+                item = _map(row)
+                try:
+                    number = float(item.get("v"))
+                except (TypeError, ValueError):
+                    continue
+                if not math.isfinite(number) or not item.get("period"):
+                    continue
+                conversion = str(contract.get("conversion") or "IDENTITY")
+                if conversion == "MULTIPLY_BY_1E6":
+                    number *= 1_000_000.0
+                if unit == "PERCENT" and str(contract.get("canonical_unit")) == "RATIO_DECIMAL":
+                    number *= 100.0
+                values[str(item["period"])] = number
+            if values:
+                retained_values[label] = values
+                retained_units[label] = unit
+                evidence_ids.add(evidence_id)
+        common_periods = set.intersection(*(set(values) for values in retained_values.values())) if retained_values else set()
+        periods = tuple(sorted(common_periods, reverse=True)[:5][::-1])
+        if periods:
+            periodicity = "ANNUAL"
+            series = {label: tuple(values[period] for period in periods) for label, values in retained_values.items()}
+            units = retained_units
+            provenance = {**dict(provenance), "evidence_ids": tuple(sorted(evidence_ids)),
+                          "source": provenance.get("source") or "FINNHUB_BASIC_FINANCIALS_RETAINED"}
     if not series or not (provenance.get("raw_evidence_id") or provenance.get("evidence_ids")):
         return {
             "status": "UNAVAILABLE", "series": {}, "periods": (),
             "message": "Certified multi-period earnings and financial history is unavailable for this snapshot.",
         }
-    return {"status": "AVAILABLE", "series": series, "periods": tuple(periods), "provenance": dict(provenance)}
+    return {
+        "status": "AVAILABLE", "series": series, "periods": tuple(periods),
+        "provenance": dict(provenance),
+        "units": units,
+        "periodicity": periodicity or "UNAVAILABLE",
+    }
+
+
+def _financial_snapshot_projection(report: Mapping[str, Any]) -> dict[str, Any]:
+    """Project retained field-level financial evidence without deriving values."""
+    lineage = _map(report.get("professional_evidence_lineage"))
+    fields = _map(lineage.get("fields"))
+    certified_inputs = _map(
+        _map(_map(_map(report.get("publication_certification")).get("components")).get("valuation")).get("lineage")
+    )
+    certified_inputs = _map(certified_inputs.get("inputs"))
+    input_aliases = {
+        "latest_revenue": "revenue", "capex": "capex",
+        "cash_and_equivalents": "cash", "total_debt": "debt",
+    }
+    definitions = (
+        ("latest_revenue", "Revenue", "USD"),
+        ("net_income", "Net income", "USD"),
+        ("operating_cash_flow", "Operating cash flow", "USD"),
+        ("free_cash_flow", "Free cash flow", "USD"),
+        ("capex", "Capital expenditures", "USD"),
+        ("cash_and_equivalents", "Cash and equivalents", "USD"),
+        ("total_debt", "Total debt", "USD"),
+        ("market_cap", "Market capitalization", "USD"),
+        ("forward_eps", "Forward EPS estimate", "USD_PER_SHARE"),
+        ("forward_ebitda", "Forward EBITDA estimate", "USD"),
+        ("revenue_growth_pct", "Revenue growth", "PERCENT"),
+        ("gross_margin_pct", "Gross margin", "PERCENT"),
+        ("operating_margin_pct", "Operating margin", "PERCENT"),
+        ("net_margin_pct", "Net margin", "PERCENT"),
+    )
+    items = []
+    for key, label, default_unit in definitions:
+        field_lineage = _map(fields.get(key))
+        value = report.get(key)
+        fallback = _map(certified_inputs.get(input_aliases.get(key, key)))
+        if not field_lineage.get("evidence_id") and fallback.get("evidence_id"):
+            try:
+                values_match = float(value) == float(fallback.get("canonical_value", fallback.get("value")))
+            except (TypeError, ValueError):
+                values_match = False
+            if values_match:
+                field_lineage = fallback
+        evidence_id = field_lineage.get("evidence_id")
+        if value is None or not evidence_id:
+            continue
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            continue
+        if not math.isfinite(number):
+            continue
+        items.append({
+            "field": key, "label": label, "value": number,
+            "unit": str(field_lineage.get("unit") or default_unit),
+            "currency": field_lineage.get("currency"),
+            "period": field_lineage.get("period") or report.get(f"{key}_period"),
+            "as_of": field_lineage.get("as_of") or report.get("professional_evidence_as_of"),
+            "provider": field_lineage.get("provider") or field_lineage.get("source") or lineage.get("provider"),
+            "evidence_id": str(evidence_id),
+            "analyst_count": field_lineage.get("analyst_count"),
+        })
+    return {
+        "status": "AVAILABLE" if items else "UNAVAILABLE",
+        "items": tuple(items),
+        "message": None if items else "Retained field-level financial evidence is unavailable for this snapshot.",
+    }
+
+
+def _financial_snapshot_with_trend(
+    snapshot: Mapping[str, Any], trend: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Use the same retained trend fields for the brief and supporting panel.
+
+    This is a presentation projection only. It copies the latest exact retained
+    value, period, unit and evidence identity; it never calculates a new fact.
+    """
+    items = [dict(item) for item in _seq(snapshot.get("items")) if isinstance(item, Mapping)]
+    existing = {str(item.get("label")) for item in items}
+    periods = _seq(trend.get("periods"))
+    provenance = _map(trend.get("provenance"))
+    evidence_ids = tuple(str(item) for item in _seq(provenance.get("evidence_ids")) if item)
+    if trend.get("status") == "AVAILABLE" and periods and evidence_ids:
+        for label, values in _map(trend.get("series")).items():
+            sequence = _seq(values)
+            if not sequence or str(label) in existing:
+                continue
+            try:
+                value = float(sequence[-1])
+            except (TypeError, ValueError):
+                continue
+            if not math.isfinite(value):
+                continue
+            items.append({
+                "field": re.sub(r"[^a-z0-9]+", "_", str(label).lower()).strip("_"),
+                "label": str(label),
+                "value": value,
+                "unit": str(_map(trend.get("units")).get(label) or ""),
+                "period": periods[-1],
+                "as_of": provenance.get("capture_timestamp") or provenance.get("as_of"),
+                "provider": provenance.get("source") or provenance.get("provider"),
+                "evidence_id": evidence_ids[0],
+            })
+    return {
+        "status": "AVAILABLE" if items else "UNAVAILABLE",
+        "items": tuple(items),
+        "message": None if items else "Certified financial evidence is unavailable for this snapshot.",
+    }
+
+
+def _premium_financial_depth(
+    report: Mapping[str, Any], snapshot: Mapping[str, Any], trend: Mapping[str, Any],
+    summary: Mapping[str, Any], conditions: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Group retained facts into paid-research lanes without deriving facts."""
+    lanes = {
+        "latest_revenue": "income_statement", "net_income": "income_statement",
+        "operating_margin_pct": "income_statement", "gross_margin_pct": "income_statement",
+        "net_margin_pct": "income_statement", "operating_cash_flow": "cash_flow",
+        "free_cash_flow": "cash_flow", "capex": "cash_flow",
+        "cash_and_equivalents": "balance_sheet", "total_debt": "balance_sheet",
+    }
+    statements = {key: [] for key in ("income_statement", "cash_flow", "balance_sheet")}
+    for source in _seq(snapshot.get("items")):
+        fact = dict(_map(source)); lane = lanes.get(str(fact.get("field") or ""))
+        if lane and all(fact.get(key) not in (None, "") for key in ("period", "unit", "provider", "evidence_id")):
+            statements[lane].append(fact)
+    evaluation = _map(report.get("canonical_investment_evaluation"))
+    professional = _map(_map(evaluation.get("atlas_valuation")).get("professional_valuation_v2"))
+    weights = _map(professional.get("model_weights"))
+    models = []
+    for source in _seq(professional.get("models")):
+        model = _map(source)
+        if model.get("status") != "PUBLISHED" or model.get("value") is None:
+            continue
+        models.append({
+            "methodology_id": model.get("methodology_id"), "name": model.get("name"),
+            "value": model.get("value"), "unit": "USD_PER_SHARE",
+            "fiscal_period": model.get("fiscal_period"), "confidence": model.get("confidence"),
+            "weight": weights.get(model.get("methodology_id")),
+            "assumptions": dict(_map(model.get("key_assumptions"))),
+            "source": "CERTIFIED_ATLAS_VALUATION",
+        })
+    periods = tuple(trend.get("periods") or ()) if trend.get("status") == "AVAILABLE" else ()
+    multi_period = len(periods) >= 2
+    invalidation = tuple(
+        str(item) for item in _seq(conditions.get("invalidates") or conditions.get("invalidate") or conditions.get("invalidation"))
+        if str(item).strip()
+    )
+    return {
+        "status": "FULL" if multi_period and all(statements.values()) and models else
+                  "LIMITED" if any(statements.values()) or models else "NOT_AVAILABLE",
+        "statement_depth": "MULTI_PERIOD" if multi_period else "LATEST_PERIOD_ONLY",
+        "periods": periods, "statements": {key: tuple(value) for key, value in statements.items()},
+        "valuation_models": tuple(models),
+        "company_case": {
+            "thesis": tuple(str(item) for item in _seq(summary.get("why_rating")) if str(item).strip()),
+            "risks": tuple(str(item) for item in _seq(summary.get("risks")) if str(item).strip()),
+            "invalidation": invalidation,
+            "invalidation_limitation": None if invalidation else
+                "No approved quantitative invalidation condition is retained for this snapshot.",
+        },
+        "limitation": None if multi_period else
+            "Only the latest certified fiscal period is retained; no multi-period trend is claimed.",
+    }
+
+
+def _financial_business_evidence(snapshot: Mapping[str, Any]) -> tuple[str, ...]:
+    by_field = {str(item.get("field")): item for item in _seq(snapshot.get("items")) if isinstance(item, Mapping)}
+    output = []
+    for key in ("revenue_growth_pct", "operating_margin_pct", "free_cash_flow"):
+        item = by_field.get(key)
+        if not item:
+            continue
+        value = float(item["value"])
+        if item.get("unit") == "PERCENT":
+            rendered = f"{value:,.1f}%"
+        elif abs(value) >= 1_000_000_000:
+            rendered = f"${value / 1_000_000_000:,.1f}B"
+        elif abs(value) >= 1_000_000:
+            rendered = f"${value / 1_000_000:,.1f}M"
+        else:
+            rendered = f"${value:,.2f}"
+        period = _human_date(item.get("period") or item.get("as_of"))
+        output.append(f'{item["label"]} is {rendered} for {period}.')
+    return tuple(output)
+
+
+def _financial_trend_business_evidence(trend: Mapping[str, Any]) -> tuple[str, ...]:
+    """Summarize only exact retained trend values already admitted by contract."""
+    if trend.get("status") != "AVAILABLE":
+        return ()
+    periods = _seq(trend.get("periods"))
+    if not periods:
+        return ()
+    period = _human_date(periods[-1])
+    units = _map(trend.get("units"))
+    output: list[str] = []
+    for label, values in _map(trend.get("series")).items():
+        sequence = _seq(values)
+        if not sequence:
+            continue
+        try:
+            number = float(sequence[-1])
+        except (TypeError, ValueError):
+            continue
+        unit = str(units.get(label) or "")
+        if unit == "PERCENT":
+            rendered = f"{number:,.1f}%"
+        elif unit == "USD_PER_SHARE":
+            rendered = f"${number:,.2f} per share"
+        elif unit == "USD" and abs(number) >= 1_000_000_000:
+            rendered = f"${number / 1_000_000_000:,.1f}B"
+        elif unit == "USD" and abs(number) >= 1_000_000:
+            rendered = f"${number / 1_000_000:,.1f}M"
+        else:
+            rendered = f"{number:,.2f}"
+        output.append(f"{label} was {rendered} for {period}.")
+        if len(output) == 2:
+            break
+    return tuple(output)
 
 
 def _six_pillar_projection(certified: Mapping[str, Any], report: Mapping[str, Any]) -> dict[str, Any]:
@@ -476,7 +774,21 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
     authority = customer_authority(report)
     identity = customer_authority_identity(report)
     if authority.get("status") != "AVAILABLE":
-        return {"version": VERSION, "status": "RATING_NOT_PUBLISHED", "ticker": authority.get("ticker")}
+        ticker = str(authority.get("ticker") or report.get("ticker") or report.get("Ticker") or "").strip().upper()
+        company = str(report.get("company") or report.get("company_name") or report.get("Company") or ticker).strip()
+        disposition = str(
+            report.get("terminal_data_state")
+            or _map(report.get("publication_certification")).get("state")
+            or "RATING_NOT_PUBLISHED"
+        ).strip().upper()
+        return {
+            "version": VERSION,
+            "status": "RATING_NOT_PUBLISHED",
+            "ticker": ticker,
+            "company": company,
+            "sector": report.get("sector"),
+            "withheld_disposition": disposition,
+        }
     certified = _map(authority.get("certified_customer_evaluation"))
     price_env = _field(certified, "price")
     fv_env = _field(certified, "atlas_fair_value")
@@ -490,6 +802,18 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
             "version": VERSION, "status": "RATING_NOT_PUBLISHED", "ticker": requested_ticker or ticker,
             "reason": "RESEARCH_AUTHORITY_TICKER_MISMATCH",
         }
+    statement_history = _map(report.get("certified_statement_history")) or customer_statement_history(ticker)
+    if statement_history.get("status") != "UNAVAILABLE":
+        valid_statement_history = (
+            statement_history.get("contract") == "ATLAS_CUSTOMER_STATEMENT_HISTORY_PROJECTION_V1"
+            and str(statement_history.get("ticker") or "").upper() == ticker
+            and statement_history.get("read_only") is True
+            and statement_history.get("rating_authority") == "UNCHANGED"
+            and statement_history.get("publication_authority") == "UNCHANGED"
+            and statement_history.get("provider_calls") == 0
+        )
+        if not valid_statement_history:
+            statement_history = {"status": "UNAVAILABLE", "reason": "STATEMENT_HISTORY_AUTHORITY_MISMATCH"}
     enrichment = _qa_enrichment(ticker)
     enrichment_ticker = str(enrichment.get("__atlas_ticker__") or ticker).strip().upper()
     if enrichment and enrichment_ticker != ticker:
@@ -497,9 +821,9 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
             "version": VERSION, "status": "RATING_NOT_PUBLISHED", "ticker": ticker,
             "reason": "CONTEXTUAL_EVIDENCE_TICKER_MISMATCH",
         }
-    company = str(report.get("company") or ticker)
+    company = str(report.get("company") or report.get("company_name") or ticker)
     facts = [item for item in (
-        _fact("Current Price", price_env, f"${float(price):,.2f}" if price is not None else UNAVAILABLE),
+        _fact("Last Certified Close", price_env, f"${float(price):,.2f}" if price is not None else UNAVAILABLE),
         _fact("ATLAS Fair Value", fv_env, f"${float(fair_value):,.2f}" if fair_value is not None else UNAVAILABLE),
     ) if item]
     intelligence = _map(report.get("intelligence"))
@@ -514,6 +838,14 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
     financials = _module(enrichment.get("basic_financials"))
     news = _module(enrichment.get("company_news"))
     events = _module(enrichment.get("earnings_calendar"))
+    profile_payload = _map(profile.get("payload"))
+    verified_profile_name = str(profile_payload.get("name") or "").strip()
+    if verified_profile_name and verified_profile_name.upper() != ticker:
+        company = verified_profile_name
+    elif company.strip().upper() == ticker:
+        retained_name = str(report.get("company_name") or report.get("Company") or "").strip()
+        if retained_name and retained_name.upper() != ticker:
+            company = retained_name
     target_payload = _map(targets.get("payload"))
     rec_periods = _seq(_map(recommendations.get("payload")).get("periods"))
     latest_rec = _map(rec_periods[0]) if rec_periods else {}
@@ -536,9 +868,20 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
         risks = [balance_sheet_risk, *risks][:4]
     action_text = _display_action(authority["action"])
     pillar_projection = _six_pillar_projection(certified, report)
+    financial_trend = _financial_trend_projection(financials)
+    financial_snapshot = _financial_snapshot_with_trend(
+        _financial_snapshot_projection(report), financial_trend,
+    )
     summary = _research_brief(
         ticker=ticker, action=action_text, gap=gap, pillars=pillar_projection,
         facts=facts, risks=risks, conditions=conditions,
+        business_evidence=(
+            *_financial_business_evidence(financial_snapshot),
+            *_financial_trend_business_evidence(financial_trend),
+        ),
+    )
+    financial_depth = _premium_financial_depth(
+        report, financial_snapshot, financial_trend, summary, conditions,
     )
     wall_street = ({
         "status": wall_status, "classification": CONTEXTUAL,
@@ -553,7 +896,7 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
         "reason": "COMMERCIAL_DISPLAY_RIGHTS_UNCONFIRMED",
     })
     valuation_values = {
-        "Current Price": price,
+        "Last Certified Close": price,
         "ATLAS Fair Value": fair_value,
         "Wall St. Average": wall_street.get("target_average") if wall_street.get("status") == "AVAILABLE" else None,
     }
@@ -567,7 +910,7 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
     }
     return {
         "version": VERSION, "status": "AVAILABLE", "ticker": ticker, "company": company,
-        "sector": report.get("sector") or _map(profile.get("payload")).get("sector"),
+        "sector": report.get("sector") or profile_payload.get("sector"),
         "authority": dict(authority), "identity": identity,
         "header": {
             "price": price, "price_timestamp": price_env.get("as_of"),
@@ -593,14 +936,20 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
         "six_pillars": pillar_projection,
         "wall_street": wall_street,
         "valuation_chart": valuation_chart,
-        "financial_trend": _financial_trend_projection(financials),
+        "financial_trend": financial_trend,
+        "financial_snapshot": financial_snapshot,
+        "financial_depth": financial_depth,
+        "annual_financial_statements": annual_financial_statements(ticker),
+        "statement_history": dict(statement_history) if statement_history else {
+            "status": "UNAVAILABLE", "reason": "SOURCE_BOUND_STATEMENT_HISTORY_NOT_ATTACHED",
+        },
         "fundamentals": [asdict(card) for card in facts],
         "recent_changes": {"status": "AVAILABLE" if news_items else "UNAVAILABLE", "items": news_items, "classification": CONTEXTUAL},
         "catalysts": {"status": "AVAILABLE" if future_events else "UNAVAILABLE", "items": (),
                       "events": future_events, "classification": CONTEXTUAL},
-        "about": {"status": _module_status(profile), "company": _map(profile.get("payload")).get("name") or company,
-                  "sector": report.get("sector"), "industry": _map(profile.get("payload")).get("industry") or report.get("industry"),
-                  "profile": dict(_map(profile.get("payload"))), "classification": CONTEXTUAL},
+        "about": {"status": _module_status(profile), "company": profile_payload.get("name") or company,
+                  "sector": report.get("sector") or profile_payload.get("sector"), "industry": profile_payload.get("industry") or report.get("industry"),
+                  "profile": dict(profile_payload), "classification": CONTEXTUAL},
         "qa_fundamentals": {"status": _module_status(financials), **dict(_map(financials.get("payload")))},
         "evidence": {"evaluation_snapshot_id": identity.get("evaluation_snapshot"),
                      "candidate_digest": identity.get("candidate_digest"),

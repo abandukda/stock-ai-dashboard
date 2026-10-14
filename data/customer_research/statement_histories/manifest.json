@@ -1,0 +1,64 @@
+{
+  "contract": "ATLAS_CUSTOMER_STATEMENT_HISTORY_BUNDLE_MANIFEST_V1",
+  "source_summary_sha256": "a9c129830ebe09ab38d98af5e912deb979fae5a3e9cec1990a41d1ed96dd76ca",
+  "provider_calls": 0,
+  "rating_authority": "UNCHANGED",
+  "publication_authority": "UNCHANGED",
+  "files": {
+    "AVT": {
+      "gzip": "AVT.customer.statement-history.json.gz",
+      "gzip_sha256": "0cde51689c43d676e41912a29d829e30f79b8da3f80530570efde84f7667909b",
+      "json_sha256": "6e77cbf54f352ede5fb694d581393f5290aec5dc592ce6ec3aa9611ad1d521e0"
+    },
+    "BKTI": {
+      "gzip": "BKTI.customer.statement-history.json.gz",
+      "gzip_sha256": "2059f4a68631285ae360cdc13904dce9fff5d973a7b9bb2feb1e82b4083f6665",
+      "json_sha256": "339e82a2647faf1a6f1d27be3b466de4d3b5f496d40de54fae7cafa9723704fc"
+    },
+    "CODA": {
+      "gzip": "CODA.customer.statement-history.json.gz",
+      "gzip_sha256": "ba19eba74127b550d534989ec6de150bb139a09db8af74c0db131d0daacecaa4",
+      "json_sha256": "1b6e8aa4cf2a2880e8fe5f0fc71ab311dbd994ea9494e357468fff70e9926ccf"
+    },
+    "CSCO": {
+      "gzip": "CSCO.customer.statement-history.json.gz",
+      "gzip_sha256": "7324ecb2b37820c3ac39a37040365455a4dd7a0d0ddfd015d74acb92ca40aed4",
+      "json_sha256": "0590b5f16113c344e3a5d3ca2c2deea0727630dd143f95a704e0459c42695049"
+    },
+    "CTS": {
+      "gzip": "CTS.customer.statement-history.json.gz",
+      "gzip_sha256": "5bdcd1bd0397439cf4a64e3a6af28a205d2a36558f91cb1de2c4d71b1f3efee9",
+      "json_sha256": "b71ab0cda7e1abe0e9d4165dc8d015379ad534aa9b52a6752e4fa0ed8090e021"
+    },
+    "DIOD": {
+      "gzip": "DIOD.customer.statement-history.json.gz",
+      "gzip_sha256": "d83637dd5dce0e87fd8b98ddfafadd1a6b3294134244af7110974fa71855381f",
+      "json_sha256": "2736c18474009756b53633f9672d0a4999e89d146bea98b90ea195a24655282d"
+    },
+    "EXTR": {
+      "gzip": "EXTR.customer.statement-history.json.gz",
+      "gzip_sha256": "525353f3e1167affa155763f02a06c52dca481a780405ac7b9ac41e444650dc9",
+      "json_sha256": "6019f098a57298d5006f81a21e617d3f8525fc04734ef95b9deec63c4c742fc3"
+    },
+    "GNE": {
+      "gzip": "GNE.customer.statement-history.json.gz",
+      "gzip_sha256": "1efb6d26c79ef237ce12a0e7a4c277dfd85ed0916bc80a5c1dfe8e8b6a6a0418",
+      "json_sha256": "786a1750f50d3d04b80d46ccfaa9aa261b4c3f5b2e7fef541039d9f645ee39da"
+    },
+    "MSFT": {
+      "gzip": "MSFT.customer.statement-history.json.gz",
+      "gzip_sha256": "897a7f1228a490971d5cceabe0f01ce1f1c5c662dfb5498a6d99825bb0d176d4",
+      "json_sha256": "952037da9a8fbcde338ff02de98b983432d62ed17e5ae5ee0e0c73eb7b396ccb"
+    },
+    "NVDA": {
+      "gzip": "NVDA.customer.statement-history.json.gz",
+      "gzip_sha256": "5d39f76cb298674bb7185c8e6a47967bd76ad81868865f6061edf6933625a97a",
+      "json_sha256": "20d13aa280155afbfc0cabbedb48536a9b988e800746e793b2b8af27800b9a7d"
+    },
+    "SBC": {
+      "gzip": "SBC.customer.statement-history.json.gz",
+      "gzip_sha256": "ef77a0671e9e0292e7932bde76dd0cef624a3e1ec58c8d6ba048a32b34a0a2ed",
+      "json_sha256": "9eee6a5ab82037148eadafee9fbbcb1d9a205548c547e7fece5f448d57cc5dc3"
+    }
+  }
+}

@@ -26,10 +26,14 @@ def _compact_context(report: Mapping[str, Any]) -> dict[str, Any]:
     # Research and Ask consume one customer-facing projection for protected
     # values, freshness and contextual availability. Ask remains read-only and
     # never calculates Action, Fair Value, Opportunity or Confidence.
-    from services.customer_research_v2 import build_customer_research_v2
-    customer_projection = build_customer_research_v2(report)
+    from services.customer_research_view import build_customer_research_view
+    customer_view = build_customer_research_view(report)
+    customer_projection = customer_view.as_mapping()
     customer_header = customer_projection.get("header") if isinstance(customer_projection.get("header"), Mapping) else {}
     customer_summary = customer_projection.get("summary") if isinstance(customer_projection.get("summary"), Mapping) else {}
+    customer_wall = customer_projection.get("wall_street") if isinstance(customer_projection.get("wall_street"), Mapping) else {}
+    customer_valuation = customer_projection.get("valuation_chart") if isinstance(customer_projection.get("valuation_chart"), Mapping) else {}
+    customer_published = customer_projection.get("status") == "AVAILABLE"
     intelligence = report.get("intelligence") or build_executive_intelligence(report)
     sections = report.get("sections") or {}
     valuation = report.get("valuation_families") or valuation_families(report)
@@ -64,13 +68,21 @@ def _compact_context(report: Mapping[str, Any]) -> dict[str, Any]:
         "evidence_confidence": customer_header.get("confidence"),
         "evidence_confidence_band": customer_header.get("confidence_band"),
         "atlas_fair_value": customer_header.get("fair_value") if customer_header else valuation.get("atlas_fair_value"),
-        "atlas_valuation_status": valuation.get("atlas_valuation_status"),
-        "atlas_fv_upside_pct": valuation.get("atlas_fv_upside_pct"),
-        "analyst_consensus": valuation.get("analyst_target_mean"),
-        "analyst_low": valuation.get("analyst_target_low"),
-        "analyst_high": valuation.get("analyst_target_high"),
-        "analyst_implied_upside_pct": valuation.get("analyst_upside_pct"),
-        "wall_street_implied_upside_pct": valuation.get("analyst_upside_pct"),
+        "atlas_valuation_status": (
+            customer_valuation.get("status") if customer_published else valuation.get("atlas_valuation_status")
+        ),
+        "atlas_fv_upside_pct": (
+            customer_header.get("fair_value_gap_pct") if customer_published else valuation.get("atlas_fv_upside_pct")
+        ),
+        "analyst_consensus": (
+            customer_wall.get("target_average") if customer_published else valuation.get("analyst_target_mean")
+        ),
+        "analyst_low": customer_wall.get("target_low") if customer_published else valuation.get("analyst_target_low"),
+        "analyst_high": customer_wall.get("target_high") if customer_published else valuation.get("analyst_target_high"),
+        # The customer projection intentionally does not calculate analyst
+        # implied upside. Never revive a legacy value for a published report.
+        "analyst_implied_upside_pct": None if customer_published else valuation.get("analyst_upside_pct"),
+        "wall_street_implied_upside_pct": None if customer_published else valuation.get("analyst_upside_pct"),
         "decision_target": report.get("decision_valuation_target"),
         "decision_target_source": report.get("decision_target_source"),
         "decision_target_implied_upside_pct": (
@@ -106,6 +118,7 @@ def _compact_context(report: Mapping[str, Any]) -> dict[str, Any]:
             "earnings": (customer_projection.get("catalysts") or {}).get("status"),
             "analysts": (customer_projection.get("wall_street") or {}).get("status"),
         } if customer_projection.get("status") == "AVAILABLE" else {},
+        "customer_availability_contract": dict(customer_view.availability),
         # Legacy committee narrative may carry a recommendation that is not
         # published by RESEARCH_CONTEXT_V1. Never present it to synthesis as
         # decision authority when the canonical decision is unavailable.
@@ -131,7 +144,41 @@ def _compact_context(report: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def canonical_ask_decision(report: Mapping[str, Any]) -> dict[str, Any]:
-    """Resolve Ask decision authority exclusively from RESEARCH_CONTEXT_V1."""
+    """Resolve Ask authority from the same read-only view used by Research.
+
+    The legacy ``research_context`` remains the fail-closed fallback for rows
+    that cannot produce a publishable customer view.  It can never override a
+    successfully reconciled CustomerResearchView.
+    """
+    from services.customer_research_view import build_customer_research_view
+
+    customer = build_customer_research_view(report)
+    surface = customer.surface
+    if surface.get("status") == "AVAILABLE" and surface.get("publication_allowed"):
+        recommendation = str(surface.get("action") or "").strip().upper().replace(" ", "_")
+        snapshot = {
+            "recommendation": recommendation,
+            "opportunity": surface.get("opportunity"),
+            "confidence": surface.get("confidence"),
+            "atlas_fair_value": surface.get("fair_value"),
+            "certified_close": surface.get("certified_close"),
+            "certified_close_at": surface.get("certified_close_at"),
+            "evaluation_snapshot": surface.get("evaluation_snapshot"),
+            "candidate_digest": surface.get("candidate_digest"),
+            "publication_digest": surface.get("publication_digest"),
+            "source_sha": surface.get("source_sha"),
+            "evidence_availability": dict(surface.get("evidence_availability") or {}),
+        }
+        payload = json.dumps(snapshot, sort_keys=True, separators=(",", ":"), default=str)
+        return {
+            "state": recommendation,
+            "status": "AVAILABLE",
+            "source_semantic_status": "AVAILABLE",
+            "production_decision": snapshot,
+            "digest": hashlib.sha256(payload.encode("utf-8")).hexdigest(),
+            "reason": None,
+            "authority_source": "CUSTOMER_RESEARCH_VIEW",
+        }
     context = report.get("research_context") if isinstance(report.get("research_context"), Mapping) else {}
     decision = context.get("production_decision") if isinstance(context.get("production_decision"), Mapping) else {}
     source_status = str(decision.get("semantic_status") or "DATA_UNAVAILABLE").strip().upper()
@@ -156,6 +203,7 @@ def canonical_ask_decision(report: Mapping[str, Any]) -> dict[str, Any]:
         "production_decision": dict(decision),
         "digest": hashlib.sha256(payload.encode("utf-8")).hexdigest(),
         "reason": decision.get("reason") or decision.get("limitation") or decision.get("status_detail"),
+        "authority_source": "LEGACY_FAIL_CLOSED_FALLBACK",
     }
 
 
@@ -174,8 +222,9 @@ def _decision_sentence(report: Mapping[str, Any]) -> str:
 
 def _certified_investment_view(report: Mapping[str, Any]) -> str:
     """Render protected customer fields without recalculation or inference."""
-    from services.customer_authority import customer_authority
-    authority = customer_authority(report)
+    from services.customer_research_view import build_customer_research_view
+    from services.customer_metric_format import customer_confidence, customer_money, customer_score
+    authority = build_customer_research_view(report).surface
     ticker = str(report.get("ticker") or authority.get("ticker") or "This security").upper()
     if authority.get("status") != "AVAILABLE":
         decision = canonical_ask_decision(report)
@@ -185,9 +234,12 @@ def _certified_investment_view(report: Mapping[str, Any]) -> str:
     return (
         f"### Certified ATLAS view for {ticker}\n\n"
         f"**Action:** {str(authority['action']).replace('_', ' ')}  \n"
-        f"**ATLAS Fair Value:** ${float(authority['fair_value']):,.2f}  \n"
-        f"**Opportunity:** {float(authority['opportunity']):.2f}  \n"
-        f"**Decision Confidence:** {float(authority['confidence']):.2f}\n\n"
+        f"**ATLAS Fair Value:** {customer_money(authority['fair_value'])}  \n"
+        f"**Opportunity:** {customer_score(authority['opportunity'])}  \n"
+        f"**Evidence Confidence:** {customer_confidence(authority['confidence'])}\n\n"
+        f"**Evidence availability:** publication {authority['evidence_availability'].get('publication', 'Unavailable')}; "
+        f"financials {authority['evidence_availability'].get('financials', 'Unavailable')}; "
+        f"analyst context {authority['evidence_availability'].get('analyst_context', 'Unavailable')}.\n\n"
         "These values come from the customer-publishable certified evaluation; no protected field was recalculated."
     )
 
@@ -311,12 +363,34 @@ def _grounding_metadata(question: str, report: Mapping[str, Any]) -> dict[str, A
         available = item.get("status") in {"available", "partial"}
         used = [section] if available else []
         missing = [] if available else [f"{section}:DATA_UNAVAILABLE"]
+    # A direct overview answer can be grounded exclusively in the certified
+    # customer evaluation even when no optional evidence-family registry is
+    # present. Preserve that authority as an explicit evidence source instead
+    # of rendering a grounded answer whose evidence metadata is empty.
+    authority_identity = (
+        report.get("customer_authority_identity")
+        if isinstance(report.get("customer_authority_identity"), Mapping)
+        else {}
+    )
+    certified_authority_used = (
+        section == "overview"
+        and canonical_ask_decision(report).get("status") == "AVAILABLE"
+        and bool(authority_identity)
+    )
+    if certified_authority_used and "certified_customer_evaluation" not in used:
+        used.append("certified_customer_evaluation")
     context = report.get("research_context") or {}
     family_envelopes = context.get("evidence_families") if isinstance(context, Mapping) else {}
     family_envelopes = family_envelopes if isinstance(family_envelopes, Mapping) else {}
     evidence_ids: list[str] = []
     as_of_dates: list[str] = []
     limitations: list[str] = []
+    if certified_authority_used:
+        evidence_ids.extend(
+            str(item)
+            for item in safe_sequence(authority_identity.get("evidence_ids"))
+            if str(item).strip()
+        )
     canonical_family_aliases = {
         "news": ("company_news", "press_releases"),
         "earnings": ("earnings_history",),

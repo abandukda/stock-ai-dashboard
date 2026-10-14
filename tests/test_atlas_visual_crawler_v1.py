@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import asyncio
 import json
+import inspect
 from pathlib import Path
 
 from agents.atlas_visual_crawler_v1 import (
@@ -28,7 +29,9 @@ from agents.atlas_visual_crawler_v1 import (
     research_first_screen_contract,
     research_submission_failure,
     research_submission_proven,
+    risk_capture_missing_content,
     required_research_authority_failures,
+    watchlist_journey_proven,
     VisualResult,
 )
 from agents.atlas_runtime_qa_v3 import DeploymentReadinessError
@@ -38,6 +41,73 @@ from agents.product_hardening_certification import ACTIVE_PAGES
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "agents" / "atlas_visual_crawler_v1.py"
+
+
+def test_watchlist_journey_re_resolves_controls_after_streamlit_reruns():
+    """The governed journey must never reuse pre-rerun Streamlit controls."""
+    source = SOURCE.read_text()
+    start = source.index("async def _watchlist_edit_journey")
+    end = source.index("async def _supplementary_desktop", start)
+    journey = source[start:end]
+    fill_at = journey.index('await field.first.fill(ticker)')
+    live_scope_at = journey.index('for live_scope in _scopes(page):', fill_at)
+    button_at = journey.index('live_scope.get_by_role("button", name="Add"', live_scope_at)
+    click_at = journey.index('await button.first.click()', button_at)
+    assert fill_at < live_scope_at < button_at < click_at
+    assert 'name=re.compile(r"Sort$")' in journey
+    assert 'await page.reload(wait_until="domcontentloaded")' in journey
+    assert '_wait_for_streamlit_shell' not in journey
+    assert 'self._page_visit(page, "Watchlist Intelligence")' in journey
+    assert "watchlist-reload-auth" in journey
+    assert "await _open_and_authenticate(" in journey
+    assert 'data-atlas-qa="watchlist-filter-state"' in journey
+    assert '"NO_MATCH_QA"' in journey
+    assert 'await search.first.fill(query)' in journey
+    assert 'press("Control+A")' not in journey
+
+
+def _complete_watchlist_evidence(**overrides):
+    value = {
+        "initial_order": [],
+        "isolated_start": True,
+        "supported_added": True,
+        "missing_added": True,
+        "searched": True,
+        "unavailable_not_zero": True,
+        "sorted": True,
+        "ticker_order": ["AAAAQ", "NVDA"],
+        "opportunity_order": ["NVDA", "AAAAQ"],
+        "duplicates": 0,
+        "removed": True,
+        "reload_persisted": True,
+        "reload_route": True,
+        "initial_role": "internal_admin",
+        "reload_role": "internal_admin",
+        "role_preserved": True,
+        "final_order": [],
+    }
+    value.update(overrides)
+    return value
+
+
+def test_watchlist_journey_requires_sort_remove_uniqueness_and_reload_persistence():
+    assert watchlist_journey_proven(_complete_watchlist_evidence()) is True
+    negatives = (
+        {"sorted": False},
+        {"opportunity_order": ["AAAAQ", "NVDA"]},
+        {"removed": False},
+        {"duplicates": 1},
+        {"reload_persisted": False},
+        {"final_order": ["AAAAQ"]},
+        {"supported_added": False},
+        {"missing_added": False},
+        {"unavailable_not_zero": False},
+        {"isolated_start": False},
+        {"reload_route": False},
+        {"role_preserved": False},
+    )
+    for mutation in negatives:
+        assert watchlist_journey_proven(_complete_watchlist_evidence(**mutation)) is False
 
 
 def test_open_failure_classification_does_not_mislabel_deployment_identity_as_authentication():
@@ -300,6 +370,10 @@ def test_research_v2_crawler_contract_uses_semantic_markers_without_removing_leg
     assert 'architecture.get("version") != RESEARCH_V2_VERSION' in source
     assert "expected_tabs=RESEARCH_VNEXT_SECTION_LABELS" in source
     assert "_research_v2_section_screenshots" in source
+    assert '("statement-history", "Financial statement history")' in source
+    assert '("research-101", "Research 101 — what these numbers mean")' in source
+    assert 'if name in DEDICATED_SECTION_TAB_LABELS:' in source
+    assert '"Annual history", "Quarterly history", "Income statement", "Cash flow", "Balance sheet"' in source
     for section in ("price-chart", "ai-summary", "wall-street", "risks", "fundamentals", "catalysts", "about-company"):
         assert f'("{section}",' in source
 
@@ -784,6 +858,9 @@ def test_supporting_evidence_and_grounding_are_independently_certified():
     assert "trade date" in source.lower()
     assert "temporarily unavailable" in source.lower()
     assert "data-atlas-response-length" in source
+    assert 'reversed(range(await candidates.count()))' in source
+    assert 'missing evidence\\s*&\\s*limitations' in source
+    assert 'response_marker is not None and lower_evidence_settled' in source
 
 
 def test_tabs_are_reacquired_after_every_streamlit_rerender():
@@ -1025,6 +1102,20 @@ def test_published_research_rejects_declared_count_when_required_tab_content_is_
         ask_cta=True, published_decision_evidence=True,
         visible_text="ATLAS View ATLAS Rating: BUY NOW",
     ) == "RESEARCH_RENDER_INCOMPLETE"
+
+
+def test_risk_screenshot_requires_visible_risk_content_not_heading_presence_only():
+    source = Path("agents/atlas_visual_crawler_v1.py").read_text(encoding="utf-8")
+    assert 'data-atlas-qa="research-v2-risk-content"' in source
+    assert "RISK_SCREENSHOT_CONTENT_MISSING" in source
+    complete = "Risk & Evidence Company-specific measured risks Risk A General monitoring conditions Condition A"
+    assert risk_capture_missing_content(complete) == ()
+    assert risk_capture_missing_content("Risk & Evidence") == (
+        "Company-specific measured risks", "General monitoring conditions",
+    )
+    assert risk_capture_missing_content("") == (
+        "Risk & Evidence", "Company-specific measured risks", "General monitoring conditions",
+    )
     assert _terminal(
         publication_allowed=True, withheld_marker=False, five_sections=True,
         ask_cta=True, published_decision_evidence=False,
@@ -1170,3 +1261,10 @@ def test_customer_listener_attaches_before_customer_authentication():
     )[0]
     assert 'self._attach_streamlit_transport(viewer_page, role="customer_viewer")' in viewer
     assert viewer.index("_attach_streamlit_transport") < viewer.index("_open_and_authenticate(")
+
+
+def test_customer_copy_contract_rejects_space_separated_timestamps_and_empty_core_sections():
+    source = inspect.getsource(AtlasVisualCrawler._submit_research)
+    assert r'\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}' in source
+    assert "'Decision', 'ATLAS Investment Summary', 'Risk & Evidence'" in source
+    assert "'What Changed Recently'" in source

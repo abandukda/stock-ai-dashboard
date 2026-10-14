@@ -1,0 +1,113 @@
+import json
+import zipfile
+
+import pytest
+
+from scripts.audit_r2_retained_data_coverage import audit, load_shard_records, markdown
+from pathlib import Path
+
+
+def test_audit_requires_field_evidence_before_calling_value_certified():
+    result = audit([
+        {"ticker": "A", "latest_revenue": 10, "professional_evidence_lineage": {"fields": {"latest_revenue": {"evidence_id": "e1", "period": "2025"}}}},
+        {"ticker": "B", "latest_revenue": 20},
+    ])
+    assert result["fields"]["latest_revenue"]["value"] == 2
+    assert result["fields"]["latest_revenue"]["certified"] == 1
+    assert result["fields"]["latest_revenue"]["period_bound"] == 1
+
+
+def test_markdown_explicitly_excludes_qa_context_from_production_authority():
+    text = markdown(audit([]), Path("market_full_scan.json"))
+    assert "Provider calls: **0**" in text
+    assert "QA-scoped contextual bundle" in text
+    assert "must not be promoted" in text
+
+
+def test_audit_discloses_partial_population_and_field_period_lineage():
+    result = audit([
+        {
+            "ticker": "NVDA", "latest_revenue": 10,
+            "professional_evidence_lineage": {"fields": {"latest_revenue": {
+                "evidence_id": "e1", "period": "FY2026", "frequency": "ANNUAL",
+                "provider": "FINNHUB", "unit": "USD",
+            }}},
+        }
+    ], expected_population=6033, source_identity={"source_run_id": "37216506983"})
+    assert result["source_population_expected"] == 6033
+    assert result["source_population_accessible"] == 1
+    assert result["population_completeness_state"] == "SOURCE_ARTIFACT_PARTIAL"
+    row = next(item for item in result["field_period_rows"] if item["field_id"] == "latest_revenue")
+    assert row == {
+        "ticker": "NVDA", "field_id": "latest_revenue", "value_present": True,
+        "unit": "USD", "frequency": "ANNUAL", "fiscal_period": "FY2026",
+        "provider": "FINNHUB", "evidence_id": "e1", "retained_accessible": True,
+        "certified": True, "customer_projected": True,
+        "remediation_class": "RETAINED_PROJECTABLE",
+    }
+
+
+def test_audit_never_labels_missing_partial_source_data_as_provider_unavailable():
+    result = audit([{"ticker": "AVT"}], expected_population=6033)
+    row = next(item for item in result["field_period_rows"] if item["field_id"] == "latest_revenue")
+    assert row["remediation_class"] == "NOT_RETAINED_IN_SOURCE"
+    assert "PROVIDER" not in row["remediation_class"]
+
+
+def test_audit_conserves_rows_cells_and_classifies_terminal_blockers():
+    result = audit([
+        {"ticker": "A", "latest_revenue": 10},
+        {"ticker": "AAC", "_terminal_blockers": ["LATEST_FY_FINANCIAL_REPORT_MISSING"]},
+    ])
+    assert result["conservation"] == {
+        "row_total": 2,
+        "terminal_rows": 1,
+        "nonterminal_rows": 1,
+        "field_cell_total": 30,
+        "classified_field_cells": 30,
+        "field_cell_classes": {
+            "NOT_RETAINED_IN_SOURCE": 29,
+            "RETAINED_MISSING_LINEAGE": 1,
+        },
+    }
+    assert result["terminal_null_rows"] == {
+        "count": 1,
+        "classification": "TERMINAL_BLOCKED_RETAINED_ROW",
+        "blocker_combinations": [{
+            "blockers": ["LATEST_FY_FINANCIAL_REPORT_MISSING"], "count": 1,
+        }],
+    }
+
+
+def test_audit_emits_bounded_provenance_samples():
+    records = [{
+        "ticker": f"T{index}", "free_cash_flow": index,
+        "professional_evidence_lineage": {"fields": {"free_cash_flow": {
+            "evidence_id": f"e{index}", "period": "FY2026", "provider": "FINNHUB", "unit": "USD",
+        }}},
+    } for index in range(5)]
+    samples = audit(records)["sampled_provenance_traces"]["free_cash_flow"]
+    assert [item["ticker"] for item in samples] == ["T0", "T1", "T2"]
+    assert samples[0]["evidence_id"] == "e0"
+
+
+def test_shard_loader_requires_complete_coherent_ticker_owned_set(tmp_path):
+    for index in range(41):
+        payload = {
+            "shard": {"index": index},
+            "run_identity": {"run_identity": "run-1", "source_sha": "a" * 40},
+            "records": [{"ticker": f"T{index}", "row": {"ticker": f"T{index}"}}],
+        }
+        path = tmp_path / f"atlas-finnhub-full-shard-{index}-1.zip"
+        with zipfile.ZipFile(path, "w") as zipped:
+            zipped.writestr(f"shard-{index:03d}.json", json.dumps(payload))
+    records, identity = load_shard_records(tmp_path)
+    assert len(records) == 41
+    assert identity == {
+        "shard_count": 41, "run_identity": "run-1", "source_sha": "a" * 40,
+        "unique_tickers": 41,
+    }
+
+    (tmp_path / "atlas-finnhub-full-shard-40-1.zip").unlink()
+    with pytest.raises(ValueError, match="SHARD_COUNT_MISMATCH"):
+        load_shard_records(tmp_path)

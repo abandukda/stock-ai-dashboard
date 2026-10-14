@@ -396,7 +396,7 @@ def _render_discovery_card(row: Mapping[str, Any], rank: int) -> None:
         st.caption(f"Research support: {view['support_quality_client'].title()}")
         metric_html = (
             '<div class="atlas-compact-grid">'
-            f'<div class="atlas-compact-metric"><small>Current Price</small><strong>{html.escape(_money(price))}</strong><em>At Atlas signal time</em></div>'
+            f'<div class="atlas-compact-metric"><small>Signal Reference Price</small><strong>{html.escape(_money(price))}</strong><em>At Atlas signal time</em></div>'
             f'<div class="atlas-compact-metric"><small>Preferred Entry</small><strong>{html.escape(str(entry))}</strong></div>'
             '</div>'
         )
