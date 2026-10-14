@@ -3392,10 +3392,11 @@ class AtlasVisualCrawler:
                         remove_controls = page.get_by_role(
                             "button", name=f"Remove {ticker}", exact=True
                         )
-                        live_remove_visible = any(
-                            await candidate.is_visible()
-                            for candidate in await remove_controls.all()
-                        )
+                        live_remove_visible = False
+                        for candidate in await remove_controls.all():
+                            if await candidate.is_visible():
+                                live_remove_visible = True
+                                break
                         if ticker not in current_tickers and not live_remove_visible:
                             return True
                         await page.wait_for_timeout(200)
