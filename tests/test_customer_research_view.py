@@ -2,6 +2,19 @@ from copy import deepcopy
 from datetime import datetime, timezone
 
 from services.customer_research_view import Availability, build_customer_research_view, certified_freshness, customer_date
+
+
+def test_annual_statement_projection_attaches_without_changing_authority():
+    source = report()
+    base = build_customer_research_view(source)
+    periods=[{"fiscal_period_end":"2025-12-31","accession":"a"}]
+    presentation={"contract":"ATLAS_G6_ANNUAL_STATEMENT_PRESENTATION_V1","ticker":base.ticker,"sha256":"p"*64,
+                  "source_normalized_sha256":"n"*64,"periods":periods,"statements":{"INCOME_STATEMENT":[],"BALANCE_SHEET":[],"CASH_FLOW":[]},
+                  "core_metrics":[],"trend_projections":{},"ratings_changed":False,"publications_changed":False}
+    attached=build_customer_research_view(source,annual_statement_presentation=presentation)
+    assert attached.surface==base.surface
+    assert attached.payload["annual_financial_statements"]["read_only"] is True
+    assert attached.availability["annual_financial_statements"]==Availability.CERTIFIED_DATED.value
 from tests.test_customer_research_v2 import report
 
 

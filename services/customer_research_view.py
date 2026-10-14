@@ -13,6 +13,7 @@ from types import MappingProxyType
 from typing import Any, Mapping
 
 from services.customer_research_v2 import build_customer_research_v2
+from services.customer_annual_statement_projection import project_customer_annual_statements
 
 
 class Availability(str, Enum):
@@ -88,7 +89,8 @@ class CustomerResearchView:
         })
 
 
-def build_customer_research_view(report: Mapping[str, Any], *, now: datetime | None = None) -> CustomerResearchView:
+def build_customer_research_view(report: Mapping[str, Any], *, now: datetime | None = None,
+                                 annual_statement_presentation: Mapping[str, Any] | None = None) -> CustomerResearchView:
     projected = build_customer_research_v2(report)
     status = str(projected.get("status") or "RATING_NOT_PUBLISHED")
     ticker = str(projected.get("ticker") or report.get("ticker") or report.get("Ticker") or "").strip().upper()
@@ -126,10 +128,21 @@ def build_customer_research_view(report: Mapping[str, Any], *, now: datetime | N
                 else Availability.MISSING_RETAINED_EVIDENCE.value
             ),
         }
+    projected_payload = dict(projected)
+    if annual_statement_presentation is not None:
+        annual = project_customer_annual_statements(annual_statement_presentation)
+        if annual.get("ticker") != ticker:
+            raise ValueError("CUSTOMER_ANNUAL_STATEMENT_TICKER_MISMATCH")
+        projected_payload["annual_financial_statements"] = annual
+        availability = dict(availability)
+        availability["annual_financial_statements"] = (
+            Availability.CERTIFIED_DATED.value if annual["status"] == "AVAILABLE"
+            else Availability.MISSING_RETAINED_EVIDENCE.value
+        )
     return CustomerResearchView(
         ticker=ticker,
         status=status,
-        payload=MappingProxyType(dict(projected)),
+        payload=MappingProxyType(projected_payload),
         identity=MappingProxyType(dict(identity)),
         availability=MappingProxyType(availability),
     )
