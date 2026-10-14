@@ -158,9 +158,9 @@ def test_entitlement_separates_owner_status_from_contract_dates():
     package = json.loads(Path("config/report_card_g2_execution_package_20261014.json").read_text())
     assert digest(package) == transition.BOUND_PACKAGE_SHA256
     assert package["authorization_package_sha256"] == (
-        "3deb1199f66f30084c9b20df3d01f30b42fdac95f43bf15bbfb0f1b525c6aa5f"
+        "d7ae072206215159e0ed0189bc6f07861b8b27565f3dd02e6302d62dc03b7a79"
     )
-    assert package["protected_validation_run_id"] == 38629818807
+    assert package["protected_validation_run_id"] == 38631197734
     assert package["source_sha"] == transition.BOUND_SOURCE_SHA
     assert package["plan_sha256"] == transition.BOUND_PLAN_SHA256
     assert package["entitlement_sha256"] == OWNER_APPROVED_ENTITLEMENT_SHA256

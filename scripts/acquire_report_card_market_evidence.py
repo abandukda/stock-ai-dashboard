@@ -108,6 +108,7 @@ def main() -> int:
     parser.add_argument("--calendar", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--source-sha", required=True)
+    parser.add_argument("--runtime-code-sha", default="")
     parser.add_argument("--authorization", required=True)
     parser.add_argument("--mode", choices=("plan", "acquire"), default="plan")
     parser.add_argument("--approved-plan")
@@ -137,6 +138,9 @@ def main() -> int:
             source_sha=args.source_sha,
         )
     else:
+        if len(args.runtime_code_sha) != 40 or any(
+                character not in "0123456789abcdef" for character in args.runtime_code_sha):
+            raise PermissionError("G2_RUNTIME_CODE_SHA_REQUIRED")
         if not all((args.approved_plan, args.approved_plan_sha256,
                     args.entitlement, args.entitlement_sha256, args.kill_switch)):
             raise PermissionError("G2_APPROVED_PLAN_ENTITLEMENT_AND_KILL_SWITCH_REQUIRED")
@@ -192,6 +196,7 @@ def main() -> int:
     if backup_hash_after != backup_hash_before:
         raise RuntimeError("PROTECTED_REPORT_CARD_BACKUP_MUTATED")
     evidence["ledger_file_sha256"] = ledger_hash_before
+    evidence["runtime_code_sha"] = args.runtime_code_sha or args.source_sha
     evidence["backup_file_sha256"] = backup_hash_before
     evidence["backup_file_name"] = backup_ledger.name
     evidence_without_hash = {key: value for key, value in evidence.items() if key != "artifact_sha256"}
