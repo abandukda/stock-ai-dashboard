@@ -1,0 +1,79 @@
+name: ATLAS Report Card Protected Runner Validation
+
+# Manual, provider-free, read-only certification. G2/G3/G4 remain closed.
+on:
+  workflow_dispatch:
+    inputs:
+      authorize_validation:
+        description: Exact provider-free validation token
+        required: true
+        type: string
+      start_date:
+        required: true
+        default: "2026-10-08"
+        type: string
+      cutoff_utc:
+        description: Exact Oct 13 XNYS close plus 30-minute grace, in UTC
+        required: true
+        default: "2026-10-13T20:30:00Z"
+        type: string
+
+permissions:
+  contents: read
+concurrency:
+  group: atlas-report-card-protected-runner-validation
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    environment: atlas-internal-report-card
+    runs-on: [self-hosted, Linux, X64, atlas-worker-1]
+    timeout-minutes: 20
+    env:
+      PYTHONPATH: .
+      ATLAS_REPORT_CARD_DURABLE_ROOT: ${{ vars.ATLAS_REPORT_CARD_DURABLE_ROOT }}
+      ATLAS_REPORT_CARD_BACKUP_ROOT: ${{ vars.ATLAS_REPORT_CARD_BACKUP_ROOT }}
+      REPORT_CARD_VALIDATION_AUTHORIZATION: ${{ inputs.authorize_validation }}
+      REPORT_CARD_VALIDATION_START_DATE: ${{ inputs.start_date }}
+      REPORT_CARD_VALIDATION_CUTOFF_UTC: ${{ inputs.cutoff_utc }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - run: pip install -r requirements.txt
+      - name: Install protected-validation calendar dependency
+        run: python -m pip install exchange_calendars==4.13.2 PyYAML==6.0.3
+      - name: Enforce provider-free authorization and roots
+        run: |
+          test "$REPORT_CARD_VALIDATION_AUTHORIZATION" = "REPORT_CARD_PROTECTED_VALIDATE_ONCE"
+          test "$REPORT_CARD_VALIDATION_CUTOFF_UTC" = "2026-10-13T20:30:00Z"
+          test -n "$ATLAS_REPORT_CARD_DURABLE_ROOT"
+          test -n "$ATLAS_REPORT_CARD_BACKUP_ROOT"
+          test -z "${FINNHUB_API_KEY:-}"
+      - name: Produce and replay-verify XNYS calendar
+        run: >-
+          python3 scripts/build_report_card_exchange_calendar.py
+          --start-date "$REPORT_CARD_VALIDATION_START_DATE"
+          --cutoff-utc "$REPORT_CARD_VALIDATION_CUTOFF_UTC"
+          --output audit_results/report_card_protected/xnys_calendar.json
+      - name: Read-only ledger, mount, backup, history and scope audit
+        run: >-
+          python3 scripts/prepare_report_card_protected_validation.py
+          --ledger "$ATLAS_REPORT_CARD_DURABLE_ROOT/report-card.sqlite3"
+          --backup-root "$ATLAS_REPORT_CARD_BACKUP_ROOT"
+          --calendar audit_results/report_card_protected/xnys_calendar.json
+          --kill-switch "$ATLAS_REPORT_CARD_DURABLE_ROOT/ACQUISITION_KILL_SWITCH"
+          --source-sha "$GITHUB_SHA"
+          --output audit_results/report_card_protected/protected_validation.json
+      - name: Provider-free control tests
+        run: >-
+          pytest -q tests/test_report_card_exchange_calendar.py
+          tests/test_report_card_operational_controls.py
+          tests/test_report_card_protected_readonly.py
+          tests/test_report_card_protected_registration_component.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atlas-report-card-protected-validation-${{ github.run_id }}
+          path: audit_results/report_card_protected
+          retention-days: 90

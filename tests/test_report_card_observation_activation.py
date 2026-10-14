@@ -91,6 +91,26 @@ def test_observation_workflow_is_manual_internal_and_zero_provider():
     assert "runs-on: [self-hosted, Linux, X64, atlas-worker-1]" in source
     assert "python3 scripts/run_internal_report_card_observations.py" in source
     assert "FINNHUB_API_KEY" not in source and "customer_visible'] is False" in source
+    assert "REPORT_CARD_APPEND_ONCE:${{ inputs.bundle_sha256 }}" in source
+    assert 'sha256sum "${bundles[0]}"' in source
+    assert source.count("verify_report_card_closed_sentinel.py") == 2
+
+
+def test_g4_candidate_is_inert_serial_ordered_and_fail_closed():
+    import json
+    contract = json.loads(Path("config/report_card_g4_schedule_candidate.json").read_text())
+    assert contract["activation_authorized"] is False
+    assert contract["schedule_registered"] is False
+    assert contract["provider_retries"] == 0
+    assert contract["catch_up"] == {
+        "maximum_sessions_per_run": 5,
+        "order": "OLDEST_FINALIZED_SESSION_FIRST",
+        "parallelism": 1,
+        "stop_on_first_failure": True,
+    }
+    assert contract["sentinel_required_before_and_after"] == "CLOSED"
+    producer = Path(".github/workflows/atlas_report_card_observation_producer.yml").read_text()
+    assert "  schedule:" not in producer
 
 
 def test_finnhub_workflow_is_manual_only_but_governance_unchanged():

@@ -11,11 +11,14 @@ on:
         description: Exact observation artifact name
         required: true
         type: string
-      activate_observation:
-        description: Explicit authorization for one matured observation bundle
+      bundle_sha256:
+        description: Exact owner-approved canonical observation bundle SHA-256
         required: true
-        default: false
-        type: boolean
+        type: string
+      activate_observation:
+        description: Exact one-run authorization token REPORT_CARD_APPEND_ONCE:<bundle_sha256>
+        required: true
+        type: string
 
 permissions:
   actions: read
@@ -38,7 +41,7 @@ jobs:
       - name: Require explicit internal observation authorization
         shell: bash
         run: |
-          test "${{ inputs.activate_observation }}" = "true"
+          test "${{ inputs.activate_observation }}" = "REPORT_CARD_APPEND_ONCE:${{ inputs.bundle_sha256 }}"
           test -n "$ATLAS_REPORT_CARD_DURABLE_ROOT"
           test -n "$ATLAS_REPORT_CARD_BACKUP_ROOT"
           test "$ATLAS_REPORT_CARD_DURABLE_ROOT" != "$ATLAS_REPORT_CARD_BACKUP_ROOT"
@@ -57,7 +60,13 @@ jobs:
         run: |
           mapfile -t bundles < <(find audit_results/report_card_observation_source -type f -name report_card_observations.json)
           test "${#bundles[@]}" -eq 1
+          test "$(sha256sum "${bundles[0]}" | cut -d' ' -f1)" = "${{ inputs.bundle_sha256 }}"
           echo "path=${bundles[0]}" >> "$GITHUB_OUTPUT"
+      - name: Require CLOSED acquisition sentinel before append
+        run: >-
+          python3 scripts/verify_report_card_closed_sentinel.py
+          --durable-root "$ATLAS_REPORT_CARD_DURABLE_ROOT"
+          --output audit_results/report_card_append_closed_before.json
       - name: Apply matured observations and verify atomic backup
         shell: bash
         run: |
@@ -78,6 +87,12 @@ jobs:
           assert report['public_performance_claims_allowed'] is False
           assert report['status'] == 'OBSERVATIONS_RECORDED'
           PY
+      - name: Require CLOSED acquisition sentinel after append
+        if: always()
+        run: >-
+          python3 scripts/verify_report_card_closed_sentinel.py
+          --durable-root "$ATLAS_REPORT_CARD_DURABLE_ROOT"
+          --output audit_results/report_card_append_closed_after.json
       - name: Emit governed failure alert
         if: failure()
         shell: bash

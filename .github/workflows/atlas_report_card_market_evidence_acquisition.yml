@@ -1,0 +1,168 @@
+name: ATLAS Report Card Market Evidence Acquisition
+
+# Intentionally dispatch-only. This workflow is inert until an owner supplies
+# the one-run authorization input. It never appends to the Report Card ledger.
+on:
+  workflow_dispatch:
+    inputs:
+      execution_mode:
+        description: Zero-provider plan or separately authorized live acquisition
+        required: true
+        default: plan
+        type: choice
+        options: [plan, acquire]
+      authorize_acquisition:
+        description: Exact one-run authorization token
+        required: true
+        type: string
+      calendar_run_id:
+        description: Governed XNYS calendar run ID
+        required: true
+        type: string
+      calendar_artifact:
+        description: Exact governed XNYS calendar artifact
+        required: true
+        type: string
+      approved_plan_run_id:
+        description: Protected-validation run holding the owner-reviewed plan
+        required: true
+        type: string
+      approved_plan_artifact:
+        description: Exact protected-validation artifact name
+        required: true
+        type: string
+      approved_plan_sha256:
+        description: Owner-approved canonical plan SHA-256
+        required: true
+        type: string
+      entitlement_run_id:
+        description: Run holding reviewed provider entitlement evidence
+        required: true
+        type: string
+      entitlement_artifact:
+        description: Exact entitlement evidence artifact name
+        required: true
+        type: string
+      entitlement_sha256:
+        description: Owner-approved canonical entitlement evidence SHA-256
+        required: true
+        type: string
+      authorization_package_sha256:
+        description: Exact reviewed G2 authorization package SHA-256
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: atlas-report-card-market-evidence-acquisition
+  cancel-in-progress: false
+
+jobs:
+  acquire:
+    environment: atlas-internal-report-card
+    runs-on: [self-hosted, Linux, X64, atlas-worker-1]
+    timeout-minutes: 20
+    env:
+      ATLAS_REPORT_CARD_DURABLE_ROOT: ${{ vars.ATLAS_REPORT_CARD_DURABLE_ROOT }}
+      ATLAS_REPORT_CARD_BACKUP_ROOT: ${{ vars.ATLAS_REPORT_CARD_BACKUP_ROOT }}
+      FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+      ATLAS_FINNHUB_LICENSE_CLASS: FINNHUB_PAID_CORE_CERTIFICATION
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - run: pip install -r requirements.txt
+      - name: Install workflow-scoped XNYS dependency
+        run: python -m pip install exchange_calendars==4.13.2
+      - name: Require explicit bounded authorization
+        shell: bash
+        run: |
+          if [ "${{ inputs.execution_mode }}" = "plan" ]; then
+            test "${{ inputs.authorize_acquisition }}" = "REPORT_CARD_PLAN_ONCE"
+          else
+            test "${{ inputs.authorize_acquisition }}" = "REPORT_CARD_ACQUIRE_ONCE"
+            test -n "$FINNHUB_API_KEY"
+            test "${{ inputs.approved_plan_sha256 }}" = "457aab35abd2c5e02f9d06dfeaffc2dd9ffa15e7083d601f2737b7a11b4829a3"
+            test "${{ inputs.authorization_package_sha256 }}" = "c0ee01e3ba62dc9c586bded0f2afa4cf018bf201c72cdfd2fcc88f7e4b3a8493"
+            test "${{ inputs.entitlement_sha256 }}" = "161b2799b0ea935185d5fddcd53ffbf3fdd755d6a939d3898e0effe58c8c83d4"
+          fi
+          test -n "$ATLAS_REPORT_CARD_DURABLE_ROOT"
+          test -n "$ATLAS_REPORT_CARD_BACKUP_ROOT"
+      - name: Download exact governed exchange calendar
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.calendar_run_id }}
+          name: ${{ inputs.calendar_artifact }}
+          path: audit_results/report_card_calendar
+      - name: Resolve exactly one calendar
+        id: calendar
+        shell: bash
+        run: |
+          mapfile -t files < <(find audit_results/report_card_calendar -type f \( -name xyns_calendar.json -o -name xnys_calendar.json \))
+          test "${#files[@]}" -eq 1
+          echo "path=${files[0]}" >> "$GITHUB_OUTPUT"
+      - name: Download owner-approved plan and entitlement evidence
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.approved_plan_run_id }}
+          name: ${{ inputs.approved_plan_artifact }}
+          path: audit_results/report_card_approved_plan
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.entitlement_run_id }}
+          name: ${{ inputs.entitlement_artifact }}
+          path: audit_results/report_card_entitlement
+      - name: Resolve exactly one plan package and entitlement document
+        id: g2
+        shell: bash
+        run: |
+          mapfile -t plans < <(find audit_results/report_card_approved_plan -type f -name protected_validation.json)
+          mapfile -t entitlements < <(find audit_results/report_card_entitlement -type f -name entitlement.json)
+          test "${#plans[@]}" -eq 1
+          test "${#entitlements[@]}" -eq 1
+          echo "plan=${plans[0]}" >> "$GITHUB_OUTPUT"
+          echo "entitlement=${entitlements[0]}" >> "$GITHUB_OUTPUT"
+      - name: Acquire bounded internal evidence
+        shell: bash
+        run: |
+          python3 scripts/acquire_report_card_market_evidence.py \
+            --ledger "$ATLAS_REPORT_CARD_DURABLE_ROOT/report-card.sqlite3" \
+            --backup-root "$ATLAS_REPORT_CARD_BACKUP_ROOT" \
+            --calendar "${{ steps.calendar.outputs.path }}" \
+            --source-sha "2d0d8bd00b9168d2684845a7cc75b3a596d6a9c5" \
+            --mode "${{ inputs.execution_mode }}" \
+            --authorization "${{ inputs.authorize_acquisition }}" \
+            --approved-plan "${{ steps.g2.outputs.plan }}" \
+            --approved-plan-sha256 "${{ inputs.approved_plan_sha256 }}" \
+            --entitlement "${{ steps.g2.outputs.entitlement }}" \
+            --entitlement-sha256 "${{ inputs.entitlement_sha256 }}" \
+            --kill-switch "$ATLAS_REPORT_CARD_DURABLE_ROOT/ACQUISITION_KILL_SWITCH" \
+            --authorization-package-sha256 "${{ inputs.authorization_package_sha256 }}" \
+            --execution-id "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            --raw-evidence-root audit_results/report_card_market_evidence/raw \
+            --output audit_results/report_card_market_evidence/report_card_market_evidence.json
+      - name: Verify sentinel closed after acquisition
+        if: ${{ always() && inputs.execution_mode == 'acquire' }}
+        run: >-
+          python3 scripts/close_report_card_g2_sentinel.py
+          --sentinel "$ATLAS_REPORT_CARD_DURABLE_ROOT/ACQUISITION_KILL_SWITCH"
+      - name: Offline acquisition contract tests
+        run: pytest -q tests/test_report_card_exchange_calendar.py tests/test_report_card_market_evidence_acquisition.py tests/test_report_card_observation_producer.py tests/test_report_card_observation_activation.py tests/test_report_card_end_to_end_offline.py
+      - name: Fail closed without ledger mutation
+        if: failure()
+        run: echo "::error title=ATLAS evidence acquisition failed::No Report Card observation or public mutation was attempted."
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atlas-report-card-market-evidence-${{ github.run_id }}
+          path: audit_results/report_card_market_evidence
+          retention-days: 30

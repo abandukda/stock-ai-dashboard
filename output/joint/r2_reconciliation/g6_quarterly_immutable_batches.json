@@ -1,0 +1,1 @@
+{"batch_size":25,"batches":[{"batch_id":1,"symbols":["AVT","BKTI","CODA","CSCO","CTS","DIOD","EXTR","GNE","MSFT","NVDA","SBC"]}],"contract":"ATLAS_G6_QUARTERLY_IMMUTABLE_BATCHES_V1","endpoint":"/stock/financials-reported","execution_authorized":false,"frequency":"quarterly","provider_calls":0,"sha256":"c0ddabaa766cb50b165f1703d84dd2374ca144645f598366bbf32d9d77cc3121"}
