@@ -13,8 +13,8 @@ def scope():
     return {"source_sha": SOURCE, "requests": [{"ordinal": 1, "method": "GET", "endpoint": "/stock/financials-reported", "parameters": {"symbol": "NVDA", "freq": "annual"}}]}
 
 
-def approval(value, operation="plan", calls=1):
-    digest = sha256(canonical_bytes(value))
+def approval(value, operation="plan", calls=1, digest=None):
+    digest = digest or sha256(canonical_bytes(value))
     return GatewayApproval.parse({"operation": operation, "source_sha": SOURCE, "scope_sha256": digest, "max_provider_calls": calls, "authorization_token": f"ATLAS_{operation.upper()}:{digest}"})
 
 
@@ -61,6 +61,43 @@ def test_wrong_authorization_token_rejected():
     value = scope(); digest = sha256(canonical_bytes(value))
     with pytest.raises(PermissionError, match="AUTHORIZATION_TOKEN"):
         GatewayApproval.parse({"operation": "acquire", "source_sha": SOURCE, "scope_sha256": digest, "max_provider_calls": 1, "authorization_token": "wrong"})
+
+
+def test_report_card_readonly_envelope_verifies_nested_self_hashed_plan(tmp_path):
+    plan = {"schema_version": "ATLAS_REPORT_CARD_MARKET_EVIDENCE_V1", "source_sha": SOURCE,
+            "request_manifest": [
+                {"capability": "historical_ohlcv", "ticker": "SPY",
+                 "parameters": {"resolution": "D", "from": "2026-10-08", "to": "2026-10-13"}},
+                {"capability": "splits", "ticker": "ABBV",
+                 "parameters": {"from": "2026-10-08", "to": "2026-10-13"}},
+                {"capability": "dividends", "ticker": "ABBV",
+                 "parameters": {"from": "2026-10-08", "to": "2026-10-13"}},
+            ]}
+    digest = sha256(canonical_bytes(plan)); plan["artifact_sha256"] = digest
+    envelope = {"schema_version": "ATLAS_REPORT_CARD_PROTECTED_READONLY_V1",
+                "source_sha": SOURCE, "canonical_plan": plan,
+                "canonical_plan_sha256": digest, "ledger": {"sha256": "evidence"}}
+    path = tmp_path / "protected_validation.json"; path.write_text(json.dumps(envelope))
+    verified = verify_scope(path, approval(envelope, calls=3, digest=digest))
+    assert [row["endpoint"] for row in verified["requests"]] == [
+        "/stock/candle", "/stock/split", "/stock/dividend2"]
+    assert verified["requests"][0]["parameters"]["symbol"] == "SPY"
+
+
+def test_report_card_readonly_envelope_rejects_binding_or_content_change(tmp_path):
+    plan = {"schema_version": "ATLAS_REPORT_CARD_MARKET_EVIDENCE_V1",
+            "source_sha": SOURCE, "request_manifest": []}
+    digest = sha256(canonical_bytes(plan)); plan["artifact_sha256"] = digest
+    envelope = {"schema_version": "ATLAS_REPORT_CARD_PROTECTED_READONLY_V1",
+                "canonical_plan": plan, "canonical_plan_sha256": "0" * 64}
+    path = tmp_path / "protected_validation.json"; path.write_text(json.dumps(envelope))
+    with pytest.raises(PermissionError, match="GATEWAY_REPORT_CARD_PLAN_BINDING_MISMATCH"):
+        verify_scope(path, approval(envelope, calls=0, digest=digest))
+    envelope["canonical_plan_sha256"] = digest
+    envelope["canonical_plan"]["source_sha"] = "b" * 40
+    path.write_text(json.dumps(envelope))
+    with pytest.raises(PermissionError, match="GATEWAY_SCOPE_DIGEST_MISMATCH"):
+        verify_scope(path, approval(envelope, calls=0, digest=digest))
 
 
 def test_scope_path_is_bounded_to_download_root(tmp_path):
