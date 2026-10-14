@@ -12,6 +12,7 @@ from typing import Any, Iterable, Mapping
 
 from services.customer_authority import customer_authority, customer_authority_identity
 from services.annual_financial_statements import annual_financial_statements
+from services.customer_statement_history_bundle import customer_statement_history
 
 
 VERSION = "ATLAS_CUSTOMER_RESEARCH_V2_P0"
@@ -801,8 +802,8 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
             "version": VERSION, "status": "RATING_NOT_PUBLISHED", "ticker": requested_ticker or ticker,
             "reason": "RESEARCH_AUTHORITY_TICKER_MISMATCH",
         }
-    statement_history = _map(report.get("certified_statement_history"))
-    if statement_history:
+    statement_history = _map(report.get("certified_statement_history")) or customer_statement_history(ticker)
+    if statement_history.get("status") != "UNAVAILABLE":
         valid_statement_history = (
             statement_history.get("contract") == "ATLAS_CUSTOMER_STATEMENT_HISTORY_PROJECTION_V1"
             and str(statement_history.get("ticker") or "").upper() == ticker

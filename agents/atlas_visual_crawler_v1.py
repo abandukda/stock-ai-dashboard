@@ -78,6 +78,7 @@ RESEARCH_V2_MARKERS = (
 )
 DEDICATED_SECTION_TAB_LABELS = frozenset({
     "Annual income statement", "Annual cash flow", "Annual balance sheet",
+    "Annual history", "Quarterly history", "Income statement", "Cash flow", "Balance sheet",
 })
 
 EXPANDER_ICON_TOKENS = {
@@ -1389,13 +1390,14 @@ class AtlasVisualCrawler:
         captures: list[str] = []
         sections = (
             ("above-fold", "CERTIFIED ATLAS RESEARCH"),
+            ("research-101", "Research 101 — what these numbers mean"),
             ("price-chart", "Price history and SPY comparison"),
             ("ai-summary", "AI Investment Brief"),
             ("six-pillars", "Certified pillar coverage — 6 of 6"),
             ("wall-street", "ATLAS vs Wall Street"),
             ("risks", "Risk & Evidence"),
             ("fundamentals", "Fundamentals Snapshot"),
-            ("annual-financial-statements", "Annual filing history"),
+            ("statement-history", "Financial statement history"),
             ("catalysts", "Catalysts & Sentiment"),
             ("about-company", "About the Company"),
         )

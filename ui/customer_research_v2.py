@@ -379,6 +379,157 @@ def _annual_statement_frame(statement: Any, periods: Any) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=["Line item", *columns])
 
 
+def _statement_history_period_label(period: Mapping[str, Any], *, frequency: str) -> str:
+    if frequency == "quarterly":
+        year = period.get("fiscal_year")
+        quarter = period.get("fiscal_quarter")
+        return f"FY{year} Q{quarter}" if year and quarter else _financial_period(period.get("fiscal_period_end"))
+    return str(period.get("fiscal_year") or _financial_period(period.get("fiscal_period_end")))
+
+
+def _statement_history_frame(statement: Any, periods: Any, *, frequency: str) -> pd.DataFrame:
+    """Pivot exact retained history cells without filling, scaling, or calculating."""
+    period_rows = [item for item in periods or () if isinstance(item, Mapping)]
+    accession_period = {
+        str(item.get("accession")): _statement_history_period_label(item, frequency=frequency)
+        for item in period_rows
+    }
+    columns = list(accession_period.values())
+    rows: list[dict[str, str]] = []
+    for item in statement or ():
+        if not isinstance(item, Mapping):
+            continue
+        labels = item.get("labels") or item.get("observed_labels") or ()
+        label = str(next(iter(labels), None) or item.get("concept") or item.get("field_id") or "Unlabeled fact")
+        row = {"Line item": label}
+        by_accession = {
+            str(cell.get("accession")): cell for cell in item.get("cells") or () if isinstance(cell, Mapping)
+        }
+        unit = item.get("unit") if isinstance(item.get("unit"), Mapping) else {}
+        canonical = str(unit.get("canonical") or "")
+        for accession, period in accession_period.items():
+            cell = by_accession.get(accession) or {}
+            row[period] = (
+                _financial_value(cell.get("value"), canonical)
+                if cell.get("status") == "AVAILABLE" else "Unavailable"
+            )
+        rows.append(row)
+    return pd.DataFrame(rows, columns=["Line item", *columns])
+
+
+def _statement_history_trend(statement: Any, periods: Any, *, frequency: str) -> pd.DataFrame:
+    """Return one exact, same-unit reported series suitable for a customer trend chart."""
+    preferred = ("revenue", "sales", "net income", "operating income", "free cash flow")
+    period_rows = [item for item in periods or () if isinstance(item, Mapping)]
+    by_accession = {str(item.get("accession")): item for item in period_rows}
+    candidates = []
+    for item in statement or ():
+        if not isinstance(item, Mapping):
+            continue
+        unit = item.get("unit") if isinstance(item.get("unit"), Mapping) else {}
+        if str(unit.get("canonical") or "") not in {"USD", "USD_PER_SHARE", "NUMBER"}:
+            continue
+        labels = item.get("labels") or item.get("observed_labels") or ()
+        label = str(next(iter(labels), None) or item.get("concept") or "Financial trend")
+        rank = next((index for index, token in enumerate(preferred) if token in label.lower()), len(preferred))
+        cells = []
+        for cell in item.get("cells") or ():
+            if not isinstance(cell, Mapping) or cell.get("status") != "AVAILABLE":
+                continue
+            period = by_accession.get(str(cell.get("accession")))
+            value = cell.get("value")
+            if not period or isinstance(value, bool) or not isinstance(value, (int, float)):
+                continue
+            cells.append({
+                "Period": _statement_history_period_label(period, frequency=frequency),
+                "Value": float(value), "Series": label,
+            })
+        if len(cells) >= 2:
+            candidates.append((rank, label, cells))
+    if not candidates:
+        return pd.DataFrame(columns=["Period", "Value", "Series"])
+    return pd.DataFrame(sorted(candidates, key=lambda item: (item[0], item[1]))[0][2])
+
+
+def _render_combined_statement_history(history: Mapping[str, Any], *, ticker: str) -> bool:
+    """Render source-bound annual plus quarterly history when its authority contract is present."""
+    if (
+        history.get("contract") != "ATLAS_CUSTOMER_STATEMENT_HISTORY_PROJECTION_V1"
+        or history.get("status") != "AVAILABLE"
+        or str(history.get("ticker") or "").upper() != ticker
+        or history.get("read_only") is not True
+        or history.get("rating_authority") != "UNCHANGED"
+        or history.get("publication_authority") != "UNCHANGED"
+        or history.get("provider_calls") != 0
+    ):
+        return False
+    annual = history.get("annual") if isinstance(history.get("annual"), Mapping) else {}
+    quarterly = history.get("quarterly") if isinstance(history.get("quarterly"), Mapping) else {}
+    _marker(
+        "statement-history", ticker, status="AVAILABLE", classification="historical-non-scoring",
+        annual_periods=annual.get("visible_period_count", 0),
+        quarterly_periods=quarterly.get("visible_period_count", 0),
+    )
+    st.markdown("### Financial statement history")
+    st.caption(
+        "Reported filing facts with retained lineage. Annual and quarterly history is read-only context and "
+        "does not change the certified Action, Fair Value, Opportunity, Confidence, or publication status."
+    )
+    annual_tab, quarterly_tab = st.tabs(["Annual history", "Quarterly history"])
+    lanes = {
+        "INCOME_STATEMENT": "Income statement",
+        "CASH_FLOW": "Cash flow",
+        "BALANCE_SHEET": "Balance sheet",
+    }
+    for container, frequency, projection in (
+        (annual_tab, "annual", annual), (quarterly_tab, "quarterly", quarterly),
+    ):
+        with container:
+            periods = projection.get("visible_periods") or projection.get("periods") or ()
+            statements = projection.get("statements") if isinstance(projection.get("statements"), Mapping) else {}
+            if projection.get("status") != "AVAILABLE" or not periods:
+                st.info(f"Validated {frequency} filing history is unavailable for this security.")
+                continue
+            statement_tabs = st.tabs(list(lanes.values()))
+            for statement_tab, (lane, label) in zip(statement_tabs, lanes.items()):
+                with statement_tab:
+                    statement = statements.get(lane) or ()
+                    if isinstance(statement, Mapping):
+                        statement = statement.get("rows") or ()
+                    frame = _statement_history_frame(statement, periods, frequency=frequency)
+                    if frame.empty:
+                        st.info(f"Validated {frequency} {label.lower()} facts are unavailable.")
+                    else:
+                        st.dataframe(
+                            frame, hide_index=True, use_container_width=True,
+                            key=f"research-history-{frequency}-{lane.lower()}-{ticker}",
+                        )
+            income_statement = statements.get("INCOME_STATEMENT") or ()
+            if isinstance(income_statement, Mapping):
+                income_statement = income_statement.get("rows") or ()
+            trend = _statement_history_trend(income_statement, periods, frequency=frequency)
+            if not trend.empty:
+                st.markdown(f"**{frequency.title()} reported trend**")
+                st.line_chart(trend.set_index("Period")[["Value"]], use_container_width=True)
+                st.caption(f"Exact reported {trend.iloc[0]['Series']} values; no interpolation or forecast.")
+    disclosure = quarterly.get("disclosure") if isinstance(quarterly.get("disclosure"), Mapping) else {}
+    with st.expander("Sources and accounting boundaries", expanded=False):
+        st.markdown(
+            "- Annual source: retained `/stock/financials-reported` annual filings.\n"
+            "- Quarterly source: retained `/stock/financials-reported` quarterly filings.\n"
+            "- Quarterly income-statement and cash-flow values are cumulative year-to-date except Q1.\n"
+            "- A discrete quarter is shown only when an exact prior-YTD match supports subtraction.\n"
+            "- Balance-sheet values are instantaneous at period end. Missing values remain Unavailable, never zero."
+        )
+        st.caption(
+            f"Annual source hash: {annual.get('source_presentation_sha256') or annual.get('presentation_sha256') or 'Unavailable'} · "
+            f"Quarterly normalized hash: {quarterly.get('source_normalized_sha256') or 'Unavailable'} · "
+            f"Quarterly series hash: {quarterly.get('source_series_sha256') or 'Unavailable'} · "
+            f"Boundary: {disclosure.get('missing_values') or 'NEVER_RENDER_AS_ZERO'}"
+        )
+    return True
+
+
 def _render_annual_financial_statements(history: Mapping[str, Any], *, ticker: str) -> None:
     status = str(history.get("status") or "UNAVAILABLE")
     periods = list(history.get("periods") or ())
@@ -523,6 +674,7 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
         '<li><strong>Fair Value</strong> is an evidence-based estimate, not a guaranteed future price.</li>'
         '<li><strong>Opportunity</strong> compares relative attractiveness inside the certified ATLAS method.</li>'
         '<li><strong>Evidence Confidence</strong> measures evidence completeness and consistency, not the chance the stock will rise.</li>'
+        '<li><strong>Annual and quarterly statements</strong> are reported filing history, not forecasts. Quarterly flow values may be cumulative year-to-date; missing values stay Unavailable and never mean zero.</li>'
         '</ul></details></div>',
         unsafe_allow_html=True,
     )
@@ -839,7 +991,8 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
         st.info(financial_snapshot.get("message") or "Certified financial evidence is unavailable for this snapshot.")
 
     _render_financial_depth(page.get("financial_depth") or {}, ticker=ticker)
-    _render_annual_financial_statements(page.get("annual_financial_statements") or {}, ticker=ticker)
+    if not _render_combined_statement_history(page.get("statement_history") or {}, ticker=ticker):
+        _render_annual_financial_statements(page.get("annual_financial_statements") or {}, ticker=ticker)
 
     financial_trend = page.get("financial_trend") or {}
     _marker("financial-trend-chart", ticker, status=financial_trend.get("status") or "UNAVAILABLE")
