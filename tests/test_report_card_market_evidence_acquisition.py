@@ -5,8 +5,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 import hashlib
 import json
+import os
+import subprocess
+import sys
 
 import pytest
+import yaml
 
 from services.prospective_report_card import ProspectiveLedger
 from services.report_card_market_evidence_acquisition import (
@@ -221,6 +225,35 @@ def test_dispatch_workflow_is_inert_and_requires_distinct_primary_and_backup():
     assert 'ACQUISITION_KILL_SWITCH' in source
     assert "append_observation" not in source
     assert "REPORT_CARD_APPEND_ONCE" not in source
+
+
+def test_dispatch_workflow_entrypoints_import_with_registered_pythonpath():
+    workflow_path = Path(".github/workflows/atlas_report_card_market_evidence_acquisition.yml")
+    workflow = yaml.load(workflow_path.read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
+    job = workflow["jobs"]["acquire"]
+    assert job["env"]["PYTHONPATH"] == "."
+
+    env = {**os.environ, "PYTHONPATH": job["env"]["PYTHONPATH"]}
+    for entrypoint in (
+        "scripts/acquire_report_card_market_evidence.py",
+        "scripts/close_report_card_g2_sentinel.py",
+    ):
+        result = subprocess.run(
+            [sys.executable, entrypoint, "--help"],
+            cwd=Path(__file__).resolve().parents[1],
+            env=env,
+            text=True,
+            capture_output=True,
+        )
+        assert result.returncode == 0, result.stderr
+
+    cleanup = next(
+        step for step in job["steps"]
+        if step.get("name") == "Verify sentinel closed after acquisition"
+    )
+    assert cleanup["if"] == "${{ always() && inputs.execution_mode == 'acquire' }}"
+    assert "python3 scripts/close_report_card_g2_sentinel.py" in cleanup["run"]
+    subprocess.run(["bash", "-n"], input=cleanup["run"], text=True, check=True)
 
 
 def test_g2_plan_binding_and_kill_switch_fail_closed(tmp_path, monkeypatch):
