@@ -797,6 +797,18 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
             "version": VERSION, "status": "RATING_NOT_PUBLISHED", "ticker": requested_ticker or ticker,
             "reason": "RESEARCH_AUTHORITY_TICKER_MISMATCH",
         }
+    statement_history = _map(report.get("certified_statement_history"))
+    if statement_history:
+        valid_statement_history = (
+            statement_history.get("contract") == "ATLAS_CUSTOMER_STATEMENT_HISTORY_PROJECTION_V1"
+            and str(statement_history.get("ticker") or "").upper() == ticker
+            and statement_history.get("read_only") is True
+            and statement_history.get("rating_authority") == "UNCHANGED"
+            and statement_history.get("publication_authority") == "UNCHANGED"
+            and statement_history.get("provider_calls") == 0
+        )
+        if not valid_statement_history:
+            statement_history = {"status": "UNAVAILABLE", "reason": "STATEMENT_HISTORY_AUTHORITY_MISMATCH"}
     enrichment = _qa_enrichment(ticker)
     enrichment_ticker = str(enrichment.get("__atlas_ticker__") or ticker).strip().upper()
     if enrichment and enrichment_ticker != ticker:
@@ -922,6 +934,9 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
         "financial_trend": financial_trend,
         "financial_snapshot": financial_snapshot,
         "financial_depth": financial_depth,
+        "statement_history": dict(statement_history) if statement_history else {
+            "status": "UNAVAILABLE", "reason": "SOURCE_BOUND_STATEMENT_HISTORY_NOT_ATTACHED",
+        },
         "fundamentals": [asdict(card) for card in facts],
         "recent_changes": {"status": "AVAILABLE" if news_items else "UNAVAILABLE", "items": news_items, "classification": CONTEXTUAL},
         "catalysts": {"status": "AVAILABLE" if future_events else "UNAVAILABLE", "items": (),
