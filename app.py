@@ -26409,7 +26409,7 @@ def v784_top_nav(pages):
       [data-testid="stRadio"] label{flex:0 0 auto!important;max-width:11rem;scroll-snap-align:start;overflow:hidden}
       [data-testid="stRadio"] label p{font-size:.76rem;white-space:nowrap!important;line-height:1.2}
     }
-    @media(max-width:380px){
+    @media(max-width:420px){
       [data-testid="stRadio"] [role="radiogroup"]{justify-content:space-between;gap:.08rem!important;padding:.2rem!important;overflow-x:hidden!important}
       [data-testid="stRadio"] label{flex:0 1 auto!important;padding:.3rem .28rem!important;min-height:38px!important}
       [data-testid="stRadio"] label p{font-size:.64rem!important;letter-spacing:0!important}
