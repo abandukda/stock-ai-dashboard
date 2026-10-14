@@ -21,7 +21,8 @@ def _sha256(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
 
 
-def _verify(path: Path, *, owner: str, group: str) -> dict[str, Any]:
+def verify_closed_sentinel(path: Path, *, owner: str = "atlasrunner",
+                           group: str = "atlasrunner") -> dict[str, Any]:
     details = path.lstat()
     if not stat.S_ISREG(details.st_mode) or path.is_symlink():
         raise ValueError("CLOSED_SENTINEL_MUST_BE_REGULAR_FILE")
@@ -57,7 +58,7 @@ def create_closed_sentinel(*, durable_root: Path, owner: str = "atlasrunner",
         raise NotADirectoryError("DURABLE_ROOT_DIRECTORY_REQUIRED")
     target = root / SENTINEL_NAME
     if target.exists() or target.is_symlink():
-        evidence = _verify(target, owner=owner, group=group)
+        evidence = verify_closed_sentinel(target, owner=owner, group=group)
         evidence.update(created=False, idempotent=True)
         return evidence
 
@@ -88,7 +89,7 @@ def create_closed_sentinel(*, durable_root: Path, owner: str = "atlasrunner",
         if descriptor is not None:
             os.close(descriptor)
         temporary.unlink(missing_ok=True)
-        evidence = _verify(target, owner=owner, group=group)
+        evidence = verify_closed_sentinel(target, owner=owner, group=group)
         evidence.update(created=False, idempotent=True)
         return evidence
     except Exception:
@@ -96,7 +97,7 @@ def create_closed_sentinel(*, durable_root: Path, owner: str = "atlasrunner",
             os.close(descriptor)
         temporary.unlink(missing_ok=True)
         raise
-    evidence = _verify(target, owner=owner, group=group)
+    evidence = verify_closed_sentinel(target, owner=owner, group=group)
     evidence.update(created=True, idempotent=False)
     return evidence
 
@@ -106,4 +107,4 @@ def canonical_evidence(value: dict[str, Any]) -> str:
 
 
 __all__ = ["SENTINEL_CONTENT", "SENTINEL_MODE", "SENTINEL_NAME",
-           "canonical_evidence", "create_closed_sentinel"]
+           "canonical_evidence", "create_closed_sentinel", "verify_closed_sentinel"]

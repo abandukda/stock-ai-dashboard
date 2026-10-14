@@ -1,0 +1,127 @@
+name: ATLAS Stable Licensed Research Gateway
+
+# Permanent registration. Protected credentials are only exposed to code from
+# the registered default branch. Scope comes from an immutable artifact and is
+# separately bound by its owner-approved SHA-256.
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        required: true
+        type: choice
+        options: [plan, acquire]
+      source_sha:
+        required: true
+        type: string
+      scope_run_id:
+        required: true
+        type: string
+      scope_artifact:
+        required: true
+        type: string
+      scope_path:
+        required: true
+        type: string
+      scope_sha256:
+        required: true
+        type: string
+      max_provider_calls:
+        required: true
+        type: string
+      authorization_token:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: atlas-stable-research-gateway
+  cancel-in-progress: false
+
+jobs:
+  verify-scope:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      envelope_sha256: ${{ steps.envelope.outputs.digest }}
+      gateway_code_sha: ${{ steps.code.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Freeze registered default-branch gateway code
+        id: code
+        run: |
+          test "$GITHUB_REF_NAME" = "${{ github.event.repository.default_branch }}"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - name: Download immutable scope artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download "${{ inputs.scope_run_id }}" --name "${{ inputs.scope_artifact }}" --dir "$RUNNER_TEMP/scope"
+      - name: Build approval and verify scope
+        id: envelope
+        env:
+          OPERATION: ${{ inputs.operation }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          SCOPE_SHA256: ${{ inputs.scope_sha256 }}
+          MAX_CALLS: ${{ inputs.max_provider_calls }}
+          AUTHORIZATION_TOKEN: ${{ inputs.authorization_token }}
+        run: |
+          python -c 'import json,os,pathlib; pathlib.Path("approval.json").write_text(json.dumps({"operation":os.environ["OPERATION"],"source_sha":os.environ["SOURCE_SHA"],"scope_sha256":os.environ["SCOPE_SHA256"],"max_provider_calls":int(os.environ["MAX_CALLS"]),"authorization_token":os.environ["AUTHORIZATION_TOKEN"]}))'
+          python scripts/verify_operations_gateway.py --approval approval.json --scope-root "$RUNNER_TEMP/scope" --scope "${{ inputs.scope_path }}" --run-id "$GITHUB_RUN_ID" --output audit_results/gateway/research-envelope.json
+          echo "digest=$(python -c 'import json; print(json.load(open("audit_results/gateway/research-envelope.json"))["envelope_sha256"])')" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: atlas-research-gateway-plan-${{ github.run_id }}
+          path: audit_results/gateway
+          retention-days: 90
+
+  acquire:
+    needs: verify-scope
+    if: inputs.operation == 'acquire'
+    environment: atlas-licensed-research-acquisition
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.verify-scope.outputs.gateway_code_sha }}
+          persist-credentials: false
+      - name: Enforce identical reviewed gateway code
+        run: test "$(git rev-parse HEAD)" = "${{ needs.verify-scope.outputs.gateway_code_sha }}"
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - run: python -m pip install --disable-pip-version-check requests==2.32.3
+      - name: Re-download and independently verify immutable scope
+        env:
+          ATLAS_GATEWAY_ENVELOPE_SHA256: ${{ needs.verify-scope.outputs.envelope_sha256 }}
+          GH_TOKEN: ${{ github.token }}
+          OPERATION: ${{ inputs.operation }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          SCOPE_SHA256: ${{ inputs.scope_sha256 }}
+          MAX_CALLS: ${{ inputs.max_provider_calls }}
+          AUTHORIZATION_TOKEN: ${{ inputs.authorization_token }}
+        run: |
+          test -n "$ATLAS_GATEWAY_ENVELOPE_SHA256"
+          gh run download "${{ inputs.scope_run_id }}" --name "${{ inputs.scope_artifact }}" --dir "$RUNNER_TEMP/scope"
+          python -c 'import json,os,pathlib; pathlib.Path("approval.json").write_text(json.dumps({"operation":os.environ["OPERATION"],"source_sha":os.environ["SOURCE_SHA"],"scope_sha256":os.environ["SCOPE_SHA256"],"max_provider_calls":int(os.environ["MAX_CALLS"]),"authorization_token":os.environ["AUTHORIZATION_TOKEN"]}))'
+          python scripts/verify_operations_gateway.py --approval approval.json --scope-root "$RUNNER_TEMP/scope" --scope "${{ inputs.scope_path }}" --run-id "$GITHUB_RUN_ID" --output audit_results/gateway/research-reverified-envelope.json
+          test "$(python -c 'import json; print(json.load(open("audit_results/gateway/research-reverified-envelope.json"))["envelope_sha256"])')" = "$ATLAS_GATEWAY_ENVELOPE_SHA256"
+      - name: Execute bounded licensed acquisition
+        env:
+          FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+        run: |
+          test -n "$FINNHUB_API_KEY"
+          python scripts/run_licensed_research_gateway.py --approval approval.json --scope-root "$RUNNER_TEMP/scope" --scope "${{ inputs.scope_path }}" --output audit_results/gateway/research-acquisition --run-id "$GITHUB_RUN_ID"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atlas-research-gateway-acquisition-${{ github.run_id }}
+          path: audit_results/gateway/research-acquisition
+          if-no-files-found: error
+          retention-days: 90

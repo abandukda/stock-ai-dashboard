@@ -6,7 +6,7 @@ import pwd
 import pytest
 
 from services.report_card_closed_sentinel import (
-    SENTINEL_CONTENT, SENTINEL_NAME, create_closed_sentinel,
+    SENTINEL_CONTENT, SENTINEL_NAME, create_closed_sentinel, verify_closed_sentinel,
 )
 
 
@@ -22,6 +22,7 @@ def test_atomic_closed_sentinel_is_exact_and_idempotent(tmp_path):
     second = create_closed_sentinel(durable_root=tmp_path, owner=user, group=group)
     assert second["created"] is False and second["idempotent"] is True
     assert second["sha256"] == first["sha256"]
+    assert verify_closed_sentinel(path, owner=user, group=group)["state"] == "CLOSED"
 
 
 def test_existing_nonclosed_or_symlink_sentinel_fails_closed(tmp_path):

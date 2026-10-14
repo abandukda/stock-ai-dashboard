@@ -1,0 +1,112 @@
+name: ATLAS Stable Protected Report Card Gateway
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        required: true
+        type: choice
+        options: [validate, plan, acquire, append]
+      authorization_token:
+        required: true
+        type: string
+      scope_sha256:
+        required: true
+        type: string
+      source_sha:
+        required: true
+        type: string
+      scope_run_id:
+        required: true
+        type: string
+      scope_artifact:
+        required: true
+        type: string
+      scope_path:
+        required: true
+        type: string
+      max_provider_calls:
+        required: true
+        type: string
+      cutoff_utc:
+        description: Exact Oct 13 XNYS close plus 30-minute grace, in UTC
+        required: true
+        default: "2026-10-13T20:30:00Z"
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: atlas-stable-report-card-ledger
+  cancel-in-progress: false
+
+jobs:
+  protected-preflight:
+    environment: atlas-internal-report-card
+    runs-on: [self-hosted, Linux, X64, atlas-worker-1]
+    timeout-minutes: 20
+    env:
+      ATLAS_REPORT_CARD_DURABLE_ROOT: ${{ vars.ATLAS_REPORT_CARD_DURABLE_ROOT }}
+      ATLAS_REPORT_CARD_BACKUP_ROOT: ${{ vars.ATLAS_REPORT_CARD_BACKUP_ROOT }}
+      REPORT_CARD_CUTOFF_UTC: ${{ inputs.cutoff_utc }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - name: Enforce roots, operation-specific token and kill switch
+        env:
+          OPERATION: ${{ inputs.operation }}
+          TOKEN: ${{ inputs.authorization_token }}
+          SCOPE_SHA256: ${{ inputs.scope_sha256 }}
+        run: |
+          test "$GITHUB_REF_NAME" = "${{ github.event.repository.default_branch }}"
+          test -n "$ATLAS_REPORT_CARD_DURABLE_ROOT"
+          test -n "$ATLAS_REPORT_CARD_BACKUP_ROOT"
+          test "$ATLAS_REPORT_CARD_DURABLE_ROOT" != "$ATLAS_REPORT_CARD_BACKUP_ROOT"
+          test "$TOKEN" = "REPORT_CARD_${OPERATION^^}_ONCE:$SCOPE_SHA256"
+          test "$REPORT_CARD_CUTOFF_UTC" = "2026-10-13T20:30:00Z"
+          if [ "$OPERATION" = validate ] || [ "$OPERATION" = plan ]; then test -z "${FINNHUB_API_KEY:-}"; fi
+      - name: Verify exact CLOSED acquisition sentinel
+        # Verifies ATLAS_REPORT_CARD_DURABLE_ROOT/ACQUISITION_KILL_SWITCH is
+        # a regular atlasrunner:atlasrunner 0600 file containing exactly CLOSED\n.
+        run: >-
+          python3 scripts/verify_report_card_closed_sentinel.py
+          --durable-root "$ATLAS_REPORT_CARD_DURABLE_ROOT"
+          --output audit_results/report_card_gateway/closed_sentinel.json
+      - name: Download and verify exact immutable scope
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OPERATION: ${{ inputs.operation }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          SCOPE_SHA256: ${{ inputs.scope_sha256 }}
+          MAX_CALLS: ${{ inputs.max_provider_calls }}
+          SCOPE_RUN_ID: ${{ inputs.scope_run_id }}
+          SCOPE_ARTIFACT: ${{ inputs.scope_artifact }}
+          SCOPE_PATH: ${{ inputs.scope_path }}
+        run: |
+          gh run download "$SCOPE_RUN_ID" --name "$SCOPE_ARTIFACT" --dir "$RUNNER_TEMP/scope"
+          python -c 'import json,os,pathlib; pathlib.Path("approval.json").write_text(json.dumps({"operation":os.environ["OPERATION"],"source_sha":os.environ["SOURCE_SHA"],"scope_sha256":os.environ["SCOPE_SHA256"],"max_provider_calls":int(os.environ["MAX_CALLS"]),"authorization_token":"ATLAS_{}:{}".format(os.environ["OPERATION"].upper(),os.environ["SCOPE_SHA256"])}))'
+          python scripts/verify_operations_gateway.py --approval approval.json --scope-root "$RUNNER_TEMP/scope" --scope "$SCOPE_PATH" --run-id "$GITHUB_RUN_ID" --output audit_results/report_card_gateway/scope_envelope.json
+      - name: Registered safe operations
+        env:
+          OPERATION: ${{ inputs.operation }}
+        run: |
+          case "$OPERATION" in
+            validate|plan)
+              python scripts/build_report_card_exchange_calendar.py --start-date 2026-10-08 --cutoff-utc "$REPORT_CARD_CUTOFF_UTC" --output audit_results/report_card_gateway/xnys_calendar.json
+              ;;
+            acquire|append)
+              echo "Mutation/provider adapters remain separately reviewed and intentionally fail closed."
+              exit 78
+              ;;
+          esac
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atlas-report-card-gateway-${{ inputs.operation }}-${{ github.run_id }}
+          path: audit_results/report_card_gateway
+          retention-days: 90
