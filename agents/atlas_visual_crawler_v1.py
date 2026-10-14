@@ -1392,6 +1392,7 @@ class AtlasVisualCrawler:
             ("wall-street", "ATLAS vs Wall Street"),
             ("risks", "Risk & Evidence"),
             ("fundamentals", "Fundamentals Snapshot"),
+            ("annual-financial-statements", "Annual filing history"),
             ("catalysts", "Catalysts & Sentiment"),
             ("about-company", "About the Company"),
         )

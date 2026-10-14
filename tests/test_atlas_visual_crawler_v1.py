@@ -369,6 +369,7 @@ def test_research_v2_crawler_contract_uses_semantic_markers_without_removing_leg
     assert 'architecture.get("version") != RESEARCH_V2_VERSION' in source
     assert "expected_tabs=RESEARCH_VNEXT_SECTION_LABELS" in source
     assert "_research_v2_section_screenshots" in source
+    assert '("annual-financial-statements", "Annual filing history")' in source
     for section in ("price-chart", "ai-summary", "wall-street", "risks", "fundamentals", "catalysts", "about-company"):
         assert f'("{section}",' in source
 
