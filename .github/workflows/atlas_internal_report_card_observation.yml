@@ -36,6 +36,7 @@ jobs:
     env:
       ATLAS_REPORT_CARD_DURABLE_ROOT: ${{ vars.ATLAS_REPORT_CARD_DURABLE_ROOT }}
       ATLAS_REPORT_CARD_BACKUP_ROOT: ${{ vars.ATLAS_REPORT_CARD_BACKUP_ROOT }}
+      ATLAS_REPORT_CARD_CRONITOR_URL: ${{ secrets.ATLAS_REPORT_CARD_CRONITOR_URL }}
     steps:
       - uses: actions/checkout@v4
       - name: Require explicit internal observation authorization
@@ -45,6 +46,7 @@ jobs:
           test -n "$ATLAS_REPORT_CARD_DURABLE_ROOT"
           test -n "$ATLAS_REPORT_CARD_BACKUP_ROOT"
           test "$ATLAS_REPORT_CARD_DURABLE_ROOT" != "$ATLAS_REPORT_CARD_BACKUP_ROOT"
+          test -n "$ATLAS_REPORT_CARD_CRONITOR_URL"
           command -v python3
       - name: Download exact governed observation bundle
         uses: actions/download-artifact@v4
@@ -100,6 +102,23 @@ jobs:
           echo "::error title=ATLAS Report Card observation failed::No observation retry was attempted; inspect this run before any further action."
           echo "## ATLAS observation failed closed" >> "$GITHUB_STEP_SUMMARY"
           echo "No automatic retry, provider acquisition, or public reporting occurred." >> "$GITHUB_STEP_SUMMARY"
+      - name: Notify owner of authorized G3 outcome
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          if [ "${{ job.status }}" = success ]; then
+            state=complete; status=INTERNAL_OBSERVATIONS_RECORDED; failure=NONE
+            recovery="No recovery required; verify ledger and independent backup receipts."
+          else
+            state=fail; status=APPEND_REJECTED; failure=LEDGER_INTEGRITY_FAILURE
+            recovery="Inspect run $GITHUB_RUN_ID; preserve the ledger and restore only through governed recovery."
+          fi
+          python3 scripts/send_operational_heartbeat.py \
+            --operation REPORT_CARD_G3 --state "$state" \
+            --run-id "$GITHUB_RUN_ID" --source-sha "$GITHUB_SHA" \
+            --trading-session "BUNDLE_BOUND" --publication-status "$status" \
+            --failure-code "$failure" --recovery-action "$recovery" \
+            --url-env ATLAS_REPORT_CARD_CRONITOR_URL
       - uses: actions/upload-artifact@v4
         if: always()
         with:

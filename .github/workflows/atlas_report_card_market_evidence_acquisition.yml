@@ -70,6 +70,7 @@ jobs:
       ATLAS_REPORT_CARD_DURABLE_ROOT: ${{ vars.ATLAS_REPORT_CARD_DURABLE_ROOT }}
       ATLAS_REPORT_CARD_BACKUP_ROOT: ${{ vars.ATLAS_REPORT_CARD_BACKUP_ROOT }}
       FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+      ATLAS_REPORT_CARD_CRONITOR_URL: ${{ secrets.ATLAS_REPORT_CARD_CRONITOR_URL }}
       ATLAS_FINNHUB_LICENSE_CLASS: FINNHUB_PAID_CORE_CERTIFICATION
     steps:
       - uses: actions/checkout@v4
@@ -89,6 +90,7 @@ jobs:
             test "${{ inputs.approved_plan_sha256 }}" = "87fd4a0c6a86396aa4c1da60384eb5f15bc7259b1aaaae2e812c748b4e733e44"
             test "${{ inputs.authorization_package_sha256 }}" = "219c5453b58bfe838a58f73a666a630637747f67fa5cf419526f4a3a9908764a"
             test "${{ inputs.entitlement_sha256 }}" = "161b2799b0ea935185d5fddcd53ffbf3fdd755d6a939d3898e0effe58c8c83d4"
+            test -n "$ATLAS_REPORT_CARD_CRONITOR_URL"
           fi
           test -n "$ATLAS_REPORT_CARD_DURABLE_ROOT"
           test -n "$ATLAS_REPORT_CARD_BACKUP_ROOT"
@@ -161,6 +163,23 @@ jobs:
       - name: Fail closed without ledger mutation
         if: failure()
         run: echo "::error title=ATLAS evidence acquisition failed::No Report Card observation or public mutation was attempted."
+      - name: Notify owner of authorized G2 outcome
+        if: ${{ always() && inputs.execution_mode == 'acquire' }}
+        shell: bash
+        run: |
+          if [ "${{ job.status }}" = success ]; then
+            state=complete; status=EVIDENCE_ACQUIRED; failure=NONE
+            recovery="No recovery required; verify the immutable evidence artifact before G3."
+          else
+            state=fail; status=ACQUISITION_REJECTED; failure=PROVIDER_ERROR
+            recovery="Inspect run $GITHUB_RUN_ID; keep the sentinel CLOSED and do not retry without authorization."
+          fi
+          python3 scripts/send_operational_heartbeat.py \
+            --operation REPORT_CARD_G2 --state "$state" \
+            --run-id "$GITHUB_RUN_ID" --source-sha "$GITHUB_SHA" \
+            --trading-session "ARTIFACT_BOUND" --publication-status "$status" \
+            --failure-code "$failure" --recovery-action "$recovery" \
+            --url-env ATLAS_REPORT_CARD_CRONITOR_URL
       - uses: actions/upload-artifact@v4
         if: always()
         with:

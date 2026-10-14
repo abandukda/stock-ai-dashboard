@@ -11,7 +11,9 @@ Live execution additionally requires all of:
 - repository variable `ATLAS_DAILY_BUY_NOW_LIVE_ENABLED=true`;
 - protected `FINNHUB_API_KEY` access;
 - secret `ATLAS_DAILY_BUY_NOW_AUTHORIZATION=DAILY_BUY_NOW_LIVE:<source-sha>`;
-- an approved `ATLAS_DAILY_BUY_NOW_ALERT_WEBHOOK` destination.
+- an approved `ATLAS_DAILY_BUY_NOW_CRONITOR_URL` telemetry-only URL. Cronitor
+  owns email recipients, delivery rules, and the independent missing-heartbeat
+  deadline; ATLAS does not store email addresses or SMTP credentials.
 
 The provider-free mode uses retained certified artifacts, performs no provider
 calls or production writes, and exercises the same calendar, source identity,
@@ -32,3 +34,17 @@ same source-bound authorization. Never reuse an artifact from another session,
 mark stale values fresh, or bypass the coverage gate. Late finalized earnings
 are `NEWLY_UPDATED` evidence and require a separately authorized incremental
 recertification; they do not rewrite the original post-close snapshot.
+
+Cronitor must be configured for a 6 PM America/New_York job with a completion
+grace period long enough for the certified full-universe run. The workflow emits
+`run`, `complete`, and `fail` lifecycle events. Email rules must send the owner a
+completion confirmation and immediate failure/recovery notices. Cronitor's
+independent overdue-job alert supplies `NEVER_STARTED`/`DID_NOT_COMPLETE`
+coverage even when GitHub never starts the workflow. Verify one test event and
+one intentionally overdue test check before enabling live acquisition.
+
+The same sanitized adapter is wired to authorized Report Card G2 acquisition
+and G3 append outcomes through the protected `atlas-internal-report-card`
+environment. G4 remains disabled; its eventual scheduled workflow must use a
+separate Cronitor monitor and pass both delivery and deliberately overdue
+heartbeat tests before unattended activation.
