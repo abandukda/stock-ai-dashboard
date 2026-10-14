@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 import hashlib
+import sqlite3
 
 import pytest
 
@@ -14,6 +15,11 @@ def make(tmp_path):
     ledger.append("SIGNAL","s1",{"signal_id":"s1","ticker":"NVDA","reference_price":100,
         "executable_reference_timestamp":activated.isoformat(),"first_seen_at":activated.isoformat()},created_at=activated)
     backup=tmp_path/"backup"; backup.mkdir(); ledger.backup(backup,now=activated)
+    # Model the quiescent protected ledger expected by the read-only audit.
+    # Without an explicit checkpoint, runner-dependent WAL cleanup can change
+    # the database file after the audit captures its initial hash.
+    with sqlite3.connect(ledger.path) as connection:
+        connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
     calendar={"source":"XNYS_GOVERNED_CALENDAR","version":"v1","trading_sessions":["2026-10-08","2026-10-09"],
         "finalized_session":"2026-10-09","session_status":"FINALIZED_REGULAR_CLOSE",
         "session_open_at":"2026-10-09T13:30:00+00:00","session_close_at":"2026-10-09T20:00:00+00:00"}
@@ -64,3 +70,18 @@ def test_readonly_package_rejects_open_wrong_mode_or_wrong_owner_switch(tmp_path
     with pytest.raises(PermissionError,match="OWNER_MUST_BE_ATLASRUNNER"):
         prepare_protected_validation(**common,kill_switch_path=switch,
             owner_probe=lambda path:"root")
+
+def test_readonly_package_fails_closed_when_ledger_changes_during_audit(tmp_path):
+    ledger,backup,calendar=make(tmp_path)
+    switch=tmp_path/"kill-switch"; switch.write_text("CLOSED\n"); switch.chmod(0o600)
+
+    def mutate_ledger(_path):
+        with ledger.path.open("ab") as stream:
+            stream.write(b"changed-during-audit")
+        return "atlasrunner"
+
+    with pytest.raises(RuntimeError,match="PROTECTED_LEDGER_CHANGED_DURING_READONLY_AUDIT"):
+        prepare_protected_validation(ledger_path=ledger.path,backup_root=backup,calendar=calendar,
+            source_sha="a"*40,publication_rows=[],workspace=tmp_path/"unrelated",
+            mount_probe=lambda path:{"device":1 if path==ledger.path else 2,"target":str(path)},
+            kill_switch_path=switch,owner_probe=mutate_ledger)
