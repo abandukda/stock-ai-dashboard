@@ -3383,8 +3383,20 @@ class AtlasVisualCrawler:
                 button = scope.get_by_role("button", name=f"Remove {ticker}", exact=True)
                 if await button.count():
                     await button.first.click()
-                    for _ in range(16):
-                        if f"Remove {ticker}" not in await _visible_text(page):
+                    for _ in range(30):
+                        # Streamlit can leave the pre-rerun button text visible
+                        # briefly after the persisted mutation has completed.
+                        # Prove settlement against both the current ticker-bound
+                        # projection marker and the re-resolved live control.
+                        current_tickers = await card_order()
+                        remove_controls = page.get_by_role(
+                            "button", name=f"Remove {ticker}", exact=True
+                        )
+                        live_remove_visible = any(
+                            await candidate.is_visible()
+                            for candidate in await remove_controls.all()
+                        )
+                        if ticker not in current_tickers and not live_remove_visible:
                             return True
                         await page.wait_for_timeout(200)
             return False
