@@ -34,3 +34,10 @@ def test_invalid_burst_ceiling_is_rejected():
     with pytest.raises(ValueError):
         FinnhubRateContract(global_requests_per_minute=500, parallel_workers=2, worker_slot=0,
                             global_requests_per_second_ceiling=30)
+
+
+def test_executor_has_independent_total_attempt_ceiling():
+    source = open("services/finnhub_full_universe_executor.py", encoding="utf-8").read()
+    assert "maximum_http_attempts" in source
+    assert "PROVIDER_HTTP_ATTEMPT_CEILING_EXCEEDED" in source
+    assert '"attempt_ceiling_status"' in source

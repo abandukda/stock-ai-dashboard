@@ -19,6 +19,17 @@ The provider-free mode uses retained certified artifacts, performs no provider
 calls or production writes, and exercises the same calendar, source identity,
 certification, methodology-version, publication and Report Card-OFF gates.
 
+Every live shard receives a partition of the 500-RPM global allowance and may
+have only one request in flight per worker. A second control counts every HTTP
+attempt, including retries, and caps a shard at `symbols × six registered
+families × three attempts`. Exceeding that ceiling stops acquisition before the
+next request. The six families also produce explicit freshness receipts:
+profiles and basic/forward metrics must be captured in the current run;
+financial statements must additionally have non-future fiscal periods; and
+OHLCV must contain a recent completed session. Missing evidence is recorded as
+`UNAVAILABLE`; stale, future-dated, or malformed temporal evidence stops the
+certification run.
+
 ## Failure and recovery
 
 The last valid customer snapshot remains in the repository unless every shard,
