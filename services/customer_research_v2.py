@@ -823,7 +823,7 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
         }
     company = str(report.get("company") or report.get("company_name") or ticker)
     facts = [item for item in (
-        _fact("Current Price", price_env, f"${float(price):,.2f}" if price is not None else UNAVAILABLE),
+        _fact("Last Certified Close", price_env, f"${float(price):,.2f}" if price is not None else UNAVAILABLE),
         _fact("ATLAS Fair Value", fv_env, f"${float(fair_value):,.2f}" if fair_value is not None else UNAVAILABLE),
     ) if item]
     intelligence = _map(report.get("intelligence"))
@@ -896,7 +896,7 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
         "reason": "COMMERCIAL_DISPLAY_RIGHTS_UNCONFIRMED",
     })
     valuation_values = {
-        "Current Price": price,
+        "Last Certified Close": price,
         "ATLAS Fair Value": fair_value,
         "Wall St. Average": wall_street.get("target_average") if wall_street.get("status") == "AVAILABLE" else None,
     }

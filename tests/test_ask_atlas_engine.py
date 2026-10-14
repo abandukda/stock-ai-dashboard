@@ -1,5 +1,7 @@
 
-from engines.ask_atlas_engine import _compact_context, ask_atlas
+from engines.ask_atlas_engine import _compact_context, ask_atlas, canonical_ask_decision
+from services.customer_research_view import build_customer_research_view
+from tests.test_customer_research_v2 import report as certified_report
 
 
 def sample_report():
@@ -79,3 +81,27 @@ def test_ask_uses_same_certified_customer_projection_as_research():
     assert context["evidence_confidence"] == 88
     assert context["evidence_confidence_band"] == "High"
     assert context["atlas_fair_value"] == 15
+
+
+def test_ask_availability_and_authority_are_exact_customer_view_parity():
+    source = certified_report()
+    view = build_customer_research_view(source)
+    resolved = canonical_ask_decision(source)
+
+    assert resolved["authority_source"] == "CUSTOMER_RESEARCH_VIEW"
+    assert resolved["state"] == view.surface["action"]
+    assert resolved["production_decision"]["atlas_fair_value"] == view.surface["fair_value"]
+    assert resolved["production_decision"]["opportunity"] == view.surface["opportunity"]
+    assert resolved["production_decision"]["confidence"] == view.surface["confidence"]
+    assert resolved["production_decision"]["evidence_availability"] == dict(
+        view.surface["evidence_availability"]
+    )
+
+
+def test_ask_surface_has_readable_responsive_answer_contract():
+    source = __import__("pathlib").Path("app.py").read_text(encoding="utf-8")
+    ask = source[source.index("def render_chat_helper"):source.index("# =========================\n# MAIN APP")]
+    assert '[data-testid="stMarkdownContainer"] blockquote' in ask
+    assert "line-height:1.65" in ask
+    assert "overflow-wrap:anywhere" in ask
+    assert "margin-right:6.5rem" not in ask

@@ -604,7 +604,7 @@ def test_renderer_uses_customer_safe_labels_and_escapes_currency():
     assert "**Biggest verified risks**" in source
     assert "Strengthens the case" in source
     assert "Weakens the case" in source
-    assert "Invalidates the case" in source
+    assert "General monitoring conditions — not certified invalidation triggers" in source
     assert "Weakest certified pillar" in source
 
 
@@ -946,7 +946,9 @@ def test_real_renderer_binds_certified_fair_value_to_each_ticker_chart(monkeypat
 def test_customer_trust_content_contracts_are_not_presence_only():
     source = __import__("pathlib").Path("ui/customer_research_v2.py").read_text(encoding="utf-8")
     assert 'st.markdown("## Decision")' not in source
-    assert 'st.markdown("## Risk & Evidence")' in source
+    assert 'data-atlas-qa="research-v2-risk-content"' in source
+    assert "Company-specific measured risks" in source
+    assert "not certified invalidation triggers" in source
     assert 'if summary["risks"] or conditions_present:' in source
     assert "_friendly_time(wall.get(\"as_of\"))" in source
     assert 'st.markdown("### Price history")' in source

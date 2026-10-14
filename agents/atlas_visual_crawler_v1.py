@@ -45,6 +45,17 @@ from services.vnext_presentation_contract import (
 
 
 VISUAL_CRAWLER_VERSION = "ATLAS_VISUAL_CRAWLER_V1_1"
+RISK_CAPTURE_REQUIRED_CONTENT = (
+    "Risk & Evidence", "Company-specific measured risks", "General monitoring conditions",
+)
+
+
+def risk_capture_missing_content(text: Any) -> tuple[str, ...]:
+    """Return mandatory semantic content absent from a Risk evidence frame."""
+    normalized = re.sub(r"\s+", " ", str(text or "")).strip()
+    return tuple(token for token in RISK_CAPTURE_REQUIRED_CONTENT if token not in normalized)
+
+
 RESEARCH_COMPLETION_TIMEOUT_SECONDS = 45
 REQUIRED_PHASE_TIMEOUT_SECONDS = 720
 REQUIRED_PHASE_BUDGET = {
@@ -1402,16 +1413,29 @@ class AtlasVisualCrawler:
             ("about-company", "About the Company"),
         )
         for slug, label in sections:
-            locator = page.get_by_text(label, exact=True).last
+            locator = (
+                page.locator(f'[data-atlas-qa="research-v2-risk-content"][data-atlas-ticker="{ticker}"]').last
+                if slug == "risks" else page.get_by_text(label, exact=True).last
+            )
             try:
                 if not await locator.count() or not await locator.is_visible():
                     continue
+                if slug == "risks":
+                    risk_text = re.sub(r"\s+", " ", await locator.inner_text()).strip()
+                    missing = risk_capture_missing_content(risk_text)
+                    if missing:
+                        raise RuntimeError("RISK_SCREENSHOT_CONTENT_MISSING:" + ",".join(missing))
                 await locator.scroll_into_view_if_needed(timeout=5000)
                 await page.wait_for_timeout(100)
-                captures.append(await self._shot(
-                    page, page_name="Research Any Ticker", interaction=f"v2-{ticker}-{slug}",
-                    state="visible", viewport=viewport, ticker=ticker,
-                ))
+                captures.append(
+                    await self._shot_locator(
+                        locator, page_name="Research Any Ticker", interaction=f"v2-{ticker}-{slug}",
+                        state="visible", viewport=viewport, ticker=ticker,
+                    ) if slug == "risks" else await self._shot(
+                        page, page_name="Research Any Ticker", interaction=f"v2-{ticker}-{slug}",
+                        state="visible", viewport=viewport, ticker=ticker,
+                    )
+                )
             except Exception:
                 continue
         return captures

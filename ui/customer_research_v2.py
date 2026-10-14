@@ -396,9 +396,19 @@ def _statement_history_frame(statement: Any, periods: Any, *, frequency: str) ->
     }
     columns = list(accession_period.values())
     rows: list[dict[str, str]] = []
-    for item in statement or ():
-        if not isinstance(item, Mapping):
-            continue
+    order = (
+        "revenue", "cost of revenue", "gross profit", "operating expense", "operating income",
+        "interest", "income before tax", "income tax", "net income", "earnings per share",
+        "operating cash", "capital expenditure", "free cash flow", "cash", "total assets",
+        "total debt", "total liabilities", "stockholders equity",
+    )
+    def row_rank(item: Mapping[str, Any]) -> tuple[int, str]:
+        labels = item.get("labels") or item.get("observed_labels") or ()
+        label = str(next(iter(labels), None) or item.get("concept") or item.get("field_id") or "")
+        lowered = label.casefold()
+        return (next((index for index, token in enumerate(order) if token in lowered), len(order)), lowered)
+
+    for item in sorted((entry for entry in statement or () if isinstance(entry, Mapping)), key=row_rank):
         labels = item.get("labels") or item.get("observed_labels") or ()
         label = str(next(iter(labels), None) or item.get("concept") or item.get("field_id") or "Unlabeled fact")
         row = {"Line item": label}
@@ -451,6 +461,61 @@ def _statement_history_trend(statement: Any, periods: Any, *, frequency: str) ->
     return pd.DataFrame(sorted(candidates, key=lambda item: (item[0], item[1]))[0][2])
 
 
+def _per_share_credibility_rows(credibility: Mapping[str, Any]) -> list[dict[str, str]]:
+    """Expose filing-reported EPS/share bases without cross-basis arithmetic."""
+    if (
+        credibility.get("contract") != "ATLAS_CUSTOMER_PER_SHARE_CREDIBILITY_V1"
+        or credibility.get("provider_calls") != 0
+        or credibility.get("rating_authority") != "UNCHANGED"
+        or credibility.get("publication_authority") != "UNCHANGED"
+    ):
+        return []
+    rows = []
+    for record in credibility.get("records") or ():
+        if not isinstance(record, Mapping):
+            continue
+        eps = record.get("diluted_eps") if isinstance(record.get("diluted_eps"), Mapping) else {}
+        shares = record.get("diluted_weighted_average_shares") if isinstance(record.get("diluted_weighted_average_shares"), Mapping) else {}
+        basis = record.get("share_basis") if isinstance(record.get("share_basis"), Mapping) else {}
+        eps_value = eps.get("value") if eps.get("status") == "AVAILABLE" else None
+        share_value = shares.get("value") if shares.get("status") == "AVAILABLE" else None
+        rows.append({
+            "Fiscal year": str(record.get("fiscal_year") or "Unavailable"),
+            "Period end": str(record.get("period_end") or "Unavailable"),
+            "Diluted EPS (reported)": _financial_value(eps_value, "USD_PER_SHARE") if eps_value is not None else "Unavailable",
+            "Diluted weighted-average shares": f"{float(share_value):,.0f}" if share_value is not None else "Unavailable",
+            "Share-basis comparability": str(basis.get("comparability_to_prior_period") or "NOT_CERTIFIED").replace("_", " ").title(),
+            "Filing accession": str(record.get("accession") or "Unavailable"),
+            "EPS fact ID": str(eps.get("fact_id") or "Unavailable"),
+        })
+    return rows
+
+
+def _render_per_share_credibility(credibility: Mapping[str, Any], *, ticker: str) -> None:
+    rows = _per_share_credibility_rows(credibility)
+    if not rows:
+        return
+    discontinuities = sum(
+        bool((record.get("share_basis") or {}).get("discontinuity_from_prior_period"))
+        for record in credibility.get("records") or () if isinstance(record, Mapping)
+    )
+    _marker("per-share-credibility", ticker, records=len(rows), discontinuities=discontinuities)
+    st.markdown("#### Filing-reported diluted EPS and share basis")
+    st.warning(
+        "Historical diluted EPS is shown exactly as reported in each filing. The retained evidence does not "
+        "certify a common corporate-action-adjusted share basis, so periods flagged with a share-count "
+        "discontinuity are not plotted or presented as directly comparable. No split adjustment was inferred."
+    )
+    st.dataframe(
+        pd.DataFrame(rows[-8:]), hide_index=True, use_container_width=True,
+        key=f"research-history-eps-credibility-{ticker}",
+    )
+    st.caption(
+        f"{len(rows)} filing periods retained · {discontinuities} unverified share-basis discontinuities · "
+        "reported zero remains zero; missing remains Unavailable. See accession and fact ID for lineage."
+    )
+
+
 def _render_combined_statement_history(history: Mapping[str, Any], *, ticker: str) -> bool:
     """Render source-bound annual plus quarterly history when its authority contract is present."""
     if (
@@ -471,6 +536,16 @@ def _render_combined_statement_history(history: Mapping[str, Any], *, ticker: st
         quarterly_periods=quarterly.get("visible_period_count", 0),
     )
     st.markdown("### Financial statement history")
+    st.markdown(
+        '<style>[class*="st-key-research-history-"] [data-testid="stDataFrame"]{border:1px solid #334155;'
+        'border-radius:12px;background:#07111f;color:#f8fafc}[class*="st-key-research-history-"] '
+        '[role="columnheader"]{background:#111c2e!important;color:#f8fafc!important;font-weight:750!important}'
+        '[class*="st-key-research-history-"] [role="gridcell"]{color:#e2e8f0!important;text-align:right}'
+        '[class*="st-key-research-history-"] [role="gridcell"]:first-child{text-align:left;font-weight:650}'
+        '@media(max-width:420px){[class*="st-key-research-history-"]{overflow-x:auto} '
+        '[class*="st-key-research-history-"] [data-testid="stDataFrame"]{min-width:680px}}</style>',
+        unsafe_allow_html=True,
+    )
     st.caption(
         "Reported filing facts with retained lineage. Annual and quarterly history is read-only context and "
         "does not change the certified Action, Fair Value, Opportunity, Confidence, or publication status."
@@ -513,6 +588,10 @@ def _render_combined_statement_history(history: Mapping[str, Any], *, ticker: st
                 st.line_chart(trend.set_index("Period")[["Value"]], use_container_width=True)
                 st.caption(f"Exact reported {trend.iloc[0]['Series']} values; no interpolation or forecast.")
     disclosure = quarterly.get("disclosure") if isinstance(quarterly.get("disclosure"), Mapping) else {}
+    _render_per_share_credibility(
+        history.get("per_share_credibility") if isinstance(history.get("per_share_credibility"), Mapping) else {},
+        ticker=ticker,
+    )
     with st.expander("Sources and accounting boundaries", expanded=False):
         st.markdown(
             "- Annual source: retained `/stock/financials-reported` annual filings.\n"
@@ -800,7 +879,11 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
             f'Weakest certified pillar: {weakest["name"]} · {float(weakest["score"]):.1f} out of 100. '
             'A lower pillar score identifies an area where the certified investment case is less supportive.'
         )
-    condition_labels = {"strengthen": "Strengthens the case", "weaken": "Weakens the case", "invalidate": "Invalidates the case"}
+    condition_labels = {
+        "strengthen": "Strengthens the case — evidence to monitor",
+        "weaken": "Weakens the case — evidence to monitor",
+        "invalidate": "General monitoring conditions — not certified invalidation triggers",
+    }
     for key, label in condition_labels.items():
         items = list((summary.get("watch_conditions") or {}).get(key) or ())
         if items:
@@ -894,7 +977,7 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
         a[2].metric("Hold", wall.get("hold_count") if wall.get("hold_count") is not None else "Unavailable")
         a[3].metric("Sell", wall.get("sell_count") if wall.get("sell_count") is not None else "Unavailable")
         b = st.columns(5)
-        b[0].metric("Current Price", _money(header["price"]))
+        b[0].metric("Last Certified Close", _money(header["price"]))
         b[1].metric("Wall St. Low", _money(wall.get("target_low")))
         b[2].metric("Wall St. Average", _money(wall.get("target_average")))
         b[3].metric("Wall St. High", _money(wall.get("target_high")))
@@ -919,10 +1002,22 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
     conditions_present = any((summary.get("watch_conditions") or {}).get(key) for key in ("strengthen", "weaken", "invalidate"))
     _marker("section", ticker, section_name="Risk & Evidence")
     if summary["risks"] or conditions_present:
-        st.markdown("## Risk & Evidence")
-    if summary["risks"]:
-        st.markdown("### Risks in plain language")
-        _list(summary["risks"])
+        risk_items = list(summary["risks"])
+        monitoring = list((summary.get("watch_conditions") or {}).get("invalidate") or ())
+        risk_html = "".join(f"<li>{escape(str(item))}</li>" for item in risk_items)
+        monitoring_html = "".join(f"<li>{escape(str(item))}</li>" for item in monitoring)
+        limited = "" if risk_items else (
+            '<p><strong>Limited evidence:</strong> No company-specific measured risk is retained for this snapshot. '
+            'ATLAS does not substitute generic language.</p>'
+        )
+        st.markdown(
+            f'<section class="atlas-risk-evidence" data-atlas-qa="research-v2-risk-content" '
+            f'data-atlas-ticker="{escape(ticker)}"><h2>Risk &amp; Evidence</h2>'
+            f'<h3>Company-specific measured risks</h3>{limited}<ul>{risk_html}</ul>'
+            f'<h3>General monitoring conditions</h3><p>These conditions are monitoring prompts, not certified '
+            f'quantitative invalidation triggers.</p><ul>{monitoring_html}</ul></section>',
+            unsafe_allow_html=True,
+        )
 
     _marker("what-changed", ticker, status=page["recent_changes"]["status"])
     if page["recent_changes"]["items"]:

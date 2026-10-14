@@ -5,16 +5,60 @@
   "rating_authority": "UNCHANGED",
   "publication_authority": "UNCHANGED",
   "files": {
-    "AVT": {"gzip": "AVT.customer.statement-history.json.gz", "gzip_sha256": "2125cecaf7f8df7d2b78b7b11c17e363c08a436c976e72cbf59aa07b3a3aa46c", "json_sha256": "d47c194e8e78bedcf046c3052bebe26bf2d93c8b8926d3bc610ef8cf16cc2c1a"},
-    "BKTI": {"gzip": "BKTI.customer.statement-history.json.gz", "gzip_sha256": "ca456b5e419ae1f784d4dec40842644f7ef413b259e2d8c3119b39deed77fd21", "json_sha256": "5ed738a809259ce2d3a0929fae41420d2c53408bcf72456c5e99ec11e0d10bd4"},
-    "CODA": {"gzip": "CODA.customer.statement-history.json.gz", "gzip_sha256": "648815ca4516d28c032dd144d5c070cbe9c3c883b35a4812daf90a3214f26e97", "json_sha256": "7dcdba70f158defac531fe3ead1c97dbf52bab87831975562da3b5fdc0fb484e"},
-    "CSCO": {"gzip": "CSCO.customer.statement-history.json.gz", "gzip_sha256": "fe1669d542afcb0ae96d56d15111c6f5a3a2f71a3e287d875ec271826df16901", "json_sha256": "5f274eaf0140332024aaef9c67e083264b1c617ae4f1344a979417d7f2195c07"},
-    "CTS": {"gzip": "CTS.customer.statement-history.json.gz", "gzip_sha256": "62e1c0f236da417f0e7ce1f4122ce3c1527a08d393f02ec6629a8c0994af7a1c", "json_sha256": "954fbf0da091aa8447ee1651e9d334157e52db9bab368a0b96829384adf7700b"},
-    "DIOD": {"gzip": "DIOD.customer.statement-history.json.gz", "gzip_sha256": "57bf2c902432f8c5ba139ecd68cbceb956a70b0d687009183e8fe079a669e28c", "json_sha256": "d3d8842ad789a0af800b94e2e28c3b8811087ce241a41fdcb3a98f410d400974"},
-    "EXTR": {"gzip": "EXTR.customer.statement-history.json.gz", "gzip_sha256": "096d4924e71b7bdfb741527f66f11cb7c3f86a716bcbbba33bd1bb7cfeafbefd", "json_sha256": "01660a0a60c508d0b4bb05429b4c9bc6e96629c009001cf9b3f1a1cf15a8ab76"},
-    "GNE": {"gzip": "GNE.customer.statement-history.json.gz", "gzip_sha256": "2f00a7ff4d50e1877089ef103fed9999923c20e85146c2d4d20519f4b81e2f10", "json_sha256": "31333c19fb30b1700c21484b257958a48a5cfcce0e39f0b06ff605b756fdc9a5"},
-    "MSFT": {"gzip": "MSFT.customer.statement-history.json.gz", "gzip_sha256": "049cb9148a2032642b5705b7d64b9f1e5bd324c10f80881870efda847b93c9cc", "json_sha256": "6abbd2840abc24aba0fc3f3d81fac12b1aa0521ab8a7271f682663d0b5f698b1"},
-    "NVDA": {"gzip": "NVDA.customer.statement-history.json.gz", "gzip_sha256": "bd409b0a2e9a56266f8bcf81cb960411489633e53de06219df383edb4b39ad2b", "json_sha256": "15c42f97baf484b90018a92a236f4dca8c7df7decc074b80ec4310e973027685"},
-    "SBC": {"gzip": "SBC.customer.statement-history.json.gz", "gzip_sha256": "39548718cd7a037e1857a3ad104e9fb62acb42c5d65c7b6433dade28ca3c0bca", "json_sha256": "80728823641184c7f3317b878215cc1547498673b5f92fba86d2b295342ed018"}
+    "AVT": {
+      "gzip": "AVT.customer.statement-history.json.gz",
+      "gzip_sha256": "0cde51689c43d676e41912a29d829e30f79b8da3f80530570efde84f7667909b",
+      "json_sha256": "6e77cbf54f352ede5fb694d581393f5290aec5dc592ce6ec3aa9611ad1d521e0"
+    },
+    "BKTI": {
+      "gzip": "BKTI.customer.statement-history.json.gz",
+      "gzip_sha256": "2059f4a68631285ae360cdc13904dce9fff5d973a7b9bb2feb1e82b4083f6665",
+      "json_sha256": "339e82a2647faf1a6f1d27be3b466de4d3b5f496d40de54fae7cafa9723704fc"
+    },
+    "CODA": {
+      "gzip": "CODA.customer.statement-history.json.gz",
+      "gzip_sha256": "ba19eba74127b550d534989ec6de150bb139a09db8af74c0db131d0daacecaa4",
+      "json_sha256": "1b6e8aa4cf2a2880e8fe5f0fc71ab311dbd994ea9494e357468fff70e9926ccf"
+    },
+    "CSCO": {
+      "gzip": "CSCO.customer.statement-history.json.gz",
+      "gzip_sha256": "7324ecb2b37820c3ac39a37040365455a4dd7a0d0ddfd015d74acb92ca40aed4",
+      "json_sha256": "0590b5f16113c344e3a5d3ca2c2deea0727630dd143f95a704e0459c42695049"
+    },
+    "CTS": {
+      "gzip": "CTS.customer.statement-history.json.gz",
+      "gzip_sha256": "5bdcd1bd0397439cf4a64e3a6af28a205d2a36558f91cb1de2c4d71b1f3efee9",
+      "json_sha256": "b71ab0cda7e1abe0e9d4165dc8d015379ad534aa9b52a6752e4fa0ed8090e021"
+    },
+    "DIOD": {
+      "gzip": "DIOD.customer.statement-history.json.gz",
+      "gzip_sha256": "d83637dd5dce0e87fd8b98ddfafadd1a6b3294134244af7110974fa71855381f",
+      "json_sha256": "2736c18474009756b53633f9672d0a4999e89d146bea98b90ea195a24655282d"
+    },
+    "EXTR": {
+      "gzip": "EXTR.customer.statement-history.json.gz",
+      "gzip_sha256": "525353f3e1167affa155763f02a06c52dca481a780405ac7b9ac41e444650dc9",
+      "json_sha256": "6019f098a57298d5006f81a21e617d3f8525fc04734ef95b9deec63c4c742fc3"
+    },
+    "GNE": {
+      "gzip": "GNE.customer.statement-history.json.gz",
+      "gzip_sha256": "1efb6d26c79ef237ce12a0e7a4c277dfd85ed0916bc80a5c1dfe8e8b6a6a0418",
+      "json_sha256": "786a1750f50d3d04b80d46ccfaa9aa261b4c3f5b2e7fef541039d9f645ee39da"
+    },
+    "MSFT": {
+      "gzip": "MSFT.customer.statement-history.json.gz",
+      "gzip_sha256": "897a7f1228a490971d5cceabe0f01ce1f1c5c662dfb5498a6d99825bb0d176d4",
+      "json_sha256": "952037da9a8fbcde338ff02de98b983432d62ed17e5ae5ee0e0c73eb7b396ccb"
+    },
+    "NVDA": {
+      "gzip": "NVDA.customer.statement-history.json.gz",
+      "gzip_sha256": "5d39f76cb298674bb7185c8e6a47967bd76ad81868865f6061edf6933625a97a",
+      "json_sha256": "20d13aa280155afbfc0cabbedb48536a9b988e800746e793b2b8af27800b9a7d"
+    },
+    "SBC": {
+      "gzip": "SBC.customer.statement-history.json.gz",
+      "gzip_sha256": "ef77a0671e9e0292e7932bde76dd0cef624a3e1ec58c8d6ba048a32b34a0a2ed",
+      "json_sha256": "9eee6a5ab82037148eadafee9fbbcb1d9a205548c547e7fece5f448d57cc5dc3"
+    }
   }
 }

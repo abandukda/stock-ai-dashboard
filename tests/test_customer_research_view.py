@@ -38,6 +38,7 @@ def test_surface_is_the_minimal_cross_route_authority_contract():
     assert surface == {
         "ticker": "NVDA",
         "company": "NVIDIA Corporation",
+        "sector": "Technology",
         "status": "AVAILABLE",
         "action": "BUY_NOW",
         "fair_value": 346.05,
@@ -51,7 +52,29 @@ def test_surface_is_the_minimal_cross_route_authority_contract():
         "certified_close": 186.09,
         "certified_close_at": "2026-10-08T20:00:00Z",
         "certified_close_availability": Availability.CERTIFIED_CURRENT.value,
+        "evidence_availability": {
+            "publication": Availability.CERTIFIED_CURRENT.value,
+            "certified_close": Availability.CERTIFIED_CURRENT.value,
+            "analyst_context": Availability.MISSING_RETAINED_EVIDENCE.value,
+            "valuation": Availability.CERTIFIED_CURRENT.value,
+            "financials": Availability.MISSING_RETAINED_EVIDENCE.value,
+            "news": Availability.MISSING_RETAINED_EVIDENCE.value,
+            "earnings": Availability.MISSING_RETAINED_EVIDENCE.value,
+        },
     }
+
+
+def test_surface_preserves_identity_and_availability_across_viewports_without_device_branches():
+    source = report()
+    desktop = build_customer_research_view(source).surface
+    mobile_390 = build_customer_research_view(source).surface
+    mobile_360 = build_customer_research_view(source).surface
+
+    for view in (desktop, mobile_390, mobile_360):
+        assert (view["ticker"], view["company"], view["sector"]) == (
+            "NVDA", "NVIDIA Corporation", "Technology",
+        )
+        assert view["evidence_availability"] == desktop["evidence_availability"]
 
 
 def test_withheld_surface_fails_closed_without_protected_values():

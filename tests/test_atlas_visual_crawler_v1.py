@@ -29,6 +29,7 @@ from agents.atlas_visual_crawler_v1 import (
     research_first_screen_contract,
     research_submission_failure,
     research_submission_proven,
+    risk_capture_missing_content,
     required_research_authority_failures,
     watchlist_journey_proven,
     VisualResult,
@@ -1101,6 +1102,20 @@ def test_published_research_rejects_declared_count_when_required_tab_content_is_
         ask_cta=True, published_decision_evidence=True,
         visible_text="ATLAS View ATLAS Rating: BUY NOW",
     ) == "RESEARCH_RENDER_INCOMPLETE"
+
+
+def test_risk_screenshot_requires_visible_risk_content_not_heading_presence_only():
+    source = Path("agents/atlas_visual_crawler_v1.py").read_text(encoding="utf-8")
+    assert 'data-atlas-qa="research-v2-risk-content"' in source
+    assert "RISK_SCREENSHOT_CONTENT_MISSING" in source
+    complete = "Risk & Evidence Company-specific measured risks Risk A General monitoring conditions Condition A"
+    assert risk_capture_missing_content(complete) == ()
+    assert risk_capture_missing_content("Risk & Evidence") == (
+        "Company-specific measured risks", "General monitoring conditions",
+    )
+    assert risk_capture_missing_content("") == (
+        "Risk & Evidence", "Company-specific measured risks", "General monitoring conditions",
+    )
     assert _terminal(
         publication_allowed=True, withheld_marker=False, five_sections=True,
         ask_cta=True, published_decision_evidence=False,

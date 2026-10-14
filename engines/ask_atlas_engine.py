@@ -144,7 +144,41 @@ def _compact_context(report: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def canonical_ask_decision(report: Mapping[str, Any]) -> dict[str, Any]:
-    """Resolve Ask decision authority exclusively from RESEARCH_CONTEXT_V1."""
+    """Resolve Ask authority from the same read-only view used by Research.
+
+    The legacy ``research_context`` remains the fail-closed fallback for rows
+    that cannot produce a publishable customer view.  It can never override a
+    successfully reconciled CustomerResearchView.
+    """
+    from services.customer_research_view import build_customer_research_view
+
+    customer = build_customer_research_view(report)
+    surface = customer.surface
+    if surface.get("status") == "AVAILABLE" and surface.get("publication_allowed"):
+        recommendation = str(surface.get("action") or "").strip().upper().replace(" ", "_")
+        snapshot = {
+            "recommendation": recommendation,
+            "opportunity": surface.get("opportunity"),
+            "confidence": surface.get("confidence"),
+            "atlas_fair_value": surface.get("fair_value"),
+            "certified_close": surface.get("certified_close"),
+            "certified_close_at": surface.get("certified_close_at"),
+            "evaluation_snapshot": surface.get("evaluation_snapshot"),
+            "candidate_digest": surface.get("candidate_digest"),
+            "publication_digest": surface.get("publication_digest"),
+            "source_sha": surface.get("source_sha"),
+            "evidence_availability": dict(surface.get("evidence_availability") or {}),
+        }
+        payload = json.dumps(snapshot, sort_keys=True, separators=(",", ":"), default=str)
+        return {
+            "state": recommendation,
+            "status": "AVAILABLE",
+            "source_semantic_status": "AVAILABLE",
+            "production_decision": snapshot,
+            "digest": hashlib.sha256(payload.encode("utf-8")).hexdigest(),
+            "reason": None,
+            "authority_source": "CUSTOMER_RESEARCH_VIEW",
+        }
     context = report.get("research_context") if isinstance(report.get("research_context"), Mapping) else {}
     decision = context.get("production_decision") if isinstance(context.get("production_decision"), Mapping) else {}
     source_status = str(decision.get("semantic_status") or "DATA_UNAVAILABLE").strip().upper()
@@ -169,6 +203,7 @@ def canonical_ask_decision(report: Mapping[str, Any]) -> dict[str, Any]:
         "production_decision": dict(decision),
         "digest": hashlib.sha256(payload.encode("utf-8")).hexdigest(),
         "reason": decision.get("reason") or decision.get("limitation") or decision.get("status_detail"),
+        "authority_source": "LEGACY_FAIL_CLOSED_FALLBACK",
     }
 
 
@@ -202,6 +237,9 @@ def _certified_investment_view(report: Mapping[str, Any]) -> str:
         f"**ATLAS Fair Value:** {customer_money(authority['fair_value'])}  \n"
         f"**Opportunity:** {customer_score(authority['opportunity'])}  \n"
         f"**Evidence Confidence:** {customer_confidence(authority['confidence'])}\n\n"
+        f"**Evidence availability:** publication {authority['evidence_availability'].get('publication', 'Unavailable')}; "
+        f"financials {authority['evidence_availability'].get('financials', 'Unavailable')}; "
+        f"analyst context {authority['evidence_availability'].get('analyst_context', 'Unavailable')}.\n\n"
         "These values come from the customer-publishable certified evaluation; no protected field was recalculated."
     )
 

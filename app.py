@@ -4612,14 +4612,24 @@ def render_chat_helper(full_df):
     st.markdown(
         """
         <style>
+        [data-testid="stMarkdownContainer"] blockquote {
+          margin:.75rem 0 1rem !important; padding:1rem 1.1rem !important;
+          border-left:4px solid #2dd4bf !important; border-radius:0 12px 12px 0;
+          background:#0b1525 !important; color:#e2e8f0 !important;
+          font-size:1rem !important; line-height:1.65 !important;
+          overflow-wrap:anywhere;
+        }
+        .atlas-source-chips { display:flex; flex-wrap:wrap; gap:.4rem; margin:.5rem 0 1rem; }
+        .atlas-source-chip { padding:.25rem .55rem; border:1px solid #334155; border-radius:999px;
+          color:#cbd5e1; background:#0f192b; font-size:.78rem; }
         @media (max-width: 700px) {
           /* Keep the functional navigation, but remove the duplicate decorative
              rail so the primary Ask surface arrives in the first viewport. */
           .v74-topbar { display:none !important; }
           div[data-testid="stRadio"] [role="radiogroup"] { gap:.25rem !important; }
           div[data-testid="stRadio"] label { padding:.3rem .55rem !important; min-height:32px !important; }
-          [class*="st-key-ask_suggestion"] [data-testid="stButton"],
-          [data-testid="stMarkdownContainer"] ul { margin-right:6.5rem; max-width:calc(100% - 6.5rem); }
+          [class*="st-key-ask_suggestion"] [data-testid="stButton"] { width:100%; }
+          [data-testid="stMarkdownContainer"] blockquote { padding:.8rem .85rem !important; font-size:.94rem !important; }
         }
         </style>
         """,

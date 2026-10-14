@@ -70,9 +70,18 @@ class CustomerResearchView:
         """Minimal protected projection shared by customer entry points."""
         header = self.payload.get("header") if isinstance(self.payload.get("header"), Mapping) else {}
         authority = self.payload.get("authority") if isinstance(self.payload.get("authority"), Mapping) else {}
+        shared_availability = {
+            key: self.availability.get(key)
+            for key in (
+                "publication", "certified_close", "analyst_context", "valuation",
+                "financials", "news", "earnings",
+            )
+            if self.availability.get(key) is not None
+        }
         return MappingProxyType({
             "ticker": self.ticker,
             "company": self.payload.get("company") or self.ticker,
+            "sector": self.payload.get("sector") or "Sector unavailable",
             "status": self.status,
             "action": authority.get("action") if self.status == "AVAILABLE" else "RATING_NOT_PUBLISHED",
             "fair_value": authority.get("fair_value") if self.status == "AVAILABLE" else None,
@@ -86,6 +95,7 @@ class CustomerResearchView:
             "certified_close": header.get("price") if self.status == "AVAILABLE" else None,
             "certified_close_at": header.get("price_timestamp") if self.status == "AVAILABLE" else None,
             "certified_close_availability": self.availability.get("certified_close"),
+            "evidence_availability": MappingProxyType(shared_availability),
         })
 
 
