@@ -38,3 +38,6 @@ def test_report_card_is_default_branch_scope_bound_and_mutations_stay_closed():
     assert "ACQUISITION_KILL_SWITCH" in text
     assert '--scope "${{ inputs.scope_path }}"' not in text
     assert "schedule:" not in text
+    assert "entitlement.json" in text and "execution_package.json" in text
+    assert "g2_binding.json" in text
+    assert '"provider_calls":0,"ledger_writes":0,"sentinel_transition":"NONE"' in text

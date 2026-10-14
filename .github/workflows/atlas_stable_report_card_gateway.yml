@@ -94,10 +94,37 @@ jobs:
       - name: Registered safe operations
         env:
           OPERATION: ${{ inputs.operation }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          SCOPE_SHA256: ${{ inputs.scope_sha256 }}
         run: |
           case "$OPERATION" in
             validate|plan)
               python scripts/build_report_card_exchange_calendar.py --start-date 2026-10-08 --cutoff-utc "$REPORT_CARD_CUTOFF_UTC" --output audit_results/report_card_gateway/xnys_calendar.json
+              if [ "$OPERATION" = plan ]; then
+                cp config/report_card_g2_entitlement_20261014.json audit_results/report_card_gateway/entitlement.json
+                cp config/report_card_g2_execution_package_20261014.json audit_results/report_card_gateway/execution_package.json
+                python3 - <<'PY'
+              import json, os
+              from pathlib import Path
+              from services.report_card_operational_controls import digest
+
+              root = Path("audit_results/report_card_gateway")
+              entitlement = json.loads((root / "entitlement.json").read_text())
+              package = json.loads((root / "execution_package.json").read_text())
+              expected_entitlement = "161b2799b0ea935185d5fddcd53ffbf3fdd755d6a939d3898e0effe58c8c83d4"
+              expected_package = "c0ee01e3ba62dc9c586bded0f2afa4cf018bf201c72cdfd2fcc88f7e4b3a8493"
+              if digest(entitlement) != expected_entitlement or digest(package) != expected_package:
+                  raise SystemExit("REPORT_CARD_G2_BINDING_HASH_MISMATCH")
+              if package["plan_sha256"] != os.environ["SCOPE_SHA256"]:
+                  raise SystemExit("REPORT_CARD_PLAN_SCOPE_MISMATCH")
+              binding = {"schema_version":"atlas.report-card.g2-binding.v1",
+                  "workflow_sha":os.environ["GITHUB_SHA"],"source_sha":os.environ["SOURCE_SHA"],
+                  "plan_sha256":os.environ["SCOPE_SHA256"],
+                  "entitlement_sha256":expected_entitlement,"execution_package_sha256":expected_package,
+                  "provider_calls":0,"ledger_writes":0,"sentinel_transition":"NONE"}
+              (root / "g2_binding.json").write_text(json.dumps(binding, sort_keys=True, indent=2) + "\n")
+              PY
+              fi
               ;;
             acquire|append)
               echo "Mutation/provider adapters remain separately reviewed and intentionally fail closed."
