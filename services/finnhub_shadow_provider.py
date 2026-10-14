@@ -254,6 +254,7 @@ class FinnhubShadowAdapter:
         self, api_key: str | None = None, *,
         license_class: str | None = None,
         get: Callable[..., Any] = requests.get,
+        raw_evidence_sink: Callable[[Mapping[str, Any]], None] | None = None,
         base_url: str = FINNHUB_BASE_URL,
         timeout_seconds: float = 15.0,
     ) -> None:
@@ -263,6 +264,7 @@ class FinnhubShadowAdapter:
             else os.getenv("ATLAS_FINNHUB_LICENSE_CLASS", FINNHUB_DEMO_LICENSE)
         ).strip() or FINNHUB_DEMO_LICENSE
         self._get = get
+        self._raw_evidence_sink = raw_evidence_sink
         self._base_url = base_url.rstrip("/")
         self._timeout = timeout_seconds
 
@@ -291,7 +293,27 @@ class FinnhubShadowAdapter:
             status = int(getattr(response, "status_code", 0) or 0)
             payload = response.json() if status == 200 else {}
         except Exception as exc:
+            if self._raw_evidence_sink is not None:
+                self._raw_evidence_sink({
+                    "capability": capability,
+                    "endpoint": endpoint.path,
+                    "symbol": ticker,
+                    "parameters": {key: value for key, value in parameters.items()},
+                    "status_code": None,
+                    "captured_at": captured,
+                    "transport_error": type(exc).__name__,
+                })
             return self._unavailable(endpoint, ticker, captured, CertificationStatus.DATA_UNAVAILABLE, type(exc).__name__)
+        if self._raw_evidence_sink is not None:
+            self._raw_evidence_sink({
+                "capability": capability,
+                "endpoint": endpoint.path,
+                "symbol": ticker,
+                "parameters": {key: value for key, value in parameters.items()},
+                "status_code": status,
+                "captured_at": captured,
+                "payload": payload,
+            })
         if status in {401, 403}:
             return self._unavailable(endpoint, ticker, captured, CertificationStatus.ENTITLEMENT_UNAVAILABLE, f"HTTP_{status}")
         if status != 200:

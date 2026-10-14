@@ -17,6 +17,13 @@ from services.report_card_market_evidence_acquisition import acquire_market_evid
 from services.report_card_operational_controls import digest
 from services.report_card_exchange_calendar import verify_xnys_calendar
 from scripts.certify_report_card_durable_readonly import snapshot
+from services.report_card_g2_protected_transition import (
+    BOUND_PACKAGE_SHA256, BOUND_PLAN_SHA256, BOUND_SOURCE_SHA,
+    protected_g2_window,
+)
+
+SIGNED_FINNHUB_AGREEMENT_SHA256 = "5e5ae19500b4585eda185b66e196aaa21684e7346f227be4d40c704000e6a18c"
+OWNER_APPROVED_ENTITLEMENT_SHA256 = "680f9dd41d3df5d0dd30d8d5c9306ad000b319b696edc4cf7d01607d31c0e477"
 
 
 def _sha256(path: Path) -> str:
@@ -68,6 +75,32 @@ def resolve_verified_backup(*, backup_root: Path, primary_tip: str) -> Path:
     return matches[0]
 
 
+class RawEvidenceSink:
+    """Persist every provider response atomically before adapter normalization."""
+
+    def __init__(self, root: Path, *, maximum: int = 61) -> None:
+        self.root = root
+        self.maximum = maximum
+        self.count = 0
+
+    def __call__(self, payload: dict) -> None:
+        self.count += 1
+        if self.count > self.maximum:
+            raise RuntimeError("G2_RAW_EVIDENCE_BUDGET_EXCEEDED")
+        self.root.mkdir(parents=True, exist_ok=True)
+        target = self.root / f"{self.count:03d}.json"
+        pending = target.with_suffix(".json.pending")
+        pending.write_text(json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")
+        with pending.open("rb") as handle:
+            os.fsync(handle.fileno())
+        os.replace(pending, target)
+        directory = os.open(self.root, os.O_RDONLY)
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--ledger", type=Path, required=True)
@@ -82,6 +115,9 @@ def main() -> int:
     parser.add_argument("--entitlement")
     parser.add_argument("--entitlement-sha256", default="")
     parser.add_argument("--kill-switch")
+    parser.add_argument("--authorization-package-sha256", default="")
+    parser.add_argument("--execution-id", default="")
+    parser.add_argument("--raw-evidence-root", type=Path)
     args = parser.parse_args()
     if not args.ledger.is_file():
         raise FileNotFoundError("PROTECTED_REPORT_CARD_LEDGER_REQUIRED")
@@ -104,24 +140,51 @@ def main() -> int:
         if not all((args.approved_plan, args.approved_plan_sha256,
                     args.entitlement, args.entitlement_sha256, args.kill_switch)):
             raise PermissionError("G2_APPROVED_PLAN_ENTITLEMENT_AND_KILL_SWITCH_REQUIRED")
+        if args.source_sha != BOUND_SOURCE_SHA:
+            raise PermissionError("G2_SOURCE_SHA_NOT_APPROVED")
+        if args.approved_plan_sha256 != BOUND_PLAN_SHA256:
+            raise PermissionError("G2_PLAN_SHA_NOT_APPROVED")
+        if args.authorization_package_sha256 != BOUND_PACKAGE_SHA256:
+            raise PermissionError("G2_AUTHORIZATION_PACKAGE_NOT_APPROVED")
+        if not args.execution_id or args.raw_evidence_root is None:
+            raise PermissionError("G2_EXECUTION_ID_AND_RAW_ROOT_REQUIRED")
         approved_plan = load_approved_plan(Path(args.approved_plan), args.approved_plan_sha256)
+        if (len(approved_plan.get("due_tickers") or ()) != 20
+                or approved_plan.get("benchmark_ticker") != "SPY"
+                or len(approved_plan.get("request_manifest") or ()) != 61
+                or approved_plan.get("retry_attempts") != 0):
+            raise PermissionError("G2_APPROVED_SCOPE_NOT_EXACT")
         entitlement = json.loads(Path(args.entitlement).read_text(encoding="utf-8"))
         if digest(entitlement) != args.entitlement_sha256:
             raise PermissionError("OWNER_APPROVED_ENTITLEMENT_HASH_INVALID")
-        provider = FinnhubShadowAdapter(license_class=FINNHUB_PAID_CORE_CERTIFICATION_LICENSE)
-        evidence = acquire_market_evidence(
-            ledger=ledger,
-            provider=provider,
-            calendar=calendar,
-            now=datetime.now(timezone.utc),
-            authorization=args.authorization,
-            source_sha=args.source_sha,
-            retry_attempts=0,
-            approved_plan=approved_plan,
-            approved_plan_hash=args.approved_plan_sha256,
-            kill_switch_check=protected_kill_switch(Path(args.kill_switch)),
-            entitlement_evidence=entitlement,
+        if args.entitlement_sha256 != OWNER_APPROVED_ENTITLEMENT_SHA256:
+            raise PermissionError("G2_ENTITLEMENT_IDENTITY_NOT_APPROVED")
+        if entitlement.get("agreement_sha256") != SIGNED_FINNHUB_AGREEMENT_SHA256:
+            raise PermissionError("G2_SIGNED_AGREEMENT_IDENTITY_INVALID")
+        raw_sink = RawEvidenceSink(args.raw_evidence_root, maximum=61)
+        provider = FinnhubShadowAdapter(
+            license_class=FINNHUB_PAID_CORE_CERTIFICATION_LICENSE,
+            raw_evidence_sink=raw_sink,
         )
+        with protected_g2_window(
+            sentinel=Path(args.kill_switch), ledger=args.ledger,
+            backup=backup_ledger, execution_id=args.execution_id,
+        ):
+            evidence = acquire_market_evidence(
+                ledger=ledger,
+                provider=provider,
+                calendar=calendar,
+                now=datetime.now(timezone.utc),
+                authorization=args.authorization,
+                source_sha=args.source_sha,
+                retry_attempts=0,
+                approved_plan=approved_plan,
+                approved_plan_hash=args.approved_plan_sha256,
+                kill_switch_check=protected_kill_switch(Path(args.kill_switch)),
+                entitlement_evidence=entitlement,
+            )
+        if raw_sink.count != 61:
+            raise RuntimeError(f"G2_RAW_EVIDENCE_COUNT_INVALID:{raw_sink.count}")
     ledger_hash_after = _sha256(args.ledger)
     backup_hash_after = _sha256(backup_ledger)
     if ledger_hash_after != ledger_hash_before:
