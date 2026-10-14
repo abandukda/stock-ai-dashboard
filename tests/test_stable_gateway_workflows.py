@@ -36,6 +36,7 @@ def test_report_card_is_default_branch_scope_bound_and_mutations_stay_closed():
     assert "verify_report_card_closed_sentinel.py" in text
     assert "OPERATIONS_KILL_SWITCH" not in text
     assert "ACQUISITION_KILL_SWITCH" in text
+    assert w["jobs"]["protected-preflight"]["env"]["PYTHONPATH"] == "."
     assert '--scope "${{ inputs.scope_path }}"' not in text
     assert "schedule:" not in text
     assert "entitlement.json" in text and "execution_package.json" in text
