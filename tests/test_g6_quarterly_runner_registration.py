@@ -130,9 +130,10 @@ def test_runner_stops_on_first_provider_failure_without_retry(monkeypatch, tmp_p
     assert len(calls) == 1
 
 
-def test_annual_statement_integration_remains_registered_and_separate():
-    assert Path("services/customer_annual_statement_projection.py").is_file()
-    assert Path("tests/test_customer_annual_statement_projection.py").is_file()
-    workflow = WORKFLOW.read_text()
+def test_quarterly_acquisition_remains_separate_from_customer_projection():
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    assert "customer_annual_statement_projection" not in workflow
+    assert "publication" not in workflow.lower()
+    assert "rating" not in workflow.lower()
     assert "normalize_g6_annual_statements.py" not in workflow
     assert "build_g6_annual_financial_series.py" not in workflow
