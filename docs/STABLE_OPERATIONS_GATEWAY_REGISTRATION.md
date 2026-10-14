@@ -1,6 +1,6 @@
 # Stable Operations Gateway registration candidate
 
-Base: `ccb321323c6e7f0a0257a96fd6bef125cebeb8ec`  
+Base: `582d80ef8da6c73c79cbc29d932d7b955aef8744`
 Reviewed implementation source: `d30fef8745ed8735acae501534af88df853f19fb`
 
 This component registers three manual-only gateways. It adds no schedule and
