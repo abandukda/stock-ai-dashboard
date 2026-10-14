@@ -3,8 +3,12 @@ import ast
 import json
 from pathlib import Path
 
+import pytest
+
 from services.customer_authority import bind_report_to_customer_authority, bind_runtime_publication_identity
 from services.customer_research_v2 import FactCard, build_customer_research_v2, validate_grounded_text
+from services.customer_metric_format import customer_confidence, customer_money, customer_percent, customer_score
+from engines.ask_atlas_engine import _compact_context
 from ui.customer_research_v2 import _six_pillar_frame
 
 
@@ -478,6 +482,53 @@ def test_qa_enrichment_renders_partial_modules_without_changing_authority(monkey
     assert source == before
 
 
+def test_research_and_ask_share_customer_wall_street_and_valuation_contract(monkeypatch, tmp_path):
+    source = report()
+    # These legacy fields intentionally disagree. A published customer report
+    # must use the same final customer projection in both Research and Ask.
+    source["valuation_families"] = {
+        "atlas_valuation_status": "LEGACY_STALE",
+        "atlas_fv_upside_pct": -99,
+        "analyst_target_mean": 999,
+        "analyst_target_low": 998,
+        "analyst_target_high": 1000,
+        "analyst_upside_pct": 400,
+    }
+    bundle = {"tickers": {"NVDA": {
+        "recommendations": {"payload": {"periods": [{
+            "period": "2026-10-01", "strong_buy": 10, "buy": 8,
+            "hold": 3, "sell": 1, "strong_sell": 0,
+        }]}, "provenance": {"raw_evidence_id": "rec:1"}},
+        "price_targets": {"payload": {
+            "target_low": 180, "target_mean": 240, "target_high": 300,
+            "last_updated": "2026-10-08",
+        }, "provenance": {"raw_evidence_id": "target:1"}},
+    }}}
+    path = tmp_path / "qa.json"
+    path.write_text(json.dumps(bundle))
+    monkeypatch.setenv("ATLAS_QA_MODE", "1")
+    monkeypatch.setenv("ATLAS_RESEARCH_V2_QA_ENRICHMENT", str(path))
+    monkeypatch.setenv("ATLAS_WALL_STREET_CONTEXT_ENABLED", "true")
+
+    research = build_customer_research_v2(source)
+    ask = _compact_context(source)
+    assert ask["atlas_fair_value"] == research["header"]["fair_value"]
+    assert ask["atlas_fv_upside_pct"] == research["header"]["fair_value_gap_pct"]
+    assert ask["analyst_consensus"] == research["wall_street"]["target_average"] == 240
+    assert ask["analyst_low"] == research["wall_street"]["target_low"] == 180
+    assert ask["analyst_high"] == research["wall_street"]["target_high"] == 300
+    assert ask["wall_street_implied_upside_pct"] is None
+    assert ask["atlas_valuation_status"] == research["valuation_chart"]["status"]
+
+
+def test_customer_metric_formatting_is_identical_and_presentation_only():
+    assert customer_money(346.05) == "$346.05"
+    assert customer_score(85.96) == "85.96"
+    assert customer_percent(85.96, signed=True) == "+85.96%"
+    assert customer_confidence(87.46) == "87.46/100"
+    assert customer_money(None) == "Unavailable"
+
+
 def test_missing_rsi_zero_is_not_presented_as_real_risk():
     source = report()
     source["intelligence"]["key_risks"] = ["RSI is weak at 0.0.", "Execution risk."]
@@ -549,18 +600,226 @@ def test_renderer_uses_customer_safe_labels_and_escapes_currency():
     assert 'metric("Confidence", _pct' not in source
     assert '("TTM P/E", fundamentals.get("pe_ttm")' in source
     assert "_escape_markdown_currency(item)" in source
-    assert "**Why this rating**" in source
-    assert "**Material risks**" in source
+    assert "**Why the stock may be attractive**" in source
+    assert "**Biggest verified risks**" in source
     assert "Strengthens the case" in source
     assert "Weakens the case" in source
-    assert "Invalidates the case" in source
+    assert "General monitoring conditions — not certified invalidation triggers" in source
     assert "Weakest certified pillar" in source
+
+
+def test_verified_profile_name_replaces_ticker_only_company_label(monkeypatch, tmp_path):
+    source = report()
+    source["company"] = "NVDA"
+    bundle = {"tickers": {"NVDA": {"company_profile": {
+        "payload": {"name": "NVIDIA Corp", "industry": "Semiconductors"},
+        "provenance": {"raw_evidence_id": "profile:nvda"},
+    }}}}
+    path = tmp_path / "qa.json"; path.write_text(json.dumps(bundle))
+    monkeypatch.setenv("ATLAS_QA_MODE", "1")
+    monkeypatch.setenv("ATLAS_RESEARCH_V2_QA_ENRICHMENT", str(path))
+
+    projected = build_customer_research_v2(source)
+
+    assert projected["company"] == "NVIDIA Corp"
+    assert projected["about"]["company"] == "NVIDIA Corp"
+
+
+def test_retained_contract_financial_series_projects_only_registered_evidence(monkeypatch, tmp_path):
+    source = report()
+    bundle = {"tickers": {"NVDA": {"basic_financials": {
+        "payload": {
+            "series": {"annual": {
+                "ebitda": [{"period": "2024-01-01", "v": 10}, {"period": "2025-01-01", "v": 20}],
+                "grossMargin": [{"period": "2024-01-01", "v": .50}, {"period": "2025-01-01", "v": .55}],
+                "unregistered": [{"period": "2024-01-01", "v": 999}, {"period": "2025-01-01", "v": 1000}],
+            }},
+            "provider_contract_series": {
+                "annual.ebitda": {"status": "CERTIFIED_PROVIDER_CONTRACT", "conversion": "MULTIPLY_BY_1E6", "evidence_reference": "series:ebitda"},
+                "annual.grossMargin": {"status": "CERTIFIED_PROVIDER_CONTRACT", "canonical_unit": "RATIO_DECIMAL", "evidence_reference": "series:gross-margin"},
+            },
+        },
+        "provenance": {"raw_evidence_id": "financials:nvda"},
+    }}}}
+    path = tmp_path / "qa.json"; path.write_text(json.dumps(bundle))
+    monkeypatch.setenv("ATLAS_QA_MODE", "1")
+    monkeypatch.setenv("ATLAS_RESEARCH_V2_QA_ENRICHMENT", str(path))
+
+    trend = build_customer_research_v2(source)["financial_trend"]
+
+    assert trend["status"] == "AVAILABLE"
+    assert trend["periods"] == ("2024-01-01", "2025-01-01")
+    assert trend["series"]["EBITDA"] == (10_000_000.0, 20_000_000.0)
+    assert trend["series"]["Gross Margin"] == pytest.approx((50.0, 55.0))
+    assert trend["units"] == {"EBITDA": "USD", "Gross Margin": "PERCENT"}
+    assert trend["periodicity"] == "ANNUAL"
+    assert set(trend["provenance"]["evidence_ids"]) == {"series:ebitda", "series:gross-margin"}
+    reasons = build_customer_research_v2(source)["summary"]["why_rating"]
+    assert "EBITDA was $20.0M for Jan 1, 2025." in reasons
+    assert "Gross Margin was 55.0% for Jan 1, 2025." in reasons
+
+
+def test_premium_financial_depth_groups_only_lineage_complete_facts_and_certified_models():
+    source = report()
+    source.update({"net_income": 10, "operating_cash_flow": 12, "cash_and_equivalents": 8})
+    source["professional_evidence_lineage"] = {"fields": {
+        key: {"evidence_id": f"e:{key}", "period": "FY2025", "unit": "USD", "provider": "FINNHUB"}
+        for key in ("net_income", "operating_cash_flow", "cash_and_equivalents")
+    }}
+    evaluation = source.setdefault("canonical_investment_evaluation", {})
+    evaluation["atlas_valuation"] = {"professional_valuation_v2": {
+        "model_weights": {"VAL_FORWARD_PE_V1": .6},
+        "models": [
+            {"methodology_id": "VAL_FORWARD_PE_V1", "name": "Forward earnings", "status": "PUBLISHED",
+             "value": 346.05, "confidence": 80, "fiscal_period": "FY2026", "key_assumptions": {"forward_eps": 8}},
+            {"methodology_id": "VAL_FCFF_DCF_V1", "name": "DCF", "status": "INSUFFICIENT_INPUTS", "value": None},
+        ],
+    }}
+
+    depth = build_customer_research_v2(source)["financial_depth"]
+
+    assert depth["status"] == "LIMITED"
+    assert depth["statement_depth"] == "LATEST_PERIOD_ONLY"
+    assert depth["statements"]["income_statement"][0]["evidence_id"] == "e:net_income"
+    assert depth["statements"]["cash_flow"][0]["field"] == "operating_cash_flow"
+    assert depth["statements"]["balance_sheet"][0]["field"] == "cash_and_equivalents"
+    assert depth["valuation_models"] == ({
+        "methodology_id": "VAL_FORWARD_PE_V1", "name": "Forward earnings", "value": 346.05,
+        "unit": "USD_PER_SHARE", "fiscal_period": "FY2026", "confidence": 80, "weight": .6,
+        "assumptions": {"forward_eps": 8}, "source": "CERTIFIED_ATLAS_VALUATION",
+    },)
+    assert depth["company_case"]["invalidation"] == ("Certified evidence deteriorates.",)
+    assert "no multi-period trend is claimed" in depth["limitation"]
+
+
+def test_financial_depth_renderer_preserves_lineage_and_uses_typed_unavailable_states():
+    from ui.customer_research_v2 import (
+        _financial_depth_status_markup, _financial_depth_status_rows, _financial_statement_rows,
+    )
+
+    rows = _financial_statement_rows(({
+        "field": "net_income", "label": "Net income", "value": 1_250_000_000,
+        "unit": "USD", "period": "2025-12-31", "provider": "FINNHUB",
+        "evidence_id": "statement:net-income:2025",
+    },))
+    assert rows == [{
+        "Line item": "Net income", "Certified value": "$1.25B",
+        "Fiscal period": "Dec 31, 2025", "Source": "FINNHUB",
+        "Evidence ID": "statement:net-income:2025",
+    }]
+    ui_source = __import__("pathlib").Path("ui/customer_research_v2.py").read_text(encoding="utf-8")
+    assert 'data-atlas-qa="research-101"' in ui_source
+    assert '"Income statement"' in ui_source
+    assert '"Cash flow"' in ui_source
+    assert '"Balance sheet"' in ui_source
+    assert "Reporting frequency is unavailable" in ui_source
+    assert "not relabeled as annual or quarterly" in ui_source
+    coverage = _financial_depth_status_rows({
+        "statement_depth": "LATEST_PERIOD_ONLY",
+        "statements": {
+            "income_statement": ({"field": "net_income", "period": "2025-12-31"},),
+            "cash_flow": (), "balance_sheet": (),
+        },
+    })
+    assert coverage == [
+        {"Statement": "Income statement", "Coverage": "Available", "Certified line items": "1", "Period depth": "1 retained period"},
+        {"Statement": "Cash flow", "Coverage": "Unavailable", "Certified line items": "0", "Period depth": "No retained periods"},
+        {"Statement": "Balance sheet", "Coverage": "Unavailable", "Certified line items": "0", "Period depth": "No retained periods"},
+    ]
+    markup = _financial_depth_status_markup(coverage, ticker='A&<')
+    assert markup.count('data-atlas-qa="research-v2-financial-coverage-card"') == 3
+    assert 'data-atlas-ticker="A&amp;&lt;"' in markup
+    assert 'data-atlas-state="unavailable"' in markup
+    assert "@media(max-width:700px)" in markup
+
+
+def test_financial_depth_period_counts_are_lane_specific_and_do_not_infer_depth():
+    from ui.customer_research_v2 import _financial_depth_status_rows
+
+    rows = _financial_depth_status_rows({
+        "statement_depth": "MULTI_PERIOD",
+        "statements": {
+            "income_statement": (
+                {"field": "revenue", "period": "2024-12-31"},
+                {"field": "operating_income", "period": "2024-12-31"},
+                {"field": "revenue", "period": "2025-12-31"},
+            ),
+            "cash_flow": ({"field": "free_cash_flow"},),
+            "balance_sheet": (),
+        },
+    })
+
+    assert [row["Period depth"] for row in rows] == [
+        "2 retained periods", "Period unavailable", "No retained periods",
+    ]
+
+
+def test_technical_presentation_separates_price_overlays_from_rsi():
+    from ui.customer_research_v2 import _technical_chart_frames
+    import pandas as pd
+
+    rows = pd.DataFrame({
+        "date": pd.to_datetime(["2026-10-01", "2026-10-02"], utc=True),
+        "close": [100.0, 101.0], "sma20": [98.0, 99.0], "rsi": [55.0, 57.0],
+    })
+    prices, oscillators = _technical_chart_frames(
+        rows, date_key="date", ticker="NVDA", close_key="close",
+        indicator_keys=["sma20", "rsi"],
+    )
+
+    assert list(prices.columns) == ["NVDA", "sma20"]
+    assert prices.iloc[-1].to_dict() == {"NVDA": 101.0, "sma20": 99.0}
+    assert list(oscillators.columns) == ["RSI (0-100)"]
+    assert oscillators.iloc[-1, 0] == 57.0
+    ui_source = __import__("pathlib").Path("ui/customer_research_v2.py").read_text(encoding="utf-8")
+    assert 'unit="TYPED_SEPARATE_AXES"' in ui_source
+    assert 'y_title="RSI (0-100)"' in ui_source
+    assert 'key=f"research-technical-price-chart-{ticker}"' in ui_source
+
+
+def test_untyped_trend_frequency_is_not_inferred_as_quarterly(monkeypatch, tmp_path):
+    source = report()
+    bundle = {"tickers": {"NVDA": {"basic_financials": {
+        "payload": {
+            "periods": ["2025-03-31", "2025-06-30"],
+            "revenue_history": [10, 12],
+        },
+        "provenance": {"raw_evidence_id": "financials:nvda"},
+    }}}}
+    path = tmp_path / "qa.json"; path.write_text(json.dumps(bundle))
+    monkeypatch.setenv("ATLAS_QA_MODE", "1")
+    monkeypatch.setenv("ATLAS_RESEARCH_V2_QA_ENRICHMENT", str(path))
+
+    trend = build_customer_research_v2(source)["financial_trend"]
+
+    assert trend["status"] == "AVAILABLE"
+    assert trend["periodicity"] == "UNAVAILABLE"
+
+
+def test_snapshot_recovers_only_exact_value_matched_publication_lineage():
+    source = report()
+    source.update({"net_income": 10, "operating_cash_flow": 12})
+    source["professional_evidence_lineage"] = {"fields": {}}
+    source["publication_certification"] = {"components": {"valuation": {"lineage": {"inputs": {
+        "net_income": {"canonical_value": 10, "evidence_id": "statement:1", "period": "FY2025",
+                       "unit": "USD", "source": "FINNHUB", "as_of": "2026-10-04"},
+        "operating_cash_flow": {"canonical_value": 999, "evidence_id": "statement:1", "period": "FY2025",
+                                "unit": "USD", "source": "FINNHUB", "as_of": "2026-10-04"},
+    }}}}}
+
+    snapshot = build_customer_research_v2(source)["financial_snapshot"]
+
+    by_field = {item["field"]: item for item in snapshot["items"]}
+    assert by_field["net_income"]["evidence_id"] == "statement:1"
+    assert by_field["net_income"]["provider"] == "FINNHUB"
+    assert "operating_cash_flow" not in by_field
 
 
 def test_research_first_screen_is_rendered_before_search_and_market_context():
     app_source = __import__("pathlib").Path("app.py").read_text(encoding="utf-8")
     route = app_source.split("def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=None):", 1)[1]
-    assert route.index("_research_first_screen_slot = st.container()") < route.index('with st.form("research_ticker_form"')
+    assert route.index("_research_first_screen_slot = st.empty()") < route.index('with st.form("research_ticker_form"')
+    assert "Live Atlas Research" not in route.split("def ", 1)[0]
     assert 'selected_route not in {"Home", "Research Any Ticker"}' in app_source
     assert 'with st.expander("Market context", expanded=False)' in app_source
 
@@ -628,6 +887,10 @@ def test_real_renderer_binds_certified_fair_value_to_each_ticker_chart(monkeypat
             return None
 
         @staticmethod
+        def write(*_args, **_kwargs):
+            return None
+
+        @staticmethod
         def columns(count):
             return [Column() for _ in range(count)]
 
@@ -637,6 +900,10 @@ def test_real_renderer_binds_certified_fair_value_to_each_ticker_chart(monkeypat
 
         @staticmethod
         def info(*_args, **_kwargs):
+            return None
+
+        @staticmethod
+        def warning(*_args, **_kwargs):
             return None
 
         @staticmethod
@@ -672,9 +939,38 @@ def test_real_renderer_binds_certified_fair_value_to_each_ticker_chart(monkeypat
             renderer.render_customer_research_v2(source, ask_cta=lambda _report: None)
 
         assert captured["key"] == f"research-price-chart-{ticker}"
-        assert list(captured["frame"].columns) == [ticker, "ATLAS Fair Value — certified snapshot"]
-        assert captured["frame"]["ATLAS Fair Value — certified snapshot"].tolist() == [fair_value, fair_value]
+        assert list(captured["frame"].columns) == [ticker]
         assert captured["frame"][ticker].tolist() == [100.0, 101.0]
+
+
+def test_customer_trust_content_contracts_are_not_presence_only():
+    source = __import__("pathlib").Path("ui/customer_research_v2.py").read_text(encoding="utf-8")
+    assert 'st.markdown("## Decision")' not in source
+    assert 'data-atlas-qa="research-v2-risk-content"' in source
+    assert "Company-specific measured risks" in source
+    assert "not certified invalidation triggers" in source
+    assert 'if summary["risks"] or conditions_present:' in source
+    assert "_friendly_time(wall.get(\"as_of\"))" in source
+    assert 'st.markdown("### Price history")' in source
+    assert 'st.markdown("### Stock performance compared with SPY")' in source
+    assert 'price_frame["ATLAS Fair Value"]' not in source
+    assert "This security requires additional review" not in source
+
+
+def test_withheld_projection_preserves_verified_identity_without_financial_values():
+    source = report()
+    source.update({"ticker": "CRC", "company": "California Resources Corp", "sector": "Energy"})
+    source["certified_customer_evaluation"]["ticker"] = "CRC"
+    source["certified_customer_evaluation"]["customer_publication_allowed"] = False
+    result = build_customer_research_v2(source)
+    assert result == {
+        "version": result["version"],
+        "status": "RATING_NOT_PUBLISHED",
+        "ticker": "CRC",
+        "company": "California Resources Corp",
+        "sector": "Energy",
+        "withheld_disposition": "RATING_NOT_PUBLISHED",
+    }
 
 
 def test_real_renderer_withheld_terminal_does_not_enter_chart_path(monkeypatch):
@@ -765,3 +1061,42 @@ def test_financial_trend_requires_periods_provenance_and_equal_length(monkeypatc
     assert trend["status"] == "AVAILABLE"
     assert trend["periods"] == ("FY2024", "FY2025")
     assert trend["series"] == {"Revenue": [60.9, 130.5], "EPS": [1.19, 2.94]}
+
+
+def test_retained_field_level_financial_evidence_is_projected_with_exact_lineage():
+    source = report()
+    source.update({
+        "free_cash_flow": 96_676_000_000,
+        "cash_and_equivalents": 10_605_000_000,
+        "total_debt": 8_468_000_000,
+        "forward_eps": 9.4699146,
+        "professional_evidence_as_of": "2026-10-04T21:03:54Z",
+        "professional_evidence_lineage": {
+            "provider": "FINNHUB",
+            "fields": {
+                "free_cash_flow": {"unit": "USD", "period": "2026-01-25", "provider": "FINNHUB", "evidence_id": "fin:fcf"},
+                "cash_and_equivalents": {"unit": "USD", "period": "2026-01-25", "provider": "FINNHUB", "evidence_id": "fin:cash"},
+                "total_debt": {"unit": "USD", "period": "2026-01-25", "provider": "FINNHUB", "evidence_id": "fin:debt"},
+                "forward_eps": {"unit": "USD_PER_SHARE", "period": "2027-03-31", "provider": "FINNHUB", "evidence_id": "fin:eps", "analyst_count": 68},
+            },
+        },
+    })
+
+    page = build_customer_research_v2(source)
+    snapshot = page["financial_snapshot"]
+    assert snapshot["status"] == "AVAILABLE"
+    assert [(item["field"], item["value"], item["evidence_id"]) for item in snapshot["items"]] == [
+        ("free_cash_flow", 96_676_000_000.0, "fin:fcf"),
+        ("cash_and_equivalents", 10_605_000_000.0, "fin:cash"),
+        ("total_debt", 8_468_000_000.0, "fin:debt"),
+        ("forward_eps", 9.4699146, "fin:eps"),
+    ]
+    assert page["summary"]["why_rating"][0] == "Free cash flow is $96.7B for Jan 25, 2026."
+
+
+def test_unlined_financial_values_are_not_projected_or_used_in_brief():
+    source = report()
+    source["free_cash_flow"] = 999_000_000
+    page = build_customer_research_v2(source)
+    assert page["financial_snapshot"]["status"] == "UNAVAILABLE"
+    assert all("999" not in reason for reason in page["summary"]["why_rating"])

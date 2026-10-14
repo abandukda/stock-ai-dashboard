@@ -732,7 +732,7 @@ def test_research_route_ownership_uses_research_specific_visible_controls_not_hi
     source = Path("agents/atlas_visual_crawler_v1.py").read_text(encoding="utf-8")
     ownership = source.split("async def _research_route_owned", 1)[1].split("async def ", 1)[0]
     assert 'locator(".v65-section-title").filter(' in ownership
-    assert 'has_text="Live Atlas Research"' in ownership
+    assert 'has_text="ATLAS Research"' in ownership
     assert 'get_by_label("Ticker", exact=True)' in ownership
     assert 'get_by_role("button", name="Research ticker", exact=True)' in ownership
     assert 'data-atlas-qa="page-ready"' not in ownership

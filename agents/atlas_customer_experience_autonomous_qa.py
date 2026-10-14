@@ -101,8 +101,17 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     if args.mode == "certify_and_repair" and protected:
         failures.append("AUTO_REPAIR_PROTECTED_SCOPE_VIOLATION")
     scorecards = browser.get("page_scorecards", {})
-    semantic_baseline = browser.get("semantic_baseline", {"status": "NOT_PROVIDED"})
-    if args.baseline_sha and semantic_baseline.get("status") != "PASS":
+    semantic_path = Path(args.semantic_baseline) if args.semantic_baseline else None
+    semantic_baseline = _json(semantic_path) if semantic_path and semantic_path.is_file() else {"status": "NOT_PROVIDED"}
+    comparison_valid = (
+        semantic_baseline.get("status") == "PASS"
+        and semantic_baseline.get("comparison_executed") is True
+        and semantic_baseline.get("baseline_sha") == args.baseline_sha
+        and semantic_baseline.get("candidate_sha") == sha
+        and bool(semantic_baseline.get("contexts"))
+        and not semantic_baseline.get("failures")
+    )
+    if args.baseline_sha and not comparison_valid:
         failures.append("SEMANTIC_BASELINE_COMPARISON_MISSING_OR_FAILED")
     return {
         "version": VERSION,
@@ -186,6 +195,7 @@ def main() -> int:
     parser.add_argument("--mode", choices=MODES, default="certify_only")
     parser.add_argument("--max-repair-attempts", type=int, default=DEFAULT_MAX_REPAIR_ATTEMPTS)
     parser.add_argument("--baseline-sha")
+    parser.add_argument("--semantic-baseline")
     parser.add_argument("--authority", required=True)
     parser.add_argument("--browser-report", required=True)
     parser.add_argument("--screenshot-manifest", required=True)

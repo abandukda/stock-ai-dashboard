@@ -245,7 +245,7 @@ def test_optional_missing_evidence_does_not_render_giant_unavailable_metrics():
 
 def test_entry_status_and_price_are_visible_on_cards_and_compact_rows():
     source = open("ui/home_v104.py", encoding="utf-8").read()
-    assert "Current Price" in source
+    assert "Signal Reference Price" in source
     assert "At Atlas signal time" in source
     assert "Preferred Entry" in source
     assert "atlas-entry-status" in source

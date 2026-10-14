@@ -26,6 +26,7 @@ from agents.customer_experience_qa_validators import (
     validate_view_change,
 )
 from agents.customer_experience_qa_repairs import apply_plan
+from agents.customer_semantic_baseline import compare
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github/workflows/atlas_customer_experience_autonomous_qa.yml"
@@ -64,6 +65,69 @@ def test_workflow_binds_local_app_identity_to_exact_checked_out_candidate() -> N
     )[0]
     assert 'ATLAS_SOURCE_SHA: ${{ steps.context.outputs.candidate_sha }}' in launch
     assert "python3 -m streamlit run app.py" in launch
+
+
+def _semantic_fixture(sha: str, *, fair_value: str = "$346.05", ticker: str = "NVDA") -> dict:
+    completion = {
+        "certified_fields": {"action": "BUY_NOW", "atlas_fair_value": fair_value, "opportunity": "85.96", "decision_confidence": "87.46"},
+        "candidate_digest": "candidate", "publication_digest": "publication", "source_sha": "source",
+        "evaluation_snapshot_id": "snapshot", "pillar_chart_series": {"valuation": [98.32, 20.0]},
+        "pillar_table_series": {"valuation": [98.32, 20.0]}, "publication_allowed": True,
+        "research_terminal_state": "PUBLISHED_RESEARCH_COMPLETE",
+    }
+    return {"source_sha": sha, "finished": True,
+            "required_completeness": {"status": "PASS", "required_page_viewports": [["Research Any Ticker", "desktop"]]},
+            "results": [
+                {"category": "GLOBAL", "interaction": "role-isolation-internal_admin"},
+                {"category": "RESEARCH", "interaction": "submit", "ticker_context": ticker,
+                 "viewport": "desktop", "observed": "completion=" + json.dumps(completion) + "; safe_invalid=False"},
+            ]}
+
+
+def test_semantic_baseline_requires_real_matching_artifact_and_protected_parity(tmp_path: Path) -> None:
+    artifact = tmp_path / "baseline.zip"
+    artifact.write_bytes(b"trusted artifact")
+    import hashlib
+    digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
+    authority = {"candidate_digest": "candidate", "publication_digest": "publication", "source_sha": "source",
+                 "runtime_projection_digest": "projection", "evidence_snapshot": "snapshot"}
+    paths = {}
+    for name, value in {
+        "baseline_report": _semantic_fixture("b" * 40), "candidate_report": _semantic_fixture("c" * 40),
+        "baseline_authority": authority, "candidate_authority": authority,
+    }.items():
+        paths[name] = tmp_path / f"{name}.json"
+        paths[name].write_text(json.dumps(value))
+    result = compare(**paths, baseline_sha="b" * 40, candidate_sha="c" * 40,
+                     baseline_artifact=artifact, expected_artifact_digest=f"sha256:{digest}")
+    assert result["status"] == "PASS"
+    assert result["comparison_executed"] is True
+
+
+@pytest.mark.parametrize("mutation", ["digest", "fair_value", "ticker", "missing_field", "authority"])
+def test_semantic_baseline_negative_contracts_fail_closed(tmp_path: Path, mutation: str) -> None:
+    artifact = tmp_path / "baseline.zip"
+    artifact.write_bytes(b"trusted artifact")
+    import hashlib
+    digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
+    baseline = _semantic_fixture("b" * 40)
+    candidate = _semantic_fixture("c" * 40, fair_value="$999.00" if mutation == "fair_value" else "$346.05",
+                                  ticker="MSFT" if mutation == "ticker" else "NVDA")
+    if mutation == "missing_field":
+        payload = json.loads(candidate["results"][1]["observed"].removeprefix("completion=").split("; safe_invalid=", 1)[0])
+        payload.pop("evaluation_snapshot_id")
+        candidate["results"][1]["observed"] = "completion=" + json.dumps(payload) + "; safe_invalid=False"
+    authority = {"candidate_digest": "candidate", "publication_digest": "publication", "source_sha": "source",
+                 "runtime_projection_digest": "projection", "evidence_snapshot": "snapshot"}
+    candidate_authority = dict(authority)
+    if mutation == "authority": candidate_authority["publication_digest"] = "wrong"
+    paths = {}
+    for name, value in {"baseline_report": baseline, "candidate_report": candidate,
+                        "baseline_authority": authority, "candidate_authority": candidate_authority}.items():
+        paths[name] = tmp_path / f"{name}.json"; paths[name].write_text(json.dumps(value))
+    result = compare(**paths, baseline_sha="b" * 40, candidate_sha="c" * 40, baseline_artifact=artifact,
+                     expected_artifact_digest=("0" * 64 if mutation == "digest" else digest))
+    assert result["status"] == "FAIL"
 
 
 def test_field_inventory_and_scorecard_contract_are_complete() -> None:

@@ -4018,7 +4018,7 @@ def write_watchlist_symbols(symbols):
     cleaned = []
     for item in symbols:
         sym = safe_text(item, "").upper().strip()
-        if sym and "." not in sym and "/" not in sym and len(sym) <= 7:
+        if re.fullmatch(r"[A-Z0-9][A-Z0-9.\-/]{0,11}", sym):
             cleaned.append(sym)
 
     payload = {"symbols": list(dict.fromkeys(cleaned))}
@@ -4043,6 +4043,14 @@ def add_symbol_to_watchlist(symbol):
         return write_watchlist_symbols(symbols)
 
     return True
+
+
+def remove_symbol_from_watchlist(symbol):
+    symbol = safe_text(symbol, "").upper().strip()
+    symbols = read_watchlist_symbols()
+    if symbol not in symbols:
+        return True
+    return write_watchlist_symbols([item for item in symbols if item != symbol])
 
 
 def find_ticker_row(ticker, *dfs):
@@ -4604,14 +4612,24 @@ def render_chat_helper(full_df):
     st.markdown(
         """
         <style>
+        [data-testid="stMarkdownContainer"] blockquote {
+          margin:.75rem 0 1rem !important; padding:1rem 1.1rem !important;
+          border-left:4px solid #2dd4bf !important; border-radius:0 12px 12px 0;
+          background:#0b1525 !important; color:#e2e8f0 !important;
+          font-size:1rem !important; line-height:1.65 !important;
+          overflow-wrap:anywhere;
+        }
+        .atlas-source-chips { display:flex; flex-wrap:wrap; gap:.4rem; margin:.5rem 0 1rem; }
+        .atlas-source-chip { padding:.25rem .55rem; border:1px solid #334155; border-radius:999px;
+          color:#cbd5e1; background:#0f192b; font-size:.78rem; }
         @media (max-width: 700px) {
           /* Keep the functional navigation, but remove the duplicate decorative
              rail so the primary Ask surface arrives in the first viewport. */
           .v74-topbar { display:none !important; }
           div[data-testid="stRadio"] [role="radiogroup"] { gap:.25rem !important; }
           div[data-testid="stRadio"] label { padding:.3rem .55rem !important; min-height:32px !important; }
-          [class*="st-key-ask_suggestion"] [data-testid="stButton"],
-          [data-testid="stMarkdownContainer"] ul { margin-right:6.5rem; max-width:calc(100% - 6.5rem); }
+          [class*="st-key-ask_suggestion"] [data-testid="stButton"] { width:100%; }
+          [data-testid="stMarkdownContainer"] blockquote { padding:.8rem .85rem !important; font-size:.94rem !important; }
         }
         </style>
         """,
@@ -24886,6 +24904,9 @@ def v72_fetch_market_tape():
     return out
 
 def render_v72_market_tape(always_show=True):
+    if is_viewer():
+        st.caption("Market context uses the latest retained completed-session evidence available to ATLAS.")
+        return
     st.markdown('<div class="v72-tape-title">Live market tape · near real-time context</div>', unsafe_allow_html=True)
     rows=v72_fetch_market_tape()
     if not rows:
@@ -25706,6 +25727,9 @@ def v74_market_quote(symbol):
 
 def render_v72_market_tape(always_show=True):
     symbols = [("SPY","S&P 500"),("QQQ","Nasdaq"),("DIA","Dow"),("IWM","Russell"),("VIXY","Volatility"),("GLD","Gold"),("USO","Oil"),("BTC-USD","Bitcoin")]
+    if is_viewer():
+        st.caption("Market context uses the latest retained completed-session evidence available to ATLAS.")
+        return
     cards = []
     for sym, name in symbols:
         q = v74_market_quote(sym)
@@ -26394,6 +26418,11 @@ def v784_top_nav(pages):
       [data-testid="stRadio"] [role="radiogroup"]{display:flex!important;flex-flow:row nowrap!important;width:100%!important;max-width:100%!important;overflow-x:auto!important;overscroll-behavior-x:contain;scroll-snap-type:x proximity;padding-bottom:.25rem}
       [data-testid="stRadio"] label{flex:0 0 auto!important;max-width:11rem;scroll-snap-align:start;overflow:hidden}
       [data-testid="stRadio"] label p{font-size:.76rem;white-space:nowrap!important;line-height:1.2}
+    }
+    @media(max-width:420px){
+      [data-testid="stRadio"] [role="radiogroup"]{justify-content:space-between;gap:.08rem!important;padding:.2rem!important;overflow-x:hidden!important}
+      [data-testid="stRadio"] label{flex:0 1 auto!important;padding:.3rem .28rem!important;min-height:38px!important}
+      [data-testid="stRadio"] label p{font-size:.64rem!important;letter-spacing:0!important}
     }
     </style>""", unsafe_allow_html=True)
     selected = st.radio(
@@ -27834,8 +27863,8 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
     # A regular container populated later can be appended after intervening
     # elements by Streamlit on narrow-screen reruns.
     _research_first_screen_slot = st.empty()
-    st.markdown("<div class='v65-section-title'>🔎 Live Atlas Research</div>",unsafe_allow_html=True)
-    st.markdown("<div class='v65-subtitle'>Paid-client research combines current retrieval with the richest verified saved evidence across all Atlas datasets.</div>",unsafe_allow_html=True)
+    st.markdown("<div class='v65-section-title'>ATLAS Research</div>",unsafe_allow_html=True)
+    st.markdown("<div class='v65-subtitle'>Certified investment research with clearly labeled retained context and evidence freshness.</div>",unsafe_allow_html=True)
     st.markdown(
         '<span data-atlas-qa="page-ready" data-atlas-page="research-any-ticker" '
         'data-atlas-status="ready" aria-hidden="true" style="display:none">research-page-ready</span>',
@@ -28627,7 +28656,13 @@ def main():
     elif selected_page=="Full Ranked Scan":
             render_full_scan_vnext(full_df, open_research=v784_open_research)
     elif selected_page=="Portfolio Intelligence": render_v505_portfolio_analyzer(full_df,top_df,recovery_df,watch_df,prescreen_df,etf_df)
-    elif selected_route=="Watchlist Intelligence": render_watchlist_vnext(full_df, read_watchlist_symbols(), open_research=v784_open_research)
+    elif selected_route=="Watchlist Intelligence": render_watchlist_vnext(
+        full_df,
+        read_watchlist_symbols(),
+        open_research=v784_open_research,
+        add_symbol=add_symbol_to_watchlist,
+        remove_symbol=remove_symbol_from_watchlist,
+    )
     elif selected_page=="Recovery":
         render_recovery_vnext(recovery_df, open_research=v784_open_research)
     elif selected_page=="ETFs":

@@ -1735,12 +1735,14 @@ def render_home_guidance_vnext(story: Mapping[str, Any], *, emit_interactive=Non
         f'<small>As of {html.escape(_timestamp(story.get("scan_timestamp")))}</small>'
         '</div>', unsafe_allow_html=True,
     )
-    _render_market_strip(story)
-    _render_market_read(story)
     _section_marker("atlas_action_summary")
     st.markdown("## ATLAS Action Summary")
     st.markdown(_action_counts(story), unsafe_allow_html=True)
     _render_groups(story, emit_interactive=emit_interactive)
+    # Market context is secondary to the customer's certified opportunity
+    # inventory. Keep it below the actionable ideas on both desktop and mobile.
+    _render_market_strip(story)
+    _render_market_read(story)
     _render_footer_navigation()
 
 
