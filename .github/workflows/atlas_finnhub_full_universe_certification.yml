@@ -1,10 +1,30 @@
 name: ATLAS Finnhub Full-Universe Certification
 
 on:
+  schedule:
+    # GitHub cron is UTC. Both wakeups are intentional; the coordinator admits
+    # only 18:00 America/New_York and the publication identity is idempotent.
+    - cron: "5 22 * * 1-5"
+    - cron: "5 23 * * 1-5"
   workflow_dispatch:
+    inputs:
+      execution_mode:
+        description: Provider-free validation or explicitly enabled live operation
+        required: true
+        default: provider_free
+        type: choice
+        options: [provider_free, live]
+      authorization:
+        description: Exact protected daily acquisition authorization
+        required: false
+        type: string
 
 permissions:
   contents: read
+
+concurrency:
+  group: atlas-daily-buy-now-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
   PYTHONPATH: "."
@@ -12,8 +32,86 @@ env:
   SHARD_SIZE: "150"
 
 jobs:
+  post-close-coordinator:
+    runs-on: ubuntu-latest
+    outputs:
+      eligible: ${{ steps.gate.outputs.eligible }}
+      run_live: ${{ steps.gate.outputs.run_live }}
+      finalized_session: ${{ steps.gate.outputs.finalized_session }}
+    env:
+      LIVE_ENABLED: ${{ vars.ATLAS_DAILY_BUY_NOW_LIVE_ENABLED }}
+      LIVE_AUTHORIZATION: ${{ secrets.ATLAS_DAILY_BUY_NOW_AUTHORIZATION }}
+      ALERT_WEBHOOK: ${{ secrets.ATLAS_DAILY_BUY_NOW_ALERT_WEBHOOK }}
+      DISPATCH_MODE: ${{ inputs.execution_mode }}
+      DISPATCH_AUTHORIZATION: ${{ inputs.authorization }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install pinned XNYS calendar dependency
+        run: python -m pip install exchange_calendars==4.13.2
+      - name: Evaluate post-close session and provider-free publication gates
+        id: gate
+        run: |
+          now="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          last_session="$(python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('publication_manifest.json')
+          v=json.loads(p.read_text()) if p.exists() else {}
+          print(str(v.get('finalized_market_session') or ''))
+          PY
+          )"
+          python scripts/run_daily_buy_now_post_close.py \
+            --now "$now" --last-published-session "$last_session" --root . \
+            --output audit_results/daily_buy_now/coordinator.json
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, os
+          p=json.load(open('audit_results/daily_buy_now/coordinator.json'))
+          scheduled=os.environ.get('GITHUB_EVENT_NAME') == 'schedule'
+          requested=(os.environ.get('DISPATCH_MODE') or 'provider_free') == 'live'
+          enabled=os.environ.get('LIVE_ENABLED') == 'true'
+          expected=os.environ.get('LIVE_AUTHORIZATION') or ''
+          supplied=os.environ.get('DISPATCH_AUTHORIZATION') or ''
+          required='DAILY_BUY_NOW_LIVE:' + os.environ['GITHUB_SHA']
+          configured=(expected == required and bool(os.environ.get('ALERT_WEBHOOK')))
+          live=(scheduled and enabled and configured) or (not scheduled and requested and configured and supplied == required)
+          if live and not p['schedule']['eligible']:
+              live=False
+          print('eligible=' + str(bool(p['schedule']['eligible'])).lower())
+          print('run_live=' + str(bool(live)).lower())
+          print('finalized_session=' + str(p['schedule']['finalized_session']))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atlas-daily-buy-now-heartbeat-${{ github.run_id }}
+          path: audit_results/daily_buy_now
+          if-no-files-found: error
+          retention-days: 90
+
+  provider-free-end-to-end:
+    needs: post-close-coordinator
+    if: ${{ needs.post-close-coordinator.outputs.run_live != 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install provider-free dependencies
+        run: python -m pip install pytest==9.1.1 exchange_calendars==4.13.2
+      - name: Exercise schedule, calendar, scoring identity, certification, and publication gates
+        run: |
+          PYTHONPATH=. python -m pytest -q \
+            tests/test_daily_buy_now_post_close.py \
+            tests/test_report_card_exchange_calendar.py \
+            tests/test_full_universe_promotion_input.py
+
   contract-tests:
-    if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/codex/full-universe-closure-temp' }}
+    needs: post-close-coordinator
+    if: ${{ needs.post-close-coordinator.outputs.run_live == 'true' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/codex/full-universe-closure-temp') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -64,7 +162,7 @@ jobs:
       - name: Plan and execute deterministic 50-symbol canary
         run: |
           python scripts/run_finnhub_full_universe.py plan --canary-size 50 --output audit_results/full_universe/canary50
-          python scripts/run_finnhub_full_universe.py run-shard --canary-size 50 --shard-index 0 --checkpoint-dir audit_results/checkpoints/canary50/acquisition --output audit_results/full_universe/canary50/shards
+          python scripts/run_finnhub_full_universe.py run-shard --strict-provider-health --canary-size 50 --shard-index 0 --checkpoint-dir audit_results/checkpoints/canary50/acquisition --output audit_results/full_universe/canary50/shards
           python scripts/run_finnhub_full_universe.py aggregate --canary-size 50 --shards audit_results/full_universe/canary50/shards --checkpoint-dir audit_results/checkpoints/canary50/evaluation --output audit_results/full_universe/canary50
       - uses: actions/upload-artifact@v4
         if: always()
@@ -95,8 +193,8 @@ jobs:
         run: python scripts/run_finnhub_full_universe.py plan --canary-size 250 --output audit_results/full_universe/canary250
       - name: Execute canary shards sequentially
         run: |
-          python scripts/run_finnhub_full_universe.py run-shard --canary-size 250 --shard-index 0 --checkpoint-dir audit_results/checkpoints/canary250/acquisition --output audit_results/full_universe/canary250/shards
-          python scripts/run_finnhub_full_universe.py run-shard --canary-size 250 --shard-index 1 --checkpoint-dir audit_results/checkpoints/canary250/acquisition --output audit_results/full_universe/canary250/shards
+          python scripts/run_finnhub_full_universe.py run-shard --strict-provider-health --canary-size 250 --shard-index 0 --checkpoint-dir audit_results/checkpoints/canary250/acquisition --output audit_results/full_universe/canary250/shards
+          python scripts/run_finnhub_full_universe.py run-shard --strict-provider-health --canary-size 250 --shard-index 1 --checkpoint-dir audit_results/checkpoints/canary250/acquisition --output audit_results/full_universe/canary250/shards
           python scripts/run_finnhub_full_universe.py aggregate --canary-size 250 --shards audit_results/full_universe/canary250/shards --checkpoint-dir audit_results/checkpoints/canary250/evaluation --output audit_results/full_universe/canary250
       - uses: actions/upload-artifact@v4
         if: always()
@@ -157,6 +255,7 @@ jobs:
       - name: Acquire canonical shard
         run: >-
           python scripts/run_finnhub_full_universe.py run-shard
+          --strict-provider-health
           --shard-index ${{ matrix.shard_index }}
           --checkpoint-dir audit_results/checkpoints/full-shard-${{ matrix.shard_index }}
           --output audit_results/full_universe/shard
@@ -206,3 +305,85 @@ jobs:
           name: atlas-finnhub-full-universe-final-${{ github.run_id }}
           path: audit_results/full_universe/final
           if-no-files-found: error
+
+  publish-certified-snapshot:
+    needs: [post-close-coordinator, aggregate-full-run]
+    if: ${{ needs.post-close-coordinator.outputs.run_live == 'true' && needs.aggregate-full-run.result == 'success' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/download-artifact@v4
+        with:
+          name: atlas-finnhub-full-universe-final-${{ github.run_id }}
+          path: audit_results/full_universe/final
+      - name: Require unchanged source before atomic publication
+        run: |
+          git fetch origin main
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse origin/main)" = "$GITHUB_SHA"
+      - name: Atomically promote the certified customer snapshot
+        run: >-
+          python scripts/promote_daily_buy_now_snapshot.py
+          --artifact-root audit_results/full_universe/final
+          --production-root .
+          --run-id "${{ github.run_id }}"
+          --source-sha "$GITHUB_SHA"
+          --finalized-session "${{ needs.post-close-coordinator.outputs.finalized_session }}"
+          --output audit_results/daily_buy_now/publication.json
+      - name: Commit only governed customer publication artifacts
+        run: |
+          git config user.name atlas-daily-buy-now
+          git config user.email atlas-daily-buy-now@users.noreply.github.com
+          git add market_full_scan.json market_scan_state.json discovery_candidate_pool.json \
+            full_evaluation_pool.json market_prescreen.json total_market_universe.json \
+            recovery_scan.json etf_scan.json publication_manifest.json publication_audit.jsonl
+          git diff --cached --quiet && exit 0
+          git commit -m "data: publish certified BUY NOW snapshot for ${{ needs.post-close-coordinator.outputs.finalized_session }}"
+          git push origin HEAD:main
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atlas-daily-buy-now-publication-${{ github.run_id }}
+          path: audit_results/daily_buy_now/publication.json
+          if-no-files-found: error
+          retention-days: 365
+
+  operational-alert:
+    needs: [post-close-coordinator, provider-free-end-to-end, aggregate-full-run, publish-certified-snapshot]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    env:
+      ALERT_WEBHOOK: ${{ secrets.ATLAS_DAILY_BUY_NOW_ALERT_WEBHOOK }}
+    steps:
+      - name: Send sanitized failure or completion heartbeat
+        env:
+          COORDINATOR_RESULT: ${{ needs.post-close-coordinator.result }}
+          DRY_RUN_RESULT: ${{ needs.provider-free-end-to-end.result }}
+          AGGREGATION_RESULT: ${{ needs.aggregate-full-run.result }}
+          PUBLICATION_RESULT: ${{ needs.publish-certified-snapshot.result }}
+        run: |
+          test -n "$ALERT_WEBHOOK" || { echo "No approved external notification destination configured"; exit 0; }
+          payload=$(python - <<'PY'
+          import json, os
+          print(json.dumps({
+            "event":"ATLAS_DAILY_BUY_NOW_HEARTBEAT",
+            "run_id":os.environ["GITHUB_RUN_ID"],
+            "source_sha":os.environ["GITHUB_SHA"],
+            "run_url":f'{os.environ["GITHUB_SERVER_URL"]}/{os.environ["GITHUB_REPOSITORY"]}/actions/runs/{os.environ["GITHUB_RUN_ID"]}',
+            "coordinator":os.environ["COORDINATOR_RESULT"],
+            "provider_free":os.environ["DRY_RUN_RESULT"],
+            "aggregation":os.environ["AGGREGATION_RESULT"],
+            "publication":os.environ["PUBLICATION_RESULT"],
+          }, separators=(",",":")))
+          PY
+          )
+          curl --fail --silent --show-error --max-time 15 \
+            -H 'content-type: application/json' --data "$payload" "$ALERT_WEBHOOK"
