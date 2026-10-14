@@ -39,6 +39,10 @@ def test_calendar_handles_early_close_and_dst():
 
 
 def test_calendar_rejects_unfinalized_and_tampered_evidence():
+    with pytest.raises(ValueError, match="TIMEZONE_AWARE"):
+        build_xnys_calendar(
+            start_date="2026-10-13", as_of=datetime(2026, 10, 13, 21, 0)
+        )
     with pytest.raises(ValueError, match="FINALIZED_SESSION_REQUIRED"):
         build_xnys_calendar(
             start_date="2026-10-13", as_of=datetime(2026, 10, 13, 19, 0, tzinfo=UTC)
@@ -57,3 +61,16 @@ def test_calendar_workflow_is_inert_and_pinned():
     assert "REPORT_CARD_CALENDAR_PRODUCE_ONCE" in source
     assert "provider" not in source.lower()
     assert "python -m pip install exchange_calendars==4.13.2" in source
+
+
+def test_protected_validation_requires_explicit_utc_cutoff():
+    source = open(
+        ".github/workflows/atlas_report_card_protected_runner_validation.yml",
+        encoding="utf-8",
+    ).read()
+    assert "cutoff_utc:" in source
+    assert "--cutoff-utc" in source
+    assert "inputs.as_of" not in source
+    assert 'default: "2026-10-13T20:30:00Z"' in source
+    assert 'test "$REPORT_CARD_VALIDATION_CUTOFF_UTC" = "2026-10-13T20:30:00Z"' in source
+    assert '${{ inputs.cutoff_utc }}' not in source.split("steps:", 1)[1]

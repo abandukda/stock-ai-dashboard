@@ -25,7 +25,7 @@ def test_readonly_package_proves_hash_invariance_scope_and_backup(tmp_path):
     result=prepare_protected_validation(ledger_path=ledger.path,backup_root=backup,calendar=calendar,
         source_sha="a"*40,publication_rows=[],workspace=tmp_path/"unrelated",
         mount_probe=lambda path:{"device":1 if path==ledger.path else 2,"target":str(path)},
-        kill_switch_path=switch)
+        kill_switch_path=switch,owner_probe=lambda path:"atlasrunner")
     assert hashlib.sha256(ledger.path.read_bytes()).hexdigest()==before
     assert result["due_tickers"]==["NVDA"] and result["target_sessions"]=={"1":"2026-10-09"}
     assert result["planned_calls"]==4
@@ -34,6 +34,8 @@ def test_readonly_package_proves_hash_invariance_scope_and_backup(tmp_path):
     assert result["provider_calls"]==result["ledger_mutations"]==0
     assert result["required_owner_token"]=="REPORT_CARD_PROTECTED_VALIDATE_ONCE"
     assert result["kill_switch_evidence"]["state"]=="CLOSED"
+    assert result["kill_switch_evidence"]["owner"]=="atlasrunner"
+    assert result["kill_switch_evidence"]["mode"]=="0o600"
     assert result["kill_switch_evidence"]["safe_for_live_calls"] is False
 
 def test_readonly_package_rejects_same_mount_and_workspace_storage(tmp_path):
@@ -44,3 +46,21 @@ def test_readonly_package_rejects_same_mount_and_workspace_storage(tmp_path):
     with pytest.raises(ValueError,match="INSIDE_GIT"):
         prepare_protected_validation(ledger_path=ledger.path,backup_root=backup,calendar=calendar,
             source_sha="a"*40,publication_rows=[],workspace=tmp_path,mount_probe=lambda path:{"device":1})
+
+def test_readonly_package_rejects_open_wrong_mode_or_wrong_owner_switch(tmp_path):
+    ledger,backup,calendar=make(tmp_path)
+    switch=tmp_path/"kill-switch"; switch.write_text("OPEN\n"); switch.chmod(0o600)
+    common=dict(ledger_path=ledger.path,backup_root=backup,calendar=calendar,
+        source_sha="a"*40,publication_rows=[],workspace=tmp_path/"unrelated",
+        mount_probe=lambda path:{"device":1 if path==ledger.path else 2})
+    with pytest.raises(PermissionError,match="ACQUISITION_DISABLED"):
+        prepare_protected_validation(**common,kill_switch_path=switch,
+            owner_probe=lambda path:"atlasrunner")
+    switch.write_text("CLOSED\n"); switch.chmod(0o644)
+    with pytest.raises(PermissionError,match="MODE_MUST_BE_0600"):
+        prepare_protected_validation(**common,kill_switch_path=switch,
+            owner_probe=lambda path:"atlasrunner")
+    switch.chmod(0o600)
+    with pytest.raises(PermissionError,match="OWNER_MUST_BE_ATLASRUNNER"):
+        prepare_protected_validation(**common,kill_switch_path=switch,
+            owner_probe=lambda path:"root")

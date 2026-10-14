@@ -1,0 +1,45 @@
+name: ATLAS Report Card Create CLOSED Sentinel
+
+# Manual, atomic, fail-closed control creation. No provider, ledger, or schedule access.
+on:
+  workflow_dispatch:
+    inputs:
+      authorize_creation:
+        description: Exact one-run owner authorization token
+        required: true
+        type: string
+
+permissions:
+  contents: read
+concurrency:
+  group: atlas-report-card-closed-sentinel
+  cancel-in-progress: false
+
+jobs:
+  create-closed-sentinel:
+    environment: atlas-internal-report-card
+    runs-on: [self-hosted, Linux, X64, atlas-worker-1]
+    timeout-minutes: 5
+    env:
+      PYTHONPATH: .
+      ATLAS_REPORT_CARD_DURABLE_ROOT: ${{ vars.ATLAS_REPORT_CARD_DURABLE_ROOT }}
+      REPORT_CARD_SENTINEL_AUTHORIZATION: ${{ inputs.authorize_creation }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enforce exact authorization and provider isolation
+        run: |
+          test "$REPORT_CARD_SENTINEL_AUTHORIZATION" = "REPORT_CARD_CREATE_CLOSED_SENTINEL_ONCE"
+          test -n "$ATLAS_REPORT_CARD_DURABLE_ROOT"
+          test -z "${FINNHUB_API_KEY:-}"
+      - name: Atomically create and verify CLOSED sentinel
+        run: >-
+          python3 scripts/create_report_card_closed_sentinel.py
+          --durable-root "$ATLAS_REPORT_CARD_DURABLE_ROOT"
+          --authorization "$REPORT_CARD_SENTINEL_AUTHORIZATION"
+          --output audit_results/report_card_protected/closed_sentinel.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atlas-report-card-closed-sentinel-${{ github.run_id }}
+          path: audit_results/report_card_protected
+          retention-days: 90

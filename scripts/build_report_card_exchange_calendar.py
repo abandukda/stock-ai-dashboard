@@ -13,10 +13,21 @@ from services.report_card_exchange_calendar import build_xnys_calendar, verify_x
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--start-date", required=True)
-    parser.add_argument("--as-of", required=True)
+    parser.add_argument("--cutoff-utc", required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-    as_of = datetime.fromisoformat(args.as_of).astimezone(timezone.utc)
+    raw_cutoff = args.cutoff_utc.strip()
+    if "T" not in raw_cutoff:
+        parser.error("--cutoff-utc must be a timezone-aware UTC timestamp, not a date")
+    try:
+        parsed = datetime.fromisoformat(raw_cutoff.replace("Z", "+00:00"))
+    except ValueError as exc:
+        parser.error(f"--cutoff-utc is invalid: {exc}")
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        parser.error("--cutoff-utc must include an explicit UTC offset")
+    as_of = parsed.astimezone(timezone.utc)
+    if parsed.utcoffset() != timezone.utc.utcoffset(parsed):
+        parser.error("--cutoff-utc must use UTC (Z or +00:00)")
     value = build_xnys_calendar(start_date=args.start_date, as_of=as_of)
     verify_xnys_calendar(value, as_of=as_of)
     args.output.parent.mkdir(parents=True, exist_ok=True)

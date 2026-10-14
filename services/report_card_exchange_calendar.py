@@ -23,6 +23,8 @@ def _canonical(value: Any) -> str:
 
 def build_xnys_calendar(*, start_date: str, as_of: datetime) -> dict[str, Any]:
     """Return sessions through the latest close that is safely finalized."""
+    if as_of.tzinfo is None or as_of.utcoffset() is None:
+        raise ValueError("XNYS_CUTOFF_MUST_BE_TIMEZONE_AWARE")
     observed = as_of.astimezone(timezone.utc)
     calendar = xcals.get_calendar(CALENDAR_NAME)
     schedule = calendar.schedule.loc[start_date:observed.date().isoformat()]
