@@ -1,0 +1,20 @@
+{
+  "authorization_package_sha256": "08e138047e9e474762d548bf7c3d39750ad46387e4acb226d75b57384abce308",
+  "backup_sha256": "a16143fc69e19d621c46d48ac913a9443812edfd6bab838f577d08f145a376a5",
+  "benchmark_ticker": "SPY",
+  "customer_visible": false,
+  "due_ticker_count": 20,
+  "entitlement_sha256": "388e0a6424c61a437990b611ccfa2822d24095bbab6914a26f2691aa62d2e3f9",
+  "ledger_append_allowed": false,
+  "ledger_sha256": "1eb89d1d9e64e953480a6d151f10f3959f115ec25d75999dbe8c3313bf350325",
+  "ledger_tip": "c503983257261e202b3ffc87d1f08ac1b1ea1753cae34319d8171f4c09e2a54a",
+  "plan_sha256": "457aab35abd2c5e02f9d06dfeaffc2dd9ffa15e7083d601f2737b7a11b4829a3",
+  "provider_call_budget": 61,
+  "publication_allowed": false,
+  "registered_workflow_base_sha": "c3b79e80f3fd49647ac2d645f8d4943d3d937b45",
+  "retry_attempts": 0,
+  "schema_version": "atlas.report-card.g2-execution-package.v1",
+  "schedule_allowed": false,
+  "source_sha": "2d0d8bd00b9168d2684845a7cc75b3a596d6a9c5",
+  "status": "REVIEW_REQUIRED_NOT_AUTHORIZED"
+}
