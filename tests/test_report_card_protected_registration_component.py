@@ -18,6 +18,9 @@ def test_component_is_manual_environment_bound_and_provider_free():
     assert 'test -z "${FINNHUB_API_KEY:-}"' in source
     assert "python -m pip install exchange_calendars==4.13.2 PyYAML==6.0.3" in source
     assert "prepare_report_card_protected_validation.py" in source
+    assert "Provider-free acquisition and cleanup entrypoint preflight" in source
+    assert "python3 scripts/acquire_report_card_market_evidence.py --help" in source
+    assert "python3 scripts/close_report_card_g2_sentinel.py --help" in source
     assert "ACQUISITION_KILL_SWITCH" in source
     assert "cutoff_utc:" in source and "--cutoff-utc" in source
     assert "schedule:" not in source and "acquire_market_evidence" not in source

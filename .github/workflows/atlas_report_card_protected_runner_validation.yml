@@ -65,6 +65,12 @@ jobs:
           --kill-switch "$ATLAS_REPORT_CARD_DURABLE_ROOT/ACQUISITION_KILL_SWITCH"
           --source-sha "$GITHUB_SHA"
           --output audit_results/report_card_protected/protected_validation.json
+      - name: Provider-free acquisition and cleanup entrypoint preflight
+        shell: bash
+        run: |
+          test -z "${FINNHUB_API_KEY:-}"
+          python3 scripts/acquire_report_card_market_evidence.py --help
+          python3 scripts/close_report_card_g2_sentinel.py --help
       - name: Provider-free control tests
         run: >-
           pytest -q tests/test_report_card_exchange_calendar.py

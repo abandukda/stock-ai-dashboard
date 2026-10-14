@@ -214,7 +214,8 @@ def test_dispatch_workflow_is_inert_and_requires_distinct_primary_and_backup():
     assert "schedule:" not in source
     assert "execution_mode:" in source
     assert "REPORT_CARD_PLAN_ONCE" in source
-    assert 'test "${{ inputs.authorize_acquisition }}" = "REPORT_CARD_ACQUIRE_ONCE"' in source
+    assert f'test "${{{{ inputs.authorize_acquisition }}}}" = "{AUTHORIZATION_TOKEN}"' in source
+    assert AUTHORIZATION_TOKEN != "REPORT_CARD_ACQUIRE_ONCE"
     assert "ATLAS_REPORT_CARD_DURABLE_ROOT" in source
     assert "ATLAS_REPORT_CARD_BACKUP_ROOT" in source
     assert '--backup-root "$ATLAS_REPORT_CARD_BACKUP_ROOT"' in source

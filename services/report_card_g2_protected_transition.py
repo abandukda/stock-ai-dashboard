@@ -11,9 +11,10 @@ import stat
 from typing import Iterator
 
 
-BOUND_SOURCE_SHA = "2d0d8bd00b9168d2684845a7cc75b3a596d6a9c5"
-BOUND_PLAN_SHA256 = "457aab35abd2c5e02f9d06dfeaffc2dd9ffa15e7083d601f2737b7a11b4829a3"
-BOUND_PACKAGE_SHA256 = "c0ee01e3ba62dc9c586bded0f2afa4cf018bf201c72cdfd2fcc88f7e4b3a8493"
+BOUND_SOURCE_SHA = "fae6a94f96f8f7ed6b24a96a8cdd2fe21ffa703a"
+BOUND_PLAN_SHA256 = "87fd4a0c6a86396aa4c1da60384eb5f15bc7259b1aaaae2e812c748b4e733e44"
+BOUND_PACKAGE_SHA256 = "219c5453b58bfe838a58f73a666a630637747f67fa5cf419526f4a3a9908764a"
+BOUND_AUTHORIZATION_TOKEN = f"REPORT_CARD_ACQUIRE_ONCE:{BOUND_PACKAGE_SHA256}"
 BOUND_LEDGER_SHA256 = "1eb89d1d9e64e953480a6d151f10f3959f115ec25d75999dbe8c3313bf350325"
 BOUND_BACKUP_SHA256 = "a16143fc69e19d621c46d48ac913a9443812edfd6bab838f577d08f145a376a5"
 EXPECTED_OWNER = "atlasrunner"
@@ -71,7 +72,9 @@ def atomic_sentinel(path: Path, state: str) -> None:
 def claim_once(root: Path, execution_id: str) -> Path:
     if not execution_id or any(character not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_" for character in execution_id):
         raise ValueError("G2_EXECUTION_ID_INVALID")
-    receipt = root / f".g2-acquisition-{BOUND_PLAN_SHA256}-{execution_id}.claim"
+    # The package is the attempt identity.  A different GitHub run ID must not
+    # make the same owner authorization reusable after any runner-side claim.
+    receipt = root / f".g2-acquisition-{BOUND_PACKAGE_SHA256}.claim"
     descriptor = os.open(receipt, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     try:
         os.write(descriptor, json.dumps({
@@ -79,6 +82,9 @@ def claim_once(root: Path, execution_id: str) -> Path:
             "plan_sha256": BOUND_PLAN_SHA256,
             "source_sha": BOUND_SOURCE_SHA,
             "package_sha256": BOUND_PACKAGE_SHA256,
+            "authorization_token_sha256": hashlib.sha256(
+                BOUND_AUTHORIZATION_TOKEN.encode()
+            ).hexdigest(),
         }, sort_keys=True).encode() + b"\n")
         os.fsync(descriptor)
     finally:
