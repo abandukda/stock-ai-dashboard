@@ -19,10 +19,11 @@ from services.report_card import HORIZONS
 from services.report_card_observation_activation import FINALIZED_SESSION_STATUS
 from services.report_card_observation_producer import EVIDENCE_SCHEMA
 from services.report_card_operational_controls import validate_entitlement
+from services.report_card_g2_protected_transition import BOUND_AUTHORIZATION_TOKEN
 
 
 ACQUISITION_VERSION = "ATLAS_REPORT_CARD_MARKET_EVIDENCE_ACQUISITION_V1"
-AUTHORIZATION_TOKEN = "REPORT_CARD_ACQUIRE_ONCE"
+AUTHORIZATION_TOKEN = BOUND_AUTHORIZATION_TOKEN
 PLAN_AUTHORIZATION_TOKEN = "REPORT_CARD_PLAN_ONCE"
 LICENSE_CLASS = "FINNHUB_PAID_CORE_CERTIFICATION"
 REQUIRED_CAPABILITIES = ("historical_ohlcv", "splits", "dividends")

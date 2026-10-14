@@ -1,5 +1,5 @@
 {
-  "authorization_package_sha256": "08e138047e9e474762d548bf7c3d39750ad46387e4acb226d75b57384abce308",
+  "authorization_package_sha256": "3deb1199f66f30084c9b20df3d01f30b42fdac95f43bf15bbfb0f1b525c6aa5f",
   "backup_sha256": "a16143fc69e19d621c46d48ac913a9443812edfd6bab838f577d08f145a376a5",
   "benchmark_ticker": "SPY",
   "customer_visible": false,
@@ -8,13 +8,16 @@
   "ledger_append_allowed": false,
   "ledger_sha256": "1eb89d1d9e64e953480a6d151f10f3959f115ec25d75999dbe8c3313bf350325",
   "ledger_tip": "c503983257261e202b3ffc87d1f08ac1b1ea1753cae34319d8171f4c09e2a54a",
-  "plan_sha256": "457aab35abd2c5e02f9d06dfeaffc2dd9ffa15e7083d601f2737b7a11b4829a3",
+  "plan_sha256": "87fd4a0c6a86396aa4c1da60384eb5f15bc7259b1aaaae2e812c748b4e733e44",
+  "protected_validation_artifact": "atlas-report-card-protected-validation-38629818807",
+  "protected_validation_run_id": 38629818807,
   "provider_call_budget": 61,
   "publication_allowed": false,
-  "registered_workflow_base_sha": "4bd1285d538f5502ce9eab4558de0cd7da3c5b48",
+  "registered_workflow_base_sha": "fae6a94f96f8f7ed6b24a96a8cdd2fe21ffa703a",
   "retry_attempts": 0,
   "schema_version": "atlas.report-card.g2-execution-package.v1",
   "schedule_allowed": false,
-  "source_sha": "2d0d8bd00b9168d2684845a7cc75b3a596d6a9c5",
+  "scope_digest": "e476e6ba00059259fc26f75d8e4f212537586537dc07f35284467607ea17cff4",
+  "source_sha": "fae6a94f96f8f7ed6b24a96a8cdd2fe21ffa703a",
   "status": "REVIEW_REQUIRED_NOT_AUTHORIZED"
 }
