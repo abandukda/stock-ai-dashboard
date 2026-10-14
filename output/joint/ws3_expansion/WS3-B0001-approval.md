@@ -5,6 +5,7 @@ Status: **awaiting exact owner authorization**. This package performs no provide
 ## Immutable source binding
 
 - Source run: `37216506983`
+- Source commit: `aa12ff9e89c1ac72e20aadad41decfba9a3d774d`
 - Candidate digest: `64c0a00a2805fc8c0378c8a701b8362963e689e22715c39da26e8df7e0fd5a67`
 - Customer-published membership: `1,298`
 - Membership digest: `d6be219fdb882bb451f604b23d93f6eb2856a370140e70e895edfc0f2c2327f9`

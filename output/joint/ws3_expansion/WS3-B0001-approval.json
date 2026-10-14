@@ -21,6 +21,7 @@
   "request_count": 25,
   "request_method": "GET",
   "source_candidate_digest": "64c0a00a2805fc8c0378c8a701b8362963e689e22715c39da26e8df7e0fd5a67",
+  "source_commit_sha": "aa12ff9e89c1ac72e20aadad41decfba9a3d774d",
   "source_run_id": "37216506983",
   "state": "AWAITING_EXACT_OWNER_AUTHORIZATION",
   "stop_conditions": [
