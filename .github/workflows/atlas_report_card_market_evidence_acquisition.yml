@@ -84,10 +84,10 @@ jobs:
           if [ "${{ inputs.execution_mode }}" = "plan" ]; then
             test "${{ inputs.authorize_acquisition }}" = "REPORT_CARD_PLAN_ONCE"
           else
-            test "${{ inputs.authorize_acquisition }}" = "REPORT_CARD_ACQUIRE_ONCE"
+            test "${{ inputs.authorize_acquisition }}" = "REPORT_CARD_ACQUIRE_ONCE:219c5453b58bfe838a58f73a666a630637747f67fa5cf419526f4a3a9908764a"
             test -n "$FINNHUB_API_KEY"
-            test "${{ inputs.approved_plan_sha256 }}" = "457aab35abd2c5e02f9d06dfeaffc2dd9ffa15e7083d601f2737b7a11b4829a3"
-            test "${{ inputs.authorization_package_sha256 }}" = "c0ee01e3ba62dc9c586bded0f2afa4cf018bf201c72cdfd2fcc88f7e4b3a8493"
+            test "${{ inputs.approved_plan_sha256 }}" = "87fd4a0c6a86396aa4c1da60384eb5f15bc7259b1aaaae2e812c748b4e733e44"
+            test "${{ inputs.authorization_package_sha256 }}" = "219c5453b58bfe838a58f73a666a630637747f67fa5cf419526f4a3a9908764a"
             test "${{ inputs.entitlement_sha256 }}" = "161b2799b0ea935185d5fddcd53ffbf3fdd755d6a939d3898e0effe58c8c83d4"
           fi
           test -n "$ATLAS_REPORT_CARD_DURABLE_ROOT"
@@ -139,7 +139,7 @@ jobs:
             --ledger "$ATLAS_REPORT_CARD_DURABLE_ROOT/report-card.sqlite3" \
             --backup-root "$ATLAS_REPORT_CARD_BACKUP_ROOT" \
             --calendar "${{ steps.calendar.outputs.path }}" \
-            --source-sha "2d0d8bd00b9168d2684845a7cc75b3a596d6a9c5" \
+            --source-sha "fae6a94f96f8f7ed6b24a96a8cdd2fe21ffa703a" \
             --mode "${{ inputs.execution_mode }}" \
             --authorization "${{ inputs.authorize_acquisition }}" \
             --approved-plan "${{ steps.g2.outputs.plan }}" \

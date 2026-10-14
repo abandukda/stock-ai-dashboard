@@ -59,7 +59,7 @@ def test_repeat_execution_is_rejected_without_opening(tmp_path, monkeypatch):
         pass
     with pytest.raises(FileExistsError):
         with transition.protected_g2_window(
-            sentinel=sentinel, ledger=ledger, backup=backup, execution_id="same-run",
+            sentinel=sentinel, ledger=ledger, backup=backup, execution_id="different-run",
         ):
             raise AssertionError("must not execute")
     assert sentinel.read_bytes() == b"CLOSED\n"
@@ -135,6 +135,7 @@ def test_workflow_is_inert_and_bound_to_reviewed_scope():
     assert transition.BOUND_SOURCE_SHA in workflow
     assert transition.BOUND_PLAN_SHA256 in workflow
     assert transition.BOUND_PACKAGE_SHA256 in workflow
+    assert transition.BOUND_AUTHORIZATION_TOKEN in workflow
     assert OWNER_APPROVED_ENTITLEMENT_SHA256 in workflow
     assert "--raw-evidence-root" in workflow
     assert "close_report_card_g2_sentinel.py" in workflow
@@ -157,7 +158,10 @@ def test_entitlement_separates_owner_status_from_contract_dates():
     package = json.loads(Path("config/report_card_g2_execution_package_20261014.json").read_text())
     assert digest(package) == transition.BOUND_PACKAGE_SHA256
     assert package["authorization_package_sha256"] == (
-        "08e138047e9e474762d548bf7c3d39750ad46387e4acb226d75b57384abce308"
+        "3deb1199f66f30084c9b20df3d01f30b42fdac95f43bf15bbfb0f1b525c6aa5f"
     )
+    assert package["protected_validation_run_id"] == 38629818807
+    assert package["source_sha"] == transition.BOUND_SOURCE_SHA
+    assert package["plan_sha256"] == transition.BOUND_PLAN_SHA256
     assert package["entitlement_sha256"] == OWNER_APPROVED_ENTITLEMENT_SHA256
     assert package["status"] == "REVIEW_REQUIRED_NOT_AUTHORIZED"
