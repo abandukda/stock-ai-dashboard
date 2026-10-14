@@ -853,6 +853,9 @@ def test_supporting_evidence_and_grounding_are_independently_certified():
     assert "trade date" in source.lower()
     assert "temporarily unavailable" in source.lower()
     assert "data-atlas-response-length" in source
+    assert 'reversed(range(await candidates.count()))' in source
+    assert 'missing evidence\\s*&\\s*limitations' in source
+    assert 'response_marker is not None and lower_evidence_settled' in source
 
 
 def test_tabs_are_reacquired_after_every_streamlit_rerender():

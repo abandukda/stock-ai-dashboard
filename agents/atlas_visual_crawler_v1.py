@@ -3198,24 +3198,38 @@ class AtlasVisualCrawler:
             await page.wait_for_timeout(800)
             deadline = time.monotonic() + 30
             response_marker = None
+            settled_text = ""
             while time.monotonic() < deadline:
                 candidates = page.locator('[data-atlas-qa="ask-ai-response"][data-atlas-status="complete"]')
                 if await candidates.count():
-                    response_marker = candidates.first
-                    for candidate_index in range(await candidates.count()):
+                    response_marker = None
+                    for candidate_index in reversed(range(await candidates.count())):
                         candidate = candidates.nth(candidate_index)
-                        if (
-                            await candidate.get_attribute("data-atlas-context-digest") and
-                            await candidate.get_attribute("data-atlas-response-length")
-                        ):
+                        evidence_metadata = False
+                        for key in ("evidence-used", "evidence-missing", "evidence-ids", "evidence-limitations"):
+                            if await candidate.get_attribute(f"data-atlas-{key}"):
+                                evidence_metadata = True
+                                break
+                        if all((
+                            await candidate.get_attribute("data-atlas-context-digest"),
+                            await candidate.get_attribute("data-atlas-authority-digest"),
+                            await candidate.get_attribute("data-atlas-decision-digest"),
+                            await candidate.get_attribute("data-atlas-response-length"),
+                            evidence_metadata,
+                        )):
                             response_marker = candidate
                             break
-                    if await response_marker.get_attribute("data-atlas-response-length"):
+                    settled_text = await _visible_text(page)
+                    lower_evidence_settled = bool(
+                        re.search(r"supporting evidence", settled_text, re.I) and
+                        re.search(r"missing evidence\s*&\s*limitations", settled_text, re.I)
+                    )
+                    if response_marker is not None and lower_evidence_settled:
                         break
                 if await _has_rendered_exception(page):
                     break
                 await page.wait_for_timeout(300)
-            text = await _visible_text(page)
+            text = settled_text or await _visible_text(page)
             exception = await _has_rendered_exception(page)
             metadata: dict[str, str] = {}
             if response_marker is not None and await response_marker.count():
