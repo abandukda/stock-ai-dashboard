@@ -1,0 +1,44 @@
+{
+  "batch_id": "WS3-B0001",
+  "contract": "ATLAS_WS3_HUMAN_APPROVAL_PACKAGE_V1",
+  "dataset": "annual_statements",
+  "endpoint": "/stock/financials-reported",
+  "frequency": "annual",
+  "membership_artifact_file_sha256": "9db1303a13b2f91d4f5d4b38f18ae12934020056684a0c56651b7a16438c1ef9",
+  "membership_artifact_sha256": "66a43e46eb98f683042c30f442f98e58811152d970bef9924b920aaad84451de",
+  "membership_count": 1298,
+  "membership_sha256": "d6be219fdb882bb451f604b23d93f6eb2856a370140e70e895edfc0f2c2327f9",
+  "pacing": {
+    "concurrency": 1,
+    "minimum_inter_request_seconds": 1.0,
+    "rate_limit_rpm": 60,
+    "retry_count": 0
+  },
+  "plan_file_sha256": "4d6dff90abb53fb24bf4559bd8c87bf2a8ae15418f5101b776b4a3ff6d03da2e",
+  "provider_calls_performed": 0,
+  "refresh_hours": 720,
+  "request_cap": 25,
+  "request_count": 25,
+  "request_method": "GET",
+  "source_candidate_digest": "64c0a00a2805fc8c0378c8a701b8362963e689e22715c39da26e8df7e0fd5a67",
+  "source_run_id": "37216506983",
+  "state": "AWAITING_EXACT_OWNER_AUTHORIZATION",
+  "stop_conditions": [
+    "HTTP_429",
+    "AUTH_OR_ENTITLEMENT_FAILURE",
+    "HTTP_4XX_OR_5XX",
+    "TIMEOUT_OR_PROVIDER_ERROR",
+    "RATE_BUDGET_VIOLATION",
+    "RAW_PERSISTENCE_FAILURE",
+    "SCHEMA_OR_IDENTITY_MISMATCH",
+    "DUPLICATE_REQUEST",
+    "MEMBERSHIP_OR_MANIFEST_DRIFT"
+  ],
+  "tickers": [
+    "A", "AAMI", "AAP", "AAPL", "ABBV", "ABCB", "ABM", "ABT", "ABUS", "ABX",
+    "ACA", "ACAD", "ACDC", "ACEL", "ACGL", "ACHC", "ACI", "ACIC", "ACLS", "ACM",
+    "ACMR", "ACN", "ACVA", "AD", "ADBE"
+  ],
+  "immutable_batch_manifest_sha256": "957307e6f70e2b12091a9eea1c4496c230f94b43ae514cb4e3399e16ed2f2dc3",
+  "required_authorization_token": "AUTHORIZE_WS3_BATCH:WS3-B0001:957307e6f70e2b12091a9eea1c4496c230f94b43ae514cb4e3399e16ed2f2dc3"
+}
