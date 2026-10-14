@@ -47,6 +47,10 @@ on:
         description: Owner-approved canonical entitlement evidence SHA-256
         required: true
         type: string
+      authorization_package_sha256:
+        description: Exact reviewed G2 authorization package SHA-256
+        required: true
+        type: string
 
 permissions:
   actions: read
@@ -81,6 +85,9 @@ jobs:
           else
             test "${{ inputs.authorize_acquisition }}" = "REPORT_CARD_ACQUIRE_ONCE"
             test -n "$FINNHUB_API_KEY"
+            test "${{ inputs.approved_plan_sha256 }}" = "457aab35abd2c5e02f9d06dfeaffc2dd9ffa15e7083d601f2737b7a11b4829a3"
+            test "${{ inputs.authorization_package_sha256 }}" = "08e138047e9e474762d548bf7c3d39750ad46387e4acb226d75b57384abce308"
+            test "${{ inputs.entitlement_sha256 }}" = "680f9dd41d3df5d0dd30d8d5c9306ad000b319b696edc4cf7d01607d31c0e477"
           fi
           test -n "$ATLAS_REPORT_CARD_DURABLE_ROOT"
           test -n "$ATLAS_REPORT_CARD_BACKUP_ROOT"
@@ -131,7 +138,7 @@ jobs:
             --ledger "$ATLAS_REPORT_CARD_DURABLE_ROOT/report-card.sqlite3" \
             --backup-root "$ATLAS_REPORT_CARD_BACKUP_ROOT" \
             --calendar "${{ steps.calendar.outputs.path }}" \
-            --source-sha "$GITHUB_SHA" \
+            --source-sha "2d0d8bd00b9168d2684845a7cc75b3a596d6a9c5" \
             --mode "${{ inputs.execution_mode }}" \
             --authorization "${{ inputs.authorize_acquisition }}" \
             --approved-plan "${{ steps.g2.outputs.plan }}" \
@@ -139,7 +146,15 @@ jobs:
             --entitlement "${{ steps.g2.outputs.entitlement }}" \
             --entitlement-sha256 "${{ inputs.entitlement_sha256 }}" \
             --kill-switch "$ATLAS_REPORT_CARD_DURABLE_ROOT/ACQUISITION_KILL_SWITCH" \
+            --authorization-package-sha256 "${{ inputs.authorization_package_sha256 }}" \
+            --execution-id "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            --raw-evidence-root audit_results/report_card_market_evidence/raw \
             --output audit_results/report_card_market_evidence/report_card_market_evidence.json
+      - name: Verify sentinel closed after acquisition
+        if: ${{ always() && inputs.execution_mode == 'acquire' }}
+        run: >-
+          python3 scripts/close_report_card_g2_sentinel.py
+          --sentinel "$ATLAS_REPORT_CARD_DURABLE_ROOT/ACQUISITION_KILL_SWITCH"
       - name: Offline acquisition contract tests
         run: pytest -q tests/test_report_card_exchange_calendar.py tests/test_report_card_market_evidence_acquisition.py tests/test_report_card_observation_producer.py tests/test_report_card_observation_activation.py tests/test_report_card_end_to_end_offline.py
       - name: Fail closed without ledger mutation
