@@ -51,4 +51,6 @@ def test_quarterly_approval_is_inert_bounded_and_globally_governed():
     assert '"requests_per_minute":500' in text
     assert '"burst_requests_per_second_ceiling":20' in text
     assert '"HTTP_429"' in text and '"RAW_DIGEST_FAILURE"' in text
-    assert '"absolute_provider_attempt_ceiling":len(tickers)*3' in text
+    assert '"automatic_retry_ceiling_per_request":0' in text
+    assert '"absolute_provider_attempt_ceiling":len(tickers)' in text
+    assert '"retry_policy":"NO_AUTOMATIC_RETRIES"' in text
