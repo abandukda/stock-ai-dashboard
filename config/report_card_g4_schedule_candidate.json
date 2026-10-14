@@ -1,0 +1,17 @@
+{
+  "activation_authorized": false,
+  "catch_up": {
+    "maximum_sessions_per_run": 5,
+    "order": "OLDEST_FINALIZED_SESSION_FIRST",
+    "parallelism": 1,
+    "stop_on_first_failure": true
+  },
+  "concurrency_group": "atlas-report-card-unattended",
+  "cron_utc": "30 22 * * 1-5",
+  "dead_man_monitor": "INDEPENDENT_EXTERNAL_HEARTBEAT_REQUIRED",
+  "provider_retries": 0,
+  "schema_version": "atlas.report-card.g4-schedule-candidate.v1",
+  "schedule_registered": false,
+  "sentinel_required_before_and_after": "CLOSED",
+  "timezone": "UTC"
+}
