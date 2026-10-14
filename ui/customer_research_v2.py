@@ -393,9 +393,9 @@ def _render_annual_financial_statements(history: Mapping[str, Any], *, ticker: s
         st.info(history.get("message") or "Validated annual filing history is unavailable for this security.")
         return
     labels = {
-        "INCOME_STATEMENT": "Income statement",
-        "CASH_FLOW": "Cash flow",
-        "BALANCE_SHEET": "Balance sheet",
+        "INCOME_STATEMENT": "Annual income statement",
+        "CASH_FLOW": "Annual cash flow",
+        "BALANCE_SHEET": "Annual balance sheet",
     }
     tabs = st.tabs(list(labels.values()))
     for tab, (lane, title) in zip(tabs, labels.items()):

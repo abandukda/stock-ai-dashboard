@@ -56,3 +56,6 @@ def test_renderer_declares_non_scoring_authority_and_original_qa_marker():
     assert '"annual-financial-statements"' in source
     assert 'classification="historical-non-scoring"' in source
     assert "they do not change the certified Action" in source
+    assert '"INCOME_STATEMENT": "Annual income statement"' in source
+    assert '"CASH_FLOW": "Annual cash flow"' in source
+    assert '"BALANCE_SHEET": "Annual balance sheet"' in source
