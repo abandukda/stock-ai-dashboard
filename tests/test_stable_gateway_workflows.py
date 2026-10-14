@@ -1,4 +1,6 @@
 from pathlib import Path
+import os
+import subprocess
 import yaml
 
 ROOT=Path(__file__).resolve().parents[1]/".github/workflows"
@@ -53,3 +55,14 @@ def test_report_card_is_default_branch_scope_bound_and_mutations_stay_closed():
     assert "entitlement.json" in text and "execution_package.json" in text
     assert "g2_binding.json" in text
     assert '"provider_calls":0,"ledger_writes":0,"sentinel_transition":"NONE"' in text
+
+def test_report_card_registered_operations_shell_parses_and_fail_closed_branch_executes():
+    _, workflow = load("atlas_stable_report_card_gateway.yml")
+    step = next(s for s in workflow["jobs"]["protected-preflight"]["steps"]
+                if s.get("name") == "Registered safe operations")
+    script = step["run"]
+    subprocess.run(["bash", "-n"], input=script, text=True, check=True)
+    env = {**os.environ, "OPERATION": "acquire", "SOURCE_SHA": "source", "SCOPE_SHA256": "scope"}
+    result = subprocess.run(["bash"], input=script, text=True, env=env, capture_output=True)
+    assert result.returncode == 78
+    assert "intentionally fail closed" in result.stdout
