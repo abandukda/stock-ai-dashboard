@@ -1,0 +1,16 @@
+{
+  "contract": "ATLAS_ANNUAL_CUSTOMER_BUNDLE_MANIFEST_V1",
+  "bundle": "annual_customer_bundle.json",
+  "bundle_sha256": "714715177ad78a3550d87c3a072acaaae099e3e9faacd56f48f82ee9eeeb7bf6",
+  "source_contract": "ATLAS_G6_ANNUAL_STATEMENT_PRESENTATION_V1",
+  "source_series_sha256": "9127dfafc3842138486a2fe7b880788f8c2f35d1368e0fdf7a541ac706c9276a",
+  "ticker_count": 11,
+  "filing_count": 147,
+  "display_period_count": 52,
+  "accepted_fact_count": 13201,
+  "rejected_fact_count": 43,
+  "display_period_limit": 5,
+  "ratings_changed": false,
+  "publications_changed": false,
+  "provider_calls": 0
+}

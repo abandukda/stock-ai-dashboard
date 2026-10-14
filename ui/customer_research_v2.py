@@ -349,6 +349,72 @@ def _render_financial_depth(depth: Mapping[str, Any], *, ticker: str) -> None:
         st.caption(str(company_case["invalidation_limitation"]))
 
 
+def _annual_statement_frame(statement: Any, periods: Any) -> pd.DataFrame:
+    """Pivot retained cells for display; never calculate or fill a value."""
+    period_rows = [item for item in periods or () if isinstance(item, Mapping)]
+    accession_period = {
+        str(item.get("accession")): str(item.get("fiscal_year") or item.get("fiscal_period_end") or "Unavailable")
+        for item in period_rows
+    }
+    columns = list(accession_period.values())
+    rows: list[dict[str, str]] = []
+    for item in statement or ():
+        if not isinstance(item, Mapping):
+            continue
+        labels = item.get("observed_labels") or ()
+        label = str(next(iter(labels), None) or item.get("concept") or item.get("field_id") or "Unlabeled fact")
+        row = {"Line item": label}
+        by_accession = {
+            str(cell.get("accession")): cell for cell in item.get("cells") or () if isinstance(cell, Mapping)
+        }
+        unit = item.get("unit") if isinstance(item.get("unit"), Mapping) else {}
+        canonical = str(unit.get("canonical") or "")
+        for accession, period in accession_period.items():
+            cell = by_accession.get(accession) or {}
+            row[period] = (
+                _financial_value(cell.get("value"), canonical)
+                if cell.get("status") == "AVAILABLE" else "Unavailable"
+            )
+        rows.append(row)
+    return pd.DataFrame(rows, columns=["Line item", *columns])
+
+
+def _render_annual_financial_statements(history: Mapping[str, Any], *, ticker: str) -> None:
+    status = str(history.get("status") or "UNAVAILABLE")
+    periods = list(history.get("periods") or ())
+    statements = history.get("statements") if isinstance(history.get("statements"), Mapping) else {}
+    _marker("annual-financial-statements", ticker, status=status, periods=len(periods), classification="historical-non-scoring")
+    st.markdown("### Annual filing history")
+    st.caption(
+        "Reported annual filing facts with retained source lineage. These historical tables are context only: "
+        "they do not change the certified Action, Fair Value, Opportunity, Confidence, or publication status."
+    )
+    if status != "AVAILABLE":
+        st.info(history.get("message") or "Validated annual filing history is unavailable for this security.")
+        return
+    labels = {
+        "INCOME_STATEMENT": "Income statement",
+        "CASH_FLOW": "Cash flow",
+        "BALANCE_SHEET": "Balance sheet",
+    }
+    tabs = st.tabs(list(labels.values()))
+    for tab, (lane, title) in zip(tabs, labels.items()):
+        with tab:
+            frame = _annual_statement_frame(statements.get(lane), periods)
+            if frame.empty:
+                st.info(f"Validated annual {title.lower()} facts are unavailable.")
+            else:
+                st.dataframe(frame, hide_index=True, use_container_width=True,
+                             key=f"research-annual-{lane.lower()}-{ticker}")
+    latest = periods[-1] if periods else {}
+    st.caption(
+        f"Latest retained fiscal year: {latest.get('fiscal_year') or 'Unavailable'} · "
+        f"Filing accession: {latest.get('accession') or 'Unavailable'} · "
+        f"Source presentation: {history.get('source_presentation_sha256') or 'Unavailable'} · "
+        "Provider endpoint: /stock/financials-reported (annual)."
+    )
+
+
 def _range_rows(frame: pd.DataFrame, selected: str) -> pd.DataFrame:
     """Return a display-only date window without altering retained values."""
     if frame.empty or selected == "1Y":
@@ -773,6 +839,7 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
         st.info(financial_snapshot.get("message") or "Certified financial evidence is unavailable for this snapshot.")
 
     _render_financial_depth(page.get("financial_depth") or {}, ticker=ticker)
+    _render_annual_financial_statements(page.get("annual_financial_statements") or {}, ticker=ticker)
 
     financial_trend = page.get("financial_trend") or {}
     _marker("financial-trend-chart", ticker, status=financial_trend.get("status") or "UNAVAILABLE")

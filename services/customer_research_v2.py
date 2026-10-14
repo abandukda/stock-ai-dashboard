@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from typing import Any, Iterable, Mapping
 
 from services.customer_authority import customer_authority, customer_authority_identity
+from services.annual_financial_statements import annual_financial_statements
 
 
 VERSION = "ATLAS_CUSTOMER_RESEARCH_V2_P0"
@@ -925,6 +926,7 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
         "financial_trend": financial_trend,
         "financial_snapshot": financial_snapshot,
         "financial_depth": financial_depth,
+        "annual_financial_statements": annual_financial_statements(ticker),
         "fundamentals": [asdict(card) for card in facts],
         "recent_changes": {"status": "AVAILABLE" if news_items else "UNAVAILABLE", "items": news_items, "classification": CONTEXTUAL},
         "catalysts": {"status": "AVAILABLE" if future_events else "UNAVAILABLE", "items": (),
