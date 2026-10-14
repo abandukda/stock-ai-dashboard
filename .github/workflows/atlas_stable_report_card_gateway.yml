@@ -78,18 +78,22 @@ jobs:
           python3 scripts/verify_report_card_closed_sentinel.py
           --durable-root "$ATLAS_REPORT_CARD_DURABLE_ROOT"
           --output audit_results/report_card_gateway/closed_sentinel.json
-      - name: Download and verify exact immutable scope
+      - name: Download exact immutable scope
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: ${{ inputs.scope_artifact }}
+          path: ${{ runner.temp }}/scope
+          run-id: ${{ inputs.scope_run_id }}
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+      - name: Verify exact immutable scope
         env:
-          GH_TOKEN: ${{ github.token }}
           OPERATION: ${{ inputs.operation }}
           SOURCE_SHA: ${{ inputs.source_sha }}
           SCOPE_SHA256: ${{ inputs.scope_sha256 }}
           MAX_CALLS: ${{ inputs.max_provider_calls }}
-          SCOPE_RUN_ID: ${{ inputs.scope_run_id }}
-          SCOPE_ARTIFACT: ${{ inputs.scope_artifact }}
           SCOPE_PATH: ${{ inputs.scope_path }}
         run: |
-          gh run download "$SCOPE_RUN_ID" --name "$SCOPE_ARTIFACT" --dir "$RUNNER_TEMP/scope"
           python -c 'import json,os,pathlib; pathlib.Path("approval.json").write_text(json.dumps({"operation":os.environ["OPERATION"],"source_sha":os.environ["SOURCE_SHA"],"scope_sha256":os.environ["SCOPE_SHA256"],"max_provider_calls":int(os.environ["MAX_CALLS"]),"authorization_token":"ATLAS_{}:{}".format(os.environ["OPERATION"].upper(),os.environ["SCOPE_SHA256"])}))'
           python scripts/verify_operations_gateway.py --approval approval.json --scope-root "$RUNNER_TEMP/scope" --scope "$SCOPE_PATH" --run-id "$GITHUB_RUN_ID" --output audit_results/report_card_gateway/scope_envelope.json
       - name: Registered safe operations
