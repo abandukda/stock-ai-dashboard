@@ -692,7 +692,7 @@ def render_customer_research_first_screen(report: Mapping[str, Any]) -> dict[str
     @media(max-width:700px){.atlas-r2-head h1{font-size:1.25rem}.atlas-r2-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.atlas-r2-metric strong{font-size:1rem}.atlas-r2-grid{grid-template-columns:1fr}.atlas-r2-panel{padding:.75rem}}
     </style>""", unsafe_allow_html=True)
     st.markdown(
-        f'<section class="atlas-r2-head"><div class="atlas-r2-kicker">CERTIFIED ATLAS RESEARCH</div>'
+        f'<section class="atlas-r2-head atlas-page-hero atlas-page-hero-research"><div class="atlas-r2-kicker">CERTIFIED ATLAS RESEARCH</div>'
         f'<div class="atlas-r2-title"><h1>{escape(ticker)} · {escape(str(page["company"]))}</h1><span class="atlas-r2-action">{escape(h["action"])}</span></div>'
         f'<div class="atlas-r2-meta">{escape(str(page.get("sector") or "Sector unavailable"))} · Last certified close {escape(str(h.get("evidence_as_of") or "Date unavailable"))}</div>'
         f'<div class="atlas-r2-metrics">'

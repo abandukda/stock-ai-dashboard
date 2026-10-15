@@ -1664,14 +1664,8 @@ def _render_intelligence_modules(story: Mapping[str, Any]) -> None:
         st.markdown('<div class="atlas-home-risk-radar" data-atlas-qa="home-risk-radar">' + body + '</div>', unsafe_allow_html=True)
     else:
         st.info("Risk Radar is unavailable because there are no publishable BUY NOW records in this snapshot.")
-    st.markdown("## Report Card Preview")
-    st.markdown(
-        '<section class="atlas-home-report-preview" data-atlas-qa="home-report-card-preview" '
-        'data-atlas-report-card-preview-state="UNAVAILABLE"><small>TRUTHFUL AVAILABILITY</small>'
-        '<h3>Verified performance preview unavailable</h3><p>ATLAS does not present certified decisions as realized returns. '
-        'Prospective performance remains internal until the observation ledger is eligible for customer publication.</p></section>',
-        unsafe_allow_html=True,
-    )
+    from ui.report_card_preview import render_customer_report_card_preview
+    render_customer_report_card_preview()
 
 
 def _render_footer_navigation() -> None:

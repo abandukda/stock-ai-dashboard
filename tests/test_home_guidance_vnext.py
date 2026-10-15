@@ -581,8 +581,9 @@ def test_premium_home_modules_are_truthful_and_preserve_certified_authority():
     assert 'data-atlas-qa="home-risk-radar"' in source
     assert "Prior certified comparison unavailable" in source
     assert "No dated catalyst or earnings event is published here" in source
-    assert 'data-atlas-report-card-preview-state="UNAVAILABLE"' in source
-    assert "does not present certified decisions as realized returns" in source
+    assert "render_customer_report_card_preview()" in source
+    preview_source = Path("ui/report_card_preview.py").read_text(encoding="utf-8")
+    assert "does not present certified decisions as realized returns" in preview_source
     assert "sorted(" in source and 'card.get("production_rank")' in source
 
 
