@@ -329,6 +329,7 @@ def llm_configuration_status() -> dict[str, Any]:
             "enabled": config.enabled,
             "privacy_approved": config.privacy_approved,
             "billing_approved": config.billing_approved,
+            "provider_access_verified": config.provider_access_verified,
         },
         "budget": {
             "timeout_seconds": config.timeout_seconds,

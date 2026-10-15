@@ -5,6 +5,8 @@ External inference is OFF by default. An API credential alone does not activate 
 - `ATLAS_EXTERNAL_AI_ENABLED=true`
 - `ATLAS_EXTERNAL_AI_PRIVACY_APPROVED=true`
 - `ATLAS_EXTERNAL_AI_BILLING_APPROVED=true`
+- `ATLAS_EXTERNAL_AI_PROVIDER_ACCESS_VERIFIED=true` after a separately authorized
+  bounded verification proves the credential and exact model are available
 - `ATLAS_EXTERNAL_AI_PROVIDER=openai`
 - `ATLAS_EXTERNAL_AI_MODEL=<approved exact model name>`
 - an approved provider credential

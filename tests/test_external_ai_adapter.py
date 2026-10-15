@@ -5,7 +5,8 @@ from services.external_ai_adapter import ExternalAIConfig, activation_preflight,
 
 def _config(**updates):
     values = dict(provider="openai", model="named-test-model", enabled=True,
-                  privacy_approved=True, billing_approved=True, timeout_seconds=3.5,
+                  privacy_approved=True, billing_approved=True, provider_access_verified=True,
+                  timeout_seconds=3.5,
                   max_input_bytes=1_000, max_output_tokens=77,
                   max_requests_per_generation=2, max_generation_cost_microusd=30_000)
     values.update(updates)
@@ -21,6 +22,7 @@ def test_both_activation_gates_and_named_provider_model_are_required():
     transport = lambda **kwargs: calls.append(kwargs) or '{"summary":"ok"}'
     for config in (
         _config(enabled=False), _config(privacy_approved=False), _config(billing_approved=False),
+        _config(provider_access_verified=False),
         _config(provider=""), _config(model=""), _config(provider="unknown"),
     ):
         result = invoke_grounded_json(payload={"ticker": "NVDA"}, system_prompt="grounded",
@@ -94,6 +96,15 @@ def test_provider_free_preflight_never_infers_billing_or_model_availability(monk
     assert result["provider_account"]["model_availability"] == "UNVERIFIED_NO_PROVIDER_CALL"
     assert result["provider_account"]["billing_status"] == "OWNER_OR_PROVIDER_ATTESTATION_REQUIRED"
     assert "configured-but-never-returned" not in json.dumps(result)
+
+
+def test_secret_and_all_other_gates_cannot_replace_provider_access_verification(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "configured")
+    config = _config(provider_access_verified=False)
+    assert config.active is False
+    result = activation_preflight(config)
+    assert result["checks"]["provider_access_verified"] is False
+    assert result["ready_for_live_inference"] is False
 
 
 def test_cost_or_resource_ceiling_above_approved_bound_fails_preflight(monkeypatch):

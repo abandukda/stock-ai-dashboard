@@ -31,6 +31,7 @@ class ExternalAIConfig:
     enabled: bool
     privacy_approved: bool
     billing_approved: bool
+    provider_access_verified: bool
     timeout_seconds: float
     max_input_bytes: int
     max_output_tokens: int
@@ -43,6 +44,7 @@ class ExternalAIConfig:
             self.enabled
             and self.privacy_approved
             and self.billing_approved
+            and self.provider_access_verified
             and self.provider in SUPPORTED_PROVIDERS
             and bool(self.model)
         )
@@ -71,6 +73,7 @@ def configuration() -> ExternalAIConfig:
         enabled=os.getenv("ATLAS_EXTERNAL_AI_ENABLED", "").strip().lower() in _TRUE,
         privacy_approved=os.getenv("ATLAS_EXTERNAL_AI_PRIVACY_APPROVED", "").strip().lower() in _TRUE,
         billing_approved=os.getenv("ATLAS_EXTERNAL_AI_BILLING_APPROVED", "").strip().lower() in _TRUE,
+        provider_access_verified=os.getenv("ATLAS_EXTERNAL_AI_PROVIDER_ACCESS_VERIFIED", "").strip().lower() in _TRUE,
         timeout_seconds=_positive_float("ATLAS_EXTERNAL_AI_TIMEOUT_SECONDS", 12.0),
         max_input_bytes=_positive_int("ATLAS_EXTERNAL_AI_MAX_INPUT_BYTES", 48_000),
         max_output_tokens=_positive_int("ATLAS_EXTERNAL_AI_MAX_OUTPUT_TOKENS", 900),
@@ -106,6 +109,7 @@ def activation_preflight(config: ExternalAIConfig | None = None) -> dict[str, An
         "inference_enabled": cfg.enabled,
         "privacy_approved": cfg.privacy_approved,
         "billing_approved": cfg.billing_approved,
+        "provider_access_verified": cfg.provider_access_verified,
         "credential_configured": credential_present,
         "request_limit_bounded": 0 < cfg.max_requests_per_generation <= 4,
         "input_limit_bounded": 0 < cfg.max_input_bytes <= 48_000,
