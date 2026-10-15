@@ -1577,6 +1577,94 @@ def _render_market_read(story: Mapping[str, Any]) -> None:
     )
 
 
+def _actionable_cards(story: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    """Return the existing canonical BUY NOW order without reranking it."""
+    featured = list(story.get("home_featured_cards") or _home_candidate_surface(story.get("cards") or ()))
+    return sorted(
+        (card for card in featured if _customer_state(card) == "BUY_NOW"),
+        key=lambda card: int(card.get("production_rank") or 999999),
+    )
+
+
+def _render_daily_brief(story: Mapping[str, Any]) -> None:
+    actionable = _actionable_cards(story)
+    lead = actionable[0] if actionable else None
+    lead_copy = (
+        f'{html.escape(str(lead.get("ticker") or "UNKNOWN"))} leads the certified BUY NOW set with '
+        f'an Opportunity score of {html.escape(_score(lead.get("opportunity")))}.'
+        if lead else "No customer-publishable BUY NOW record is available in this certified snapshot."
+    )
+    st.markdown(
+        '<section class="atlas-daily-brief" data-atlas-qa="daily-intelligence-brief">'
+        '<div><small>ATLAS Morning View · CERTIFIED SNAPSHOT</small><h1>Daily Intelligence Brief</h1>'
+        f'<p>Actionable opportunities from the latest certified evaluation. {lead_copy} '
+        'Decisions and values below are reproduced from the certified customer projection.</p>'
+        f'<footer>As of {html.escape(_timestamp(story.get("scan_timestamp")))} · No live reranking</footer></div>'
+        '<aside><small>TODAY’S MANDATE</small><b>Find signal.<br>Know the risk.</b>'
+        '<span>AI-GENERATED EXPLANATION · Presentation-only and cannot change ATLAS guidance.</span></aside></section>',
+        unsafe_allow_html=True,
+    )
+
+
+def _render_intelligence_modules(story: Mapping[str, Any]) -> None:
+    actionable = _actionable_cards(story)
+    lead = actionable[0] if actionable else None
+    st.markdown('<span data-atlas-qa="home-what-changed" aria-hidden="true" style="display:none">what-changed</span>', unsafe_allow_html=True)
+    st.markdown("## What Changed")
+    st.markdown(
+        '<section class="atlas-home-module atlas-home-change-module"><small>SNAPSHOT COMPARISON</small>'
+        '<h3>Prior certified comparison unavailable</h3><p>ATLAS is showing the current certified decision drivers. '
+        'It will not describe a change without a retained prior snapshot.</p></section>', unsafe_allow_html=True,
+    )
+    st.markdown("## Opportunity Spotlight")
+    if lead:
+        ticker = str(lead.get("ticker") or "UNKNOWN")
+        company = str(lead.get("company") or "").strip()
+        identity = f"{ticker} · {company}" if company and company.casefold() != ticker.casefold() else ticker
+        potential = lead.get("live_implied_upside_pct")
+        if potential is None:
+            potential = lead.get("atlas_expected_return")
+        st.markdown(
+            '<section class="atlas-home-spotlight" data-atlas-qa="home-opportunity-spotlight">'
+            f'<header><small>HIGHEST-RANKED PUBLISHABLE BUY NOW</small><h2>{html.escape(identity)}</h2></header><div>'
+            f'<span><small>Current Price</small><b>{html.escape(_money(lead.get("display_price")))}</b></span>'
+            f'<span><small>ATLAS Fair Value</small><b>{html.escape(_money(lead.get("atlas_fair_value")))}</b></span>'
+            f'<span><small>Potential</small><b>{html.escape(_score(potential, suffix="%"))}</b></span></div>'
+            f'<p><b>Thesis</b> {html.escape(_compact_reason(lead))}</p>'
+            f'<p><b>Risk</b> {html.escape(_compact_primary_risk(lead))}</p></section>', unsafe_allow_html=True,
+        )
+        _open_research(ticker, f"home_spotlight_{ticker}", compact=True)
+    else:
+        st.info("Opportunity Spotlight is unavailable because no publishable BUY NOW record passed the certified customer gate.")
+    st.markdown('<span data-atlas-qa="home-catalysts-earnings" aria-hidden="true" style="display:none">catalysts-earnings</span>', unsafe_allow_html=True)
+    st.markdown("## Catalysts & Earnings")
+    st.markdown(
+        '<section class="atlas-home-module"><small>RETAINED CUSTOMER EVIDENCE</small>'
+        '<h3>No dated catalyst or earnings event is published here</h3>'
+        '<p>Event timing remains unavailable until it is present in the certified customer projection. '
+        'Research retains the company evidence that is currently licensed and certified.</p></section>', unsafe_allow_html=True,
+    )
+    st.markdown("## Risk Radar")
+    if actionable:
+        body = "".join(
+            '<article><small>' + html.escape(str(card.get("ticker") or "UNKNOWN")) + '</small><p>'
+            + html.escape(_compact_primary_risk(card)) + '</p><footer>Invalidation detail: '
+            + html.escape(str((card.get("what_changes_guidance") or ("Not published for this certified snapshot.",))[0]))
+            + '</footer></article>' for card in actionable[:3]
+        )
+        st.markdown('<div class="atlas-home-risk-radar" data-atlas-qa="home-risk-radar">' + body + '</div>', unsafe_allow_html=True)
+    else:
+        st.info("Risk Radar is unavailable because there are no publishable BUY NOW records in this snapshot.")
+    st.markdown("## Report Card Preview")
+    st.markdown(
+        '<section class="atlas-home-report-preview" data-atlas-qa="home-report-card-preview" '
+        'data-atlas-report-card-preview-state="UNAVAILABLE"><small>TRUTHFUL AVAILABILITY</small>'
+        '<h3>Verified performance preview unavailable</h3><p>ATLAS does not present certified decisions as realized returns. '
+        'Prospective performance remains internal until the observation ledger is eligible for customer publication.</p></section>',
+        unsafe_allow_html=True,
+    )
+
+
 def _render_footer_navigation() -> None:
     _section_marker("footer_navigation")
     st.markdown("### Continue with ATLAS intelligence")
@@ -1618,6 +1706,10 @@ def _comparison(card: Mapping[str, Any]) -> None:
 def _inject_css() -> None:
     st.markdown("""<style>
     :root{--atlas-teal:#2fb7a4;--atlas-green:#48b883;--atlas-amber:#d7a542;--atlas-red:#d66b72;--atlas-blue:#5d91d6;--atlas-muted:#8b98aa;--atlas-panel:rgba(17,28,45,.72)}
+    .atlas-daily-brief{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(220px,.7fr);gap:1rem;margin:.3rem 0 1rem;padding:1.35rem 1.4rem;border:1px solid rgba(45,212,191,.3);border-radius:22px;background:radial-gradient(circle at 85% 15%,rgba(45,212,191,.17),transparent 38%),linear-gradient(135deg,rgba(12,27,45,.98),rgba(16,38,55,.9));box-shadow:0 18px 50px rgba(2,8,23,.25)}.atlas-daily-brief small{font-size:.7rem;font-weight:800;letter-spacing:.14em;color:#67e8d2}.atlas-daily-brief h1{margin:.18rem 0 .45rem!important;padding:0!important;font-size:2.65rem!important;line-height:.98!important;letter-spacing:-.035em}.atlas-daily-brief p{max-width:66ch;margin:.2rem 0 .6rem!important;color:#c8d5e4;line-height:1.5}.atlas-daily-brief footer{font-size:.72rem;color:#8190a4}.atlas-daily-brief aside{display:flex;flex-direction:column;justify-content:center;padding:.8rem 1rem;border-left:1px solid rgba(94,234,212,.22)}.atlas-daily-brief aside b{margin:.25rem 0;font-size:1.25rem;line-height:1.2;color:#f3f8fb}.atlas-daily-brief aside span{font-size:.75rem;line-height:1.4;color:#91a0b3}
+    .atlas-home-module,.atlas-home-report-preview{padding:.75rem .85rem;margin:.15rem 0 .55rem;border:1px solid rgba(148,163,184,.16);border-radius:14px;background:rgba(15,23,42,.38)}.atlas-home-module small,.atlas-home-report-preview small,.atlas-home-spotlight small,.atlas-home-risk-radar small{font-size:.66rem;font-weight:800;letter-spacing:.1em;color:#7dd3c7}.atlas-home-module h3,.atlas-home-report-preview h3{margin:.16rem 0!important;padding:0!important}.atlas-home-module p,.atlas-home-report-preview p{margin:.18rem 0!important;font-size:.84rem;line-height:1.45;color:#aebaca}.atlas-home-change-module{border-left:4px solid var(--atlas-amber)}
+    .atlas-home-spotlight{padding:1rem;margin:.15rem 0 .1rem;border:1px solid rgba(45,212,191,.34);border-radius:18px;background:linear-gradient(135deg,rgba(20,83,75,.17),rgba(15,23,42,.55))}.atlas-home-spotlight header h2{margin:.12rem 0 .5rem!important}.atlas-home-spotlight>div{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.4rem}.atlas-home-spotlight>div span{display:grid;padding:.48rem .55rem;border-radius:10px;background:rgba(2,8,23,.28)}.atlas-home-spotlight>div small{color:#8292a5}.atlas-home-spotlight>div b{font-size:1rem}.atlas-home-spotlight p{margin:.5rem 0 0!important;font-size:.84rem;line-height:1.45}.atlas-home-spotlight p b{color:#c9d6e4}
+    .atlas-home-risk-radar{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.45rem;margin:.15rem 0 .6rem}.atlas-home-risk-radar article{padding:.7rem .75rem;border:1px solid rgba(214,107,114,.24);border-radius:13px;background:linear-gradient(145deg,rgba(127,29,29,.08),rgba(15,23,42,.4))}.atlas-home-risk-radar small{color:#f0a0a5}.atlas-home-risk-radar p{margin:.3rem 0!important;font-size:.83rem;line-height:1.42}.atlas-home-risk-radar footer{font-size:.72rem;line-height:1.4;color:#8997aa}.atlas-home-report-preview{border-style:dashed;border-color:rgba(148,163,184,.3)}
     .atlas-home-guidance-hero{padding:.45rem 0 .7rem}.atlas-home-guidance-badge{display:inline-block;border:1px solid rgba(59,130,246,.5);border-radius:999px;padding:.25rem .6rem;font-size:.72rem;font-weight:800}
     .atlas-home-card-head{display:grid;grid-template-columns:1fr auto;align-items:end;gap:.35rem .75rem;margin:.06rem 0 .22rem}.atlas-home-card-head>span{grid-column:1/-1;font-size:.72rem;font-weight:850;letter-spacing:.13em;color:var(--atlas-blue)}.atlas-home-card-head h3{margin:0!important;padding:0!important;font-size:1.5rem!important;line-height:1.15!important;color:#f7fafc}.atlas-home-card-head h3 i{font-size:.9rem;font-style:normal;font-weight:500;color:#aab5c5}.atlas-home-card-head aside{text-align:right}.atlas-home-card-head aside strong,.atlas-home-card-head aside small{display:block}.atlas-home-card-head aside strong{font-size:1.4rem;color:#f7fafc}.atlas-home-card-head aside small{font-size:.72rem;color:var(--atlas-muted)}
     .atlas-home-action-counts{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:.35rem;margin:.6rem 0 1rem}.atlas-home-action-counts span{display:flex;justify-content:space-between;align-items:center;gap:.4rem;padding:.48rem .58rem;border-radius:10px;background:rgba(15,23,42,.46);border:1px solid rgba(148,163,184,.16)}.atlas-home-action-counts small{font-size:.7rem;color:#9aa7b9}.atlas-home-action-counts b{font-size:1.05rem}.atlas-home-count-buy b{color:var(--atlas-green)}.atlas-home-count-build b{color:var(--atlas-teal)}.atlas-home-count-wait b,.atlas-home-count-watch b{color:var(--atlas-amber)}
@@ -1675,6 +1767,7 @@ def _inject_css() -> None:
     @media(max-width:700px){.atlas-home-market-strip{display:block}.atlas-home-market-strip p,.atlas-home-market-read p{overflow-wrap:anywhere}.atlas-home-market-read{padding:.48rem .58rem}.atlas-home-market-read p{font-size:.8rem}.atlas-home-compact-values{grid-template-columns:repeat(2,minmax(0,1fr))}.atlas-home-compact-values b{font-size:.84rem}.atlas-home-compact-card header{align-items:flex-start}.atlas-home-compact-card header h3{font-size:.98rem!important;line-height:1.25}.atlas-home-compact-card header aside strong{font-size:.95rem}.atlas-home-compact-card footer{display:flex}.atlas-home-compact-card footer span+span:before{content:"·";margin-right:.4rem}}
     @media(max-width:700px){.atlas-home-performance-grid{grid-template-columns:1fr 1fr}.atlas-home-performance-grid span:last-child{grid-column:1/-1}}
     @media(max-width:700px){[class*="st-key-home_top_idea_position_4"],[class*="st-key-home_top_idea_position_5"]{display:none}}
+    @media(max-width:700px){.atlas-daily-brief{grid-template-columns:1fr;padding:.85rem .78rem;border-radius:16px}.atlas-daily-brief h1{font-size:2rem!important}.atlas-daily-brief aside{padding:.55rem 0 0;border-left:0;border-top:1px solid rgba(94,234,212,.22)}.atlas-home-risk-radar{grid-template-columns:1fr}.atlas-home-spotlight>div{grid-template-columns:1fr 1fr}.atlas-home-spotlight>div span:last-child{grid-column:1/-1}}
     </style>""", unsafe_allow_html=True)
 
 
@@ -1727,18 +1820,12 @@ def render_home_guidance_vnext(story: Mapping[str, Any], *, emit_interactive=Non
         'aria-hidden="true" style="display:none">home-guidance-vnext</span>',
         unsafe_allow_html=True,
     )
-    st.markdown(
-        '<div class="atlas-home-guidance-hero">'
-        '<h1>ATLAS Morning View</h1>'
-        '<p><b>CERTIFIED ATLAS FACTS</b> · Actionable opportunities from the latest certified evaluation.<br>'
-        '<span>AI-GENERATED EXPLANATION · Grounded narrative only; it cannot change ATLAS decisions.</span></p>'
-        f'<small>As of {html.escape(_timestamp(story.get("scan_timestamp")))}</small>'
-        '</div>', unsafe_allow_html=True,
-    )
+    _render_daily_brief(story)
     _section_marker("atlas_action_summary")
     st.markdown("## ATLAS Action Summary")
     st.markdown(_action_counts(story), unsafe_allow_html=True)
     _render_groups(story, emit_interactive=emit_interactive)
+    _render_intelligence_modules(story)
     # Market context is secondary to the customer's certified opportunity
     # inventory. Keep it below the actionable ideas on both desktop and mobile.
     _render_market_strip(story)

@@ -571,6 +571,25 @@ render_home_guidance_vnext(story, emit_interactive=lambda: st.markdown('<span da
     assert "AI-GENERATED EXPLANATION" in rendered
 
 
+def test_premium_home_modules_are_truthful_and_preserve_certified_authority():
+    source = Path("ui/home_guidance_vnext.py").read_text(encoding="utf-8")
+    assert "Daily Intelligence Brief" in source
+    assert 'data-atlas-qa="home-opportunity-spotlight"' in source
+    assert 'data-atlas-qa="home-risk-radar"' in source
+    assert "Prior certified comparison unavailable" in source
+    assert "No dated catalyst or earnings event is published here" in source
+    assert 'data-atlas-report-card-preview-state="UNAVAILABLE"' in source
+    assert "does not present certified decisions as realized returns" in source
+    assert "sorted(" in source and 'card.get("production_rank")' in source
+
+
+def test_premium_home_has_mobile_specific_module_layouts():
+    source = Path("ui/home_guidance_vnext.py").read_text(encoding="utf-8")
+    assert "@media(max-width:700px){.atlas-daily-brief" in source
+    assert ".atlas-home-risk-radar{grid-template-columns:1fr}" in source
+    assert ".atlas-home-spotlight>div{grid-template-columns:1fr 1fr}" in source
+
+
 def test_final_app_home_function_wires_vnext_without_v104_pipeline_authority():
     source = (ROOT / "app.py").read_text(encoding="utf-8")
     tree = ast.parse(source)
