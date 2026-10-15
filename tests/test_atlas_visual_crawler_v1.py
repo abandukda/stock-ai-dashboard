@@ -64,6 +64,10 @@ def test_watchlist_journey_re_resolves_controls_after_streamlit_reruns():
     assert '"NO_MATCH_QA"' in journey
     assert 'await search.first.fill(query)' in journey
     assert 'press("Control+A")' not in journey
+    assert 'current_tickers = await card_order()' in journey
+    assert 'live_values = await markers.evaluate_all(' in journey
+    assert 'ticker not in current_tickers and not live_remove_visible' in journey
+    assert 'for _ in range(30):' in journey
 
 
 def _complete_watchlist_evidence(**overrides):

@@ -3355,8 +3355,15 @@ class AtlasVisualCrawler:
             values: list[str] = []
             for scope in _scopes(page):
                 markers = scope.locator('[data-atlas-qa="watchlist-certified-authority"]')
-                for marker in await markers.all():
-                    value = str(await marker.get_attribute("data-atlas-ticker") or "").upper()
+                # Resolve the live collection atomically.  Iterating Locator.all()
+                # leaves per-node locators that may disappear during a Streamlit
+                # rerun and then auto-wait for the default 30 seconds.
+                live_values = await markers.evaluate_all(
+                    "elements => elements.map(element => "
+                    "element.getAttribute('data-atlas-ticker') || '')"
+                )
+                for raw_value in live_values:
+                    value = str(raw_value or "").upper()
                     if value and value not in values:
                         values.append(value)
             return values
@@ -3383,8 +3390,21 @@ class AtlasVisualCrawler:
                 button = scope.get_by_role("button", name=f"Remove {ticker}", exact=True)
                 if await button.count():
                     await button.first.click()
-                    for _ in range(16):
-                        if f"Remove {ticker}" not in await _visible_text(page):
+                    for _ in range(30):
+                        # Streamlit can leave the pre-rerun button text visible
+                        # briefly after the persisted mutation has completed.
+                        # Prove settlement against both the current ticker-bound
+                        # projection marker and the re-resolved live control.
+                        current_tickers = await card_order()
+                        remove_controls = page.get_by_role(
+                            "button", name=f"Remove {ticker}", exact=True
+                        )
+                        live_remove_visible = False
+                        for candidate in await remove_controls.all():
+                            if await candidate.is_visible():
+                                live_remove_visible = True
+                                break
+                        if ticker not in current_tickers and not live_remove_visible:
                             return True
                         await page.wait_for_timeout(200)
             return False
