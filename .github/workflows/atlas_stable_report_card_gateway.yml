@@ -6,7 +6,7 @@ on:
       operation:
         required: true
         type: choice
-        options: [validate, plan, acquire, append]
+        options: [validate, plan, acquire, append, storage_diagnostic]
       authorization_token:
         required: true
         type: string
@@ -42,7 +42,39 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  incremental-storage-diagnostic:
+    if: inputs.operation == 'storage_diagnostic'
+    environment: atlas-licensed-research-acquisition
+    runs-on: [self-hosted, Linux, X64, atlas-worker-1]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Enforce provider-free diagnostic authorization
+        env:
+          TOKEN: ${{ inputs.authorization_token }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          test "$TOKEN" = "ATLAS_STORAGE_DIAGNOSTIC_ONCE:$SOURCE_SHA"
+          test -z "${FINNHUB_API_KEY:-}"
+      - name: Discover and verify existing durable candidates
+        run: >-
+          python3 scripts/diagnose_incremental_storage.py
+          --checkout "$GITHUB_WORKSPACE"
+          --output audit_results/incremental_storage/diagnostic.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atlas-incremental-storage-diagnostic-${{ github.run_id }}
+          path: audit_results/incremental_storage/diagnostic.json
+          if-no-files-found: error
+          retention-days: 90
+
   protected-preflight:
+    if: inputs.operation != 'storage_diagnostic'
     environment: atlas-internal-report-card
     runs-on: [self-hosted, Linux, X64, atlas-worker-1]
     timeout-minutes: 20
