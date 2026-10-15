@@ -1784,14 +1784,17 @@ class AtlasVisualCrawler:
     async def _customer_navigation_contract(self, page: Page) -> None:
         """Fail closed unless the authenticated shell exposes the exact VNext routes."""
         started = time.monotonic()
-        marker = page.locator('[data-atlas-qa="customer-navigation-contract"]').last
-        await marker.wait_for(state="attached", timeout=30000)
+        marker = await self._marker_in_streamlit_scopes(
+            page, '[data-atlas-qa="customer-navigation-contract"]', timeout_ms=30000,
+        )
         version = await marker.get_attribute("data-atlas-contract-version") or ""
+        source_sha = await marker.get_attribute("data-atlas-source-sha") or ""
         role = await marker.get_attribute("data-atlas-role-category") or ""
         routes = tuple(filter(None, (await marker.get_attribute("data-atlas-customer-routes") or "").split("|")))
         active = await marker.get_attribute("data-atlas-active-route") or ""
         passed = (
             version == "ATLAS_CUSTOMER_NAV_R1_1"
+            and source_sha == self.expected_deployed_source_sha
             and role in {"customer_viewer", "internal_admin"}
             and routes == REQUIRED_CUSTOMER_ROUTES
             and active in REQUIRED_CUSTOMER_ROUTES
@@ -1799,7 +1802,8 @@ class AtlasVisualCrawler:
         await self._record(
             category="GLOBAL", page_name="GLOBAL", interaction="customer-navigation-authority",
             expected="Exact Home/Research/Watchlist/Ask ATLAS navigation contract",
-            observed=f"version={version}; role={role}; routes={routes}; active={active}",
+            observed=(f"version={version}; source_sha={source_sha}; role={role}; "
+                      f"routes={routes}; active={active}"),
             passed=passed, elapsed=time.monotonic() - started, severity="P1",
         )
         if not passed:
@@ -1808,8 +1812,9 @@ class AtlasVisualCrawler:
     async def _role_isolation_contract(self, page: Page, *, expected_role: str) -> None:
         """Prove route authorization in the authenticated browser session."""
         started = time.monotonic()
-        marker = page.locator('[data-atlas-qa="customer-navigation-contract"]').last
-        await marker.wait_for(state="attached", timeout=30000)
+        marker = await self._marker_in_streamlit_scopes(
+            page, '[data-atlas-qa="customer-navigation-contract"]', timeout_ms=30000,
+        )
         role = await marker.get_attribute("data-atlas-role-category") or ""
         visible = await _visible_text(page)
         forbidden = ("Developer Center", "Internal Report Card", "Performance Tracking")
@@ -1825,6 +1830,23 @@ class AtlasVisualCrawler:
         )
         if not passed:
             raise GlobalCrawlFailure("ROLE_ISOLATION_FAILED")
+
+    async def _marker_in_streamlit_scopes(
+        self, page: Page, selector: str, *, timeout_ms: int,
+    ) -> Any:
+        """Resolve an application marker in the outer page or Streamlit frame."""
+        deadline = time.monotonic() + (timeout_ms / 1000)
+        while time.monotonic() < deadline:
+            for scope in _scopes(page):
+                marker = scope.locator(selector).last
+                try:
+                    if await marker.count():
+                        await marker.wait_for(state="attached", timeout=1000)
+                        return marker
+                except Exception:
+                    continue
+            await page.wait_for_timeout(200)
+        raise GlobalCrawlFailure(f"STREAMLIT_MARKER_MISSING:{selector}")
 
     async def _visible_primary(self, page: Page, page_name: str) -> tuple[bool, str]:
         text = await _visible_text(page)
