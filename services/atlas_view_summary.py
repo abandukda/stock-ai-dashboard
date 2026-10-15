@@ -328,12 +328,15 @@ def llm_configuration_status() -> dict[str, Any]:
         "activation_gates": {
             "enabled": config.enabled,
             "privacy_approved": config.privacy_approved,
+            "billing_approved": config.billing_approved,
+            "provider_access_verified": config.provider_access_verified,
         },
         "budget": {
             "timeout_seconds": config.timeout_seconds,
             "max_input_bytes": config.max_input_bytes,
             "max_output_tokens": config.max_output_tokens,
             "max_requests_per_generation": config.max_requests_per_generation,
+            "max_generation_cost_microusd": config.max_generation_cost_microusd,
         },
     }
 

@@ -15,6 +15,9 @@ from services.finnhub_incremental_post_close import (
     resume_request_keys,
     validate_incremental_receipts,
     write_checkpoint_atomic,
+    execute_incremental_plan,
+    load_governed_membership,
+    prepare_certification_handoff,
 )
 
 
@@ -206,3 +209,104 @@ def test_telemetry_ceiling_tampering_is_rejected():
     body["checkpoint_sha256"] = _digest(body)
     with pytest.raises(ValueError, match="TELEMETRY_CEILING"):
         resume_request_keys(plan=plan, checkpoint=body)
+
+
+def test_governed_membership_is_source_bound_not_repository_subset(monkeypatch, tmp_path):
+    tickers = symbols()
+    records = [{
+        "ticker": ticker, "source_sha": "source", "candidate_digest": "candidate",
+        "publication_certification": {"ticker": ticker, "customer_publication_allowed": True},
+    } for ticker in tickers]
+    manifest = {
+        "workflow_run_id": "37216506983", "customer_publication_count": 1298,
+        "source_commit_sha": "source", "executor_candidate_identity": {"candidate_digest": "candidate"},
+        "artifact_hashes": {"full_evaluation_pool.json": "semantic"},
+        "artifact_lineage": {"full_evaluation_pool.json": {"semantic_sha256": "semantic"}},
+    }
+    records_path, manifest_path = tmp_path / "records.json", tmp_path / "manifest.json"
+    records_path.write_text(json.dumps(records)); manifest_path.write_text(json.dumps(manifest))
+    import scripts.plan_ws3_published_acquisition as ws3
+    monkeypatch.setattr(ws3, "EXPECTED_MEMBERSHIP_SHA256", ws3.digest(tickers))
+    membership = load_governed_membership(records_path=records_path, manifest_path=manifest_path)
+    plan = build_incremental_plan(
+        session="2026-10-14", customer_symbols=membership["tickers"],
+        governed_membership=membership,
+    )
+    assert plan["customer_symbol_count"] == 1298
+    assert plan["governed_membership"]["source_run_id"] == "37216506983"
+    tampered = dict(membership); tampered["tickers"] = membership["tickers"][:-1] + ["ZZZ"]
+    with pytest.raises(ValueError, match="TICKERS_MISMATCH"):
+        build_incremental_plan(
+            session="2026-10-14", customer_symbols=membership["tickers"],
+            governed_membership=tampered,
+        )
+
+
+class FakeAdapter:
+    def __init__(self, fail_at=None):
+        self.calls = []
+        self.fail_at = fail_at
+
+    def fetch(self, capability, symbol, **parameters):
+        self.calls.append((capability, symbol, parameters))
+        if len(self.calls) == self.fail_at:
+            raise TimeoutError("injected")
+        return {"payload": {"symbol": symbol}, "provenance": {"capability": capability}}
+
+
+def transport_parameters():
+    return {family: {"bounded_window": "fixture"} for family in (
+        "completed_session_price", "filing_change_probe", *FUNDAMENTAL_FAMILIES
+    )}
+
+
+def test_raw_first_transport_checkpoint_and_certification_handoff_are_non_promoting(tmp_path):
+    plan = small_plan(); adapter = FakeAdapter()
+    result = execute_incremental_plan(
+        plan=plan, adapter=adapter, raw_root=tmp_path / "raw",
+        checkpoint_path=tmp_path / "checkpoint.json", parameters_by_family=transport_parameters(),
+    )
+    assert result["status"] == "ACQUISITION_COMPLETE_PUBLICATION_NOT_PERFORMED"
+    assert result["attempts_this_run"] == 4 and len(adapter.calls) == 4
+    checkpoint = load_checkpoint(path=tmp_path / "checkpoint.json", plan=plan)
+    for value in checkpoint["receipts"].values():
+        raw = tmp_path / "raw" / value["raw_path"]
+        import hashlib
+        assert raw.exists() and hashlib.sha256(raw.read_bytes()).hexdigest() == value["raw_sha256"]
+    certification = {
+        "methodology_mutation": "NONE", "publication_gate_status": "PASS",
+        "input_receipt_set_sha256": result["readiness"]["receipt_set_sha256"],
+        "certification_run_id": "provider-free-fixture",
+    }
+    handoff = prepare_certification_handoff(
+        plan=plan, checkpoint=checkpoint, candidate_dir=tmp_path / "candidate",
+        certification=certification,
+    )
+    assert handoff["production_writes"] == 0
+    assert handoff["required_promoter"].endswith("promote_atomically")
+
+
+def test_transport_failure_is_raw_persisted_zero_retry_and_no_handoff(tmp_path):
+    plan = small_plan(); adapter = FakeAdapter(fail_at=2)
+    with pytest.raises(RuntimeError, match="PROVIDER_ATTEMPT_FAILED"):
+        execute_incremental_plan(
+            plan=plan, adapter=adapter, raw_root=tmp_path / "raw",
+            checkpoint_path=tmp_path / "checkpoint.json", parameters_by_family=transport_parameters(),
+        )
+    assert len(adapter.calls) == 2
+    raws = list((tmp_path / "raw").glob("*.json"))
+    assert len(raws) == 2
+    assert any(json.loads(path.read_text()).get("status") == "FAILED" for path in raws)
+    checkpoint = load_checkpoint(path=tmp_path / "checkpoint.json", plan=plan)
+    assert checkpoint["telemetry"]["accepted_receipts"] == 1
+
+
+def test_adapter_unavailable_record_fails_closed(tmp_path):
+    class UnavailableAdapter:
+        def fetch(self, *_args, **_kwargs):
+            return {"payload": {}, "provenance": {"certification_status": "ENTITLEMENT_UNAVAILABLE"}}
+    with pytest.raises(RuntimeError, match="PROVIDER_RECORD_UNAVAILABLE"):
+        execute_incremental_plan(
+            plan=small_plan(), adapter=UnavailableAdapter(), raw_root=tmp_path / "raw",
+            checkpoint_path=tmp_path / "checkpoint.json", parameters_by_family=transport_parameters(),
+        )
