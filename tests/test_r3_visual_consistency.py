@@ -42,3 +42,35 @@ def test_pending_preview_never_contains_performance_numbers():
     assert preview["state"] == "PENDING"
     assert "%" not in joined
     assert "success rate" not in joined.lower()
+
+
+def test_integrated_visual_gate_uses_approved_tokens_and_components():
+    design = (ROOT / "ui" / "atlas_design_system.py").read_text(encoding="utf-8")
+    for token in ("#080F1D", "#0C1627", "#111E32", "#17263D", "#26364D",
+                  "#F2F6FC", "#99ABC4", "#37C6B5", "#6A9EFF", "#43C995",
+                  "#F17883", "#F0BC68", "--atlas-radius:14px", "--atlas-gap:20px"):
+        assert token in design
+    for component in ("atlas-shell", "atlas-section-header", "atlas-metric-card",
+                      "atlas-opportunity-card", "atlas-ai-insight-panel", "atlas-financial-chart",
+                      "atlas-evidence-badge", "atlas-freshness-indicator",
+                      "atlas-report-card-summary", "atlas-empty-state"):
+        assert component in design
+
+
+def test_home_command_center_is_responsive_at_required_mobile_widths():
+    home = (ROOT / "ui" / "home_guidance_vnext.py").read_text(encoding="utf-8")
+    assert 'data-atlas-qa="home-command-deck"' in home
+    assert "MARKET PULSE" in home
+    assert "@media(max-width:700px)" in home
+    assert "@media(max-width:420px)" in home
+    assert "COMPANY SPOTLIGHT" in home
+    assert 'data-atlas-state="PENDING"' in home
+
+
+def test_visual_gate_has_keyboard_and_high_contrast_fallbacks():
+    design = (ROOT / "ui" / "atlas_design_system.py").read_text(encoding="utf-8")
+    assert ":focus-visible" in design
+    assert "@media(forced-colors:active)" in design
+    preview = (ROOT / "ui" / "report_card_preview.py").read_text(encoding="utf-8")
+    assert "SPY comparison pending" in preview
+    assert "Source-bound observations required" in preview

@@ -4602,7 +4602,7 @@ def render_chat_helper(full_df):
         unsafe_allow_html=True,
     )
     st.markdown(
-        '<section class="atlas-page-hero atlas-page-hero-ask"><div class="atlas-kicker">Certified research assistant</div>'
+        '<section class="atlas-page-hero atlas-page-hero-ask atlas-ai-insight-panel"><div class="atlas-kicker">Certified research assistant</div>'
         '<h1>Ask ATLAS</h1><p>Continue the decision story from the same certified evidence used in Research.</p>'
         '<span>Explanations only — Ask cannot calculate a new recommendation, value, expected return, or trade plan.</span></section>',
         unsafe_allow_html=True,

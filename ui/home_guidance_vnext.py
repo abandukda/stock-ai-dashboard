@@ -1602,7 +1602,7 @@ def _render_daily_brief(story: Mapping[str, Any]) -> None:
         if lead else "No customer-publishable BUY NOW record is available in this certified snapshot."
     )
     st.markdown(
-        '<section class="atlas-daily-brief" data-atlas-qa="daily-intelligence-brief" '
+        '<section class="atlas-daily-brief atlas-ai-insight-panel" data-atlas-qa="daily-intelligence-brief" '
         'data-atlas-explanation-source="DETERMINISTIC_CERTIFIED_PROJECTION" '
         'data-atlas-model-status="NOT_INVOKED">'
         '<div><small>ATLAS Morning View · CERTIFIED SNAPSHOT</small><h1>Daily Intelligence Brief</h1>'
@@ -1611,6 +1611,24 @@ def _render_daily_brief(story: Mapping[str, Any]) -> None:
         f'<footer>As of {html.escape(_timestamp(story.get("scan_timestamp")))} · No live reranking</footer></div>'
         '<aside><small>TODAY’S MANDATE</small><b>Find signal.<br>Know the risk.</b>'
         '<span>DETERMINISTIC CERTIFIED SUMMARY · Presentation-only and cannot change ATLAS guidance.</span></aside></section>',
+        unsafe_allow_html=True,
+    )
+
+
+def _render_command_deck(story: Mapping[str, Any]) -> None:
+    """Compact read-only command context sourced from the existing story."""
+    actionable = _actionable_cards(story)
+    market = story.get("market_today") if isinstance(story.get("market_today"), Mapping) else {}
+    market_status = _display(market.get("market_session") or market.get("status") or "UNAVAILABLE")
+    timestamp = _timestamp(story.get("scan_timestamp"))
+    lead = actionable[0] if actionable else None
+    lead_label = str(lead.get("ticker") or "None published") if lead else "None published"
+    st.markdown(
+        '<section class="atlas-command-deck" data-atlas-qa="home-command-deck" aria-label="ATLAS command center status">'
+        '<article class="atlas-metric-card"><small>FRESHNESS</small><b>' + html.escape(timestamp) + '</b><span class="atlas-freshness-indicator">Certified snapshot</span></article>'
+        '<article class="atlas-metric-card"><small>MARKET PULSE</small><b>' + html.escape(market_status) + '</b><span>Reference only · non-scoring</span></article>'
+        '<article class="atlas-metric-card"><small>BUY NOW INVENTORY</small><b>' + html.escape(str(len(actionable))) + '</b><span>Customer-publishable records</span></article>'
+        '<article class="atlas-metric-card"><small>LEAD OPPORTUNITY</small><b>' + html.escape(lead_label) + '</b><span>Certified order · no reranking</span></article></section>',
         unsafe_allow_html=True,
     )
 
@@ -1634,8 +1652,8 @@ def _render_intelligence_modules(story: Mapping[str, Any]) -> None:
         if potential is None:
             potential = lead.get("atlas_expected_return")
         st.markdown(
-            '<section class="atlas-home-spotlight" data-atlas-qa="home-opportunity-spotlight">'
-            f'<header><small>HIGHEST-RANKED PUBLISHABLE BUY NOW</small><h2>{html.escape(identity)}</h2></header><div>'
+            '<section class="atlas-home-spotlight atlas-opportunity-card" data-atlas-qa="home-opportunity-spotlight">'
+            f'<header><small>COMPANY SPOTLIGHT · HIGHEST-RANKED PUBLISHABLE BUY NOW</small><h2>{html.escape(identity)}</h2></header><div>'
             f'<span><small>Current Price</small><b>{html.escape(_money(lead.get("display_price")))}</b></span>'
             f'<span><small>ATLAS Fair Value</small><b>{html.escape(_money(lead.get("atlas_fair_value")))}</b></span>'
             f'<span><small>Potential</small><b>{html.escape(_score(potential, suffix="%"))}</b></span></div>'
@@ -1648,7 +1666,7 @@ def _render_intelligence_modules(story: Mapping[str, Any]) -> None:
     st.markdown('<span data-atlas-qa="home-catalysts-earnings" aria-hidden="true" style="display:none">catalysts-earnings</span>', unsafe_allow_html=True)
     st.markdown("## Catalysts & Earnings")
     st.markdown(
-        '<section class="atlas-home-module"><small>RETAINED CUSTOMER EVIDENCE</small>'
+        '<section class="atlas-home-module atlas-home-pending-panel" data-atlas-state="PENDING"><small>CATALYST WATCH · PENDING</small>'
         '<h3>No dated catalyst or earnings event is published here</h3>'
         '<p>Event timing remains unavailable until it is present in the certified customer projection. '
         'Research retains the company evidence that is currently licensed and certified.</p></section>', unsafe_allow_html=True,
@@ -1770,7 +1788,9 @@ def _inject_css() -> None:
     @media(max-width:700px){.atlas-home-market-strip{display:block}.atlas-home-market-strip p,.atlas-home-market-read p{overflow-wrap:anywhere}.atlas-home-market-read{padding:.48rem .58rem}.atlas-home-market-read p{font-size:.8rem}.atlas-home-compact-values{grid-template-columns:repeat(2,minmax(0,1fr))}.atlas-home-compact-values b{font-size:.84rem}.atlas-home-compact-card header{align-items:flex-start}.atlas-home-compact-card header h3{font-size:.98rem!important;line-height:1.25}.atlas-home-compact-card header aside strong{font-size:.95rem}.atlas-home-compact-card footer{display:flex}.atlas-home-compact-card footer span+span:before{content:"·";margin-right:.4rem}}
     @media(max-width:700px){.atlas-home-performance-grid{grid-template-columns:1fr 1fr}.atlas-home-performance-grid span:last-child{grid-column:1/-1}}
     @media(max-width:700px){[class*="st-key-home_top_idea_position_4"],[class*="st-key-home_top_idea_position_5"]{display:none}}
-    @media(max-width:700px){.atlas-daily-brief{grid-template-columns:1fr;padding:.85rem .78rem;border-radius:16px}.atlas-daily-brief h1{font-size:2rem!important}.atlas-daily-brief aside{padding:.55rem 0 0;border-left:0;border-top:1px solid rgba(94,234,212,.22)}.atlas-home-risk-radar{grid-template-columns:1fr}.atlas-home-spotlight>div{grid-template-columns:1fr 1fr}.atlas-home-spotlight>div span:last-child{grid-column:1/-1}}
+    .atlas-command-deck{display:grid;grid-template-columns:1.25fr 1fr .8fr .9fr;gap:.45rem;margin:-.45rem 0 1rem}.atlas-command-deck article{min-width:0;padding:.68rem .72rem;border:1px solid rgba(148,163,184,.16);border-radius:12px;background:linear-gradient(160deg,rgba(20,34,53,.86),rgba(10,18,30,.86))}.atlas-command-deck small,.atlas-command-deck b,.atlas-command-deck span{display:block}.atlas-command-deck small{color:#75a8e4;font-size:.64rem;font-weight:800;letter-spacing:.1em}.atlas-command-deck b{margin:.18rem 0;color:#eef5fb;font-size:.92rem;line-height:1.25;overflow-wrap:anywhere}.atlas-command-deck span{color:#8392a5;font-size:.68rem;line-height:1.3}.atlas-home-pending-panel{border-style:dashed!important;background:linear-gradient(135deg,rgba(30,41,59,.56),rgba(11,19,31,.72))!important}
+    @media(max-width:700px){.atlas-daily-brief{grid-template-columns:1fr;padding:.85rem .78rem;border-radius:16px}.atlas-daily-brief h1{font-size:2rem!important}.atlas-daily-brief aside{padding:.55rem 0 0;border-left:0;border-top:1px solid rgba(94,234,212,.22)}.atlas-command-deck{grid-template-columns:1fr 1fr;margin:-.45rem 0 .75rem}.atlas-home-risk-radar{grid-template-columns:1fr}.atlas-home-spotlight>div{grid-template-columns:1fr 1fr}.atlas-home-spotlight>div span:last-child{grid-column:1/-1}}
+    @media(max-width:420px){.atlas-daily-brief h1{font-size:1.72rem!important}.atlas-command-deck{grid-template-columns:1fr}.atlas-command-deck article{padding:.58rem .62rem}.atlas-home-spotlight>div{grid-template-columns:1fr}.atlas-home-spotlight>div span:last-child{grid-column:auto}}
     </style>""", unsafe_allow_html=True)
 
 
@@ -1824,6 +1844,7 @@ def render_home_guidance_vnext(story: Mapping[str, Any], *, emit_interactive=Non
         unsafe_allow_html=True,
     )
     _render_daily_brief(story)
+    _render_command_deck(story)
     _section_marker("atlas_action_summary")
     st.markdown("## ATLAS Action Summary")
     st.markdown(_action_counts(story), unsafe_allow_html=True)

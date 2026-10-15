@@ -116,7 +116,7 @@ def render_watchlist_vnext(
     st.markdown('<span data-atlas-qa="watchlist-vnext" data-atlas-non-scoring="true" '
                 'style="display:none">watchlist-vnext</span>', unsafe_allow_html=True)
     st.markdown(
-        '<section class="atlas-page-hero atlas-page-hero-watchlist">'
+        '<section class="atlas-page-hero atlas-page-hero-watchlist atlas-ai-insight-panel">'
         '<div class="atlas-kicker">Certified monitoring</div><h1>Watchlist</h1>'
         '<p>Track material changes without losing the certified investment view.</p>'
         '<span>Market-state context cannot change the certified Action.</span></section>',
