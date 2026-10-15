@@ -70,11 +70,11 @@ jobs:
           records="$(find "$RUNNER_TEMP/membership" -type f -name full_evaluation_pool.json -print -quit)"
           manifest="$(find "$RUNNER_TEMP/membership" -type f -name publication_manifest.json -print -quit)"
           test -n "$records"; test -n "$manifest"
-          python scripts/plan_finnhub_incremental_post_close.py \
+          python3 scripts/plan_finnhub_incremental_post_close.py \
             --session "${{ inputs.finalized_session }}" \
             --governed-records "$records" --governed-manifest "$manifest" \
             --output audit_results/incremental_buy_now/plan.json
-          python - <<'PY'
+          python3 - <<'PY'
           import json
           p=json.load(open('audit_results/incremental_buy_now/plan.json'))
           assert p['customer_symbol_count'] == 1298
@@ -156,7 +156,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p audit_results/incremental_buy_now
-          python scripts/run_finnhub_incremental_post_close.py \
+          python3 scripts/run_finnhub_incremental_post_close.py \
             --plan audit_results/incremental_plan.json \
             --parameters audit_results/incremental_parameters.json \
             --raw-root "$ATLAS_INCREMENTAL_RAW_ROOT/${{ inputs.plan_sha256 }}" \
@@ -165,7 +165,7 @@ jobs:
             | tee audit_results/incremental_buy_now/acquisition_result.json
       - name: Require certification handoff and forbid direct publication
         run: |
-          python - <<'PY'
+          python3 - <<'PY'
           import json
           r=json.load(open('audit_results/incremental_buy_now/acquisition_result.json'))
           assert r['status'] == 'ACQUISITION_COMPLETE_PUBLICATION_NOT_PERFORMED'
@@ -202,10 +202,10 @@ jobs:
           test -n "$ATLAS_INCREMENTAL_CHECKPOINT_ROOT"
           test "$ATLAS_INCREMENTAL_RAW_ROOT" != "$ATLAS_INCREMENTAL_CHECKPOINT_ROOT"
           test -z "${FINNHUB_API_KEY:-}"
-          python scripts/run_finnhub_incremental_post_close.py --help >/dev/null
-          python scripts/plan_finnhub_incremental_post_close.py --help >/dev/null
+          python3 scripts/run_finnhub_incremental_post_close.py --help >/dev/null
+          python3 scripts/plan_finnhub_incremental_post_close.py --help >/dev/null
           mkdir -p audit_results/incremental_buy_now
-          python - <<'PY'
+          python3 - <<'PY'
           import json, os
           value={
             'status':'PROVIDER_FREE_REGISTERED_REHEARSAL_PASS',
