@@ -3,6 +3,7 @@
 **Authoritative as of:** 2026-10-15  
 **Repository main:** `4e48884a5708944b5efeccca7f59a4a6bf94b450`  
 **Production:** [stock-ai-dashboard.streamlit.app](https://stock-ai-dashboard.streamlit.app/)  
+**Pending production-truth correction:** [PR #35](https://github.com/abandukda/stock-ai-dashboard/pull/35), head `d56025f734cdb769c39bf9c8c89dbc293105faf9`  
 
 Evidence policy: a merge is not deployment; a provider-free run is not acquisition; a monitor ping is not publication; and repository data is not customer-visible until authenticated production evidence proves it.
 
@@ -16,6 +17,11 @@ Evidence policy: a merge is not deployment; a provider-free run is not acquisiti
 | **NOT LIVE** | WS3 expansion | Annual/quarterly pilots exist; broader WS3 acquisition is not operational. |
 | **UNKNOWN** | Current deployed Streamlit SHA | The last exact runtime evidence proves `0582396c…`, not current main `4e48884a…`. A new authenticated source-marker run is required after deployment. |
 | **UNKNOWN** | Current customer-visible snapshot | The repository snapshot is exact, but current production session/digest/count have not yet been captured from the authenticated UI. |
+
+PR #35 is review evidence, not production evidence. It adds exact source binding,
+frame-aware authenticated verification, and moves the scheduled wakeups to the
+bounded incremental coordinator. Until it is approved, merged, deployed, and
+smoke-tested, the production classifications above do not advance.
 
 ## Component ledger
 
@@ -46,6 +52,18 @@ Evidence policy: a merge is not deployment; a provider-free run is not acquisiti
 - Source: `aa12ff9e89c1ac72e20aadad41decfba9a3d774d`
 - Candidate run: `37216506983`
 - Publication digest: `72b37697b2f4fc5dabd5438c1a3bb7c068cd12e86253b64e37b8a642c310bf17`
+
+## Pending correction outcome
+
+- PR #35 removes scheduled triggers from the obsolete full-universe workflow.
+- Its replacement coordinator exclusively builds the governed 1,298-security
+  incremental plan under a non-cancelling concurrency lock and runs the
+  protected provider-free rehearsal.
+- It intentionally cannot acquire or publish. The current incremental executor
+  ends at `ACQUISITION_COMPLETE_PUBLICATION_NOT_PERFORMED`; the unchanged
+  scoring/certification and atomic-promoter bridge remains a real blocker.
+- Local verification: 131 focused tests passed, both workflow files parsed as
+  YAML, Python compilation passed, and `git diff --check` passed.
 
 ## Required handoff update
 
