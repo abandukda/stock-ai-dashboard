@@ -1,0 +1,78 @@
+{
+  "schema_version": "atlas.report-card.g2-owner-decision-draft.v1",
+  "status": "OWNER_REVIEW_REQUIRED_NOT_EXECUTABLE",
+  "candidate_source_sha": "109eb9b10b5d7e29259c88d97726df8dfd2b83ce",
+  "protected_source_binding": {
+    "required": true,
+    "current_workflow_bound_source_sha": "fae6a94f96f8f7ed6b24a96a8cdd2fe21ffa703a",
+    "fresh_candidate_validation_run_id": null,
+    "fresh_candidate_plan_sha256": null,
+    "blocker": "A provider-free protected validation at the candidate source must prove the current ledger, backup, sentinel, calendar and scope before an executable package can be issued."
+  },
+  "last_verified_protected_state": {
+    "validation_run_id": 38629818807,
+    "validation_artifact": "atlas-report-card-protected-validation-38629818807",
+    "source_sha": "fae6a94f96f8f7ed6b24a96a8cdd2fe21ffa703a",
+    "ledger_sha256": "1eb89d1d9e64e953480a6d151f10f3959f115ec25d75999dbe8c3313bf350325",
+    "ledger_tip": "c503983257261e202b3ffc87d1f08ac1b1ea1753cae34319d8171f4c09e2a54a",
+    "backup_sha256": "a16143fc69e19d621c46d48ac913a9443812edfd6bab838f577d08f145a376a5",
+    "sentinel_path": "/mnt/atlas_report_card_primary/ACQUISITION_KILL_SWITCH",
+    "sentinel_required_state": "CLOSED",
+    "sentinel_owner_group": "atlasrunner:atlasrunner",
+    "sentinel_mode": "0600",
+    "signal_count": 20,
+    "observation_count": 0
+  },
+  "entitlement": {
+    "evidence_path": "config/report_card_g2_entitlement_20261014.json",
+    "canonical_json_sha256": "161b2799b0ea935185d5fddcd53ffbf3fdd755d6a939d3898e0effe58c8c83d4",
+    "file_bytes_sha256": "a270da1ae5ae9440e8a53b9e34ae415dcb97ee330f5eab80971fe7e485ec1456",
+    "status": "APPROVED",
+    "capabilities": [
+      "historical_ohlcv",
+      "splits",
+      "dividends"
+    ],
+    "effective_at": "2026-09-25",
+    "api_activation_date": "2026-09-28"
+  },
+  "requested_g2_scope": {
+    "cohort": "20_ORIGINAL_IMMUTABLE_SIGNALS",
+    "benchmark_ticker": "SPY",
+    "unique_due_ticker_count": 20,
+    "maximum_provider_calls": 61,
+    "retry_attempts": 0,
+    "rate_limit_requests_per_minute": 500,
+    "raw_evidence_required_before_normalization": true,
+    "ledger_reads_allowed": true,
+    "ledger_writes_allowed": false,
+    "customer_publication_allowed": false,
+    "schedule_activation_allowed": false,
+    "sentinel_must_close_on_all_exit_paths": true
+  },
+  "prior_attempt": {
+    "run_id": 38628414964,
+    "result": "FAILED_NO_CERTIFIED_MARKET_EVIDENCE_ARTIFACT",
+    "one_shot_claim": "TREAT_AS_CONSUMED",
+    "reuse_allowed": false
+  },
+  "required_before_owner_authorization": [
+    "MERGE_OR_FREEZE_EXACT_CANDIDATE_SOURCE",
+    "REGISTER_CANDIDATE_SOURCE_IN_G2_WORKFLOW_AND_TRANSITION_CONSTANTS",
+    "RUN_PROVIDER_FREE_PROTECTED_VALIDATION_AT_EXACT_CANDIDATE_SOURCE",
+    "VERIFY_CURRENT_LEDGER_SHA256_TIP_AND_ZERO_OBSERVATIONS",
+    "VERIFY_CURRENT_INDEPENDENT_BACKUP_SHA256_AND_RESTORE",
+    "VERIFY_SENTINEL_CLOSED_OWNER_MODE_AND_NO_STALE_OPEN_STATE",
+    "PRODUCE_FINALIZED_XNYS_CALENDAR_FOR_THE_APPROVED_SESSION",
+    "DERIVE_FRESH_20_SIGNAL_PLAN_AND_CANONICAL_PLAN_SHA256",
+    "ISSUE_A_FRESH_ONE_SHOT_PACKAGE_ID_AND_CLAIM_PATH",
+    "VERIFY_CRONITOR_DESTINATION_AND_OWNER_EMAIL_ROUTING_WITH_SANITIZED_TEST"
+  ],
+  "separate_authorizations": {
+    "g3_bundle_production": "REQUIRED_AFTER_CERTIFIED_G2_ARTIFACT",
+    "g3_ledger_append": "REPORT_CARD_APPEND_ONCE:<OWNER_REVIEWED_BUNDLE_SHA256>",
+    "g4_schedule": "SEPARATE_OWNER_APPROVAL_AFTER_ONE_CERTIFIED_G2_G3_CYCLE",
+    "public_report_card": "NOT_AUTHORIZED",
+    "production_deployment": "NOT_AUTHORIZED"
+  }
+}
