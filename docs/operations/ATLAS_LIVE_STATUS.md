@@ -1,9 +1,9 @@
 # ATLAS Live Operations Status
 
 **Authoritative as of:** 2026-10-15  
-**Repository main:** `4e48884a5708944b5efeccca7f59a4a6bf94b450`  
+**Repository main:** `225491ff82138b95840e75149fad2137c22716a8`
 **Production:** [stock-ai-dashboard.streamlit.app](https://stock-ai-dashboard.streamlit.app/)  
-**Pending production-truth correction:** [PR #35](https://github.com/abandukda/stock-ai-dashboard/pull/35)
+**Production-truth correction merged:** [PR #35](https://github.com/abandukda/stock-ai-dashboard/pull/35)
 
 Evidence policy: a merge is not deployment; a provider-free run is not acquisition; a monitor ping is not publication; and repository data is not customer-visible until authenticated production evidence proves it.
 
@@ -11,30 +11,29 @@ Evidence policy: a merge is not deployment; a provider-free run is not acquisiti
 
 | Classification | Component | Current evidence |
 |---|---|---|
-| **VERIFIED LIVE** | Streamlit service and authentication | Production responds and authentication reached a dashboard with four customer navigation labels in [run 38762401344](https://github.com/abandukda/stock-ai-dashboard/actions/runs/38762401344). That run was bound to expected deployed SHA `0582396c17f5fd06a42923ce457d9badbdf2ad9b`; it then failed because the crawler searched the outer document instead of the Streamlit frame. |
+| **VERIFIED LIVE** | Streamlit service, customer role, Home and navigation | Authenticated production inspection on 2026-10-15 rendered the Premium dark Home and all four customer navigation labels. The hidden contract reported role `customer_viewer`, active route `Home`, and routes `Home|Research|Watchlist|Ask ATLAS`. |
 | **NOT LIVE** | Fresh daily BUY NOW | Latest retained certified session is **2026-10-02**, published **2026-10-04T12:21:38-04:00**. No later live acquisition/publication is verified. |
 | **NOT LIVE** | Report Card G2/G3/G4 | Public Report Card remains off; no live G2 acquisition, G3 durable append, or active G4 cycle is recorded. |
 | **NOT LIVE** | WS3 expansion | Annual/quarterly pilots exist; broader WS3 acquisition is not operational. |
-| **UNKNOWN** | Current deployed Streamlit SHA | The last exact runtime evidence proves `0582396c…`, not current main `4e48884a…`. A new authenticated source-marker run is required after deployment. |
-| **UNKNOWN** | Current customer-visible snapshot | The repository snapshot is exact, but current production session/digest/count have not yet been captured from the authenticated UI. |
+| **UNKNOWN** | Current deployed Streamlit SHA | Production's live `customer-navigation-contract` does **not** contain `data-atlas-source-sha`; therefore the newly merged `225491ff…` tree is not proven deployed. The most recent exact runtime evidence remains `0582396c…`. |
+| **VERIFIED LIVE** | Current customer-visible Home snapshot | Authenticated Home displayed `As of Oct 4, 2026 · 12:21 PM ET` and `BUY NOW INVENTORY 10`. It did not expose a publication digest or finalized-session marker in the visible Home DOM. This differs from the retained 11-name authority and must not be silently reconciled. |
 
-PR #35 is review evidence, not production evidence. It adds exact source binding,
-frame-aware authenticated verification, and moves the scheduled wakeups to the
-bounded incremental coordinator. Until it is approved, merged, deployed, and
-smoke-tested, the production classifications above do not advance.
+PR #35 is merged repository evidence, not deployment evidence. Its source
+marker is absent from the currently rendered production contract, so deployment
+and exact-SHA smoke remain open.
 
 ## Component ledger
 
 | Component | BUILT | CERTIFIED | DEPLOYED | OPERATIONAL | CUSTOMER VERIFIED | Latest evidence | Blocker / next action |
 |---|---|---|---|---|---|---|---|
-| Premium UI | YES | YES — R3 candidate `490eae05…`, governed run `38672677869` | UNKNOWN | UNKNOWN | NO | Last deployment-bound QA expected `0582396c…`. | Deploy this source-marker/frame correction, then run authenticated exact-SHA smoke. |
-| Home | YES | YES | UNKNOWN | UNKNOWN | NO | Four navigation labels were visible. | Capture settled Home with source SHA and publication identity. |
+| Premium UI | YES | YES — R3 candidate `490eae05…`, governed run `38672677869` | PARTIAL/UNKNOWN SHA | YES | PARTIAL | Authenticated dark Home and four customer routes rendered on 2026-10-15; live SHA marker was absent. | Deploy `225491ff…`, then run authenticated exact-SHA route smoke. |
+| Home | YES | YES | YES/UNKNOWN SHA | YES | YES | Authenticated Home displayed Oct 4 freshness and 10 BUY NOW records. | Reconcile the visible count with retained authority; capture exact publication digest after deployment. |
 | Research | YES | YES | UNKNOWN | UNKNOWN | NO | Retained NVDA/MSFT/AVT/CRC authority exists. | Capture authenticated authority and financial evidence. |
 | Watchlist | YES | YES | UNKNOWN | UNKNOWN | NO | No current production interaction proof. | Run add/search/sort/remove/reload smoke. |
 | Ask ATLAS | YES | YES | UNKNOWN | UNKNOWN | NO | No current grounded production response proof. | Capture settled response and authority metadata. |
-| BUY NOW | YES | Retained snapshot certified | UNKNOWN | NO | NO | 1,298 published securities; 11 BUY NOW; session `2026-10-02`; publication digest `72b37697b2f4fc5dabd5438c1a3bb7c068cd12e86253b64e37b8a642c310bf17`; candidate run `37216506983`. | Fresh live acquisition and atomic publication remain separately gated. |
+| BUY NOW | YES | Retained snapshot certified | YES/UNKNOWN SHA | STALE | PARTIAL | Production Home shows Oct 4 timestamp and 10 BUY NOW; retained authority has 11 BUY NOW for session `2026-10-02`, digest `72b37697…`. | Explain count divergence and expose exact digest/session; fresh live acquisition and promotion remain gated. |
 | Incremental acquisition | YES | Provider-free PASS | Workflow registered | NO | N/A | [Run 38785971147](https://github.com/abandukda/stock-ai-dashboard/actions/runs/38785971147): protected rehearsal succeeded, acquisition skipped, 1,298 symbols, 2,596 planned requests, 2,746 ceiling, plan `8aa6a83b5a6eaf14f61f4d99b82657d1a1040b131fdf2bfc8eaae127a5a25b2e`, zero calls. | Requires a fresh current-source one-time authorization; executor currently stops at non-publishing certification handoff. |
-| Daily 6:05 PM ET | YES | Provider-free controls tested | Registered | NO | NO | Dual UTC wakeups and XNYS gate exist, but registered live branch still uses obsolete full-universe shards. | Replace acquisition path and complete the incremental certification/promoter bridge before activation. |
+| Daily 6:05 PM ET | YES | Provider-free controls tested | Registered | NO | NO | Dual UTC wakeups, XNYS gate, non-cancelling session lock and incremental-only path are registered. It still stops before acquisition/certification/promotion. | Register and certify the successor publication bridge, then obtain exact live acquisition/publication authorization. |
 | Finnhub acquisition | YES | Bounded plan certified | Registered | NO | N/A | Last real retained evidence belongs to the October 2 snapshot. | Do not describe planning run as provider refresh. |
 | Report Card G2 | YES | Provider-free only | Registered | NO | NO | 20-signal/SPY architecture; 61-call ceiling; CLOSED sentinel. | Fresh source-bound package and separate live authorization. |
 | Report Card G3 | YES | Offline only | Registered/unknown | NO | NO | No durable observation append verified. | Requires successful G2 and separate append authorization. |
@@ -64,6 +63,36 @@ smoke-tested, the production classifications above do not advance.
   scoring/certification and atomic-promoter bridge remains a real blocker.
 - Local verification: 131 focused tests passed, both workflow files parsed as
   YAML, Python compilation passed, and `git diff --check` passed.
+
+## PR #36 publication-integrity reconciliation
+
+- Retained provider-free replay input: all 41 immutable acquisition shards from
+  governed run `37216506983`; governed customer membership `1,298/1,298`;
+  missing acquisition records `0`; provider calls `0`; production writes `0`.
+- Evaluation result: `FULL_UNIVERSE_CERTIFIED`; forward/reverse candidate
+  digest `e3cf999be9984aebbef5072884f7a79fd6e377b50dd9a295670c109fd7c6e935`;
+  all 1,298 records compared with zero analytical, numerical, action, order, or
+  provenance differences.
+- Publication population: `1,298` expected, `1,298` observed, `1,223`
+  publishable, `75` explicitly withheld, `0` missing, `0` duplicate, `0`
+  unexpected, and `0` unexplained. Reconciliation digest:
+  `f1a1d53b65dd2880142f6363cb118f3bd1bb0f88a1d33a9c03e7b5b05cfcc7b0`.
+- Withheld certification states: `47 REVIEW_REQUIRED`; `28
+  INSUFFICIENT_INPUTS`. The complete withheld ticker inventory is: AENT, ALTG,
+  AMGN, ARAY, ASPS, AXR, BLFS, BNL, BWXT, C, CARG, CBFV, CBRE, CELH, COST,
+  CPSS, CSX, CTRI, CURI, CWCO, CYH, EXPO, EXTR, FHN, FTDR, FTEK, HAE, HDSN,
+  HTLD, JOB, KEY, KRO, LFCR, LGCY, LSTR, MGRC, MHH, MTZ, NAII, NTRB, NXT,
+  OOMA, OSPN, PAMT, PEP, PGR, PLAY, PPIH, RMD, ROOT, RSG, SFST, SIEB, SKYW,
+  SLP, SNPS, SON, SPOK, SWAG, TJX, TRNS, TRS, TSLA, UCB, UHAL, ULH, UTHR,
+  VIRC, VLTO, WBD, WDAY, WERN, WHR, WTFC, WYY.
+- The reconciliation contract now rejects any missing, duplicate, unexpected,
+  or unexplained-withholding row before a certification handoff is staged.
+- Home now presents the governed publishable BUY NOW inventory independently
+  from its maximum ten featured cards. The retained snapshot therefore reports
+  inventory `11` while continuing to render at most ten featured opportunities.
+- The protected daily workflow registers the incremental certification bridge
+  and existing atomic promoter contracts while keeping live acquisition and
+  publication disabled.
 
 ## Required handoff update
 

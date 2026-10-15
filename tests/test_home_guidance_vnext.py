@@ -87,6 +87,20 @@ def test_home_surface_keeps_buy_now_candidates_beyond_top_ten_rank():
     assert {card["ticker"] for card in selected} == {"T12"}
 
 
+def test_home_inventory_uses_governed_count_not_ten_card_feature_limit():
+    from ui.home_guidance_vnext import _governed_buy_now_inventory
+    story = {
+        "home_featured_cards": [
+            {"ticker": f"T{index}", "guidance": "BUY_NOW", "production_rank": index}
+            for index in range(1, 11)
+        ],
+        "home_runtime_contract": {
+            "inventory_authority": {"publishable_buy_now_count": 11},
+        },
+    }
+    assert _governed_buy_now_inventory(story) == 11
+
+
 def test_pre_policy_persisted_evaluation_cannot_override_current_home_contract():
     stale = canonical_evaluation(guidance="ACCUMULATE")
     stale["guidance"].pop("policy_version", None)

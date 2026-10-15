@@ -1593,6 +1593,19 @@ def _actionable_cards(story: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     )
 
 
+def _governed_buy_now_inventory(story: Mapping[str, Any]) -> int:
+    """Return governed inventory, independently of the ten-card Home slice."""
+    runtime = story.get("home_runtime_contract") if isinstance(story.get("home_runtime_contract"), Mapping) else {}
+    inventory = runtime.get("inventory_authority") if isinstance(runtime.get("inventory_authority"), Mapping) else {}
+    value = inventory.get("publishable_buy_now_count")
+    if isinstance(value, int) and value >= 0:
+        return value
+    contract = story.get("home_action_count_contract") if isinstance(story.get("home_action_count_contract"), Mapping) else {}
+    counts = contract.get("customer_published_action_counts") if isinstance(contract.get("customer_published_action_counts"), Mapping) else {}
+    value = counts.get("BUY_NOW")
+    return int(value) if isinstance(value, int) and value >= 0 else len(_actionable_cards(story))
+
+
 def _render_daily_brief(story: Mapping[str, Any]) -> None:
     actionable = _actionable_cards(story)
     lead = actionable[0] if actionable else None
@@ -1627,7 +1640,7 @@ def _render_command_deck(story: Mapping[str, Any]) -> None:
         '<section class="atlas-command-deck" data-atlas-qa="home-command-deck" aria-label="ATLAS command center status">'
         '<article class="atlas-metric-card"><small>FRESHNESS</small><b>' + html.escape(timestamp) + '</b><span class="atlas-freshness-indicator">Certified snapshot</span></article>'
         '<article class="atlas-metric-card"><small>MARKET PULSE</small><b>' + html.escape(market_status) + '</b><span>Reference only · non-scoring</span></article>'
-        '<article class="atlas-metric-card"><small>BUY NOW INVENTORY</small><b>' + html.escape(str(len(actionable))) + '</b><span>Customer-publishable records</span></article>'
+        '<article class="atlas-metric-card"><small>BUY NOW INVENTORY</small><b>' + html.escape(str(_governed_buy_now_inventory(story))) + '</b><span>Customer-publishable records · up to 10 featured below</span></article>'
         '<article class="atlas-metric-card"><small>LEAD OPPORTUNITY</small><b>' + html.escape(lead_label) + '</b><span>Certified order · no reranking</span></article></section>',
         unsafe_allow_html=True,
     )

@@ -125,6 +125,17 @@ jobs:
           test "$ATLAS_INCREMENTAL_RAW_ROOT" != "$ATLAS_INCREMENTAL_CHECKPOINT_ROOT"
           test -z "${FINNHUB_API_KEY:-}"
           python3 scripts/run_finnhub_incremental_post_close.py --help >/dev/null
+          python3 scripts/certify_incremental_buy_now.py --help >/dev/null
+          python3 scripts/promote_daily_buy_now_snapshot.py --help >/dev/null
+          python3 - <<'PY'
+          from pathlib import Path
+          bridge=Path('services/incremental_publication_bridge.py').read_text()
+          workflow=Path('.github/workflows/atlas_daily_incremental_buy_now.yml').read_text()
+          assert 'CERTIFIED_NOT_PUBLISHED' in bridge
+          assert 'reconcile_publication_population' in bridge
+          assert 'certify_incremental_buy_now.py' in workflow
+          assert 'promote_daily_buy_now_snapshot.py' in workflow
+          PY
           test "$(git status --porcelain -- market_full_scan.json market_scan_state.json publication_manifest.json)" = ""
 
   live-operation-disabled:
@@ -135,4 +146,5 @@ jobs:
       - name: Fail closed until the incremental certification/promoter bridge is registered
         run: |
           echo "Provider-free bounded planning completed."
+          echo "Certification bridge and atomic promoter contracts are registered."
           echo "Live acquisition and publication remain disabled; no token is consumed."
