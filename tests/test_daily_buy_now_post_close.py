@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 import json
+import re
 
 import pytest
 
@@ -108,3 +109,28 @@ def test_workflow_has_dual_wakeups_concurrency_and_live_fail_closed_contract():
     assert "--parallel-workers 2" in source
     assert "provider-free-end-to-end" in source
     assert "needs.post-close-coordinator.outputs.run_live == 'true'" in source
+
+
+def test_daily_buy_now_workflow_needs_references_declared_jobs():
+    source = open(
+        ".github/workflows/atlas_finnhub_full_universe_certification.yml", encoding="utf-8"
+    ).read()
+    declared_jobs = set(
+        re.findall(
+            r"^  ([a-zA-Z0-9_-]+):\n    (?:name:|runs-on:|needs:|if:)",
+            source,
+            re.MULTILINE,
+        )
+    )
+    dependency_lists = re.findall(r"^    needs:\s*\[([^]]+)\]", source, re.MULTILINE)
+    referenced_jobs = {
+        dependency.strip()
+        for dependency_list in dependency_lists
+        for dependency in dependency_list.split(",")
+    }
+    referenced_jobs.update(re.findall(r"needs\.([a-zA-Z0-9_-]+)\.", source))
+
+    assert referenced_jobs <= declared_jobs, (
+        "workflow references undeclared jobs: "
+        f"{sorted(referenced_jobs - declared_jobs)}"
+    )
