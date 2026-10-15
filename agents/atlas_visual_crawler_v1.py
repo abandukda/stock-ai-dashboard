@@ -3355,8 +3355,15 @@ class AtlasVisualCrawler:
             values: list[str] = []
             for scope in _scopes(page):
                 markers = scope.locator('[data-atlas-qa="watchlist-certified-authority"]')
-                for marker in await markers.all():
-                    value = str(await marker.get_attribute("data-atlas-ticker") or "").upper()
+                # Resolve the live collection atomically.  Iterating Locator.all()
+                # leaves per-node locators that may disappear during a Streamlit
+                # rerun and then auto-wait for the default 30 seconds.
+                live_values = await markers.evaluate_all(
+                    "elements => elements.map(element => "
+                    "element.getAttribute('data-atlas-ticker') || '')"
+                )
+                for raw_value in live_values:
+                    value = str(raw_value or "").upper()
                     if value and value not in values:
                         values.append(value)
             return values
