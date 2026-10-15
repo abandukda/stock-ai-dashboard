@@ -1,0 +1,224 @@
+name: ATLAS Bounded Incremental BUY NOW Acquisition
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        required: true
+        type: choice
+        options: [plan, acquire]
+      source_sha:
+        required: true
+        type: string
+      finalized_session:
+        required: true
+        type: string
+      membership_run_id:
+        required: true
+        default: "37216506983"
+        type: string
+      membership_artifact:
+        required: true
+        default: atlas-finnhub-full-universe-final-37216506983
+        type: string
+      plan_run_id:
+        required: false
+        type: string
+      plan_artifact:
+        required: false
+        type: string
+      plan_sha256:
+        required: false
+        type: string
+      authorization_token:
+        required: false
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: atlas-incremental-buy-now-acquisition
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    if: inputs.operation == 'plan'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Bind registered code to requested source
+        run: test "$(git rev-parse HEAD)" = "${{ inputs.source_sha }}"
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - name: Download immutable governed membership
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.membership_run_id }}
+          name: ${{ inputs.membership_artifact }}
+          path: ${{ runner.temp }}/membership
+      - name: Generate exact provider-free plan
+        shell: bash
+        run: |
+          records="$(find "$RUNNER_TEMP/membership" -type f -name full_evaluation_pool.json -print -quit)"
+          manifest="$(find "$RUNNER_TEMP/membership" -type f -name publication_manifest.json -print -quit)"
+          test -n "$records"; test -n "$manifest"
+          python scripts/plan_finnhub_incremental_post_close.py \
+            --session "${{ inputs.finalized_session }}" \
+            --governed-records "$records" --governed-manifest "$manifest" \
+            --output audit_results/incremental_buy_now/plan.json
+          python - <<'PY'
+          import json
+          p=json.load(open('audit_results/incremental_buy_now/plan.json'))
+          assert p['customer_symbol_count'] == 1298
+          assert p['request_count'] == 2596
+          assert p['exact_max_requests'] == 2746
+          assert p['provider_calls'] == 0
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: atlas-incremental-buy-now-plan-${{ github.run_id }}
+          path: audit_results/incremental_buy_now/plan.json
+          retention-days: 90
+
+  acquire:
+    if: inputs.operation == 'acquire'
+    environment: atlas-licensed-research-acquisition
+    runs-on: [self-hosted, Linux, X64, atlas-worker-1]
+    timeout-minutes: 360
+    env:
+      FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+      ATLAS_DAILY_BUY_NOW_LIVE_ENABLED: ${{ vars.ATLAS_DAILY_BUY_NOW_LIVE_ENABLED }}
+      ATLAS_INCREMENTAL_RAW_ROOT: ${{ vars.ATLAS_INCREMENTAL_RAW_ROOT }}
+      ATLAS_INCREMENTAL_CHECKPOINT_ROOT: ${{ vars.ATLAS_INCREMENTAL_CHECKPOINT_ROOT }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Enforce source and protected configuration
+        shell: bash
+        run: |
+          test "$(git rev-parse HEAD)" = "${{ inputs.source_sha }}"
+          test -n "$FINNHUB_API_KEY"
+          test "$ATLAS_DAILY_BUY_NOW_LIVE_ENABLED" = true
+          test -n "$ATLAS_INCREMENTAL_RAW_ROOT"
+          test -n "$ATLAS_INCREMENTAL_CHECKPOINT_ROOT"
+          test -n "${{ inputs.plan_run_id }}"
+          test -n "${{ inputs.plan_artifact }}"
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - run: python -m pip install --disable-pip-version-check requests==2.32.3
+      - name: Download exact provider-free plan
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.plan_run_id }}
+          name: ${{ inputs.plan_artifact }}
+          path: ${{ runner.temp }}/plan
+      - name: Verify immutable plan and authorization
+        shell: bash
+        run: |
+          plan="$(find "$RUNNER_TEMP/plan" -type f -name plan.json -print -quit)"
+          test -n "$plan"
+          python - "$plan" "${{ inputs.plan_sha256 }}" "${{ inputs.finalized_session }}" <<'PY'
+          import json,sys
+          p=json.load(open(sys.argv[1]))
+          assert p['plan_sha256'] == sys.argv[2]
+          assert p['session'] == sys.argv[3]
+          assert p['customer_symbol_count'] == 1298
+          assert p['request_count'] == 2596
+          assert p['exact_max_requests'] == 2746
+          assert p['governed_membership']['source_run_id'] == '37216506983'
+          PY
+          test "${{ inputs.authorization_token }}" = "AUTHORIZE_ATLAS_INCREMENTAL_ONCE:${{ inputs.plan_sha256 }}"
+          cp "$plan" audit_results/incremental_plan.json
+          python - "${{ inputs.finalized_session }}" <<'PY'
+          import json,sys
+          session=sys.argv[1]
+          value={
+            'completed_session_price': {'resolution':'D','from':session,'to':session},
+            'filing_change_probe': {'from':session,'to':session},
+            'company_profile': {}, 'financial_statements': {'freq':'annual'},
+            'basic_financials': {'metric':'all'},
+          }
+          open('audit_results/incremental_parameters.json','w').write(json.dumps(value,sort_keys=True)+'\n')
+          PY
+      - name: Execute exact raw-first zero-retry transport
+        shell: bash
+        run: |
+          mkdir -p audit_results/incremental_buy_now
+          python scripts/run_finnhub_incremental_post_close.py \
+            --plan audit_results/incremental_plan.json \
+            --parameters audit_results/incremental_parameters.json \
+            --raw-root "$ATLAS_INCREMENTAL_RAW_ROOT/${{ inputs.plan_sha256 }}" \
+            --checkpoint "$ATLAS_INCREMENTAL_CHECKPOINT_ROOT/${{ inputs.plan_sha256 }}.json" \
+            --authorize-acquisition "${{ inputs.authorization_token }}" \
+            | tee audit_results/incremental_buy_now/acquisition_result.json
+      - name: Require certification handoff and forbid direct publication
+        run: |
+          python - <<'PY'
+          import json
+          r=json.load(open('audit_results/incremental_buy_now/acquisition_result.json'))
+          assert r['status'] == 'ACQUISITION_COMPLETE_PUBLICATION_NOT_PERFORMED'
+          assert r['readiness']['status'] == 'READY_FOR_EXISTING_ATOMIC_PROMOTER'
+          assert r['attempts_this_run'] <= 2746
+          PY
+          test ! -e audit_results/incremental_buy_now/publication_result.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atlas-incremental-buy-now-acquisition-${{ github.run_id }}
+          path: audit_results/incremental_buy_now
+          retention-days: 90
+
+  protected-registration-rehearsal:
+    needs: plan
+    if: inputs.operation == 'plan'
+    environment: atlas-licensed-research-acquisition
+    runs-on: [self-hosted, Linux, X64, atlas-worker-1]
+    timeout-minutes: 20
+    env:
+      ATLAS_INCREMENTAL_RAW_ROOT: ${{ vars.ATLAS_INCREMENTAL_RAW_ROOT }}
+      ATLAS_INCREMENTAL_CHECKPOINT_ROOT: ${{ vars.ATLAS_INCREMENTAL_CHECKPOINT_ROOT }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Prove exact registered graph without provider access
+        shell: bash
+        run: |
+          test "$(git rev-parse HEAD)" = "${{ inputs.source_sha }}"
+          test -n "$ATLAS_INCREMENTAL_RAW_ROOT"
+          test -n "$ATLAS_INCREMENTAL_CHECKPOINT_ROOT"
+          test "$ATLAS_INCREMENTAL_RAW_ROOT" != "$ATLAS_INCREMENTAL_CHECKPOINT_ROOT"
+          test -z "${FINNHUB_API_KEY:-}"
+          python scripts/run_finnhub_incremental_post_close.py --help >/dev/null
+          python scripts/plan_finnhub_incremental_post_close.py --help >/dev/null
+          mkdir -p audit_results/incremental_buy_now
+          python - <<'PY'
+          import json, os
+          value={
+            'status':'PROVIDER_FREE_REGISTERED_REHEARSAL_PASS',
+            'source_sha':os.environ['GITHUB_SHA'],
+            'provider_calls':0,'production_writes':0,
+            'credential_exposed':False,
+            'protected_environment':'atlas-licensed-research-acquisition',
+          }
+          open('audit_results/incremental_buy_now/protected_rehearsal.json','w').write(
+              json.dumps(value,sort_keys=True,indent=2)+'\n')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: atlas-incremental-buy-now-rehearsal-${{ github.run_id }}
+          path: audit_results/incremental_buy_now/protected_rehearsal.json
+          retention-days: 90

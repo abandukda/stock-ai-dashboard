@@ -214,7 +214,11 @@ def test_dispatch_workflow_is_inert_and_requires_distinct_primary_and_backup():
     assert "schedule:" not in source
     assert "execution_mode:" in source
     assert "REPORT_CARD_PLAN_ONCE" in source
-    assert f'test "${{{{ inputs.authorize_acquisition }}}}" = "{AUTHORIZATION_TOKEN}"' in source
+    assert 'REPORT_CARD_ACQUIRE_ONCE:${{ inputs.authorization_package_sha256 }}' in source
+    assert 'test "$(git rev-parse HEAD)" = "${{ inputs.source_sha }}"' in source
+    assert "build_report_card_g2_release_binding.py" in source
+    assert 'fae6a94f96f8f7ed6b24a96a8cdd2fe21ffa703a' not in source
+    assert '219c5453b58bfe838a58f73a666a630637747f67fa5cf419526f4a3a9908764a' not in source
     assert AUTHORIZATION_TOKEN != "REPORT_CARD_ACQUIRE_ONCE"
     assert "ATLAS_REPORT_CARD_DURABLE_ROOT" in source
     assert "ATLAS_REPORT_CARD_BACKUP_ROOT" in source
@@ -226,6 +230,23 @@ def test_dispatch_workflow_is_inert_and_requires_distinct_primary_and_backup():
     assert 'ACQUISITION_KILL_SWITCH' in source
     assert "append_observation" not in source
     assert "REPORT_CARD_APPEND_ONCE" not in source
+
+
+def test_incremental_registered_workflow_is_bounded_and_cannot_reach_legacy_shards():
+    source = Path(".github/workflows/atlas_finnhub_incremental_acquisition.yml").read_text(
+        encoding="utf-8"
+    )
+    assert "schedule:" not in source
+    assert "run_finnhub_incremental_post_close.py" in source
+    assert "AUTHORIZE_ATLAS_INCREMENTAL_ONCE:${{ inputs.plan_sha256 }}" in source
+    assert "p['customer_symbol_count'] == 1298" in source
+    assert "p['request_count'] == 2596" in source
+    assert "p['exact_max_requests'] == 2746" in source
+    assert "ACQUISITION_COMPLETE_PUBLICATION_NOT_PERFORMED" in source
+    assert "READY_FOR_EXISTING_ATOMIC_PROMOTER" in source
+    assert "run_finnhub_full_universe.py" not in source
+    assert "run-shard" not in source
+    assert "promote_daily_buy_now_snapshot.py" not in source
 
 
 def test_dispatch_workflow_entrypoints_import_with_registered_pythonpath():

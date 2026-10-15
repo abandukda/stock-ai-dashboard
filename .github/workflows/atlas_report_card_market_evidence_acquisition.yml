@@ -51,6 +51,10 @@ on:
         description: Exact reviewed G2 authorization package SHA-256
         required: true
         type: string
+      source_sha:
+        description: Exact post-registration default-branch source SHA
+        required: true
+        type: string
 
 permissions:
   actions: read
@@ -74,6 +78,9 @@ jobs:
       ATLAS_FINNHUB_LICENSE_CLASS: FINNHUB_PAID_CORE_CERTIFICATION
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
       - uses: actions/setup-python@v5
         with: {python-version: "3.11"}
       - run: pip install -r requirements.txt
@@ -85,10 +92,9 @@ jobs:
           if [ "${{ inputs.execution_mode }}" = "plan" ]; then
             test "${{ inputs.authorize_acquisition }}" = "REPORT_CARD_PLAN_ONCE"
           else
-            test "${{ inputs.authorize_acquisition }}" = "REPORT_CARD_ACQUIRE_ONCE:219c5453b58bfe838a58f73a666a630637747f67fa5cf419526f4a3a9908764a"
+            test "$(git rev-parse HEAD)" = "${{ inputs.source_sha }}"
+            test "${{ inputs.authorize_acquisition }}" = "REPORT_CARD_ACQUIRE_ONCE:${{ inputs.authorization_package_sha256 }}"
             test -n "$FINNHUB_API_KEY"
-            test "${{ inputs.approved_plan_sha256 }}" = "87fd4a0c6a86396aa4c1da60384eb5f15bc7259b1aaaae2e812c748b4e733e44"
-            test "${{ inputs.authorization_package_sha256 }}" = "219c5453b58bfe838a58f73a666a630637747f67fa5cf419526f4a3a9908764a"
             test "${{ inputs.entitlement_sha256 }}" = "161b2799b0ea935185d5fddcd53ffbf3fdd755d6a939d3898e0effe58c8c83d4"
             test -n "$ATLAS_REPORT_CARD_CRONITOR_URL"
           fi
@@ -109,7 +115,7 @@ jobs:
           mapfile -t files < <(find audit_results/report_card_calendar -type f \( -name xyns_calendar.json -o -name xnys_calendar.json \))
           test "${#files[@]}" -eq 1
           echo "path=${files[0]}" >> "$GITHUB_OUTPUT"
-      - name: Download owner-approved plan and entitlement evidence
+      - name: Download owner-approved protected validation
         uses: actions/download-artifact@v4
         with:
           github-token: ${{ github.token }}
@@ -117,23 +123,23 @@ jobs:
           run-id: ${{ inputs.approved_plan_run_id }}
           name: ${{ inputs.approved_plan_artifact }}
           path: audit_results/report_card_approved_plan
-      - uses: actions/download-artifact@v4
-        with:
-          github-token: ${{ github.token }}
-          repository: ${{ github.repository }}
-          run-id: ${{ inputs.entitlement_run_id }}
-          name: ${{ inputs.entitlement_artifact }}
-          path: audit_results/report_card_entitlement
-      - name: Resolve exactly one plan package and entitlement document
+      - name: Resolve exactly one plan package and bind current source
         id: g2
         shell: bash
         run: |
           mapfile -t plans < <(find audit_results/report_card_approved_plan -type f -name protected_validation.json)
-          mapfile -t entitlements < <(find audit_results/report_card_entitlement -type f -name entitlement.json)
           test "${#plans[@]}" -eq 1
-          test "${#entitlements[@]}" -eq 1
           echo "plan=${plans[0]}" >> "$GITHUB_OUTPUT"
-          echo "entitlement=${entitlements[0]}" >> "$GITHUB_OUTPUT"
+          cp config/report_card_g2_entitlement_20261014.json audit_results/report_card_entitlement.json
+          python scripts/build_report_card_g2_release_binding.py \
+            --protected-validation "${plans[0]}" \
+            --entitlement audit_results/report_card_entitlement.json \
+            --release-source-sha "${{ inputs.source_sha }}" \
+            --validation-run-id "${{ inputs.approved_plan_run_id }}" \
+            --validation-artifact "${{ inputs.approved_plan_artifact }}" \
+            --output audit_results/report_card_g2_release_binding.json
+          test "$(python -c 'import json; print(json.load(open("audit_results/report_card_g2_release_binding.json"))["package_sha256"])')" = "${{ inputs.authorization_package_sha256 }}"
+          echo "entitlement=audit_results/report_card_entitlement.json" >> "$GITHUB_OUTPUT"
       - name: Acquire bounded internal evidence
         shell: bash
         run: |
@@ -141,7 +147,7 @@ jobs:
             --ledger "$ATLAS_REPORT_CARD_DURABLE_ROOT/report-card.sqlite3" \
             --backup-root "$ATLAS_REPORT_CARD_BACKUP_ROOT" \
             --calendar "${{ steps.calendar.outputs.path }}" \
-            --source-sha "fae6a94f96f8f7ed6b24a96a8cdd2fe21ffa703a" \
+            --source-sha "${{ inputs.source_sha }}" \
             --mode "${{ inputs.execution_mode }}" \
             --authorization "${{ inputs.authorize_acquisition }}" \
             --approved-plan "${{ steps.g2.outputs.plan }}" \
