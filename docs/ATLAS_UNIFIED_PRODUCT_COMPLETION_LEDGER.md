@@ -13,16 +13,18 @@ ledger without the corresponding immutable runtime evidence.
 - Branch: `codex/premium-r3-integration`
 - Governed predecessor: `4e18a46514ef19ae6533c935a7a8a1403740fefc`
 - Governed predecessor run: `38663987517` (`144/144`, screenshots `200/200`, provider calls `0`)
-- Current candidate: recorded by the release report after the truthful-source correction.
+- Current candidate: recorded by the release report after the shared narrative and visual integration.
 - Production deployment: not authorized by this ledger.
 
 ## Product state
 
 | Capability | Actual state | Evidence / next gate |
 |---|---|---|
-| Premium Home | Implemented on the R3 review branch | Exact-SHA browser recertification is required after the truthful-source correction. |
+| Premium Home | Implemented on the R3 review branch | Exact-SHA browser recertification is required after the integrated narrative and visual changes. |
 | Certified Research authority | Preserved | The governed predecessor passed ticker, six-pillar, authority, and withheld-state checks. |
-| Grounded model synthesis | Provider-gated implementation only | It is not called by Home, Research, Watchlist, or Ask. Activation and route integration remain blocked pending stronger semantic grounding and protected model approval. |
+| Shared customer narrative | Integrated across Home, Research, Watchlist, and Ask | All routes read the same ticker-bound projection. Deterministic retained-evidence output is the active mode; unsupported prose, cross-ticker identity, and unavailable evidence fail closed. |
+| External model synthesis | Implemented but inactive behind dual provider/privacy gates | Cache identity binds ticker, certified evidence, model, and schema. No secret or raw-provider traversal is allowed. Activation still requires approved provider credentials, privacy/retention review, and an explicit cost/latency policy. |
+| Customer Report Card preview | Implemented as an honest pending state | It cannot expose returns or success rates unless customer visibility, public-performance permission, and a positive published observation count all agree. |
 | Daily BUY NOW | Scheduled workflow registered; live cycle not active/proven | Latest current-main run `38662537315` was provider-free. The retained customer publication is still run `37216506983`, generated 2026-10-04. |
 | Report Card G2 | Failed one-shot; no certified acquisition artifact | Run `38628414964` failed. A fresh source/ledger-bound one-shot package is required; the previous claim must not be reused. |
 | Report Card G3 | Not executed | Observation count is zero. Customer outcomes must remain pending. |
@@ -83,4 +85,3 @@ direction checks.
   failure, and missed-heartbeat delivery are proven.
 - Production: approve only a newly governed exact SHA after all integration
   changes and independent commercial acceptance evidence are frozen.
-
