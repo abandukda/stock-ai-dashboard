@@ -52,9 +52,26 @@ def test_report_card_is_default_branch_scope_bound_and_mutations_stay_closed():
     }
     assert '--scope "${{ inputs.scope_path }}"' not in text
     assert "schedule:" not in text
-    assert "entitlement.json" in text and "execution_package.json" in text
+    assert "entitlement.json" in text and "protected_validation.json" in text
+    assert "build_g2_release_binding" in text
     assert "g2_binding.json" in text
-    assert '"provider_calls":0,"ledger_writes":0,"sentinel_transition":"NONE"' in text
+    assert "REPORT_CARD_PLAN_SCOPE_MISMATCH" in text
+
+def test_report_card_monitor_test_is_real_provider_free_and_secret_scoped():
+    text,w=load("atlas_stable_report_card_gateway.yml")
+    job=w["jobs"]["monitoring-delivery-test"]
+    assert job["environment"] == "atlas-internal-report-card"
+    assert "FINNHUB_API_KEY" not in (job.get("env") or {})
+    delivery=next(s for s in job["steps"] if s.get("name") == "Send sanitized Cronitor delivery tests")
+    assert set(delivery["env"]) == {
+        "ATLAS_DAILY_BUY_NOW_CRONITOR_TEST_URL", "ATLAS_REPORT_CARD_CRONITOR_URL", "SOURCE_SHA"
+    }
+    assert "send_operational_heartbeat.py" in delivery["run"]
+    assert "--state complete" in delivery["run"]
+    assert "--state fail" in delivery["run"]
+    assert "--state run" in delivery["run"]
+    assert "provider_calls': 0" in delivery["run"]
+    assert "ledger_writes': 0" in delivery["run"]
 
 def test_report_card_registered_operations_shell_parses_and_fail_closed_branch_executes():
     _, workflow = load("atlas_stable_report_card_gateway.yml")

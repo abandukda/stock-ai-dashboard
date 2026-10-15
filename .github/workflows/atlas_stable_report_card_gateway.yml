@@ -6,7 +6,7 @@ on:
       operation:
         required: true
         type: choice
-        options: [validate, plan, acquire, append, storage_diagnostic]
+        options: [validate, plan, acquire, append, storage_diagnostic, monitor_test]
       authorization_token:
         required: true
         type: string
@@ -42,6 +42,60 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  monitoring-delivery-test:
+    if: inputs.operation == 'monitor_test'
+    environment: atlas-internal-report-card
+    runs-on: [self-hosted, Linux, X64, atlas-worker-1]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Enforce provider-free monitoring authorization
+        env:
+          TOKEN: ${{ inputs.authorization_token }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          test "$TOKEN" = "ATLAS_MONITOR_TEST_ONCE:$SOURCE_SHA"
+          test -z "${FINNHUB_API_KEY:-}"
+      - name: Send sanitized Cronitor delivery tests
+        env:
+          ATLAS_DAILY_BUY_NOW_CRONITOR_TEST_URL: ${{ secrets.ATLAS_DAILY_BUY_NOW_CRONITOR_TEST_URL }}
+          ATLAS_REPORT_CARD_CRONITOR_URL: ${{ secrets.ATLAS_REPORT_CARD_CRONITOR_URL }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          mkdir -p audit_results/monitoring_delivery
+          test -n "$ATLAS_DAILY_BUY_NOW_CRONITOR_TEST_URL"
+          test -n "$ATLAS_REPORT_CARD_CRONITOR_URL"
+          python3 scripts/send_operational_heartbeat.py --operation DAILY_BUY_NOW --state complete --run-id "$GITHUB_RUN_ID-buy-now-success" --source-sha "$SOURCE_SHA" --trading-session 2026-10-14 --publication-status TEST_ONLY_NO_PUBLICATION --url-env ATLAS_DAILY_BUY_NOW_CRONITOR_TEST_URL > audit_results/monitoring_delivery/buy_now_complete.json
+          python3 scripts/send_operational_heartbeat.py --operation DAILY_BUY_NOW --state fail --run-id "$GITHUB_RUN_ID-buy-now-failure" --source-sha "$SOURCE_SHA" --trading-session 2026-10-14 --publication-status TEST_ONLY_NO_PUBLICATION --failure-code CERTIFICATION_FAILURE --recovery-action "Inspect protected test run; no provider or publication action occurred" --url-env ATLAS_DAILY_BUY_NOW_CRONITOR_TEST_URL > audit_results/monitoring_delivery/buy_now_failure.json
+          # This RUN event is deliberately not followed by COMPLETE/FAIL. Cronitor's
+          # configured deadline must independently produce the missed-heartbeat alert.
+          python3 scripts/send_operational_heartbeat.py --operation DAILY_BUY_NOW --state run --run-id "$GITHUB_RUN_ID-buy-now-missed" --source-sha "$SOURCE_SHA" --trading-session 2026-10-14 --publication-status TEST_ONLY_NO_PUBLICATION --url-env ATLAS_DAILY_BUY_NOW_CRONITOR_TEST_URL > audit_results/monitoring_delivery/buy_now_missed_started.json
+          python3 scripts/send_operational_heartbeat.py --operation REPORT_CARD_G2 --state complete --run-id "$GITHUB_RUN_ID-report-card-success" --source-sha "$SOURCE_SHA" --trading-session 2026-10-09 --publication-status TEST_ONLY_NO_LEDGER_WRITE --url-env ATLAS_REPORT_CARD_CRONITOR_URL > audit_results/monitoring_delivery/report_card_complete.json
+          python3 scripts/send_operational_heartbeat.py --operation REPORT_CARD_G2 --state fail --run-id "$GITHUB_RUN_ID-report-card-failure" --source-sha "$SOURCE_SHA" --trading-session 2026-10-09 --publication-status TEST_ONLY_NO_LEDGER_WRITE --failure-code LEDGER_INTEGRITY_FAILURE --recovery-action "Inspect protected test run; ledger was not accessed or modified" --url-env ATLAS_REPORT_CARD_CRONITOR_URL > audit_results/monitoring_delivery/report_card_failure.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          rows = {p.stem: json.loads(p.read_text()) for p in Path('audit_results/monitoring_delivery').glob('*.json')}
+          assert len(rows) == 5 and all(200 <= int(v['status']) < 300 for v in rows.values())
+          Path('audit_results/monitoring_delivery/result.json').write_text(json.dumps({
+              'status': 'DELIVERY_ACCEPTED_OWNER_EMAIL_CONFIRMATION_REQUIRED',
+              'provider_calls': 0, 'publication_writes': 0, 'ledger_writes': 0,
+              'sent_events': sorted(rows),
+              'missed_heartbeat_pending_external_deadline': True,
+          }, sort_keys=True, indent=2) + '\n')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atlas-monitoring-delivery-test-${{ github.run_id }}
+          path: audit_results/monitoring_delivery
+          if-no-files-found: error
+          retention-days: 90
+
   incremental-storage-diagnostic:
     if: inputs.operation == 'storage_diagnostic'
     environment: atlas-licensed-research-acquisition
@@ -74,7 +128,7 @@ jobs:
           retention-days: 90
 
   protected-preflight:
-    if: inputs.operation != 'storage_diagnostic'
+    if: inputs.operation != 'storage_diagnostic' && inputs.operation != 'monitor_test'
     environment: atlas-internal-report-card
     runs-on: [self-hosted, Linux, X64, atlas-worker-1]
     timeout-minutes: 20
@@ -133,32 +187,34 @@ jobs:
           OPERATION: ${{ inputs.operation }}
           SOURCE_SHA: ${{ inputs.source_sha }}
           SCOPE_SHA256: ${{ inputs.scope_sha256 }}
+          SCOPE_RUN_ID: ${{ inputs.scope_run_id }}
+          SCOPE_ARTIFACT: ${{ inputs.scope_artifact }}
+          SCOPE_PATH: ${{ inputs.scope_path }}
         run: |
           case "$OPERATION" in
             validate|plan)
               python scripts/build_report_card_exchange_calendar.py --start-date 2026-10-08 --cutoff-utc "$REPORT_CARD_CUTOFF_UTC" --output audit_results/report_card_gateway/xnys_calendar.json
               if [ "$OPERATION" = plan ]; then
                 cp config/report_card_g2_entitlement_20261014.json audit_results/report_card_gateway/entitlement.json
-                cp config/report_card_g2_execution_package_20261014.json audit_results/report_card_gateway/execution_package.json
+                scope_file="$(find "$RUNNER_TEMP/scope" -type f -name "$SCOPE_PATH" -print -quit)"
+                test -n "$scope_file"
+                cp "$scope_file" audit_results/report_card_gateway/protected_validation.json
           python3 - <<'PY'
           import json, os
           from pathlib import Path
-          from services.report_card_operational_controls import digest
+          from services.report_card_g2_release_binding import build_g2_release_binding
 
           root = Path("audit_results/report_card_gateway")
           entitlement = json.loads((root / "entitlement.json").read_text())
-          package = json.loads((root / "execution_package.json").read_text())
-          expected_entitlement = "161b2799b0ea935185d5fddcd53ffbf3fdd755d6a939d3898e0effe58c8c83d4"
-          expected_package = "c0ee01e3ba62dc9c586bded0f2afa4cf018bf201c72cdfd2fcc88f7e4b3a8493"
-          if digest(entitlement) != expected_entitlement or digest(package) != expected_package:
-              raise SystemExit("REPORT_CARD_G2_BINDING_HASH_MISMATCH")
-          if package["plan_sha256"] != os.environ["SCOPE_SHA256"]:
+          protected = json.loads((root / "protected_validation.json").read_text())
+          if protected.get("canonical_plan_sha256") != os.environ["SCOPE_SHA256"]:
               raise SystemExit("REPORT_CARD_PLAN_SCOPE_MISMATCH")
-          binding = {"schema_version":"atlas.report-card.g2-binding.v1",
-              "workflow_sha":os.environ["GITHUB_SHA"],"source_sha":os.environ["SOURCE_SHA"],
-              "plan_sha256":os.environ["SCOPE_SHA256"],
-              "entitlement_sha256":expected_entitlement,"execution_package_sha256":expected_package,
-              "provider_calls":0,"ledger_writes":0,"sentinel_transition":"NONE"}
+          binding = build_g2_release_binding(
+              protected_validation=protected, entitlement=entitlement,
+              release_source_sha=os.environ["SOURCE_SHA"],
+              validation_run_id=os.environ["SCOPE_RUN_ID"],
+              validation_artifact=os.environ["SCOPE_ARTIFACT"],
+          )
           (root / "g2_binding.json").write_text(json.dumps(binding, sort_keys=True, indent=2) + "\n")
           PY
               fi
