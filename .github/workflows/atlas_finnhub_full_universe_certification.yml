@@ -109,8 +109,26 @@ jobs:
             tests/test_daily_buy_now_post_close.py \
             tests/test_finnhub_incremental_post_close.py \
             tests/test_operational_heartbeat.py \
+            tests/test_release_operational_closure.py \
             tests/test_report_card_exchange_calendar.py \
             tests/test_full_universe_promotion_input.py
+      - name: Exercise monitoring, durable-evidence restore, and publication rollback offline
+        env:
+          ATLAS_DAILY_BUY_NOW_CRONITOR_TEST_URL: ${{ secrets.ATLAS_DAILY_BUY_NOW_CRONITOR_TEST_URL }}
+          ATLAS_DAILY_BUY_NOW_OWNER_EMAIL: ${{ vars.ATLAS_DAILY_BUY_NOW_OWNER_EMAIL }}
+        run: >-
+          python scripts/run_release_operational_closure.py
+          --output audit_results/daily_buy_now/operational_closure/durable
+          --restore-output audit_results/daily_buy_now/operational_closure/restored
+          --run-id "$GITHUB_RUN_ID" --source-sha "$GITHUB_SHA"
+          --trading-session "${{ needs.post-close-coordinator.outputs.finalized_session }}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atlas-daily-buy-now-operational-closure-${{ github.run_id }}
+          path: audit_results/daily_buy_now/operational_closure
+          if-no-files-found: error
+          retention-days: 365
 
   monitor-start:
     needs: post-close-coordinator
