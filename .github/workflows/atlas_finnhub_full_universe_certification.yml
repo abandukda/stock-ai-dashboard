@@ -107,6 +107,7 @@ jobs:
         run: |
           PYTHONPATH=. python -m pytest -q \
             tests/test_daily_buy_now_post_close.py \
+            tests/test_finnhub_incremental_post_close.py \
             tests/test_operational_heartbeat.py \
             tests/test_report_card_exchange_calendar.py \
             tests/test_full_universe_promotion_input.py
