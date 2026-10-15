@@ -89,26 +89,22 @@ def test_retained_dry_run_fails_closed(tmp_path, field, value):
 
 
 def test_workflow_has_dual_wakeups_concurrency_and_live_fail_closed_contract():
-    source = open(
+    source = open(".github/workflows/atlas_daily_incremental_buy_now.yml", encoding="utf-8").read()
+    legacy = open(
         ".github/workflows/atlas_finnhub_full_universe_certification.yml", encoding="utf-8"
     ).read()
     assert 'cron: "5 22 * * 1-5"' in source
     assert 'cron: "5 23 * * 1-5"' in source
-    assert "atlas-daily-buy-now-${{ github.ref }}" in source
+    assert "atlas-daily-incremental-buy-now" in source
     assert "ATLAS_DAILY_BUY_NOW_LIVE_ENABLED" in source
-    assert "ATLAS_DAILY_BUY_NOW_AUTHORIZATION" in source
-    assert "DAILY_BUY_NOW_LIVE:" in source
-    assert "ATLAS_DAILY_BUY_NOW_CRONITOR_URL" in source
-    assert "send_operational_heartbeat.py" in source
-    assert "--state run" in source
-    assert "state=complete" in source and "state=fail" in source
-    assert "promote_daily_buy_now_snapshot.py" in source
-    assert 'test -z "${TWELVE_DATA_API_KEY:-}"' in source
-    assert source.count("--strict-provider-health") == 4
-    assert source.count("--global-requests-per-minute 500") == 4
-    assert "--parallel-workers 2" in source
-    assert "provider-free-end-to-end" in source
-    assert "needs.post-close-coordinator.outputs.run_live == 'true'" in source
+    assert "plan_finnhub_incremental_post_close.py" in source
+    assert "customer_symbol_count'] == 1298" in source
+    assert "request_count'] == 2596" in source
+    assert "exact_max_requests'] == 2746" in source
+    assert "test -z \"${FINNHUB_API_KEY:-}\"" in source
+    assert "run_finnhub_full_universe.py" not in source
+    assert "schedule:" not in legacy
+    assert "Live acquisition and publication remain disabled" in source
 
 
 def test_daily_buy_now_workflow_needs_references_declared_jobs():

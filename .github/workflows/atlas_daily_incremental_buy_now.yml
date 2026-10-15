@@ -1,0 +1,138 @@
+name: ATLAS Daily Incremental BUY NOW Coordinator
+
+on:
+  schedule:
+    # Dual UTC wakeups cover EDT/EST. The XNYS/Eastern gate admits only 18:05 ET.
+    - cron: "5 22 * * 1-5"
+    - cron: "5 23 * * 1-5"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: atlas-daily-incremental-buy-now
+  cancel-in-progress: false
+
+jobs:
+  coordinator:
+    runs-on: ubuntu-24.04
+    outputs:
+      eligible: ${{ steps.gate.outputs.eligible }}
+      finalized_session: ${{ steps.gate.outputs.finalized_session }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - run: python -m pip install exchange_calendars==4.13.2
+      - id: gate
+        name: Select one finalized XNYS session
+        shell: bash
+        run: |
+          now="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          last_session="$(python3 - <<'PY'
+          import json
+          from pathlib import Path
+          value=json.loads(Path('publication_manifest.json').read_text())
+          print(value.get('finalized_market_session') or '')
+          PY
+          )"
+          python3 scripts/run_daily_buy_now_post_close.py \
+            --now "$now" --last-published-session "$last_session" --root . \
+            --output audit_results/daily_incremental/coordinator.json
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          value=json.load(open('audit_results/daily_incremental/coordinator.json'))['schedule']
+          print('eligible=' + str(bool(value['eligible'])).lower())
+          print('finalized_session=' + str(value['finalized_session']))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atlas-daily-incremental-coordinator-${{ github.run_id }}
+          path: audit_results/daily_incremental/coordinator.json
+          if-no-files-found: error
+          retention-days: 90
+
+  provider-free-plan:
+    needs: coordinator
+    if: needs.coordinator.outputs.eligible == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: "37216506983"
+          name: atlas-finnhub-full-universe-final-37216506983
+          path: ${{ runner.temp }}/membership
+      - name: Build bounded plan from immutable governed membership
+        shell: bash
+        run: |
+          records="$(find "$RUNNER_TEMP/membership" -type f -name full_evaluation_pool.json -print -quit)"
+          manifest="$(find "$RUNNER_TEMP/membership" -type f -name publication_manifest.json -print -quit)"
+          test -n "$records"; test -n "$manifest"
+          python3 scripts/plan_finnhub_incremental_post_close.py \
+            --session "${{ needs.coordinator.outputs.finalized_session }}" \
+            --governed-records "$records" --governed-manifest "$manifest" \
+            --output audit_results/daily_incremental/plan.json
+          python3 - <<'PY'
+          import json
+          value=json.load(open('audit_results/daily_incremental/plan.json'))
+          assert value['customer_symbol_count'] == 1298
+          assert value['request_count'] == 2596
+          assert value['exact_max_requests'] == 2746
+          assert value['provider_calls'] == 0
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: atlas-daily-incremental-plan-${{ github.run_id }}
+          path: audit_results/daily_incremental/plan.json
+          if-no-files-found: error
+          retention-days: 90
+
+  protected-provider-free-rehearsal:
+    needs: [coordinator, provider-free-plan]
+    if: needs.provider-free-plan.result == 'success'
+    environment: atlas-licensed-research-acquisition
+    runs-on: [self-hosted, Linux, X64, atlas-worker-1]
+    timeout-minutes: 20
+    env:
+      ATLAS_INCREMENTAL_RAW_ROOT: ${{ vars.ATLAS_INCREMENTAL_RAW_ROOT }}
+      ATLAS_INCREMENTAL_CHECKPOINT_ROOT: ${{ vars.ATLAS_INCREMENTAL_CHECKPOINT_ROOT }}
+      ATLAS_DAILY_BUY_NOW_LIVE_ENABLED: ${{ vars.ATLAS_DAILY_BUY_NOW_LIVE_ENABLED }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Prove protected configuration without acquisition or publication
+        shell: bash
+        run: |
+          test "$ATLAS_DAILY_BUY_NOW_LIVE_ENABLED" = false
+          test -n "$ATLAS_INCREMENTAL_RAW_ROOT"
+          test -n "$ATLAS_INCREMENTAL_CHECKPOINT_ROOT"
+          test "$ATLAS_INCREMENTAL_RAW_ROOT" != "$ATLAS_INCREMENTAL_CHECKPOINT_ROOT"
+          test -z "${FINNHUB_API_KEY:-}"
+          python3 scripts/run_finnhub_incremental_post_close.py --help >/dev/null
+          test "$(git status --porcelain -- market_full_scan.json market_scan_state.json publication_manifest.json)" = ""
+
+  live-operation-disabled:
+    needs: [coordinator, provider-free-plan, protected-provider-free-rehearsal]
+    if: needs.provider-free-plan.result == 'success'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Fail closed until the incremental certification/promoter bridge is registered
+        run: |
+          echo "Provider-free bounded planning completed."
+          echo "Live acquisition and publication remain disabled; no token is consumed."

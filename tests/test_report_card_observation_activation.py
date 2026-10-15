@@ -114,13 +114,14 @@ def test_g4_candidate_is_inert_serial_ordered_and_fail_closed():
 
 
 def test_finnhub_workflow_uses_only_governed_post_close_wakeups():
-    source = Path(".github/workflows/atlas_finnhub_full_universe_certification.yml").read_text()
+    source = Path(".github/workflows/atlas_daily_incremental_buy_now.yml").read_text()
+    legacy = Path(".github/workflows/atlas_finnhub_full_universe_certification.yml").read_text()
     assert "  workflow_dispatch:" in source and "  schedule:" in source
     assert "5 22 * * 1-5" in source
     assert "5 23 * * 1-5" in source
-    assert "post-close-coordinator" in source
+    assert "coordinator:" in source
     for cron in ("15 4", "00 11", "00 16", "00 19", "00 23"):
         assert cron not in source
-    assert 'SHARD_SIZE: "150"' in source
-    assert "run_finnhub_full_universe.py run-shard" in source
-    assert "run_finnhub_full_universe.py aggregate" in source
+    assert "plan_finnhub_incremental_post_close.py" in source
+    assert "run_finnhub_full_universe.py" not in source
+    assert "  schedule:" not in legacy

@@ -1,11 +1,8 @@
 name: ATLAS Finnhub Full-Universe Certification
 
 on:
-  schedule:
-    # GitHub cron is UTC. Both wakeups are intentional; the coordinator admits
-    # only 18:00 America/New_York and the publication identity is idempotent.
-    - cron: "5 22 * * 1-5"
-    - cron: "5 23 * * 1-5"
+  # Legacy full-universe execution is manual-only. Daily scheduling is owned
+  # exclusively by atlas_daily_incremental_buy_now.yml.
   workflow_dispatch:
     inputs:
       execution_mode:
