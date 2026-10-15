@@ -379,7 +379,7 @@ jobs:
           retention-days: 365
 
   operational-alert:
-    needs: [post-close-coordinator, monitor-start, contract-tests, canary-50, canary-250, full-universe-shards, provider-free-end-to-end, aggregate-full-run, publish-certified-snapshot]
+    needs: [post-close-coordinator, monitor-start, contract-tests, canary-50, canary-250, acquire-full-shards, provider-free-end-to-end, aggregate-full-run, publish-certified-snapshot]
     if: ${{ always() && needs.post-close-coordinator.outputs.run_live == 'true' }}
     runs-on: ubuntu-latest
     env:
@@ -393,7 +393,7 @@ jobs:
           CONTRACT_RESULT: ${{ needs.contract-tests.result }}
           CANARY50_RESULT: ${{ needs.canary-50.result }}
           CANARY250_RESULT: ${{ needs.canary-250.result }}
-          SHARDS_RESULT: ${{ needs.full-universe-shards.result }}
+          SHARDS_RESULT: ${{ needs.acquire-full-shards.result }}
           AGGREGATION_RESULT: ${{ needs.aggregate-full-run.result }}
           PUBLICATION_RESULT: ${{ needs.publish-certified-snapshot.result }}
         run: |
