@@ -1,13 +1,13 @@
 import json
 
-from services.external_ai_adapter import ExternalAIConfig, configuration, invoke_grounded_json, sanitize_payload
+from services.external_ai_adapter import ExternalAIConfig, activation_preflight, configuration, invoke_grounded_json, sanitize_payload
 
 
 def _config(**updates):
     values = dict(provider="openai", model="named-test-model", enabled=True,
-                  privacy_approved=True, timeout_seconds=3.5,
+                  privacy_approved=True, billing_approved=True, timeout_seconds=3.5,
                   max_input_bytes=1_000, max_output_tokens=77,
-                  max_requests_per_generation=2)
+                  max_requests_per_generation=2, max_generation_cost_microusd=30_000)
     values.update(updates)
     return ExternalAIConfig(**values)
 
@@ -20,7 +20,7 @@ def test_both_activation_gates_and_named_provider_model_are_required():
     calls = []
     transport = lambda **kwargs: calls.append(kwargs) or '{"summary":"ok"}'
     for config in (
-        _config(enabled=False), _config(privacy_approved=False),
+        _config(enabled=False), _config(privacy_approved=False), _config(billing_approved=False),
         _config(provider=""), _config(model=""), _config(provider="unknown"),
     ):
         result = invoke_grounded_json(payload={"ticker": "NVDA"}, system_prompt="grounded",
@@ -82,6 +82,25 @@ def test_named_model_latency_and_output_budget_reach_transport():
     assert captured["timeout_seconds"] == 3.5
     assert captured["max_output_tokens"] == 77
     assert result["budget"]["max_requests_per_generation"] == 2
+    assert result["budget"]["max_generation_cost_microusd"] == 30_000
+
+
+def test_provider_free_preflight_never_infers_billing_or_model_availability(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "configured-but-never-returned")
+    result = activation_preflight(_config())
+    assert result["provider_calls"] == 0
+    assert result["checks"]["credential_configured"] is True
+    assert result["provider_account"]["credential_validity"] == "UNVERIFIED_NO_PROVIDER_CALL"
+    assert result["provider_account"]["model_availability"] == "UNVERIFIED_NO_PROVIDER_CALL"
+    assert result["provider_account"]["billing_status"] == "OWNER_OR_PROVIDER_ATTESTATION_REQUIRED"
+    assert "configured-but-never-returned" not in json.dumps(result)
+
+
+def test_cost_or_resource_ceiling_above_approved_bound_fails_preflight(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "present")
+    result = activation_preflight(_config(max_generation_cost_microusd=60_001))
+    assert result["ready_for_live_inference"] is False
+    assert result["checks"]["generation_cost_limit_bounded"] is False
 
 
 def test_grounding_or_contradiction_failure_uses_deterministic_fallback():

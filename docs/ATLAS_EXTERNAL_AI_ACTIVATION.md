@@ -4,6 +4,7 @@ External inference is OFF by default. An API credential alone does not activate 
 
 - `ATLAS_EXTERNAL_AI_ENABLED=true`
 - `ATLAS_EXTERNAL_AI_PRIVACY_APPROVED=true`
+- `ATLAS_EXTERNAL_AI_BILLING_APPROVED=true`
 - `ATLAS_EXTERNAL_AI_PROVIDER=openai`
 - `ATLAS_EXTERNAL_AI_MODEL=<approved exact model name>`
 - an approved provider credential
@@ -14,6 +15,7 @@ The activation owner must also approve explicit budgets. Defaults are deliberate
 - `ATLAS_EXTERNAL_AI_MAX_INPUT_BYTES=48000`
 - `ATLAS_EXTERNAL_AI_MAX_OUTPUT_TOKENS=900`
 - `ATLAS_EXTERNAL_AI_MAX_REQUESTS_PER_GENERATION=4`
+- `ATLAS_EXTERNAL_AI_MAX_GENERATION_COST_MICROUSD=60000`
 
 ## Proposed first production policy (not active)
 
@@ -23,10 +25,11 @@ The activation owner must also approve explicit budgets. Defaults are deliberate
 - Maximum wall-clock time per request: `12 seconds`.
 - Maximum sanitized input: `48,000 bytes`.
 - Maximum output: `900 tokens` per request.
-- Proposed hard estimated inference ceiling: `$0.06` per generated narrative,
-  `$10` per UTC day, and `$200` per calendar month. Production activation must
-  add provider-project budget enforcement and alerts for the aggregate ceilings;
-  until that enforcement is verified, both activation gates remain closed.
+- Hard estimated inference ceiling: `$0.06` per generated narrative. No daily
+  or monthly spend is authorized by this configuration. Any aggregate provider
+  budget is a distinct owner decision and must be enforced at the provider
+  project before activation. Until current billing status and the owner-approved
+  aggregate ceiling are verified, the billing gate remains closed.
 
 The per-narrative ceiling is conservative: it assumes the maximum input byte
 budget could tokenize at one byte per token, four full 900-token outputs, and a

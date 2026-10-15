@@ -30,16 +30,19 @@ class ExternalAIConfig:
     model: str
     enabled: bool
     privacy_approved: bool
+    billing_approved: bool
     timeout_seconds: float
     max_input_bytes: int
     max_output_tokens: int
     max_requests_per_generation: int
+    max_generation_cost_microusd: int
 
     @property
     def active(self) -> bool:
         return (
             self.enabled
             and self.privacy_approved
+            and self.billing_approved
             and self.provider in SUPPORTED_PROVIDERS
             and bool(self.model)
         )
@@ -67,11 +70,70 @@ def configuration() -> ExternalAIConfig:
         model=os.getenv("ATLAS_EXTERNAL_AI_MODEL", "").strip(),
         enabled=os.getenv("ATLAS_EXTERNAL_AI_ENABLED", "").strip().lower() in _TRUE,
         privacy_approved=os.getenv("ATLAS_EXTERNAL_AI_PRIVACY_APPROVED", "").strip().lower() in _TRUE,
+        billing_approved=os.getenv("ATLAS_EXTERNAL_AI_BILLING_APPROVED", "").strip().lower() in _TRUE,
         timeout_seconds=_positive_float("ATLAS_EXTERNAL_AI_TIMEOUT_SECONDS", 12.0),
         max_input_bytes=_positive_int("ATLAS_EXTERNAL_AI_MAX_INPUT_BYTES", 48_000),
         max_output_tokens=_positive_int("ATLAS_EXTERNAL_AI_MAX_OUTPUT_TOKENS", 900),
         max_requests_per_generation=_positive_int("ATLAS_EXTERNAL_AI_MAX_REQUESTS_PER_GENERATION", 4),
+        max_generation_cost_microusd=_positive_int("ATLAS_EXTERNAL_AI_MAX_GENERATION_COST_MICROUSD", 60_000),
     )
+
+
+def credential_configured() -> bool:
+    """Return credential presence without exposing, validating, or spending it."""
+    api_key = os.getenv("OPENAI_API_KEY", "").strip()
+    if api_key:
+        return True
+    try:
+        import streamlit as st
+        return bool(str(st.secrets.get("OPENAI_API_KEY", "")).strip())
+    except Exception:
+        return False
+
+
+def activation_preflight(config: ExternalAIConfig | None = None) -> dict[str, Any]:
+    """Produce a sanitized, provider-free activation decision.
+
+    Credential validity, model availability, credits, and provider billing cannot
+    be proven without an authenticated provider operation. They therefore remain
+    explicitly unverified rather than being inferred from secret presence.
+    """
+    cfg = config or configuration()
+    credential_present = credential_configured()
+    checks = {
+        "provider_supported": cfg.provider in SUPPORTED_PROVIDERS,
+        "exact_model_configured": bool(cfg.model),
+        "inference_enabled": cfg.enabled,
+        "privacy_approved": cfg.privacy_approved,
+        "billing_approved": cfg.billing_approved,
+        "credential_configured": credential_present,
+        "request_limit_bounded": 0 < cfg.max_requests_per_generation <= 4,
+        "input_limit_bounded": 0 < cfg.max_input_bytes <= 48_000,
+        "output_limit_bounded": 0 < cfg.max_output_tokens <= 900,
+        "latency_limit_bounded": 0 < cfg.timeout_seconds <= 12.0,
+        "generation_cost_limit_bounded": 0 < cfg.max_generation_cost_microusd <= 60_000,
+    }
+    return {
+        "version": VERSION,
+        "provider": cfg.provider or None,
+        "model": cfg.model or None,
+        "checks": checks,
+        "provider_account": {
+            "credential_validity": "UNVERIFIED_NO_PROVIDER_CALL",
+            "model_availability": "UNVERIFIED_NO_PROVIDER_CALL",
+            "billing_status": "OWNER_OR_PROVIDER_ATTESTATION_REQUIRED",
+            "credits_balance": "UNAVAILABLE_WITHOUT_PROVIDER_ACCOUNT_ACCESS",
+        },
+        "limits": {
+            "timeout_seconds": cfg.timeout_seconds,
+            "max_input_bytes": cfg.max_input_bytes,
+            "max_output_tokens": cfg.max_output_tokens,
+            "max_requests_per_generation": cfg.max_requests_per_generation,
+            "max_generation_cost_microusd": cfg.max_generation_cost_microusd,
+        },
+        "ready_for_live_inference": all(checks.values()),
+        "provider_calls": 0,
+    }
 
 
 def sanitize_payload(value: Any) -> tuple[Any, int]:
@@ -147,6 +209,7 @@ def invoke_grounded_json(
             "max_input_bytes": cfg.max_input_bytes,
             "max_output_tokens": cfg.max_output_tokens,
             "max_requests_per_generation": cfg.max_requests_per_generation,
+            "max_generation_cost_microusd": cfg.max_generation_cost_microusd,
         },
     }
     if not cfg.active:
@@ -175,5 +238,6 @@ def invoke_grounded_json(
 
 
 __all__ = [
-    "ExternalAIConfig", "VERSION", "configuration", "invoke_grounded_json", "sanitize_payload",
+    "ExternalAIConfig", "VERSION", "activation_preflight", "configuration",
+    "credential_configured", "invoke_grounded_json", "sanitize_payload",
 ]
