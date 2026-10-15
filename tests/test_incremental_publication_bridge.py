@@ -60,7 +60,20 @@ def successful_aggregate(**kwargs):
                         "structural_diff": {"analytical_mismatch_count": 0}},
         "evidence_inspector_coverage": {"status": "PASS", "failures": []},
         "publication_bundle": {
-            "artifacts": {"market_full_scan.json": []}, "manifest": manifest,
+            "artifacts": {
+                "market_full_scan.json": [],
+                "full_evaluation_pool.json": [
+                    {"ticker": "AAA", "publication_certification": {
+                        "customer_publication_allowed": True,
+                        "certification_state": "CERTIFIED", "components": {},
+                    }},
+                    {"ticker": "BBB", "publication_certification": {
+                        "customer_publication_allowed": False,
+                        "certification_state": "INSUFFICIENT_INPUTS",
+                        "components": {"market": {"blockers": ["MARKET_EVIDENCE_STALE"]}},
+                    }},
+                ],
+            }, "manifest": manifest,
         },
     }
 
@@ -74,6 +87,12 @@ def test_complete_incremental_chain_stages_existing_publisher_handoff(monkeypatc
     )
     assert report["status"] == "CERTIFIED_NOT_PUBLISHED"
     assert report["production_writes"] == 0
+    assert report["unaccounted_publication_records"] == 0
+    assert report["publishable_count"] == 1
+    assert report["withheld_count"] == 1
+    reconciliation = json.loads((tmp_path / "publication_population_reconciliation.json").read_text())
+    assert reconciliation["status"] == "RECONCILED"
+    assert reconciliation["observed_count"] == 2
     assert (tmp_path / "publication_bundle" / "market_full_scan.json").is_file()
     assert (tmp_path / "publication_bundle" / "incremental_certification_handoff.json").is_file()
     manifest = tmp_path / "publication_bundle" / "publication_manifest.json"
@@ -119,6 +138,26 @@ def test_invalid_certification_cannot_stage_or_publish(monkeypatch, tmp_path):
             source_sha="s" * 40, candidate_dir=tmp_path, workflow_run_id="123",
         )
     assert list(tmp_path.iterdir()) == []
+
+
+def test_publication_population_omission_or_unexplained_withholding_fails_closed():
+    with pytest.raises(ValueError, match="POPULATION_MISMATCH"):
+        bridge.reconcile_publication_population(
+            symbols=["AAA", "BBB"], artifacts={"full_evaluation_pool.json": [{
+                "ticker": "AAA", "publication_certification": {
+                    "customer_publication_allowed": True, "certification_state": "CERTIFIED",
+                },
+            }]}, source_sha="s" * 40, candidate_digest="c" * 64,
+        )
+    with pytest.raises(ValueError, match="WITHHOLDING_UNEXPLAINED"):
+        bridge.reconcile_publication_population(
+            symbols=["AAA"], artifacts={"full_evaluation_pool.json": [{
+                "ticker": "AAA", "publication_certification": {
+                    "customer_publication_allowed": False,
+                    "certification_state": "INSUFFICIENT_INPUTS", "components": {},
+                },
+            }]}, source_sha="s" * 40, candidate_digest="c" * 64,
+        )
 
 
 def test_raw_receipts_materialize_retained_fundamentals_and_new_completed_bars(tmp_path):

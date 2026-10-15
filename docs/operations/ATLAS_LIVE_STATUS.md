@@ -64,6 +64,36 @@ and exact-SHA smoke remain open.
 - Local verification: 131 focused tests passed, both workflow files parsed as
   YAML, Python compilation passed, and `git diff --check` passed.
 
+## PR #36 publication-integrity reconciliation
+
+- Retained provider-free replay input: all 41 immutable acquisition shards from
+  governed run `37216506983`; governed customer membership `1,298/1,298`;
+  missing acquisition records `0`; provider calls `0`; production writes `0`.
+- Evaluation result: `FULL_UNIVERSE_CERTIFIED`; forward/reverse candidate
+  digest `e3cf999be9984aebbef5072884f7a79fd6e377b50dd9a295670c109fd7c6e935`;
+  all 1,298 records compared with zero analytical, numerical, action, order, or
+  provenance differences.
+- Publication population: `1,298` expected, `1,298` observed, `1,223`
+  publishable, `75` explicitly withheld, `0` missing, `0` duplicate, `0`
+  unexpected, and `0` unexplained. Reconciliation digest:
+  `f1a1d53b65dd2880142f6363cb118f3bd1bb0f88a1d33a9c03e7b5b05cfcc7b0`.
+- Withheld certification states: `47 REVIEW_REQUIRED`; `28
+  INSUFFICIENT_INPUTS`. The complete withheld ticker inventory is: AENT, ALTG,
+  AMGN, ARAY, ASPS, AXR, BLFS, BNL, BWXT, C, CARG, CBFV, CBRE, CELH, COST,
+  CPSS, CSX, CTRI, CURI, CWCO, CYH, EXPO, EXTR, FHN, FTDR, FTEK, HAE, HDSN,
+  HTLD, JOB, KEY, KRO, LFCR, LGCY, LSTR, MGRC, MHH, MTZ, NAII, NTRB, NXT,
+  OOMA, OSPN, PAMT, PEP, PGR, PLAY, PPIH, RMD, ROOT, RSG, SFST, SIEB, SKYW,
+  SLP, SNPS, SON, SPOK, SWAG, TJX, TRNS, TRS, TSLA, UCB, UHAL, ULH, UTHR,
+  VIRC, VLTO, WBD, WDAY, WERN, WHR, WTFC, WYY.
+- The reconciliation contract now rejects any missing, duplicate, unexpected,
+  or unexplained-withholding row before a certification handoff is staged.
+- Home now presents the governed publishable BUY NOW inventory independently
+  from its maximum ten featured cards. The retained snapshot therefore reports
+  inventory `11` while continuing to render at most ten featured opportunities.
+- The protected daily workflow registers the incremental certification bridge
+  and existing atomic promoter contracts while keeping live acquisition and
+  publication disabled.
+
 ## Required handoff update
 
 Every future operational handoff must update this file with the exact source SHA, run timestamp, run ID, artifact ID/digest, provider-call count, finalized session, publication result, and authenticated customer result. Lifecycle states may advance only from direct evidence.

@@ -179,6 +179,70 @@ def _validate_acquired_records(
     return normalized
 
 
+def reconcile_publication_population(
+    *, symbols: Sequence[str], artifacts: Mapping[str, Any], source_sha: str,
+    candidate_digest: str,
+) -> dict[str, Any]:
+    """Account for every governed member in the final publication pool.
+
+    A withheld row is legitimate only when the existing publication certifier
+    recorded an explicit state and blocker.  This function does not alter that
+    decision; it makes population loss impossible to hide behind aggregate
+    counts.
+    """
+    expected = sorted({str(value).upper() for value in symbols})
+    rows = list(artifacts.get("full_evaluation_pool.json") or ())
+    observed = [str(row.get("ticker") or row.get("symbol") or "").upper() for row in rows]
+    counts = Counter(observed)
+    duplicates = sorted(ticker for ticker, count in counts.items() if count != 1)
+    missing = sorted(set(expected) - set(observed))
+    unexpected = sorted(set(observed) - set(expected))
+    decisions = []
+    unexplained = []
+    for row in sorted(rows, key=lambda item: str(item.get("ticker") or item.get("symbol") or "")):
+        ticker = str(row.get("ticker") or row.get("symbol") or "").upper()
+        certification = dict(row.get("publication_certification") or {})
+        allowed = certification.get("customer_publication_allowed") is True
+        components = dict(certification.get("components") or {})
+        reasons = sorted({
+            str(reason)
+            for component in components.values() if isinstance(component, Mapping)
+            for reason in (component.get("blockers") or component.get("reason_codes") or ())
+            if str(reason).strip()
+        } | {
+            str(reason) for reason in (certification.get("blockers") or certification.get("reason_codes") or ())
+            if str(reason).strip()
+        })
+        state = str(certification.get("certification_state") or "")
+        if not allowed and (not state or not reasons):
+            unexplained.append(ticker)
+        decisions.append({
+            "ticker": ticker, "customer_publication_allowed": allowed,
+            "certification_state": state, "reason_codes": reasons,
+            "source_sha": source_sha, "candidate_digest": candidate_digest,
+        })
+    failures = []
+    if len(rows) != len(expected) or missing or unexpected or duplicates:
+        failures.append("INCREMENTAL_PUBLICATION_POPULATION_MISMATCH")
+    if unexplained:
+        failures.append("INCREMENTAL_PUBLICATION_WITHHOLDING_UNEXPLAINED")
+    if failures:
+        raise ValueError(";".join(failures))
+    publishable = sum(item["customer_publication_allowed"] for item in decisions)
+    withheld = len(decisions) - publishable
+    report = {
+        "contract": "ATLAS_INCREMENTAL_PUBLICATION_RECONCILIATION_V1",
+        "source_sha": source_sha, "candidate_digest": candidate_digest,
+        "expected_count": len(expected), "observed_count": len(rows),
+        "publishable_count": publishable, "withheld_count": withheld,
+        "missing_count": 0, "unexpected_count": 0, "duplicate_count": 0,
+        "unexplained_withholding_count": 0, "status": "RECONCILED",
+        "records": decisions,
+    }
+    report["reconciliation_sha256"] = _digest(report)
+    return report
+
+
 def certify_incremental_candidate(
     *, plan: Mapping[str, Any], checkpoint: Mapping[str, Any],
     acquired_records: Sequence[Mapping[str, Any]], source_sha: str,
@@ -235,6 +299,11 @@ def certify_incremental_candidate(
         raise ValueError("INCREMENTAL_CERTIFIED_CANDIDATE_REJECTED")
     publication = dict(result.get("publication_bundle") or {})
     manifest = dict(publication.get("manifest") or {})
+    reconciliation = reconcile_publication_population(
+        symbols=symbols, artifacts=dict(publication.get("artifacts") or {}),
+        source_sha=source_sha,
+        candidate_digest=result["immutable_candidate"]["candidate_digest"],
+    )
     manifest["workflow_run_id"] = str(workflow_run_id)
     manifest["incremental_plan_sha256"] = plan["plan_sha256"]
     manifest["incremental_receipt_set_sha256"] = publication_readiness(
@@ -252,6 +321,7 @@ def certify_incremental_candidate(
         ("checkpoint_summary.json", result["full_universe_completeness"]),
         ("determinism_report.json", result["determinism"]),
         ("evidence_inspector_coverage.json", result["evidence_inspector_coverage"]),
+        ("publication_population_reconciliation.json", reconciliation),
     ):
         (report_root / name).write_text(
             json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
@@ -274,6 +344,10 @@ def certify_incremental_candidate(
         "publication_bundle_digest": result["publication_bundle_digest"],
         "handoff_sha256": handoff["handoff_sha256"],
         "symbol_count": len(symbols), "provider_retries": 0,
+        "publication_population_reconciliation_sha256": reconciliation["reconciliation_sha256"],
+        "publishable_count": reconciliation["publishable_count"],
+        "withheld_count": reconciliation["withheld_count"],
+        "unaccounted_publication_records": 0,
         "production_writes": 0,
         "required_promoter": "scripts.promote_daily_buy_now_snapshot.promote",
     }
@@ -284,4 +358,7 @@ def certify_incremental_candidate(
     return report
 
 
-__all__ = ["CONTRACT", "certify_incremental_candidate", "materialize_acquired_records"]
+__all__ = [
+    "CONTRACT", "certify_incremental_candidate", "materialize_acquired_records",
+    "reconcile_publication_population",
+]
