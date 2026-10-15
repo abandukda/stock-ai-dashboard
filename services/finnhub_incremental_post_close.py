@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import hashlib
 import json
+from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
 
@@ -20,6 +21,8 @@ FUNDAMENTAL_FAMILIES = (
     "financial_statements",
     "basic_financials",
 )
+CHECKPOINT_VERSION = "ATLAS_FINNHUB_INCREMENTAL_CHECKPOINT_V1"
+RETRY_LIMIT = 0
 
 
 def _digest(value: Any) -> str:
@@ -164,8 +167,136 @@ def validate_incremental_receipts(
     return result
 
 
+def classify_retry(*, failure_code: str) -> dict[str, Any]:
+    """Classify failures while preserving the production zero-retry policy."""
+    retryable = failure_code in {"TIMEOUT", "HTTP_429", "HTTP_503", "CONNECTION_RESET"}
+    return {
+        "failure_code": failure_code,
+        "retryable_class": retryable,
+        "automatic_retry_limit": RETRY_LIMIT,
+        "automatic_retry_authorized": False,
+    }
+
+
+def new_checkpoint(*, plan: Mapping[str, Any]) -> dict[str, Any]:
+    value: dict[str, Any] = {
+        "checkpoint_version": CHECKPOINT_VERSION,
+        "plan_sha256": str(plan.get("plan_sha256") or ""),
+        "session": str(plan.get("session") or ""),
+        "request_count": int(plan.get("request_count") or 0),
+        "receipts": {},
+        "telemetry": {"attempted_requests": 0, "accepted_receipts": 0, "automatic_retries": 0},
+    }
+    if not value["plan_sha256"] or not value["session"]:
+        raise ValueError("INCREMENTAL_CHECKPOINT_PLAN_IDENTITY_MISSING")
+    value["checkpoint_sha256"] = _digest(value)
+    return value
+
+
+def _validated_checkpoint(*, plan: Mapping[str, Any], checkpoint: Mapping[str, Any]) -> dict[str, Any]:
+    value = dict(checkpoint)
+    supplied = value.pop("checkpoint_sha256", None)
+    if supplied != _digest(value):
+        raise ValueError("INCREMENTAL_CHECKPOINT_CORRUPT")
+    value["checkpoint_sha256"] = supplied
+    if value.get("checkpoint_version") != CHECKPOINT_VERSION:
+        raise ValueError("INCREMENTAL_CHECKPOINT_VERSION_MISMATCH")
+    if value.get("plan_sha256") != plan.get("plan_sha256"):
+        raise ValueError("INCREMENTAL_CHECKPOINT_PLAN_MISMATCH")
+    receipts = value.get("receipts")
+    telemetry = value.get("telemetry")
+    if not isinstance(receipts, dict) or not isinstance(telemetry, dict):
+        raise ValueError("INCREMENTAL_CHECKPOINT_SCHEMA_INVALID")
+    attempted = int(telemetry.get("attempted_requests") or 0)
+    accepted = int(telemetry.get("accepted_receipts") or 0)
+    retries = int(telemetry.get("automatic_retries") or 0)
+    if attempted > int(plan.get("request_count") or 0) or accepted > attempted or retries != RETRY_LIMIT:
+        raise ValueError("INCREMENTAL_TELEMETRY_CEILING_EXCEEDED")
+    return value
+
+
+def write_checkpoint_atomic(*, path: Path, checkpoint: Mapping[str, Any]) -> None:
+    """Durably replace one checkpoint; a failed replace never reports success."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    try:
+        temporary.write_text(json.dumps(checkpoint, indent=2, sort_keys=True), encoding="utf-8")
+        temporary.replace(path)
+    except BaseException:
+        try:
+            temporary.unlink(missing_ok=True)
+        finally:
+            raise
+
+
+def load_checkpoint(*, path: Path, plan: Mapping[str, Any]) -> dict[str, Any]:
+    if not path.exists():
+        return new_checkpoint(plan=plan)
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError("INCREMENTAL_CHECKPOINT_CORRUPT") from exc
+    return _validated_checkpoint(plan=plan, checkpoint=value)
+
+
+def accept_receipt(
+    *, plan: Mapping[str, Any], checkpoint: Mapping[str, Any], receipt: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Return the next checkpoint, treating exact duplicate execution idempotently."""
+    current = _validated_checkpoint(plan=plan, checkpoint=checkpoint)
+    key = str(receipt.get("request_key") or "")
+    if key not in set(plan.get("request_keys") or []):
+        raise ValueError(f"INCREMENTAL_UNPLANNED_RECEIPT:{key}")
+    existing = current["receipts"].get(key)
+    if existing is not None:
+        if dict(existing) != dict(receipt):
+            raise ValueError(f"INCREMENTAL_CONFLICTING_DUPLICATE_RECEIPT:{key}")
+        return current
+    if receipt.get("status") != "AVAILABLE" or receipt.get("session") != plan.get("session"):
+        raise ValueError(f"INCREMENTAL_INVALID_RECEIPT:{key}")
+    next_value = {key: value for key, value in current.items() if key != "checkpoint_sha256"}
+    next_value["receipts"] = {**current["receipts"], key: dict(receipt)}
+    next_value["telemetry"] = {
+        **current["telemetry"],
+        "attempted_requests": int(current["telemetry"]["attempted_requests"]) + 1,
+        "accepted_receipts": int(current["telemetry"]["accepted_receipts"]) + 1,
+        "automatic_retries": RETRY_LIMIT,
+    }
+    if next_value["telemetry"]["attempted_requests"] > int(plan["request_count"]):
+        raise ValueError("INCREMENTAL_TELEMETRY_CEILING_EXCEEDED")
+    next_value["checkpoint_sha256"] = _digest(next_value)
+    return next_value
+
+
+def resume_request_keys(*, plan: Mapping[str, Any], checkpoint: Mapping[str, Any]) -> list[str]:
+    current = _validated_checkpoint(plan=plan, checkpoint=checkpoint)
+    return sorted(set(plan.get("request_keys") or []) - set(current["receipts"]))
+
+
+def publication_readiness(*, plan: Mapping[str, Any], checkpoint: Mapping[str, Any]) -> dict[str, Any]:
+    """Certify the input boundary; this function never mutates production files."""
+    current = _validated_checkpoint(plan=plan, checkpoint=checkpoint)
+    if resume_request_keys(plan=plan, checkpoint=current):
+        raise ValueError("INCREMENTAL_PARTIAL_PUBLICATION_FORBIDDEN")
+    receipts = list(current["receipts"].values())
+    validation = validate_incremental_receipts(plan=plan, receipts=receipts)
+    result = {
+        "status": "READY_FOR_EXISTING_ATOMIC_PROMOTER",
+        "provider_calls": 0,
+        "production_writes": 0,
+        "plan_sha256": plan["plan_sha256"],
+        "checkpoint_sha256": current["checkpoint_sha256"],
+        "receipt_set_sha256": validation["receipt_set_sha256"],
+        "methodology_mutation": "NONE",
+    }
+    result["readiness_sha256"] = _digest(result)
+    return result
+
+
 __all__ = [
-    "CHANGE_PROBE_FAMILY", "FUNDAMENTAL_FAMILIES", "IncrementalCeiling",
+    "CHANGE_PROBE_FAMILY", "CHECKPOINT_VERSION", "FUNDAMENTAL_FAMILIES", "IncrementalCeiling",
     "PLAN_VERSION", "PRICE_FAMILY", "build_incremental_plan", "request_key",
-    "validate_incremental_receipts",
+    "accept_receipt", "classify_retry", "load_checkpoint", "new_checkpoint",
+    "publication_readiness", "resume_request_keys", "validate_incremental_receipts",
+    "write_checkpoint_atomic",
 ]
