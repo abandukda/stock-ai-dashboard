@@ -67,6 +67,7 @@ jobs:
           SOURCE_SHA: ${{ inputs.source_sha }}
         run: |
           mkdir -p audit_results/monitoring_delivery
+          export PYTHONPATH="$GITHUB_WORKSPACE${PYTHONPATH:+:$PYTHONPATH}"
           test -n "$ATLAS_DAILY_BUY_NOW_CRONITOR_TEST_URL"
           test -n "$ATLAS_REPORT_CARD_CRONITOR_URL"
           python3 scripts/send_operational_heartbeat.py --operation DAILY_BUY_NOW --state complete --run-id "$GITHUB_RUN_ID-buy-now-success" --source-sha "$SOURCE_SHA" --trading-session 2026-10-14 --publication-status TEST_ONLY_NO_PUBLICATION --url-env ATLAS_DAILY_BUY_NOW_CRONITOR_TEST_URL > audit_results/monitoring_delivery/buy_now_complete.json
