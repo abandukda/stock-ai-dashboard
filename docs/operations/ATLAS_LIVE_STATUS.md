@@ -3,7 +3,7 @@
 **Authoritative as of:** 2026-10-15  
 **Repository main:** `4e48884a5708944b5efeccca7f59a4a6bf94b450`  
 **Production:** [stock-ai-dashboard.streamlit.app](https://stock-ai-dashboard.streamlit.app/)  
-**Pending production-truth correction:** [PR #35](https://github.com/abandukda/stock-ai-dashboard/pull/35), head `d56025f734cdb769c39bf9c8c89dbc293105faf9`  
+**Pending production-truth correction:** [PR #35](https://github.com/abandukda/stock-ai-dashboard/pull/35)
 
 Evidence policy: a merge is not deployment; a provider-free run is not acquisition; a monitor ping is not publication; and repository data is not customer-visible until authenticated production evidence proves it.
 
