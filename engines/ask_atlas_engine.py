@@ -49,8 +49,11 @@ def _compact_context(report: Mapping[str, Any]) -> dict[str, Any]:
         if founder_guidance_v1_enabled() and isinstance(canonical_context.get("current_evaluation"), Mapping)
         else {}
     )
+    from services.customer_narrative_projection import customer_narrative_projection
+    shared_narrative = customer_narrative_projection(report)
     return {
         "ticker": report.get("ticker"),
+        "customer_narrative_projection": shared_narrative,
         "company": report.get("company"),
         "decision": decision["state"],
         "decision_status": decision["status"],
@@ -688,7 +691,12 @@ def _deterministic_answer(question: str, report: Mapping[str, Any]) -> str:
 
     supports = "\n".join(f"- {item}" for item in intelligence.get("why_atlas_supports_it") or [])
     risks = "\n".join(f"- {item}" for item in intelligence.get("key_risks") or [])
-    summary = intelligence.get("executive_summary") or report.get("executive_summary") or "No grounded executive summary is available."
+    from services.customer_narrative_projection import customer_narrative_projection
+    shared = customer_narrative_projection(report)
+    shared_thesis = list((shared.get("sections") or {}).get("thesis") or ())
+    summary = ((shared_thesis[0].get("text") if shared_thesis else None)
+               or intelligence.get("executive_summary") or report.get("executive_summary")
+               or "No grounded executive summary is available.")
     return (
         f"### Atlas answer for {ticker}\n"
         f"{_decision_sentence(report)}\n\n{summary}\n\n"
@@ -800,6 +808,7 @@ def ask_atlas(question: str, report: Mapping[str, Any]) -> dict[str, Any]:
         "current_evaluation_digest": current_evaluation.get("decision_digest"),
         "sources_used": sources,
         "generated_from": report.get("generated_at"),
+        "customer_narrative_source": context.get("customer_narrative_projection", {}).get("source"),
         "canonical_decision_state": decision["state"],
         "canonical_decision_status": decision["status"],
         "canonical_recommendation": decision["production_decision"].get("recommendation"),

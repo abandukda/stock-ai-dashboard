@@ -568,7 +568,30 @@ render_home_guidance_vnext(story, emit_interactive=lambda: st.markdown('<span da
     assert "Professional Detail" not in "\n".join(str(item.label) for item in app.expander)
     assert "Founder Guidance Preview" not in rendered
     assert "Actionable opportunities from the latest certified evaluation." in rendered
-    assert "AI-GENERATED EXPLANATION" in rendered
+    assert "DETERMINISTIC CERTIFIED SUMMARY" in rendered
+    assert "AI-GENERATED EXPLANATION" not in rendered
+    assert 'data-atlas-explanation-source="DETERMINISTIC_CERTIFIED_PROJECTION"' in rendered
+    assert 'data-atlas-model-status="NOT_INVOKED"' in rendered
+
+
+def test_premium_home_modules_are_truthful_and_preserve_certified_authority():
+    source = Path("ui/home_guidance_vnext.py").read_text(encoding="utf-8")
+    assert "Daily Intelligence Brief" in source
+    assert 'data-atlas-qa="home-opportunity-spotlight"' in source
+    assert 'data-atlas-qa="home-risk-radar"' in source
+    assert "Prior certified comparison unavailable" in source
+    assert "No dated catalyst or earnings event is published here" in source
+    assert "render_customer_report_card_preview()" in source
+    preview_source = Path("ui/report_card_preview.py").read_text(encoding="utf-8")
+    assert "does not present certified decisions as realized returns" in preview_source
+    assert "sorted(" in source and 'card.get("production_rank")' in source
+
+
+def test_premium_home_has_mobile_specific_module_layouts():
+    source = Path("ui/home_guidance_vnext.py").read_text(encoding="utf-8")
+    assert "@media(max-width:700px){.atlas-daily-brief" in source
+    assert ".atlas-home-risk-radar{grid-template-columns:1fr}" in source
+    assert ".atlas-home-spotlight>div{grid-template-columns:1fr 1fr}" in source
 
 
 def test_final_app_home_function_wires_vnext_without_v104_pipeline_authority():

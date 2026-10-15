@@ -4601,9 +4601,12 @@ def render_chat_helper(full_df):
         'aria-hidden="true" style="display:none">ask-atlas-vnext</span>',
         unsafe_allow_html=True,
     )
-    st.markdown('<div class="atlas-kicker">Certified research assistant</div>', unsafe_allow_html=True)
-    st.subheader("Ask ATLAS — Continue the Decision Story")
-    st.caption("Ask about the canonical Research context. Ask can explain existing evidence and decisions, but cannot calculate a new recommendation, value, expected return, or trade plan.")
+    st.markdown(
+        '<section class="atlas-page-hero atlas-page-hero-ask atlas-ai-insight-panel"><div class="atlas-kicker">Certified research assistant</div>'
+        '<h1>Ask ATLAS</h1><p>Continue the decision story from the same certified evidence used in Research.</p>'
+        '<span>Explanations only — Ask cannot calculate a new recommendation, value, expected return, or trade plan.</span></section>',
+        unsafe_allow_html=True,
+    )
     st.markdown(
         '<span data-atlas-qa="page-ready" data-atlas-page="ask-ai" '
         'data-atlas-status="ready" aria-hidden="true" style="display:none">ask-ai-ready</span>',

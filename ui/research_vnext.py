@@ -681,8 +681,12 @@ def _render_decision(report: Mapping[str, Any], view: Mapping[str, Any]) -> None
             else:
                 st.caption("No grounded condition is populated.")
     with st.expander("Long-form thesis and decision evidence", expanded=False):
+        shared = safe_mapping(report.get("customer_narrative_projection"))
+        shared_sections = safe_mapping(shared.get("sections"))
+        shared_thesis = safe_sequence(shared_sections.get("thesis"))
         st.markdown("#### Executive Summary")
-        st.write(_scalar_text(report.get("executive_summary"), "No grounded executive summary is currently available."))
+        st.write(_scalar_text(safe_mapping(shared_thesis[0]).get("text") if shared_thesis else report.get("executive_summary"), "No grounded executive summary is currently available."))
+        st.caption("Narrative source: " + _scalar_text(shared.get("source"), "Unavailable"))
         st.markdown("#### Investment Thesis")
         st.write(_scalar_text(report.get("source_investment_thesis") or report.get("investment_thesis"), "No grounded thesis is currently available."))
         bull, bear = st.columns(2)
@@ -1562,6 +1566,8 @@ def render_full_research_vnext(row: Mapping[str, Any]) -> bool:
         persisted_row if isinstance(persisted_row, Mapping) else {},
         research_row,
     )
+    from services.customer_narrative_projection import customer_narrative_projection
+    report["customer_narrative_projection"] = customer_narrative_projection(report)
     report["analyst_action_retrieval"] = retrieval
     report["policy_source_metrics"] = policy_retrieval.get("metrics") or {}
     legacy_report._inject_visual_standards()

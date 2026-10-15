@@ -8,6 +8,9 @@ import re
 from difflib import SequenceMatcher
 from typing import Any, Callable, Mapping, Sequence
 
+from services.external_ai_adapter import configuration as external_ai_configuration
+from services.external_ai_adapter import invoke_grounded_json
+
 
 SUMMARY_VERSION = "ATLAS_VIEW_SUMMARY_V3"
 GUIDANCE_STATES = {
@@ -315,11 +318,23 @@ def _openai_key() -> str:
 
 
 def llm_configuration_status() -> dict[str, Any]:
-    available = bool(_openai_key())
+    config = external_ai_configuration()
+    available = bool(config.active and _openai_key())
     return {
         "available": available,
-        "required_secret": None if available else "OPENAI_API_KEY",
-        "model": os.getenv("ATLAS_LLM_MODEL", "gpt-4o-mini"),
+        "required_secret": None if _openai_key() else "OPENAI_API_KEY",
+        "provider": config.provider or None,
+        "model": config.model or None,
+        "activation_gates": {
+            "enabled": config.enabled,
+            "privacy_approved": config.privacy_approved,
+        },
+        "budget": {
+            "timeout_seconds": config.timeout_seconds,
+            "max_input_bytes": config.max_input_bytes,
+            "max_output_tokens": config.max_output_tokens,
+            "max_requests_per_generation": config.max_requests_per_generation,
+        },
     }
 
 
@@ -858,35 +873,36 @@ def validate_summary(text: str, payload: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _default_llm(payloads: Sequence[Mapping[str, Any]]) -> Sequence[str] | None:
-    api_key = _openai_key()
-    if not api_key:
+    config = external_ai_configuration()
+    request_count = (len(payloads) + 4) // 5
+    if request_count > config.max_requests_per_generation:
         return None
-    try:
-        from openai import OpenAI
-        client = OpenAI(api_key=api_key)
-        system_prompt = "You are writing an investment thesis, not summarizing a dashboard. In 3-5 concise sentences begin with the company name or ticker and answer: what could cause this COMPANY to outperform; what specifically supports future revenue, EPS, or cash-flow growth; what recent catalyst matters; what Wall Street expects and how ATLAS valuation compares when visible in this data mode; what insider, institutional, or political context is relevant; the most important downside risk; and why ATLAS recommends customer_action. Treat opportunity_thesis as immutable and explain that thesis when it is present; never select or change it. For non-breakout theses, ordinary volume may reduce near-term confirmation but is not a fatal investment veto. Only a BREAKOUT thesis may claim breakout confirmation. Select only the most decision-relevant evidence and vary emphasis and structure when evidence differs. Prioritize company/business, earnings, revisions, valuation and catalysts before technical context. Technical evidence alone cannot support business claims; if company evidence is absent, transparently write a market-setup thesis. Every company-specific and numerical claim must exist in the payload. Wall Street and insider/ownership/political evidence are non-scoring context and never determine the action. Never mention rank, setup score, Recovery Score, contextual RVOL, reason codes, provider/canonical terminology, or internal state names. Use customer_action verbatim when naming the stance. Return JSON {\"summaries\":[...]} in input order."
-        output: list[str] = []
-        for start in range(0, len(payloads), 5):
-            batch = list(payloads[start:start + 5])
-            completion = client.chat.completions.create(
-                model=os.getenv("ATLAS_LLM_MODEL", "gpt-4o-mini"), temperature=0.1, max_tokens=1800,
-                response_format={"type": "json_object"},
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": json.dumps(batch, sort_keys=True, default=str)},
-                ],
-            )
-            parsed = json.loads(completion.choices[0].message.content or "{}")
-            values = parsed.get("summaries")
-            if isinstance(values, list):
-                output.extend(str(value) for value in values[:len(batch)])
-            else:
-                output.extend([""] * len(batch))
-            if len(output) < start + len(batch):
-                output.extend([""] * (start + len(batch) - len(output)))
-        return output
-    except Exception:
-        return None
+    system_prompt = "You are writing an investment thesis, not summarizing a dashboard. In 3-5 concise sentences begin with the company name or ticker and answer: what could cause this COMPANY to outperform; what specifically supports future revenue, EPS, or cash-flow growth; what recent catalyst matters; what Wall Street expects and how ATLAS valuation compares when visible in this data mode; what insider, institutional, or political context is relevant; the most important downside risk; and why ATLAS recommends customer_action. Treat opportunity_thesis as immutable and explain that thesis when it is present; never select or change it. For non-breakout theses, ordinary volume may reduce near-term confirmation but is not a fatal investment veto. Only a BREAKOUT thesis may claim breakout confirmation. Select only the most decision-relevant evidence and vary emphasis and structure when evidence differs. Prioritize company/business, earnings, revisions, valuation and catalysts before technical context. Technical evidence alone cannot support business claims; if company evidence is absent, transparently write a market-setup thesis. Every company-specific and numerical claim must exist in the payload. Wall Street and insider/ownership/political evidence are non-scoring context and never determine the action. Never mention rank, setup score, Recovery Score, contextual RVOL, reason codes, provider/canonical terminology, or internal state names. Use customer_action verbatim when naming the stance. Return JSON {\"summaries\":[...]} in input order."
+    output: list[str] = []
+    for start in range(0, len(payloads), 5):
+        batch = list(payloads[start:start + 5])
+        def validate_batch(raw: str) -> Mapping[str, Any]:
+            try:
+                values = json.loads(raw).get("summaries")
+            except (AttributeError, json.JSONDecodeError):
+                return {"valid": False, "violations": ("INVALID_JSON",)}
+            if not isinstance(values, list) or len(values) != len(batch):
+                return {"valid": False, "violations": ("SUMMARY_COUNT_MISMATCH",)}
+            violations = [
+                {"index": index, "violations": validate_summary(str(value), batch[index])["violations"]}
+                for index, value in enumerate(values)
+                if not validate_summary(str(value), batch[index])["valid"]
+            ]
+            return {"valid": not violations, "violations": violations}
+        invocation = invoke_grounded_json(
+            payload=batch, system_prompt=system_prompt, fallback=None, validator=validate_batch,
+            config=config,
+        )
+        if invocation["status"] != "EXTERNAL_AI_VALIDATED":
+            return None
+        values = json.loads(str(invocation["value"])).get("summaries") or []
+        output.extend(str(value) for value in values)
+    return output
 
 
 def generate_summaries(

@@ -115,9 +115,13 @@ def render_watchlist_vnext(
 ) -> None:
     st.markdown('<span data-atlas-qa="watchlist-vnext" data-atlas-non-scoring="true" '
                 'style="display:none">watchlist-vnext</span>', unsafe_allow_html=True)
-    st.markdown('<div class="atlas-kicker">Certified monitoring</div>', unsafe_allow_html=True)
-    st.title("Watchlist")
-    st.caption("What changed since the last certified review. Market-state context cannot change the certified Action.")
+    st.markdown(
+        '<section class="atlas-page-hero atlas-page-hero-watchlist atlas-ai-insight-panel">'
+        '<div class="atlas-kicker">Certified monitoring</div><h1>Watchlist</h1>'
+        '<p>Track material changes without losing the certified investment view.</p>'
+        '<span>Market-state context cannot change the certified Action.</span></section>',
+        unsafe_allow_html=True,
+    )
     emit_page_interactive(st, "Watchlist Intelligence")
     controls = st.columns([3, 2, 2])
     query = controls[0].text_input("Search your watchlist", key="watchlist-vnext-search").strip().upper()
@@ -194,6 +198,13 @@ def render_watchlist_vnext(
             )
             context_cols[2].metric("Distance to Fair Value", customer_percent(distance, signed=True) if distance is not None else "Unavailable")
             st.write("**What changed:** " + str(_value(row, "What Changed", "change_since_last_scan", "material_change") or "No governed material change is attached."))
+            from services.customer_narrative_projection import customer_narrative_projection
+            narrative = customer_narrative_projection(row)
+            st.markdown(
+                f'<span data-atlas-qa="shared-customer-narrative" data-atlas-ticker="{ticker}" '
+                f'data-atlas-source="{html.escape(str(narrative.get("source") or "UNAVAILABLE"))}" '
+                'style="display:none">shared-customer-narrative</span>', unsafe_allow_html=True,
+            )
             st.caption("Earnings: " + str(_value(row, "Next Earnings", "next_earnings_date", "earnings_date") or "Unavailable") + " · Transcript/context: " + ("Available" if _value(row, "transcript_url", "earnings_transcript_url", "earnings_summary") else "Unavailable"))
             if st.button(f"Open Research — {ticker}", key=f"watchlist-vnext-{ticker}", use_container_width=True):
                 open_research(ticker)
