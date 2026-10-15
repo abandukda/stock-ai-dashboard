@@ -28592,6 +28592,7 @@ def main():
     st.markdown(
         '<span data-atlas-qa="customer-navigation-contract" '
         f'data-atlas-contract-version="{html.escape(CUSTOMER_NAV_CONTRACT_VERSION)}" '
+        f'data-atlas-source-sha="{html.escape(BOOTSTRAP_SOURCE_SHA)}" '
         f'data-atlas-role-category="{html.escape(role_category(viewer=not _internal_authorized))}" '
         f'data-atlas-customer-routes="{html.escape("|".join(customer_pages))}" '
         f'data-atlas-internal-routes="{html.escape("|".join(_internal_available))}" '

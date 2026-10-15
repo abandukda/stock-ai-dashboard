@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from services.customer_navigation_contract import (
     CUSTOMER_NAV_CONTRACT_VERSION,
     CUSTOMER_ROUTES,
@@ -13,6 +15,21 @@ def test_customer_navigation_is_exact_vnext_contract() -> None:
     assert "Earnings" not in CUSTOMER_ROUTES
     assert "Recovery" not in CUSTOMER_ROUTES
     assert "ETFs" not in CUSTOMER_ROUTES
+
+
+def test_authenticated_navigation_marker_binds_runtime_source_sha() -> None:
+    source = Path("app.py").read_text(encoding="utf-8")
+    marker = source.split('data-atlas-qa="customer-navigation-contract"', 1)[1]
+    assert 'data-atlas-source-sha="{html.escape(BOOTSTRAP_SOURCE_SHA)}"' in marker[:1000]
+
+
+def test_visual_crawler_resolves_navigation_contract_across_streamlit_frames() -> None:
+    source = Path("agents/atlas_visual_crawler_v1.py").read_text(encoding="utf-8")
+    method = source.split("async def _customer_navigation_contract", 1)[1]
+    assert "_marker_in_streamlit_scopes" in method[:1200]
+    resolver = source.split("async def _marker_in_streamlit_scopes", 1)[1]
+    assert "for scope in _scopes(page)" in resolver[:1200]
+    assert "source_sha == self.expected_deployed_source_sha" in method[:1200]
 
 
 def test_stale_research_and_other_legacy_routes_migrate() -> None:
