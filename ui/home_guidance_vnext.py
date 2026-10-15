@@ -1277,6 +1277,13 @@ def _customer_evidence_state(card: Mapping[str, Any]) -> str:
 
 
 def _compact_reason(card: Mapping[str, Any]) -> str:
+    from services.customer_narrative_projection import customer_narrative_projection
+    projection = customer_narrative_projection(card)
+    thesis = list((projection.get("sections") or {}).get("thesis") or ())
+    if thesis:
+        projected = str(thesis[0].get("text") or "").strip()
+        if projected and not re.search(r"\d", projected):
+            return projected.rstrip(".") + "."
     facts = card.get("certified_summary_facts") if isinstance(card.get("certified_summary_facts"), Mapping) else {}
     for key in ("business_driver", "financial_driver", "valuation_driver", "primary_driver"):
         value = facts.get(key)

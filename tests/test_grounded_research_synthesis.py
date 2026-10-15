@@ -5,7 +5,8 @@ from dataclasses import dataclass
 import pytest
 
 from services.grounded_research_synthesis import (
-    SynthesisCache, provider_activation_status, synthesize_research,
+    SynthesisCache, build_evidence_packet, provider_activation_status,
+    synthesize_research, validate_synthesis,
 )
 
 
@@ -117,3 +118,12 @@ def test_evidence_identity_rejects_duplicate_or_missing_ids():
     bad = [{"evidence_id": "same", "fact": "One."}, {"evidence_id": "same", "fact": "Two."}]
     with pytest.raises(ValueError, match="RETAINED_EVIDENCE_ID_AND_FACT_REQUIRED"):
         synthesize_research("NVDA", bad)
+
+
+def test_rejects_unsupported_nonnumeric_financial_prose():
+    packet = build_evidence_packet("NVDA", [{"evidence_id": "ev-1", "fact": "Revenue increased."}])
+    candidate = {"thesis": [{"text": "Revenue increased and margins expanded.", "evidence_ids": ["ev-1"]}],
+                 "support": [], "risks": [], "watch_items": []}
+    validation = validate_synthesis(candidate, packet)
+    assert validation["valid"] is False
+    assert "UNSUPPORTED_PROSE:thesis:0" in validation["violations"]

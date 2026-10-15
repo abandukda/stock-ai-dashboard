@@ -135,6 +135,13 @@ def validate_synthesis(candidate: Mapping[str, Any], packet: Mapping[str, Any]) 
             allowed_named = _words(cited) | {str(packet.get("ticker") or "").lower(), "atlas"}
             if not named.issubset(allowed_named):
                 violations.append(f"UNSUPPORTED_ENTITY:{section}:{index}")
+            # Fail closed on novel content words. This intentionally prefers a
+            # rejected model response over fluent, uncited financial prose.
+            stop = {"a", "an", "and", "as", "at", "be", "because", "by", "for", "from",
+                    "in", "is", "it", "of", "on", "or", "that", "the", "this", "to", "with"}
+            novel = (_words(text) - stop) - (_words(cited) | {str(packet.get("ticker") or "").lower(), "atlas"})
+            if novel:
+                violations.append(f"UNSUPPORTED_PROSE:{section}:{index}")
             assertions.append({"section": section, "text": text, "evidence_ids": list(ids)})
 
     # Exact opposite directional claims cited to the same evidence are contradictory.

@@ -194,6 +194,13 @@ def render_watchlist_vnext(
             )
             context_cols[2].metric("Distance to Fair Value", customer_percent(distance, signed=True) if distance is not None else "Unavailable")
             st.write("**What changed:** " + str(_value(row, "What Changed", "change_since_last_scan", "material_change") or "No governed material change is attached."))
+            from services.customer_narrative_projection import customer_narrative_projection
+            narrative = customer_narrative_projection(row)
+            st.markdown(
+                f'<span data-atlas-qa="shared-customer-narrative" data-atlas-ticker="{ticker}" '
+                f'data-atlas-source="{html.escape(str(narrative.get("source") or "UNAVAILABLE"))}" '
+                'style="display:none">shared-customer-narrative</span>', unsafe_allow_html=True,
+            )
             st.caption("Earnings: " + str(_value(row, "Next Earnings", "next_earnings_date", "earnings_date") or "Unavailable") + " · Transcript/context: " + ("Available" if _value(row, "transcript_url", "earnings_transcript_url", "earnings_summary") else "Unavailable"))
             if st.button(f"Open Research — {ticker}", key=f"watchlist-vnext-{ticker}", use_container_width=True):
                 open_research(ticker)
