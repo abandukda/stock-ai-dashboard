@@ -568,7 +568,10 @@ render_home_guidance_vnext(story, emit_interactive=lambda: st.markdown('<span da
     assert "Professional Detail" not in "\n".join(str(item.label) for item in app.expander)
     assert "Founder Guidance Preview" not in rendered
     assert "Actionable opportunities from the latest certified evaluation." in rendered
-    assert "AI-GENERATED EXPLANATION" in rendered
+    assert "DETERMINISTIC CERTIFIED SUMMARY" in rendered
+    assert "AI-GENERATED EXPLANATION" not in rendered
+    assert 'data-atlas-explanation-source="DETERMINISTIC_CERTIFIED_PROJECTION"' in rendered
+    assert 'data-atlas-model-status="NOT_INVOKED"' in rendered
 
 
 def test_premium_home_modules_are_truthful_and_preserve_certified_authority():

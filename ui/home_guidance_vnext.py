@@ -1595,13 +1595,15 @@ def _render_daily_brief(story: Mapping[str, Any]) -> None:
         if lead else "No customer-publishable BUY NOW record is available in this certified snapshot."
     )
     st.markdown(
-        '<section class="atlas-daily-brief" data-atlas-qa="daily-intelligence-brief">'
+        '<section class="atlas-daily-brief" data-atlas-qa="daily-intelligence-brief" '
+        'data-atlas-explanation-source="DETERMINISTIC_CERTIFIED_PROJECTION" '
+        'data-atlas-model-status="NOT_INVOKED">'
         '<div><small>ATLAS Morning View · CERTIFIED SNAPSHOT</small><h1>Daily Intelligence Brief</h1>'
         f'<p>Actionable opportunities from the latest certified evaluation. {lead_copy} '
         'Decisions and values below are reproduced from the certified customer projection.</p>'
         f'<footer>As of {html.escape(_timestamp(story.get("scan_timestamp")))} · No live reranking</footer></div>'
         '<aside><small>TODAY’S MANDATE</small><b>Find signal.<br>Know the risk.</b>'
-        '<span>AI-GENERATED EXPLANATION · Presentation-only and cannot change ATLAS guidance.</span></aside></section>',
+        '<span>DETERMINISTIC CERTIFIED SUMMARY · Presentation-only and cannot change ATLAS guidance.</span></aside></section>',
         unsafe_allow_html=True,
     )
 
