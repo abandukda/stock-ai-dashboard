@@ -60,6 +60,13 @@ change scoring, withholding, Fair Value, or certification. The existing atomic
 publisher remains the only publication boundary and retains the last valid
 snapshot on failure.
 
+Checkpoint recovery is provider-free certified: atomic checksum-bound progress
+files bind plan and session identity; only committed receipts resume; missing
+request keys are deterministically derived; exact duplicates are idempotent and
+conflicting duplicates fail closed. Corrupt checkpoints, process interruption,
+storage replacement failure, telemetry tampering, and partial publication were
+fault-injected. Automatic provider retries remain zero.
+
 Required decision: approve this ceiling and an exact deployed source SHA through
 `DAILY_BUY_NOW_LIVE:<SHA>` only after the transport adapter is bound to the
 immutable plan keys and protected Finnhub/Cronitor configuration passes preflight.
@@ -86,6 +93,13 @@ locked SQLite/backup controls. Current evidence does not prove that owner-email
 routing received success, failure, and deliberately missed-heartbeat messages.
 Those three receipts, plus a fresh backup restore test at the final source SHA,
 are required before unattended operation.
+
+Provider-free closure now records redacted completion/failure request hashes,
+requires owner email only from a repository variable and persists only its
+SHA-256, specifies the independent missed-heartbeat contract, restores the
+last-known-good publication byte-for-byte after an injected mid-promotion
+failure, and verifies durable bundle copy/restore hashes. External delivery is
+still unproven because neither an owner address nor Cronitor URL is hardcoded.
 
 ## Exact outstanding approvals
 
