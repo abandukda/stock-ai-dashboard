@@ -10,7 +10,7 @@ from dataclasses import dataclass
 import hashlib
 import json
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any, Callable, Iterable, Mapping, Sequence
 
 
 PLAN_VERSION = "ATLAS_FINNHUB_INCREMENTAL_POST_CLOSE_V1"
@@ -23,6 +23,19 @@ FUNDAMENTAL_FAMILIES = (
 )
 CHECKPOINT_VERSION = "ATLAS_FINNHUB_INCREMENTAL_CHECKPOINT_V1"
 RETRY_LIMIT = 0
+EXECUTION_VERSION = "ATLAS_FINNHUB_INCREMENTAL_EXECUTION_V1"
+FAMILY_CAPABILITY = {
+    PRICE_FAMILY: "historical_ohlcv",
+    # A filing-list comparison is a change detector.  It is never used as a
+    # financial value and therefore cannot alter an investment decision.
+    CHANGE_PROBE_FAMILY: "sec_filings",
+    "company_profile": "company_profile",
+    "financial_statements": "financial_statements",
+    "basic_financials": "basic_financials",
+}
+UNAVAILABLE_CERTIFICATION_STATES = {
+    "DATA_UNAVAILABLE", "ENTITLEMENT_UNAVAILABLE", "REJECTED",
+}
 
 
 def _digest(value: Any) -> str:
@@ -32,6 +45,29 @@ def _digest(value: Any) -> str:
 
 def _symbols(values: Iterable[str]) -> list[str]:
     return sorted({str(value).strip().upper() for value in values if str(value).strip()})
+
+
+def load_governed_membership(*, records_path: Path, manifest_path: Path) -> dict[str, Any]:
+    """Recover the immutable 1,298-member scope from its governed artifacts.
+
+    This deliberately delegates all source-run, lineage, record ownership and
+    known membership-digest checks to the already-certified WS3 recovery
+    contract.  A repository convenience publication can never substitute for
+    the retained governed source.
+    """
+    from scripts.plan_ws3_published_acquisition import recover_membership
+
+    raw = records_path.read_bytes()
+    records = json.loads(raw)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if not isinstance(records, list) or not isinstance(manifest, dict):
+        raise ValueError("INCREMENTAL_GOVERNED_MEMBERSHIP_SCHEMA_INVALID")
+    membership = recover_membership(
+        records, manifest, source_file_sha256=hashlib.sha256(raw).hexdigest()
+    )
+    if membership.get("membership_count") != IncrementalCeiling().customer_symbols:
+        raise ValueError("INCREMENTAL_GOVERNED_MEMBERSHIP_COUNT_INVALID")
+    return membership
 
 
 @dataclass(frozen=True)
@@ -66,6 +102,7 @@ def build_incremental_plan(
     session: str,
     customer_symbols: Sequence[str],
     changed_fundamental_symbols: Sequence[str] = (),
+    governed_membership: Mapping[str, Any] | None = None,
     ceiling: IncrementalCeiling = IncrementalCeiling(),
 ) -> dict[str, Any]:
     """Build a zero-provider-call request contract and fail closed on overflow.
@@ -82,6 +119,19 @@ def build_incremental_plan(
         raise ValueError(
             f"INCREMENTAL_CUSTOMER_SCOPE_MISMATCH:{len(symbols)}:{ceiling.customer_symbols}"
         )
+    membership_identity: dict[str, Any] | None = None
+    if governed_membership is not None:
+        if governed_membership.get("tickers") != symbols:
+            raise ValueError("INCREMENTAL_GOVERNED_MEMBERSHIP_TICKERS_MISMATCH")
+        if governed_membership.get("membership_sha256") != _digest(symbols):
+            raise ValueError("INCREMENTAL_GOVERNED_MEMBERSHIP_DIGEST_MISMATCH")
+        membership_identity = {
+            key: governed_membership.get(key) for key in (
+                "source_run_id", "source_commit_sha", "candidate_digest",
+                "source_file_sha256", "source_semantic_sha256", "membership_count",
+                "membership_sha256", "artifact_sha256",
+            )
+        }
     unknown = sorted(set(changed) - set(symbols))
     if unknown:
         raise ValueError(f"INCREMENTAL_CHANGED_SYMBOL_OUTSIDE_SCOPE:{','.join(unknown)}")
@@ -131,6 +181,8 @@ def build_incremental_plan(
         "family_counts": family_counts,
         "request_keys": sorted(keyed),
     }
+    if membership_identity:
+        plan["governed_membership"] = membership_identity
     plan["plan_sha256"] = _digest(plan)
     return plan
 
@@ -163,7 +215,9 @@ def validate_incremental_receipts(
         "validated_receipts": len(observed),
         "methodology_mutation": "NONE",
     }
-    result["receipt_set_sha256"] = _digest(sorted(observed))
+    result["receipt_set_sha256"] = _digest(
+        [dict(observed[key]) for key in sorted(observed)]
+    )
     return result
 
 
@@ -293,10 +347,207 @@ def publication_readiness(*, plan: Mapping[str, Any], checkpoint: Mapping[str, A
     return result
 
 
+def _json_safe(value: Any) -> Any:
+    """Convert governed transport output without weakening its provenance."""
+    from dataclasses import asdict, is_dataclass
+    from enum import Enum
+
+    if is_dataclass(value):
+        return _json_safe(asdict(value))
+    if isinstance(value, Enum):
+        return value.value
+    if isinstance(value, Mapping):
+        return {str(key): _json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(item) for item in value]
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    raise ValueError(f"INCREMENTAL_TRANSPORT_OUTPUT_NOT_SERIALIZABLE:{type(value).__name__}")
+
+
+def persist_raw_response(*, raw_root: Path, request_key_value: str, envelope: Mapping[str, Any]) -> dict[str, str]:
+    """Atomically persist and re-read raw evidence before issuing a receipt."""
+    raw_root.mkdir(parents=True, exist_ok=True)
+    safe_name = hashlib.sha256(request_key_value.encode()).hexdigest()
+    destination = raw_root / f"{safe_name}.json"
+    temporary = destination.with_suffix(".json.tmp")
+    content = json.dumps(dict(envelope), sort_keys=True, separators=(",", ":")) + "\n"
+    try:
+        temporary.write_text(content, encoding="utf-8")
+        temporary.replace(destination)
+        durable = destination.read_bytes()
+    except BaseException:
+        temporary.unlink(missing_ok=True)
+        raise
+    digest = hashlib.sha256(durable).hexdigest()
+    if durable != content.encode() or digest != hashlib.sha256(content.encode()).hexdigest():
+        raise ValueError("INCREMENTAL_RAW_PERSISTENCE_VERIFICATION_FAILED")
+    return {"raw_path": destination.name, "raw_sha256": digest}
+
+
+class DurableRawEvidenceSink:
+    """Adapter callback which durably stores provider responses pre-normalization."""
+
+    def __init__(self, root: Path) -> None:
+        self.root = root
+        self.count = 0
+        self.identities: list[dict[str, str]] = []
+
+    def __call__(self, evidence: Mapping[str, Any]) -> None:
+        self.count += 1
+        key = ":".join((
+            str(evidence.get("capability") or ""),
+            str(evidence.get("symbol") or ""), str(self.count),
+        ))
+        identity = persist_raw_response(
+            raw_root=self.root, request_key_value=key,
+            envelope={"raw_transport_contract": "ATLAS_FINNHUB_RAW_TRANSPORT_V1", **dict(evidence)},
+        )
+        self.identities.append(identity)
+
+
+def execute_incremental_plan(
+    *,
+    plan: Mapping[str, Any],
+    adapter: Any,
+    raw_root: Path,
+    checkpoint_path: Path,
+    parameters_by_family: Mapping[str, Mapping[str, Any]],
+    before_request: Callable[[str], None] | None = None,
+) -> dict[str, Any]:
+    """Execute an exact authorized plan, raw-first, once, with zero retries.
+
+    The caller supplies the credential-bearing canonical adapter.  This module
+    never discovers credentials and the provider-free tests use a fake adapter.
+    Every attempt either creates one durable response plus receipt or aborts the
+    operation.  It never scores, certifies, promotes, or writes production.
+    """
+    if plan.get("plan_version") != PLAN_VERSION or plan.get("plan_sha256") != _digest(
+        {key: value for key, value in plan.items() if key != "plan_sha256"}
+    ):
+        raise ValueError("INCREMENTAL_PLAN_IDENTITY_INVALID")
+    if int(plan.get("request_count") or 0) > int(plan.get("exact_max_requests") or 0):
+        raise ValueError("INCREMENTAL_EXACT_REQUEST_CEILING_EXCEEDED")
+    missing_parameters = set(FAMILY_CAPABILITY) - set(parameters_by_family)
+    if missing_parameters:
+        raise ValueError("INCREMENTAL_TRANSPORT_PARAMETERS_INCOMPLETE")
+
+    checkpoint = load_checkpoint(path=checkpoint_path, plan=plan)
+    attempted_this_run = 0
+    for key in resume_request_keys(plan=plan, checkpoint=checkpoint):
+        if attempted_this_run >= int(plan["request_count"]):
+            raise ValueError("INCREMENTAL_EXACT_REQUEST_CEILING_EXCEEDED")
+        session, symbol, family = key.split(":", 2)
+        capability = FAMILY_CAPABILITY.get(family)
+        if not capability:
+            raise ValueError(f"INCREMENTAL_FAMILY_NOT_ALLOWLISTED:{family}")
+        if before_request:
+            before_request(key)
+        attempted_this_run += 1
+        try:
+            record = adapter.fetch(
+                capability, symbol, **dict(parameters_by_family[family])
+            )
+            provider_record = _json_safe(record)
+        except BaseException as exc:
+            failure = {
+                "execution_version": EXECUTION_VERSION,
+                "request_key": key,
+                "session": session,
+                "symbol": symbol,
+                "family": family,
+                "capability": capability,
+                "status": "FAILED",
+                "failure_type": type(exc).__name__,
+                "retry": classify_retry(failure_code=type(exc).__name__.upper()),
+            }
+            persist_raw_response(raw_root=raw_root, request_key_value=key, envelope=failure)
+            raise RuntimeError(f"INCREMENTAL_PROVIDER_ATTEMPT_FAILED:{key}") from exc
+        certification_state = str(
+            ((provider_record.get("provenance") or {}).get("certification_status") or "")
+        ) if isinstance(provider_record, Mapping) else ""
+        if certification_state in UNAVAILABLE_CERTIFICATION_STATES:
+            failure = {
+                "execution_version": EXECUTION_VERSION, "request_key": key,
+                "session": session, "symbol": symbol, "family": family,
+                "capability": capability, "status": "FAILED",
+                "failure_type": certification_state,
+                "provider_record": provider_record,
+                "retry": classify_retry(failure_code=certification_state),
+            }
+            persist_raw_response(raw_root=raw_root, request_key_value=key, envelope=failure)
+            raise RuntimeError(f"INCREMENTAL_PROVIDER_RECORD_UNAVAILABLE:{key}:{certification_state}")
+        envelope = {
+            "execution_version": EXECUTION_VERSION,
+            "plan_sha256": plan["plan_sha256"],
+            "request_key": key,
+            "session": session,
+            "symbol": symbol,
+            "family": family,
+            "capability": capability,
+            "provider_record": provider_record,
+        }
+        persisted = persist_raw_response(
+            raw_root=raw_root, request_key_value=key, envelope=envelope
+        )
+        receipt = {
+            "request_key": key,
+            "session": session,
+            "symbol": symbol,
+            "family": family,
+            "status": "AVAILABLE",
+            **persisted,
+        }
+        checkpoint = accept_receipt(plan=plan, checkpoint=checkpoint, receipt=receipt)
+        write_checkpoint_atomic(path=checkpoint_path, checkpoint=checkpoint)
+    readiness = publication_readiness(plan=plan, checkpoint=checkpoint)
+    return {
+        "status": "ACQUISITION_COMPLETE_PUBLICATION_NOT_PERFORMED",
+        "execution_version": EXECUTION_VERSION,
+        "attempts_this_run": attempted_this_run,
+        "checkpoint_sha256": checkpoint["checkpoint_sha256"],
+        "readiness": readiness,
+    }
+
+
+def prepare_certification_handoff(
+    *,
+    plan: Mapping[str, Any],
+    checkpoint: Mapping[str, Any],
+    candidate_dir: Path,
+    certification: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Persist a non-promoting handoff to the unchanged certification pipeline."""
+    readiness = publication_readiness(plan=plan, checkpoint=checkpoint)
+    if certification.get("methodology_mutation") != "NONE":
+        raise ValueError("INCREMENTAL_METHODOLOGY_MUTATION_FORBIDDEN")
+    if certification.get("publication_gate_status") != "PASS":
+        raise ValueError("INCREMENTAL_CERTIFICATION_GATE_FAILED")
+    if certification.get("input_receipt_set_sha256") != readiness["receipt_set_sha256"]:
+        raise ValueError("INCREMENTAL_CERTIFICATION_RECEIPT_IDENTITY_MISMATCH")
+    body = {
+        "contract": "ATLAS_INCREMENTAL_CERTIFICATION_HANDOFF_V1",
+        "plan_sha256": plan["plan_sha256"],
+        "session": plan["session"],
+        "readiness_sha256": readiness["readiness_sha256"],
+        "certification": dict(certification),
+        "production_writes": 0,
+        "required_promoter": "services.publication_governance.promote_atomically",
+    }
+    body["handoff_sha256"] = _digest(body)
+    candidate_dir.mkdir(parents=True, exist_ok=True)
+    destination = candidate_dir / "incremental_certification_handoff.json"
+    temporary = destination.with_suffix(".json.tmp")
+    temporary.write_text(json.dumps(body, indent=2, sort_keys=True), encoding="utf-8")
+    temporary.replace(destination)
+    return body
+
+
 __all__ = [
     "CHANGE_PROBE_FAMILY", "CHECKPOINT_VERSION", "FUNDAMENTAL_FAMILIES", "IncrementalCeiling",
     "PLAN_VERSION", "PRICE_FAMILY", "build_incremental_plan", "request_key",
     "accept_receipt", "classify_retry", "load_checkpoint", "new_checkpoint",
     "publication_readiness", "resume_request_keys", "validate_incremental_receipts",
-    "write_checkpoint_atomic",
+    "write_checkpoint_atomic", "load_governed_membership", "persist_raw_response",
+    "execute_incremental_plan", "prepare_certification_handoff", "DurableRawEvidenceSink",
 ]
