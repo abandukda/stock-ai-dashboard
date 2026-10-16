@@ -23,6 +23,7 @@ RESEARCH_ENDPOINTS = frozenset(
         "/stock/candle",
         "/stock/split",
         "/stock/dividend2",
+        "/stock/dividend",
         "/stock/recommendation",
         "/stock/price-target",
         "/calendar/earnings",
