@@ -52,11 +52,14 @@ was refreshed.
   records, consume-once duplicate rejection, zero provider calls and zero
   production writes. Certification reconciled all 1,298 records with zero
   unaccounted, and the promoter rejected the replay-tagged bundle. The replay
-  also exposed a material data-shape gap: the bridge supplies only the new
-  completed-session bar while retained publication rows do not contain the
-  historical technical bars needed for six-pillar evaluation. All 1,298 were
-  therefore correctly withheld in the deliberately minimal replay. The
-  retained October 2 publication remains customer-visible.
+  also exposed and PR #41 repairs a material data-shape gap: the bridge had
+  supplied only the new completed-session bar. It now requires the original
+  governed shard artifacts, verifies every shard digest, run/source identity,
+  exact 1,298 membership and at least 200 ordered pre-session bars per ticker,
+  then merges exactly one new completed-session bar. Publication-row-only
+  fallback is rejected. A protected replay against the real retained shards is
+  still required to prove the expected 1,223 publishable/75 withheld outcome.
+  The retained October 2 publication remains customer-visible.
 - **Report Card G2 — provider-free CERTIFIED; NOT OPERATIONAL.** Current-source
   protected validation `38837956400` succeeded with artifact `12019898029`,
   digest `cbbf5d5ac1ec3f707130dd4dc8fc3aed440cbff84c45549737d0f9ad8c0dafeb`.
@@ -108,7 +111,7 @@ fresh reconciliation.
 | Watchlist | YES | YES | YES | YES for tested interactions | YES in governed QA | Current-source exact-SHA add/search/sort/remove/persistence evidence passed. | Real-user acceptance remains open. |
 | Ask ATLAS | YES | YES | YES | YES for grounded retained answers | YES in governed QA | Current-source grounded Ask checks and desktop/mobile captures passed. | External model synthesis is not active. |
 | BUY NOW | YES | Retained snapshot certified | YES — `7d353c1…` | STALE | PARTIAL | Production Home shows Oct 4 timestamp and 11 BUY NOW; retained authority is session `2026-10-02`, digest `72b37697…`. | Expose exact digest/session; fresh live acquisition, certification and promotion remain separately gated. |
-| Incremental acquisition | YES; full-entrypoint replay in PR #41 | Provider-free PASS, not publishable | Workflow registration pending PR #41 | FAILED CLOSED | N/A | Full local replay exercised 1,298 members and 2,596 entrypoint attempts with raw-first durability, zero calls/writes and complete reconciliation; promoter rejected simulated evidence. | Prove a source-bound retained-history merge or explicitly bounded longer candle window in protected replay before preparing another live claim. |
+| Incremental acquisition | YES; full-entrypoint replay and retained-history binding in PR #41 | Local provider-free PASS; protected proof pending | Workflow registration pending PR #41 | FAILED CLOSED | N/A | Bridge now verifies the original governed shard set and merges its pre-session technical history with one fresh completed-session bar; 56 focused tests pass. | Merge only after CI/owner review, then run the protected retained-artifact replay and require exactly 1,223 publishable/75 withheld before any fresh live claim. |
 | Daily 6:05 PM ET | YES | Provider-free controls tested | Registered | NO | NO | Dual UTC wakeups, XNYS gate, non-cancelling session lock and incremental-only path are registered. It still stops before acquisition/certification/promotion. | Register and certify the successor publication bridge, then obtain exact live acquisition/publication authorization. |
 | Finnhub acquisition | YES | Bounded plan certified | Registered | NO | N/A | Last real retained evidence belongs to the October 2 snapshot. | Do not describe planning run as provider refresh. |
 | Report Card G2 | YES | Current-source provider-free validation `38837956400` and binding `38838142131` | Registered | NO | NO | Exact 20-signal plus SPY scope; 61-call ceiling; zero retries/calls/writes; CLOSED sentinel and storage integrity verified. | Separate exact live G2 authorization is required. |
