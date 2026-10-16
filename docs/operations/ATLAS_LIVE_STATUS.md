@@ -1,6 +1,6 @@
 # ATLAS Live Operations Status
 
-**Authoritative as of:** 2026-10-16
+**Authoritative as of:** 2026-10-15
 **Repository main / deployed runtime:** `b7b53b93c8f13a65b766a23e1db10df148293e3e`
 **Production:** [stock-ai-dashboard.streamlit.app](https://stock-ai-dashboard.streamlit.app/)  
 **Production-truth correction merged:** [PR #35](https://github.com/abandukda/stock-ai-dashboard/pull/35)
@@ -15,7 +15,7 @@ Evidence policy: a merge is not deployment; a provider-free run is not acquisiti
 | **NOT LIVE** | Fresh daily BUY NOW | Latest retained certified session is **2026-10-02**, published **2026-10-04T12:21:38-04:00**. No later live acquisition/publication is verified. |
 | **NOT LIVE** | Report Card G2/G3/G4 | Public Report Card remains off; no live G2 acquisition, G3 durable append, or active G4 cycle is recorded. |
 | **NOT LIVE** | WS3 expansion | Annual/quarterly pilots exist; broader WS3 acquisition is not operational. |
-| **UNKNOWN** | Current authenticated customer routes | Exact deployed SHA is now proven, but Home, Research, Watchlist, Ask ATLAS and customer/admin isolation have not been authenticated and captured on `b7b53b93…`. The latest scheduled runtime QA targeted an older SHA and failed. |
+| **PARTIAL** | Current authenticated customer routes | Runtime QA `38835863054` authenticated `customer_viewer` at exact deployed SHA `b7b53b93…` and proved the four-route navigation contract. Home was captured; Research, Watchlist and Ask content, mobile frames and independent admin isolation remain unproven. |
 | **VERIFIED LIVE** | Current customer-visible Home snapshot | Authenticated Home displayed `As of Oct 4, 2026 · 12:21 PM ET` and `BUY NOW INVENTORY 10`. It did not expose a publication digest or finalized-session marker in the visible Home DOM. This differs from the retained 11-name authority and must not be silently reconciled. |
 
 PR #35 is merged repository evidence, not deployment evidence. Its source
@@ -26,7 +26,7 @@ and exact-SHA smoke remain open.
 
 | Component | BUILT | CERTIFIED | DEPLOYED | OPERATIONAL | CUSTOMER VERIFIED | Latest evidence | Blocker / next action |
 |---|---|---|---|---|---|---|---|
-| Premium UI | YES | YES — R3 candidate `490eae05…`, governed run `38672677869` | YES — `b7b53b93…` | UNKNOWN behind authentication | NO at current SHA | Live APP_READY/source marker verified 2026-10-16; login surface rendered. | Run authenticated exact-SHA route and role-isolation smoke on `b7b53b93…`. |
+| Premium UI | YES | YES — R3 candidate `490eae05…`, governed run `38672677869` | YES — `b7b53b93…` | PARTIAL | PARTIAL | Runtime QA `38835863054`, artifact `12019645648`, authenticated `customer_viewer`, exact source and four-route contract. | Capture Research, Watchlist, Ask, mobile frames and a separate `internal_admin` session. |
 | Home | YES | YES | YES/UNKNOWN SHA | YES | YES | Authenticated Home displayed Oct 4 freshness and 10 BUY NOW records. | Reconcile the visible count with retained authority; capture exact publication digest after deployment. |
 | Research | YES | YES | UNKNOWN | UNKNOWN | NO | Retained NVDA/MSFT/AVT/CRC authority exists. | Capture authenticated authority and financial evidence. |
 | Watchlist | YES | YES | UNKNOWN | UNKNOWN | NO | No current production interaction proof. | Run add/search/sort/remove/reload smoke. |
@@ -42,6 +42,30 @@ and exact-SHA smoke remain open.
 | Market Intelligence | YES — compact Market Read | Local evidence/empty-state tests | Present in deployed tree, not authenticated | UNKNOWN | NO | Non-scoring four-index tape and rights-checked headlines; refuses inference when evidence is absent. | A governed official macro-series/calendar contract is required before adding economic claims. |
 | Cronitor/email | YES | PARTIAL | YES | PARTIAL | N/A | Test run `38785238561`; owner confirmed Report Card failure email. | BUY NOW completion and missed-heartbeat delivery remain unconfirmed. |
 | Commercial acceptance | YES | Automated QA only | N/A | NO | NO | Machine certification passed. | Independent frame review and real five-person beginner study remain open. |
+
+## Consolidated recovery candidate
+
+- Live acquisition run `38836052667` passed all protected identity, storage,
+  entitlement-presence and consume-once checks, then failed closed on its first
+  transport call. The registered request sent ISO date strings (`2026-10-15`)
+  to Finnhub `/stock/candle`; that endpoint's official client contract uses
+  Unix timestamps for `from` and `to`.
+- The recovery candidate converts only completed-session candle parameters to
+  UTC day-start/day-end Unix seconds, rejects session or resolution drift, and
+  leaves filing endpoints date-based. A provider-free durable-record diagnostic
+  classifies no-data, entitlement, HTTP, schema and normalization failures
+  without exposing credentials or making a provider call.
+- Stable Customer QA run `38836725643` exposed a separate gateway defect before
+  child QA dispatch: `verify_artifact_tree.py` could not import the repository
+  `services` package. The candidate invokes it with repository-root
+  `PYTHONPATH` and `python3`; no customer assertion is weakened.
+- WS3 archive manifests now fsync immutable raw/metadata/summary files and bind
+  per-file digests, batch identity, evidence source and execution source. This
+  improves runner-local durability but does not yet prove an independent
+  off-runner archive for the 1,298-security expansion.
+- Home Market Read accepts only explicitly supplied, non-scoring official macro
+  evidence from BLS, BEA, Federal Reserve and Treasury contracts. It performs no
+  live fetching and makes no unsupported forecast.
 
 ## Authoritative retained publication
 
