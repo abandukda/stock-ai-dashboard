@@ -708,3 +708,41 @@ any other item.
   mutation occurred. The correction replaces that host dependency with
   Python's standard-library `zipfile` extraction, including traversal checks,
   and records GNU-time plus claim-specific durable disk consumption.
+
+### Protected historical-backfill rehearsal — terminal success (2026-10-16)
+
+- Registered run `38962431540` (protected job `117180572640`) completed on
+  `atlas-worker-1` against exact workflow source
+  `38468b4a8ca2c295b7a9830e17f451f43ad96e80`. The Python 3.11 `zipfile`
+  extraction and traversal/integrity checks succeeded; no host `unzip`
+  dependency was used.
+- Immutable plan artifact `12069093114` was verified with ZIP SHA-256
+  `c898793aeb379bb5aad1a2b1fdc568692d8562f96d53a20c081f4dd3243135dd`,
+  package SHA-256
+  `594b4c45ce98b8466e742343d3c45a271cdf66dda68c8c07355ff46b801a8ee6`,
+  plan self-hash
+  `f59c6af515f9004be1de10d48998f26fba9a4972feef9e75582a67ff66b2a258`,
+  and canonical scope SHA-256
+  `2059e22e81e47111ba14507c77828a5a54e6931ec1ab50fc4cc56b60b5cc6739`.
+- The rehearsal accounted for all 1,298 governed securities and nine missing
+  XNYS sessions, committed 3,894 simulated request responses, normalized
+  11,682 session observations, and ended `COMPLETE`. It recorded provider calls
+  `0`, production publication writes `0`, and no Report Card mutation. Fixture
+  evidence remains explicitly non-publishable.
+- Result artifact `atlas-buy-now-history-backfill-rehearsal-38962431540` has
+  artifact ID `12073346903` and ZIP SHA-256
+  `decab73fed076ac9117179b34526f1a50939ed0ce29bc371861935cc673e3208`.
+  Its evidence JSON SHA-256 is
+  `290160e20312241414e6fe6c6ffec5e9cce0c5a09b5c554485cf54071b261ce4`;
+  normalized-observation result SHA-256 is
+  `85558a864372656f6fe8b4e01ea14ae8afb30772a5ee0df296e7771d89f2702d`.
+- Protected-runner measurements: 28.14 seconds elapsed, 4.93 seconds user CPU,
+  4.05 seconds system CPU, peak RSS 38,488 KiB, zero swaps, raw durable evidence
+  1,765,471 bytes, checkpoints 1,408,715 bytes, total 3,174,186 bytes, exit 0.
+- A source-bound live package has been generated but is **unapproved and
+  unconsumed**: claim `oct02-oct15-2026-backfill-38962431540-01`, claim-scope
+  SHA-256 `37de17d0217483bcba4046d381c811faa84f33227237b468e705f5e9bbf77b3d`.
+  It preserves the 3,894-attempt ceiling, concurrency one, initial 60 RPM,
+  zero retries, durable intent/response checkpoints, and fail-closed recovery.
+  Live Finnhub acquisition, certification, customer publication, and unattended
+  operation remain separate gates; customer-visible data did not change.
