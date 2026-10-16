@@ -24,6 +24,13 @@ from services.finnhub_incremental_post_close import (
 from services.incremental_acquisition_claim import consume_claim, scope_payload
 
 
+def require_manual_enablement(claim_id: str) -> None:
+    """Require the workflow's claim-bound, one-run manual enablement value."""
+    expected = f"ENABLE_ATLAS_INCREMENTAL_ONCE:{claim_id}"
+    if os.getenv("ATLAS_INCREMENTAL_MANUAL_ACQUIRE_ENABLED") != expected:
+        raise PermissionError("INCREMENTAL_LIVE_OPERATION_DISABLED")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--plan", type=Path, required=True)
@@ -37,8 +44,7 @@ def main() -> int:
     parser.add_argument("--source-sha", required=True)
     args = parser.parse_args()
     plan = json.loads(args.plan.read_text(encoding="utf-8"))
-    if os.getenv("ATLAS_INCREMENTAL_MANUAL_ACQUIRE_ENABLED") != "true":
-        raise PermissionError("INCREMENTAL_LIVE_OPERATION_DISABLED")
+    require_manual_enablement(args.claim_id)
     if not os.getenv("FINNHUB_API_KEY", "").strip():
         raise PermissionError("INCREMENTAL_FINNHUB_CREDENTIAL_UNAVAILABLE")
     scope = scope_payload(

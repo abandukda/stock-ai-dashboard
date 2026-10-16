@@ -3,6 +3,7 @@ import json
 import os
 import pytest
 from services.incremental_acquisition_claim import authorization_token, consume_claim, finalize_claim, scope_payload
+from scripts.run_finnhub_incremental_post_close import require_manual_enablement
 
 def scope(**changes):
     values=dict(claim_id="oct15-2026-claim-0001",source_sha="a"*40,plan_sha256="b"*64,session="2026-10-15")
@@ -37,4 +38,17 @@ def test_interrupted_persistence_never_restores_claim(monkeypatch,tmp_path):
 
 def test_closed_operation_rejected_before_claim(tmp_path,monkeypatch):
     monkeypatch.setenv("ATLAS_INCREMENTAL_MANUAL_ACQUIRE_ENABLED","false")
+    with pytest.raises(PermissionError, match="INCREMENTAL_LIVE_OPERATION_DISABLED"):
+        require_manual_enablement("oct15-2026-claim-0001")
     assert not list(tmp_path.iterdir())
+
+def test_manual_enablement_is_bound_to_exact_claim(monkeypatch):
+    claim_id = "oct15-2026-claim-0001"
+    monkeypatch.setenv(
+        "ATLAS_INCREMENTAL_MANUAL_ACQUIRE_ENABLED",
+        f"ENABLE_ATLAS_INCREMENTAL_ONCE:{claim_id}",
+    )
+    require_manual_enablement(claim_id)
+
+    with pytest.raises(PermissionError, match="INCREMENTAL_LIVE_OPERATION_DISABLED"):
+        require_manual_enablement("oct15-2026-claim-0002")
