@@ -1,13 +1,39 @@
 # ATLAS Live Operations Status
 
 **Authoritative as of:** 2026-10-16
-**Repository main:** `9be9e0f2464e11a5047479c4c798cef301739809`
+**Repository main:** `a6995fc9aad38268011ff0b6fd5781af3f6606a6`
 
 **Verified deployed runtime:** `e838d05b3c92563c514d4d185365b4c8e97bfdba`
 **Production:** [stock-ai-dashboard.streamlit.app](https://stock-ai-dashboard.streamlit.app/)  
 **Production-truth correction merged:** [PR #35](https://github.com/abandukda/stock-ai-dashboard/pull/35)
 
 Evidence policy: a merge is not deployment; a provider-free run is not acquisition; a monitor ping is not publication; and repository data is not customer-visible until authenticated production evidence proves it.
+
+## 2026-10-16 provider-free history-backfill planning
+
+- PR #56 is merged on `main` at `a6995fc9aad38268011ff0b6fd5781af3f6606a6`.
+- Registered plan-only run `38950023873` (job `117138772061`) checked out that
+  exact source and accepted `ATLAS_BUY_NOW_BACKFILL_PLAN_ONCE`. It failed before
+  planning while downloading the 1,316,392,491-byte retained-universe artifact;
+  `gh run download` exited `1`. No provider acquisition or publication step ran.
+- The failed source artifact remains valid and unexpired: artifact ID
+  `11318542723`, digest
+  `9612c6b9fa02c74de710c7af0c9e644c5976392e2e9efa0c47b20522316d7c1e`.
+- The existing governed incremental-plan artifact provides the same immutable
+  1,298-member identity without transferring the full retained dataset: run
+  `38829162008`, artifact ID `12016416900`, archive digest
+  `7d5c032d434ad9e5ff900e854cb53fe4d3379cdb2d4a3e8f67d67f029a9d06cc`.
+  A narrowly scoped review change validates that plan's self-hash, membership
+  count and membership digest before using its request keys as the ticker set.
+- Local deterministic verification on the merged source recomputed nine missing
+  finalized XNYS sessions (`2026-10-05` through `2026-10-15`), 1,298 members,
+  3,894 range-deduplicated requests (OHLCV, splits and dividends), concurrency
+  `1`, initial pacing `60 RPM`, zero retries and a 3,894 hard ceiling. This is
+  local engineering evidence, not a successful protected workflow or live
+  acquisition authorization.
+- A new live backfill claim is **not ready** until the workflow correction is
+  reviewed, merged and a fresh protected plan run succeeds. Customer-visible
+  data remains the retained October 2 session published October 4.
 
 ## Iteration 1 integration audit — 2026-10-16
 
