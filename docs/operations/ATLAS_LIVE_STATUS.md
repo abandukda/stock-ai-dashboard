@@ -1,7 +1,7 @@
 # ATLAS Live Operations Status
 
-**Authoritative as of:** 2026-10-15  
-**Repository main:** `6ce1efe2bf3551623d297f6985c65416a4ebefb3`
+**Authoritative as of:** 2026-10-16
+**Repository main / deployed runtime:** `b7b53b93c8f13a65b766a23e1db10df148293e3e`
 **Production:** [stock-ai-dashboard.streamlit.app](https://stock-ai-dashboard.streamlit.app/)  
 **Production-truth correction merged:** [PR #35](https://github.com/abandukda/stock-ai-dashboard/pull/35)
 
@@ -11,11 +11,11 @@ Evidence policy: a merge is not deployment; a provider-free run is not acquisiti
 
 | Classification | Component | Current evidence |
 |---|---|---|
-| **VERIFIED LIVE** | Streamlit service, customer role, Home and navigation | Authenticated production inspection on 2026-10-15 rendered the Premium dark Home and all four customer navigation labels. The hidden contract reported role `customer_viewer`, active route `Home`, and routes `Home|Research|Watchlist|Ask ATLAS`. |
+| **VERIFIED LIVE** | Streamlit service and deployment identity | Direct live inspection on 2026-10-16 found `data-atlas-health="APP_READY"` and exact `data-atlas-source-sha="b7b53b93c8f13a65b766a23e1db10df148293e3e"`. The login surface rendered `V104 Research Candidate & Investment Committee`. |
 | **NOT LIVE** | Fresh daily BUY NOW | Latest retained certified session is **2026-10-02**, published **2026-10-04T12:21:38-04:00**. No later live acquisition/publication is verified. |
 | **NOT LIVE** | Report Card G2/G3/G4 | Public Report Card remains off; no live G2 acquisition, G3 durable append, or active G4 cycle is recorded. |
 | **NOT LIVE** | WS3 expansion | Annual/quarterly pilots exist; broader WS3 acquisition is not operational. |
-| **UNKNOWN** | Current deployed Streamlit SHA | Production's live `customer-navigation-contract` does **not** contain `data-atlas-source-sha`; therefore the newly merged `225491ff…` tree is not proven deployed. The most recent exact runtime evidence remains `0582396c…`. |
+| **UNKNOWN** | Current authenticated customer routes | Exact deployed SHA is now proven, but Home, Research, Watchlist, Ask ATLAS and customer/admin isolation have not been authenticated and captured on `b7b53b93…`. The latest scheduled runtime QA targeted an older SHA and failed. |
 | **VERIFIED LIVE** | Current customer-visible Home snapshot | Authenticated Home displayed `As of Oct 4, 2026 · 12:21 PM ET` and `BUY NOW INVENTORY 10`. It did not expose a publication digest or finalized-session marker in the visible Home DOM. This differs from the retained 11-name authority and must not be silently reconciled. |
 
 PR #35 is merged repository evidence, not deployment evidence. Its source
@@ -26,7 +26,7 @@ and exact-SHA smoke remain open.
 
 | Component | BUILT | CERTIFIED | DEPLOYED | OPERATIONAL | CUSTOMER VERIFIED | Latest evidence | Blocker / next action |
 |---|---|---|---|---|---|---|---|
-| Premium UI | YES | YES — R3 candidate `490eae05…`, governed run `38672677869` | PARTIAL/UNKNOWN SHA | YES | PARTIAL | Authenticated dark Home and four customer routes rendered on 2026-10-15; live SHA marker was absent. | Deploy `225491ff…`, then run authenticated exact-SHA route smoke. |
+| Premium UI | YES | YES — R3 candidate `490eae05…`, governed run `38672677869` | YES — `b7b53b93…` | UNKNOWN behind authentication | NO at current SHA | Live APP_READY/source marker verified 2026-10-16; login surface rendered. | Run authenticated exact-SHA route and role-isolation smoke on `b7b53b93…`. |
 | Home | YES | YES | YES/UNKNOWN SHA | YES | YES | Authenticated Home displayed Oct 4 freshness and 10 BUY NOW records. | Reconcile the visible count with retained authority; capture exact publication digest after deployment. |
 | Research | YES | YES | UNKNOWN | UNKNOWN | NO | Retained NVDA/MSFT/AVT/CRC authority exists. | Capture authenticated authority and financial evidence. |
 | Watchlist | YES | YES | UNKNOWN | UNKNOWN | NO | No current production interaction proof. | Run add/search/sort/remove/reload smoke. |
@@ -35,10 +35,11 @@ and exact-SHA smoke remain open.
 | Incremental acquisition | YES | Provider-free PASS | Workflow registered | NO | N/A | PR #38 merged as `b7b53b93c8f13a65b766a23e1db10df148293e3e`. Protected [run 38832122252](https://github.com/abandukda/stock-ai-dashboard/actions/runs/38832122252) passed the exact-source plan and durable consume-once rehearsal after the enablement-contract correction. Provider calls: 0; production writes: 0. | A fresh claim is prepared but unconsumed; exact owner authorization is required before one licensed attempt. No October 15 evidence has been acquired and no customer publication changed. |
 | Daily 6:05 PM ET | YES | Provider-free controls tested | Registered | NO | NO | Dual UTC wakeups, XNYS gate, non-cancelling session lock and incremental-only path are registered. It still stops before acquisition/certification/promotion. | Register and certify the successor publication bridge, then obtain exact live acquisition/publication authorization. |
 | Finnhub acquisition | YES | Bounded plan certified | Registered | NO | N/A | Last real retained evidence belongs to the October 2 snapshot. | Do not describe planning run as provider refresh. |
-| Report Card G2 | YES | Provider-free only | Registered | NO | NO | 20-signal/SPY architecture; 61-call ceiling; CLOSED sentinel. | Fresh source-bound package and separate live authorization. |
-| Report Card G3 | YES | Offline only | Registered/unknown | NO | NO | No durable observation append verified. | Requires successful G2 and separate append authorization. |
-| Report Card G4 | YES | Provider-free only | Registered/unknown | NO | NO | No unattended cycle verified. | Requires G2/G3, backup/restore, alert proof, and scheduling authorization. |
-| WS3 Research | YES | Pilot evidence only | Registered | NO | NO | 147 annual filings; 447 reconciled quarterly periods. | Prove customer projection lineage; authorize later batches separately. |
+| Report Card G2 | YES | Provider-free only | Registered | NO | NO | Acquisition workflow history contains one failed live run (`38628414964`) at an older source; no successful G2 acquisition exists. | Fresh source-bound validation/package and separate exact live authorization. |
+| Report Card G3 | YES | Offline only | Registered | NO | NO | Producer and append workflows each have zero runs; no durable observation append or backup result exists. | Requires successful G2, deterministic bundle validation and separate append authorization. |
+| Report Card G4 | Controls only | NO | No active schedule | NO | NO | Report Card workflows remain dispatch-only. | Requires successful G2/G3, restore proof, monitoring proof and schedule authorization. |
+| Research financial history | YES | Bounded 11-ticker artifact tests | Deployed projection not customer-verified | Retained/read-only | NO | AVT, BKTI, CODA, CSCO, CTS, DIOD, EXTR, GNE, MSFT and NVDA expose 5 annual/8 quarterly periods; SBC exposes 2/6. Focused suite: 59 passed. | Add source/generation identity to customer manifests; broader 1,298-security coverage requires a separately authorized acquisition. |
+| Market Intelligence | YES — compact Market Read | Local evidence/empty-state tests | Present in deployed tree, not authenticated | UNKNOWN | NO | Non-scoring four-index tape and rights-checked headlines; refuses inference when evidence is absent. | A governed official macro-series/calendar contract is required before adding economic claims. |
 | Cronitor/email | YES | PARTIAL | YES | PARTIAL | N/A | Test run `38785238561`; owner confirmed Report Card failure email. | BUY NOW completion and missed-heartbeat delivery remain unconfirmed. |
 | Commercial acceptance | YES | Automated QA only | N/A | NO | NO | Machine certification passed. | Independent frame review and real five-person beginner study remain open. |
 
