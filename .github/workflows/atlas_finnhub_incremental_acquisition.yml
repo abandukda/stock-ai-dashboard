@@ -362,6 +362,7 @@ jobs:
                  'basic_financials':{'metric':'all'}}
           open(sys.argv[2],'w').write(json.dumps(value,sort_keys=True)+'\n')
           PY
+          set +e
           ATLAS_INCREMENTAL_MANUAL_ACQUIRE_ENABLED="ENABLE_ATLAS_INCREMENTAL_REPLAY_ONCE:$CLAIM_ID" \
           python3 scripts/run_finnhub_incremental_post_close.py \
             --plan "$plan" --parameters "$replay_root/parameters.json" \
@@ -370,7 +371,28 @@ jobs:
             --claim-scope-sha256 "$scope" --source-sha "$GITHUB_SHA" \
             --authorize-acquisition "$token" --provider-free-replay \
             --replay-retained-records "$retained" \
-            > audit_results/incremental_buy_now/full_entrypoint_replay.json
+            > audit_results/incremental_buy_now/full_entrypoint_replay.json \
+            2> audit_results/incremental_buy_now/full_entrypoint_replay.stderr
+          entrypoint_status=$?
+          set -e
+          if [[ "$entrypoint_status" -ne 0 ]]; then
+            ENTRYPOINT_STATUS="$entrypoint_status" python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          stderr = Path('audit_results/incremental_buy_now/full_entrypoint_replay.stderr')
+          value = {
+              'contract': 'ATLAS_INCREMENTAL_REPLAY_FAILURE_EVIDENCE_V1',
+              'exit_code': int(os.environ['ENTRYPOINT_STATUS']),
+              'provider_calls': 0,
+              'production_writes': 0,
+              'stderr_present': stderr.exists() and stderr.stat().st_size > 0,
+          }
+          Path('audit_results/incremental_buy_now/entrypoint_failure.json').write_text(
+              json.dumps(value, sort_keys=True, indent=2) + '\n', encoding='utf-8'
+          )
+          PY
+            exit "$entrypoint_status"
+          fi
           if python3 scripts/manage_incremental_acquisition_claim.py consume \
             --claims-root "$claim_root" --claim-id "$CLAIM_ID" \
             --source-sha "$GITHUB_SHA" --plan-sha256 "$plan_sha" \
@@ -378,7 +400,7 @@ jobs:
             2>"$replay_root/expected_duplicate_claim.stderr"; then
             exit 1
           fi
-          grep -q 'INCREMENTAL_ACQUISITION_CLAIM_ALREADY_CONSUMED' \
+          grep -q 'INCREMENTAL_CLAIM_ALREADY_CONSUMED' \
             "$replay_root/expected_duplicate_claim.stderr"
           echo 'Expected duplicate claim rejection verified.'
           python3 scripts/manage_incremental_acquisition_claim.py finalize \
@@ -429,6 +451,7 @@ jobs:
           test ! -e "$replay_root/promotion.json"
           test "$(git status --porcelain -- market_full_scan.json market_scan_state.json publication_manifest.json)" = ""
       - uses: actions/upload-artifact@v4
+        if: ${{ always() }}
         with:
           name: atlas-incremental-buy-now-rehearsal-${{ github.run_id }}
           path: audit_results/incremental_buy_now
