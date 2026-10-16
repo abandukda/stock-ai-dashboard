@@ -24,6 +24,9 @@ def test_protected_rehearsal_executes_full_entrypoint_without_credentials():
     assert '--replay-retained-records' in source
     assert 'resolve_incremental_retained_records.py' in source
     assert '--artifact-root "$RUNNER_TEMP/membership"' in source
+    assert "assert r['source_row_count'] == 6033" in source
+    assert "assert r['selected_row_count'] == 1298" in source
+    assert "assert r['excluded_row_count'] == 4735" in source
     assert '--retained-technical-root "$RUNNER_TEMP/retained-shards"' in source
     assert 'pattern: atlas-finnhub-full-shard-*-${{ inputs.membership_run_id }}' in source
     assert "assert len(c['receipts']) == 2596" in source
