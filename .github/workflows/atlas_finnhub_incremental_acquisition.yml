@@ -323,6 +323,15 @@ jobs:
             --artifact-root "$RUNNER_TEMP/membership" --plan "$plan" \
             --output "$replay_root/retained_records.json" \
             --report audit_results/incremental_buy_now/retained_record_resolution.json
+          python3 - <<'PY'
+          import json
+          r=json.load(open('audit_results/incremental_buy_now/retained_record_resolution.json'))
+          assert r['source_row_count'] == 6033
+          assert r['selected_row_count'] == 1298
+          assert r['excluded_row_count'] == 4735
+          assert r['missing_plan_ticker_count'] == 0
+          assert r['duplicate_source_ticker_count'] == 0
+          PY
           retained="$replay_root/retained_records.json"
           python3 - "$session" "$replay_root/parameters.json" <<'PY'
           import json,sys

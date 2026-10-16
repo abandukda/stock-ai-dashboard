@@ -299,7 +299,16 @@ def test_provider_free_replay_proves_timestamp_contract_and_fixture_identity():
 
 def test_retained_resolver_uses_plan_digest_not_filesystem_first_match(tmp_path):
     plan = small_plan()
-    rows = [{"ticker": "A", "current_price": 1}, {"ticker": "B", "current_price": 2}]
+    rows = [
+        {"ticker": "A", "current_price": 1}, {"ticker": "B", "current_price": 2},
+        {"ticker": "C", "publication_certification": {
+            "customer_publication_allowed": False, "certification_state": "WITHHELD",
+            "blockers": ["MISSING_EVIDENCE"],
+        }},
+        {"ticker": "D", "publication_certification": {
+            "customer_publication_allowed": False, "certification_state": "UNSUPPORTED",
+        }},
+    ]
     raw = json.dumps(rows, sort_keys=True).encode()
     import hashlib
     plan["governed_membership"] = {"source_file_sha256": hashlib.sha256(raw).hexdigest()}
@@ -314,6 +323,10 @@ def test_retained_resolver_uses_plan_digest_not_filesystem_first_match(tmp_path)
     assert report["selected_relative_path"] == "99-right/full_evaluation_pool.json"
     assert report["candidate_count"] == 3 and report["matching_source_count"] == 2
     assert report["candidates"][0]["schema"] == "DICT"
+    assert report["source_row_count"] == 4
+    assert report["selected_row_count"] == 2
+    assert report["excluded_row_count"] == 2
+    assert report["excluded_reason_counts"] == {"MISSING_EVIDENCE": 1, "UNSUPPORTED": 1}
 
 
 def test_retained_scope_rejects_schema_duplicates_and_membership_drift():
@@ -324,6 +337,22 @@ def test_retained_scope_rejects_schema_duplicates_and_membership_drift():
         validate_replay_retained_scope(retained_rows=[{"ticker": "A"}, {"ticker": "A"}], plan=plan)
     with pytest.raises(ValueError, match="MEMBERSHIP_MISMATCH:2:2"):
         validate_replay_retained_scope(retained_rows=[{"ticker": "A"}, {"ticker": "C"}], plan=plan)
+
+
+@pytest.mark.parametrize("rows,message", [
+    ([{"ticker": "A"}, {"ticker": "A"}, {"ticker": "B"}], "DUPLICATE_SYMBOL:A"),
+    ([{"ticker": "A"}, {"ticker": "C"}], "PLAN_TICKER_MISSING:B"),
+    ([{"ticker": "A"}, {"ticker": "B"}, {"ticker": ""}], "TICKER_INVALID"),
+])
+def test_retained_resolver_fails_before_projection_on_source_integrity_errors(tmp_path, rows, message):
+    plan = small_plan()
+    raw = json.dumps(rows, sort_keys=True).encode()
+    import hashlib
+    plan["governed_membership"] = {"source_file_sha256": hashlib.sha256(raw).hexdigest()}
+    path = tmp_path / "full_evaluation_pool.json"
+    path.write_bytes(raw)
+    with pytest.raises(ValueError, match=message):
+        resolve_replay_retained_records(artifact_root=tmp_path, plan=plan)
 
 
 @pytest.mark.parametrize("parameters", [
