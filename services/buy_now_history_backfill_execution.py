@@ -282,6 +282,26 @@ class BackfillExecutor:
         elif endpoint in ("/stock/split", "/stock/dividend"):
             if not isinstance(body, list):
                 raise RuntimeError("BACKFILL_CORPORATE_ACTION_SCHEMA_INVALID")
+            dates: list[str] = []
+            for item in body:
+                if not isinstance(item, dict) or not isinstance(item.get("date"), str):
+                    raise RuntimeError("BACKFILL_CORPORATE_ACTION_SCHEMA_INVALID")
+                action_date = item["date"]
+                if not (str(request["parameters"]["from"]) <= action_date <= str(request["parameters"]["to"])):
+                    raise RuntimeError("BACKFILL_CORPORATE_ACTION_DATE_OUT_OF_RANGE")
+                dates.append(action_date)
+                if endpoint == "/stock/split" and (
+                    not isinstance(item.get("fromFactor"), (int, float)) or
+                    not isinstance(item.get("toFactor"), (int, float)) or
+                    item["fromFactor"] <= 0 or item["toFactor"] <= 0
+                ):
+                    raise RuntimeError("BACKFILL_SPLIT_FACTOR_INVALID")
+                if endpoint == "/stock/dividend" and (
+                    not isinstance(item.get("amount"), (int, float)) or item["amount"] < 0
+                ):
+                    raise RuntimeError("BACKFILL_DIVIDEND_AMOUNT_INVALID")
+            if dates != sorted(set(dates)):
+                raise RuntimeError("BACKFILL_CORPORATE_ACTIONS_DUPLICATE_OR_UNORDERED")
         else:
             raise RuntimeError("BACKFILL_ENDPOINT_NOT_ALLOWED")
 

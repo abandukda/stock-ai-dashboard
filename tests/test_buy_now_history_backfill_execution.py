@@ -79,3 +79,11 @@ def test_http_failures_stop_without_retry(tmp_path, status, error):
     executor, _ = _bound(tmp_path, bad)
     with pytest.raises(RuntimeError, match=error): executor.run()
     assert calls == [1]
+
+
+def test_corporate_action_schema_and_range_fail_closed():
+    request = {"endpoint":"/stock/split", "parameters":{"from":"2026-10-05", "to":"2026-10-15"}}
+    body = [{"date":"2026-10-16", "fromFactor":1, "toFactor":2}]
+    envelope = {"status_code":200, "body_base64":__import__('base64').b64encode(json.dumps(body).encode()).decode()}
+    with pytest.raises(RuntimeError, match="DATE_OUT_OF_RANGE"):
+        BackfillExecutor._validate_response(request, envelope)
