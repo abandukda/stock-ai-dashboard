@@ -413,6 +413,26 @@ fresh reconciliation.
 
 Every future operational handoff must update this file with the exact source SHA, run timestamp, run ID, artifact ID/digest, provider-call count, finalized session, publication result, and authenticated customer result. Lifecycle states may advance only from direct evidence.
 
+## Iteration 1 protected replay on merged PR #52
+
+- PR #52 merged to `main` at `9be9e0f2464e11a5047479c4c798cef301739809`.
+- Protected provider-free run `38907237708` proved the exact retained projection:
+  `6,033` source rows, `1,298` governed members, `4,735` excluded, zero
+  missing plan tickers and zero duplicate source tickers. Resolution SHA-256:
+  `29b940e3c23bf477cfdf6c7bf7e47a32733a1dd78d1a8a16a2a5343c519b1ee5`.
+- It also proved `2,596` durable provider-free receipts and duplicate-claim
+  rejection. Live acquisition jobs were skipped; provider calls and production
+  publication writes were both zero.
+- The job did not reach the final `1,223/75` certification assertion. The
+  self-hosted runner received a shutdown signal at 29m37s while executing the
+  second, CPU-bound certification phase. This is an observed runner-lifecycle
+  boundary, not evidence of a scoring or reconciliation failure.
+- PR #54 now separates transport/claim proof from deterministic certification
+  into two protected jobs, preserving all assertions while keeping each below
+  the observed runner lifecycle. It also routes the daily coordinator through
+  the same full provider-free workflow rather than its previous shallow
+  file-presence check. Live acquisition and publication remain disabled.
+
 ## Outstanding protected decisions
 
 These decisions remain independent. Authorization for one does not authorize
