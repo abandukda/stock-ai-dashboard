@@ -536,3 +536,51 @@ any other item.
   contracts: `493 passed`. One obsolete Home assertion was corrected to target
   the last (active) renderer definition and its multiline render call; no
   runtime behavior or investment output changed.
+
+### Confirmed OOM and bounded-certification repair — 2026-10-16
+
+- Protected run `38920625431` completed plan, protected registration rehearsal,
+  exact retained-artifact download, 2,596 provider-free receipt generation and
+  duplicate-claim rejection. Certification job `117059234617` then failed with
+  exit 137 at 22m14s. The DigitalOcean kernel recorded an OOM kill of PID
+  `393777` (`python3`) at `anon-rss:7633808kB` on the 8 GiB host. This supersedes
+  the earlier runner-lifecycle hypothesis.
+- The allocation was caused by overlapping full-population object graphs:
+  retained multi-year histories, merged histories, shard acquisition records,
+  two complete evaluation passes, and two immutable candidate graphs. The
+  repaired path consumes retained histories as each symbol is materialized,
+  prepares peer evidence once, evaluates deterministic batches of 64, writes
+  atomic per-symbol terminal checkpoints, releases bars before candidate
+  construction, and garbage-collects batch intermediates. Scoring algorithms,
+  the 200-bar minimum, ordering, withholding rules and publication gate are
+  unchanged.
+- Durable resume is fail-closed and binds the checkpoint directory to source,
+  plan, receipt set, session, exact membership, batch size and run identity.
+  A mismatched or partial checkpoint cannot be used for certification or
+  publication.
+- The registered workflow now captures `/proc/meminfo`, GNU-time CPU/wall/RSS
+  evidence even when the certification child exits nonzero, and rejects a
+  successful run unless measured peak RSS is below 5 GiB. No identical replay
+  of the OOM implementation will be dispatched.
+- Provider calls and production writes remain zero. Terminal protected proof
+  of `1,223 publishable / 75 withheld` remains pending registration of this
+  repair and one fresh provider-free protected replay.
+- A local exact-artifact execution used plan artifact `12054970081`, transport
+  artifact `12057435684`, all 41 retained shard artifacts from run
+  `37216506983`, 1,298 governed rows and 2,596 receipts. It completed in
+  `491.53s` with `465.05s` user CPU, `15.07s` system CPU and peak RSS
+  `3,484,631,040` bytes (3.25 GiB), below the 5 GiB target and 54% below the
+  killed process's recorded anonymous RSS. It produced 2,596 terminal
+  checkpoints, zero unexplained members, zero provider calls and zero
+  production writes.
+- That exact retained replay did **not** support the historical `1,223/75`
+  publication split: all 1,298 members were explicitly withheld. The retained
+  technical shards end at the October 2 certified snapshot, while the
+  provider-free October 15 receipt supplies only one terminal bar. The
+  unchanged evaluator correctly reports `UNREPAIRABLE_BAR_GAP`, missing
+  technical-method evidence and unavailable volume for that discontinuous
+  series. This is a distinct evidence-continuity blocker, not an OOM or
+  unexplained-population defect. No scoring or withholding rule was relaxed to
+  manufacture the expected split. A protected terminal replay must therefore
+  either use an ordered completed-session catch-up evidence set or remain
+  fail-closed; it must not assert `1,223/75` against unsupported retained data.

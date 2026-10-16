@@ -42,6 +42,10 @@ def test_protected_rehearsal_executes_full_entrypoint_without_credentials():
     assert "assert r['selected_row_count'] == 1298" in source
     assert "assert r['excluded_row_count'] == 4735" in source
     assert '--retained-technical-root "$RUNNER_TEMP/retained-shards"' in source
+    assert '--certification-checkpoint-dir "$certification_checkpoint" --batch-size 64' in source
+    assert 'ATLAS_INCREMENTAL_CHECKPOINT_ROOT/certification/$GITHUB_SHA/$session' in source
+    assert "'memory_target_kb': 5 * 1024 * 1024" in source
+    assert "max_rss_kb >= 5 * 1024 * 1024" in source
     assert 'pattern: atlas-finnhub-full-shard-*-${{ inputs.membership_run_id }}' in source
     assert "assert len(c['receipts']) == 2596" in source
     assert "assert r['symbol_count'] == 1298" in source

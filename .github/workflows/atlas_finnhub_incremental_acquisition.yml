@@ -520,7 +520,10 @@ jobs:
           plan="$(find "$RUNNER_TEMP/plan" -type f -name plan.json -print -quit)"
           replay_root="$RUNNER_TEMP/replay"
           session="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["session"])' "$plan")"
+          certification_checkpoint="$ATLAS_INCREMENTAL_CHECKPOINT_ROOT/certification/$GITHUB_SHA/$session"
+          mkdir -p "$certification_checkpoint"
           mkdir -p audit_results/incremental_buy_now
+          cp /proc/meminfo audit_results/incremental_buy_now/runner_meminfo_before.txt
           set +e
           /usr/bin/time -v -o audit_results/incremental_buy_now/certification_resources.txt \
           python3 scripts/certify_incremental_buy_now.py \
@@ -529,20 +532,32 @@ jobs:
             --retained-technical-root "$RUNNER_TEMP/retained-shards" \
             --source-sha "$GITHUB_SHA" --workflow-run-id "$GITHUB_RUN_ID" \
             --candidate-dir "$replay_root/candidate" \
+            --certification-checkpoint-dir "$certification_checkpoint" --batch-size 64 \
             --evidence-classification PROVIDER_FREE_SIMULATED_REPLAY \
             --output audit_results/incremental_buy_now/certification_replay.json
           certification_status=$?
           set -e
           python3 - "$certification_status" <<'PY'
-          import json, sys
+          import json, re, sys
           from pathlib import Path
           status = int(sys.argv[1])
           resource = Path('audit_results/incremental_buy_now/certification_resources.txt')
+          resource_text = resource.read_text() if resource.exists() else ''
+          match = re.search(r'Maximum resident set size \(kbytes\):\s*(\d+)', resource_text)
+          max_rss_kb = int(match.group(1)) if match else None
           Path('audit_results/incremental_buy_now/certification_exit.json').write_text(
-              json.dumps({'exit_code': status, 'resource_metrics_present': resource.exists()}, sort_keys=True, indent=2) + '\n'
+              json.dumps({
+                  'exit_code': status,
+                  'resource_metrics_present': resource.exists(),
+                  'max_rss_kb': max_rss_kb,
+                  'memory_target_kb': 5 * 1024 * 1024,
+                  'memory_target_pass': max_rss_kb is not None and max_rss_kb < 5 * 1024 * 1024,
+              }, sort_keys=True, indent=2) + '\n'
           )
           if status:
               raise SystemExit(status)
+          if max_rss_kb is None or max_rss_kb >= 5 * 1024 * 1024:
+              raise SystemExit('certification exceeded or could not prove the 5 GiB peak-RSS target')
           PY
           python3 - <<'PY'
           import json

@@ -32,6 +32,8 @@ def main() -> int:
     parser.add_argument("--source-sha", required=True)
     parser.add_argument("--workflow-run-id", required=True)
     parser.add_argument("--candidate-dir", type=Path, required=True)
+    parser.add_argument("--certification-checkpoint-dir", type=Path)
+    parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument(
         "--evidence-classification",
@@ -54,6 +56,7 @@ def main() -> int:
             plan=plan, checkpoint=checkpoint, raw_root=args.raw_root,
             retained_rows=retained, retained_technical_history=technical,
             retained_technical_blockers=(technical_binding or {}).get("history_blockers"),
+            consume_retained_history=True,
         )
     else:
         parser.error("provide --acquired-records or --raw-root, --retained-records and --retained-technical-root")
@@ -65,6 +68,8 @@ def main() -> int:
         candidate_dir=args.candidate_dir, workflow_run_id=args.workflow_run_id,
         evidence_classification=args.evidence_classification,
         retained_technical_binding=technical_binding,
+        checkpoint_dir=args.certification_checkpoint_dir,
+        batch_size=args.batch_size,
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
