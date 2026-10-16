@@ -700,3 +700,11 @@ any other item.
   3,894 attempts have a theoretical pacing floor of 64.9 minutes, plus provider
   latency and integrity processing. Certification and customer publication
   remain distinct downstream gates; no customer-visible state changed.
+- Protected rehearsal run `38959022723` reached `atlas-worker-1` and passed
+  exact source, authorization, protected durable-storage, managed Python 3.11,
+  and zero-provider-credential checks. It failed before claim creation or any
+  request simulation because the host does not install the optional `unzip`
+  executable. No claim, provider call, publication write, or Report Card
+  mutation occurred. The correction replaces that host dependency with
+  Python's standard-library `zipfile` extraction, including traversal checks,
+  and records GNU-time plus claim-specific durable disk consumption.
