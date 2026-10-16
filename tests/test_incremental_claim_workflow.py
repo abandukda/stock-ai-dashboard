@@ -20,6 +20,13 @@ def test_workflow_binds_unique_claim_inputs():
 
 def test_protected_rehearsal_executes_full_entrypoint_without_credentials():
     source=(ROOT/'.github/workflows/atlas_finnhub_incremental_acquisition.yml').read_text()
+    install = source.index('Install and verify pinned certification dependency')
+    certification = source.index('python3 scripts/certify_incremental_buy_now.py')
+    assert install < certification
+    assert 'python3 -m pip install --disable-pip-version-check --no-deps ijson==3.5.1' in source
+    assert "assert version('ijson') == '3.5.1'" in source
+    assert 'import services.incremental_publication_bridge' in source
+    assert 'python3 scripts/certify_incremental_buy_now.py --help >/dev/null' in source
     assert '--provider-free-replay' in source
     assert '--replay-retained-records' in source
     assert 'resolve_incremental_retained_records.py' in source
@@ -37,3 +44,5 @@ def test_protected_rehearsal_executes_full_entrypoint_without_credentials():
     assert "assert r['production_writes'] == 0" in source
     assert 'ENABLE_ATLAS_INCREMENTAL_REPLAY_ONCE:' in source
     assert 'test -z "${FINNHUB_API_KEY:-}"' in source
+    assert 'expected_duplicate_claim.stderr' in source
+    assert "grep -q 'INCREMENTAL_ACQUISITION_CLAIM_ALREADY_CONSUMED'" in source
