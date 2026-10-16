@@ -160,11 +160,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh run download 37216506983 \
-            --name atlas-finnhub-full-universe-final-37216506983 \
+          gh run download 38829162008 \
+            --name atlas-incremental-buy-now-plan-38829162008 \
             --dir "$RUNNER_TEMP/membership"
-          test -f "$RUNNER_TEMP/membership/full_evaluation_pool.json"
-          test -f "$RUNNER_TEMP/membership/publication_manifest.json"
+          test -f "$RUNNER_TEMP/membership/plan.json"
       - name: Create exact source-bound backfill package
         run: |
           python scripts/plan_buy_now_history_backfill.py \
@@ -172,8 +171,7 @@ jobs:
             --as-of "${{ inputs.backfill_cutoff_utc }}" \
             --last-contiguous-session "${{ inputs.last_contiguous_session }}" \
             --retained-artifact-set-sha256 "${{ inputs.retained_artifact_set_sha256 }}" \
-            --governed-records "$RUNNER_TEMP/membership/full_evaluation_pool.json" \
-            --governed-manifest "$RUNNER_TEMP/membership/publication_manifest.json" \
+            --governed-incremental-plan "$RUNNER_TEMP/membership/plan.json" \
             --output audit_results/daily_incremental/history_backfill_package.json
           python - <<'PY'
           import json

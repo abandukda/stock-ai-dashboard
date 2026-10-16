@@ -1,10 +1,12 @@
 import pytest
+import json
 
 from services.buy_now_history_continuity import (
     build_history_backfill_plan, validate_backfill_observation_set,
 )
 from services.finnhub_incremental_post_close import _digest
 from services.operations_gateway import GatewayApproval, canonical_bytes, sha256, verify_scope
+from scripts.plan_buy_now_history_backfill import membership_from_incremental_plan
 
 
 def _plan(count=1298):
@@ -106,3 +108,25 @@ def test_backfill_validation_requires_exact_sessions_ohlcv_lineage_and_actions()
     observations["S0000"] = list(reversed(observations["S0000"]))
     with pytest.raises(ValueError, match="SESSION_SEQUENCE"):
         validate_backfill_observation_set(plan=plan, observations=observations)
+
+
+def test_small_governed_incremental_plan_recovers_exact_membership(tmp_path):
+    symbols = [f"S{i:04d}" for i in range(1298)]
+    from services.finnhub_incremental_post_close import build_incremental_plan
+    plan = build_incremental_plan(
+        session="2026-10-15", customer_symbols=symbols,
+        governed_membership={
+            "membership_count": 1298, "membership_sha256": _digest(symbols),
+            "source_run_id": "37216506983",
+            "tickers": symbols,
+        },
+    )
+    path = tmp_path / "plan.json"
+    path.write_text(json.dumps(plan))
+    recovered = membership_from_incremental_plan(path)
+    assert recovered["tickers"] == symbols
+    assert recovered["membership_sha256"] == _digest(symbols)
+    plan["request_keys"] = plan["request_keys"][:-1]
+    path.write_text(json.dumps(plan))
+    with pytest.raises(ValueError, match="SOURCE_PLAN_INVALID"):
+        membership_from_incremental_plan(path)
