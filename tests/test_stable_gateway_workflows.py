@@ -23,6 +23,7 @@ def test_customer_qa_never_executes_candidate_code_with_gateway_token():
     assert "runtime_artifact_sha256" in w["on"]["workflow_dispatch"]["inputs"]
     assert "ref: ${{ github.event.repository.default_branch }}" in text
     assert "verify_artifact_tree.py" in text
+    assert "PYTHONPATH=. python3 scripts/verify_artifact_tree.py" in text
     assert "ref: ${{ inputs.candidate_sha }}" not in text
 
 def test_report_card_is_default_branch_scope_bound_and_mutations_stay_closed():

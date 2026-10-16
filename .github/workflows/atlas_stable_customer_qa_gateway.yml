@@ -51,7 +51,7 @@ jobs:
           mkdir -p audit_results/stable_customer_qa/runtime
           gh run download "${{ inputs.runtime_source_run }}" --name "${{ inputs.runtime_artifact_identity }}" --dir audit_results/stable_customer_qa/runtime
           test -z "${FINNHUB_API_KEY:-}"
-          python scripts/verify_artifact_tree.py --root audit_results/stable_customer_qa/runtime --expected-sha256 "${{ inputs.runtime_artifact_sha256 }}" --output audit_results/stable_customer_qa/runtime_identity.json
+          PYTHONPATH=. python3 scripts/verify_artifact_tree.py --root audit_results/stable_customer_qa/runtime --expected-sha256 "${{ inputs.runtime_artifact_sha256 }}" --output audit_results/stable_customer_qa/runtime_identity.json
       - name: Exact-SHA QA adapter remains fail closed until promoted from certified harness
         env:
           GH_TOKEN: ${{ github.token }}
