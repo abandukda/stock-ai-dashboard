@@ -708,3 +708,39 @@ any other item.
   mutation occurred. The correction replaces that host dependency with
   Python's standard-library `zipfile` extraction, including traversal checks,
   and records GNU-time plus claim-specific durable disk consumption.
+
+### Consumed live-backfill forensic inspection — 2026-10-16
+
+- PR #62 is registered on main at `393de1bbec2d45bc1ddf822a4f0774cb2eb44b70`.
+  Protected provider-free inspection run `38983380052`, job `117249159603`,
+  completed successfully on `atlas-worker-1`. Its artifact is
+  `atlas-buy-now-history-backfill-forensics-38983380052` (artifact ID
+  `12082151953`, ZIP SHA-256
+  `199b7dc59f14173c2b8a9720cd4b704178b5870e16d925075a9e980aeace7211`).
+- The consumed claim is `oct02-oct15-2026-backfill-38962431540-01`, bound to
+  scope `37de17d0217483bcba4046d381c811faa84f33227237b468e705f5e9bbf77b3d`.
+  The first failure was request ordinal `2848`, ticker `QRVO`, endpoint
+  `/stock/candle`. Finnhub returned HTTP 200 and the exact terminal shape
+  `{"s":"no_data"}`. The raw-body SHA-256 is
+  `4bc31a65f0aefa9b37dfa85119ff889f4c9dd2cdd5933b4af564f0ddff0766ab`;
+  the persisted envelope SHA-256 is
+  `4b06a585c41cbda8ef486301131d9dacde41f61e4340e054aa61a61529d75bbb`.
+- Accounting is exact: 3,894 authorized slots, 2,848 durable intents and raw
+  envelopes, 2,847 completed receipts, one failed response, zero indeterminate
+  requests, and 1,046 unattempted slots. Intent, envelope and receipt manifest
+  SHA-256 values are respectively
+  `668f0bbb916e4911ceeedc829032f1e27694af36c3f2c45cc692651d2720aa20`,
+  `ac7df389d9d505dbd623160773f5fed9b334a5bb8a6bef0599e2d38bbde7a987`,
+  and `bbf45e05d7086ea5acdb569b1a883c6ebec9c87b90878f918d505924b4e18903`.
+- The cause was a contract-classification defect: a genuine Finnhub `no_data`
+  response was routed through the generic candle-schema error. It was not
+  malformed JSON, an array-length/volume error, an entitlement failure, or an
+  indeterminate request. No new provider call, publication write, or Report
+  Card mutation occurred during inspection.
+- The correction preserves `no_data` as immutable unavailable evidence. It
+  writes a terminal receipt, never creates an OHLCV row or numeric zero, and
+  requires the affected ticker to appear in a complete, source-hashed
+  unavailable inventory. Any non-exact `no_data` shape, corrupt payload,
+  missing array, invalid volume, or population-partition mismatch still fails
+  closed. A fresh licensed acquisition is not yet authorized; the consumed
+  claim cannot be reused.

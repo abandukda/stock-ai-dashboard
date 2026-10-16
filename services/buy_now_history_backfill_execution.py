@@ -178,9 +178,10 @@ class BackfillExecutor:
                     recovered += 1; continue
                 if envelope.exists():
                     body = json.loads(envelope.read_text())
-                    self._validate_response(request, body)
+                    disposition = self._validate_response(request, body)
                     atomic_json(receipt, {"ordinal": ordinal, "request_sha256": digest(request),
-                                         "envelope_sha256": file_sha256(envelope), "recovered": True})
+                                         "envelope_sha256": file_sha256(envelope), "recovered": True,
+                                         "evidence_disposition": disposition})
                     recovered += 1; continue
                 if intent.exists():
                     raise RuntimeError(f"BACKFILL_ATTEMPT_INDETERMINATE:{ordinal}")
@@ -200,9 +201,10 @@ class BackfillExecutor:
                 atomic_json(envelope, envelope_value)
                 if stop_after_response_ordinal == ordinal:
                     raise RuntimeError("SIMULATED_CRASH_AFTER_RESPONSE")
-                self._validate_response(request, envelope_value)
+                disposition = self._validate_response(request, envelope_value)
                 atomic_json(receipt, {"ordinal": ordinal, "request_sha256": digest(request),
-                                     "envelope_sha256": file_sha256(envelope), "recovered": False})
+                                     "envelope_sha256": file_sha256(envelope), "recovered": False,
+                                     "evidence_disposition": disposition})
             completed = len(list((self.claim_dir / "receipts").glob("*.json")))
             if completed != 3894:
                 raise RuntimeError(f"BACKFILL_NOT_TERMINAL:{completed}:3894")
@@ -232,6 +234,7 @@ class BackfillExecutor:
                 raise RuntimeError(f"BACKFILL_RAW_REQUEST_IDENTITY_INVALID:{ordinal}")
             grouped.setdefault(str(request["ticker"]), {})[str(request["capability"])] = (envelope, path)
         observations: dict[str, list[dict[str, Any]]] = {}
+        unavailable: dict[str, dict[str, Any]] = {}
         wanted = list(self.plan["missing_sessions"])
         for ticker, capabilities in grouped.items():
             if set(capabilities) != {"historical_ohlcv", "splits", "dividends"}:
@@ -242,6 +245,13 @@ class BackfillExecutor:
             candle_body = json.loads(base64.b64decode(candle["body_base64"]))
             split_body = json.loads(base64.b64decode(split["body_base64"]))
             dividend_body = json.loads(base64.b64decode(dividend["body_base64"]))
+            if candle_body.get("s") == "no_data":
+                unavailable[ticker] = {
+                    "reason": "FINNHUB_NO_DATA",
+                    "raw_response_sha256": file_sha256(candle_path),
+                    "requested_sessions": wanted,
+                }
+                continue
             sessions = [datetime.fromtimestamp(int(v), timezone.utc).date().isoformat() for v in candle_body["t"]]
             if sessions != wanted:
                 raise RuntimeError(f"BACKFILL_MISSING_SESSION_SET_INVALID:{ticker}")
@@ -254,10 +264,12 @@ class BackfillExecutor:
                  "corporate_action_status": action_status}
                 for i, session in enumerate(sessions)
             ]
-        return validate_backfill_observation_set(plan=self.plan, observations=observations)
+        return validate_backfill_observation_set(
+            plan=self.plan, observations=observations, unavailable=unavailable,
+        )
 
     @staticmethod
-    def _validate_response(request: Mapping[str, Any], envelope: Mapping[str, Any]) -> None:
+    def _validate_response(request: Mapping[str, Any], envelope: Mapping[str, Any]) -> str:
         status = int(envelope.get("status_code", 0))
         if status == 429:
             raise RuntimeError("BACKFILL_HTTP_429")
@@ -271,6 +283,12 @@ class BackfillExecutor:
             raise RuntimeError("BACKFILL_RESPONSE_SCHEMA_INVALID") from exc
         endpoint = request.get("endpoint")
         if endpoint == "/stock/candle":
+            # Finnhub documents {"s":"no_data"} as a terminal response.  It is
+            # evidence of unavailability, never an empty price series or a zero.
+            # Persist a receipt so the bounded acquisition can continue, then
+            # force the affected security into the explicit unavailable set.
+            if body == {"s": "no_data"}:
+                return "FINNHUB_NO_DATA"
             fields = ("c", "h", "l", "o", "t", "v")
             if body.get("s") != "ok" or any(not isinstance(body.get(k), list) for k in fields):
                 raise RuntimeError("BACKFILL_CANDLE_SCHEMA_INVALID")
@@ -304,6 +322,7 @@ class BackfillExecutor:
                 raise RuntimeError("BACKFILL_CORPORATE_ACTIONS_DUPLICATE_OR_UNORDERED")
         else:
             raise RuntimeError("BACKFILL_ENDPOINT_NOT_ALLOWED")
+        return "AVAILABLE"
 
 
 __all__ = ["BackfillExecutor", "Response", "authorization_token", "build_claim_scope", "scope_digest"]
