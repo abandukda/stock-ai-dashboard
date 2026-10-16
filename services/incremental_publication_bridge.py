@@ -119,7 +119,7 @@ def load_retained_technical_history(
                 raise ValueError(f"INCREMENTAL_RETAINED_TECHNICAL_DUPLICATE:{symbol}")
             bars = list(item.get("bars") or ())
             parsed = deserialize_bars(bars)
-            if not parsed or len(parsed) != len(bars):
+            if len(parsed) != len(bars):
                 raise ValueError(f"INCREMENTAL_RETAINED_TECHNICAL_HISTORY_INVALID:{symbol}")
             # A governed shard can retain an in-progress tail bar.  It is not
             # eligible technical evidence for a finalized-session replay, but
@@ -127,8 +127,12 @@ def load_retained_technical_history(
             # population.  Remove only those explicitly incomplete bars and
             # carry a terminal blocker into the unchanged evaluator.
             completed = [bar for bar in parsed if bar.completed]
+            if not parsed:
+                history_blockers[symbol] = ["INCREMENTAL_RETAINED_TECHNICAL_HISTORY_MISSING"]
             if len(completed) != len(parsed):
-                history_blockers[symbol] = ["INCREMENTAL_RETAINED_TECHNICAL_HISTORY_INCOMPLETE"]
+                history_blockers.setdefault(symbol, []).append(
+                    "INCREMENTAL_RETAINED_TECHNICAL_HISTORY_INCOMPLETE"
+                )
             if any(a.timestamp >= b.timestamp for a, b in zip(completed, completed[1:])):
                 raise ValueError(f"INCREMENTAL_RETAINED_TECHNICAL_HISTORY_UNORDERED:{symbol}")
             if completed and completed[-1].timestamp.date().isoformat() >= str(plan.get("session")):
