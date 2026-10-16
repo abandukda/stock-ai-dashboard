@@ -12,6 +12,35 @@ on:
         required: true
         type: boolean
         default: false
+      execute_history_backfill_rehearsal:
+        description: "Exercise the crash-safe backfill entrypoint without provider credentials"
+        required: true
+        type: boolean
+        default: false
+      execute_history_backfill_acquisition:
+        description: "Execute one separately authorized consume-once historical backfill"
+        required: true
+        type: boolean
+        default: false
+      authorize_backfill_rehearsal:
+        description: "Provider-free exact-source rehearsal authority"
+        required: false
+        type: string
+      backfill_claim_id:
+        required: false
+        type: string
+      backfill_claim_scope_sha256:
+        required: false
+        type: string
+      backfill_workflow_source_sha:
+        required: false
+        type: string
+      authorize_backfill_acquisition:
+        required: false
+        type: string
+      backfill_manual_enablement:
+        required: false
+        type: string
       authorize_backfill_plan:
         description: "Exact provider-free planning authorization"
         required: false
@@ -39,7 +68,9 @@ concurrency:
 
 jobs:
   coordinator:
-    if: github.event_name == 'schedule' || inputs.prepare_history_backfill != true
+    if: >-
+      github.event_name == 'schedule' ||
+      (inputs.prepare_history_backfill != true && inputs.execute_history_backfill_rehearsal != true && inputs.execute_history_backfill_acquisition != true)
     runs-on: ubuntu-24.04
     outputs:
       eligible: ${{ steps.gate.outputs.eligible }}
@@ -188,4 +219,159 @@ jobs:
           name: atlas-buy-now-history-backfill-plan-${{ github.run_id }}
           path: audit_results/daily_incremental/history_backfill_package.json
           if-no-files-found: error
+          retention-days: 90
+
+  protected-history-backfill-rehearsal:
+    if: github.event_name == 'workflow_dispatch' && inputs.execute_history_backfill_rehearsal == true
+    environment: atlas-licensed-research-acquisition
+    runs-on: [self-hosted, Linux, X64, atlas-worker-1]
+    timeout-minutes: 180
+    env:
+      ATLAS_INCREMENTAL_RAW_ROOT: ${{ vars.ATLAS_INCREMENTAL_RAW_ROOT }}
+      ATLAS_INCREMENTAL_CHECKPOINT_ROOT: ${{ vars.ATLAS_INCREMENTAL_CHECKPOINT_ROOT }}
+      EXPECTED_SOURCE_SHA: 2b95d4fdc03d56a22b341ef5cdc1648333eab04b
+      EXPECTED_ARTIFACT_ID: "12069093114"
+      EXPECTED_ARTIFACT_ZIP_SHA256: c898793aeb379bb5aad1a2b1fdc568692d8562f96d53a20c081f4dd3243135dd
+      EXPECTED_PACKAGE_SHA256: 594b4c45ce98b8466e742343d3c45a271cdf66dda68c8c07355ff46b801a8ee6
+      EXPECTED_PLAN_SHA256: f59c6af515f9004be1de10d48998f26fba9a4972feef9e75582a67ff66b2a258
+      EXPECTED_SCOPE_SHA256: 2059e22e81e47111ba14507c77828a5a54e6931ec1ab50fc4cc56b60b5cc6739
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - name: Enforce exact source, durable storage, and provider isolation
+        shell: bash
+        run: |
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          test "${{ inputs.authorize_backfill_rehearsal }}" = "ATLAS_BUY_NOW_BACKFILL_REHEARSE_ONCE:$EXPECTED_SOURCE_SHA"
+          test -n "$ATLAS_INCREMENTAL_RAW_ROOT"
+          test -n "$ATLAS_INCREMENTAL_CHECKPOINT_ROOT"
+          test -z "${FINNHUB_API_KEY:-}"
+          test "$(realpath "$ATLAS_INCREMENTAL_RAW_ROOT")" != "$(realpath "$ATLAS_INCREMENTAL_CHECKPOINT_ROOT")"
+          case "$(realpath "$ATLAS_INCREMENTAL_RAW_ROOT")" in /tmp/*|*/_work/*|/mnt/atlas_report_card_*) exit 1;; esac
+          case "$(realpath "$ATLAS_INCREMENTAL_CHECKPOINT_ROOT")" in /tmp/*|*/_work/*|/mnt/atlas_report_card_*) exit 1;; esac
+      - name: Retrieve and verify the immutable protected plan ZIP
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/backfill-plan"
+          curl --fail --silent --show-error --location \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/${EXPECTED_ARTIFACT_ID}/zip" \
+            --output "$RUNNER_TEMP/backfill-plan.zip"
+          test "$(sha256sum "$RUNNER_TEMP/backfill-plan.zip" | cut -d' ' -f1)" = "$EXPECTED_ARTIFACT_ZIP_SHA256"
+          unzip -q "$RUNNER_TEMP/backfill-plan.zip" -d "$RUNNER_TEMP/backfill-plan"
+          package="$(find "$RUNNER_TEMP/backfill-plan" -name history_backfill_package.json -print -quit)"
+          test -n "$package"
+          cp "$package" "$RUNNER_TEMP/history_backfill_package.json"
+      - name: Execute exact provider-free live-entrypoint rehearsal
+        shell: bash
+        run: |
+          claim="rehearsal-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          python3 scripts/rehearse_buy_now_history_backfill.py \
+            --package "$RUNNER_TEMP/history_backfill_package.json" \
+            --state-root "$ATLAS_INCREMENTAL_CHECKPOINT_ROOT" \
+            --raw-root "$ATLAS_INCREMENTAL_RAW_ROOT" \
+            --source-sha "$EXPECTED_SOURCE_SHA" \
+            --workflow-source-sha "$GITHUB_SHA" \
+            --artifact-id "$EXPECTED_ARTIFACT_ID" \
+            --artifact-zip-sha256 "$EXPECTED_ARTIFACT_ZIP_SHA256" \
+            --package-sha256 "$EXPECTED_PACKAGE_SHA256" \
+            --plan-sha256 "$EXPECTED_PLAN_SHA256" \
+            --scope-sha256 "$EXPECTED_SCOPE_SHA256" \
+            --claim-id "$claim" --execution-id "${GITHUB_RUN_ID}:${GITHUB_RUN_ATTEMPT}" \
+            --authorization "ATLAS_BUY_NOW_BACKFILL_REHEARSE_ONCE:$EXPECTED_SOURCE_SHA" \
+            --output audit_results/daily_incremental/history_backfill_rehearsal.json
+          python3 - <<'PY'
+          import json
+          r=json.load(open('audit_results/daily_incremental/history_backfill_rehearsal.json'))
+          assert r['status']=='COMPLETE'
+          assert r['requests']==3894
+          assert r['provider_calls']==r['publication_writes']==0
+          assert r['evidence_classification']=='PROVIDER_FREE_FIXTURE'
+          assert r['publication_authorized'] is False
+          PY
+      - name: Upload immutable rehearsal evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: atlas-buy-now-history-backfill-rehearsal-${{ github.run_id }}
+          path: audit_results/daily_incremental/history_backfill_rehearsal.json
+          if-no-files-found: error
+          retention-days: 90
+
+  protected-history-backfill-acquisition:
+    if: github.event_name == 'workflow_dispatch' && inputs.execute_history_backfill_acquisition == true
+    environment: atlas-licensed-research-acquisition
+    runs-on: [self-hosted, Linux, X64, atlas-worker-1]
+    timeout-minutes: 180
+    env:
+      FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+      ATLAS_INCREMENTAL_RAW_ROOT: ${{ vars.ATLAS_INCREMENTAL_RAW_ROOT }}
+      ATLAS_INCREMENTAL_CHECKPOINT_ROOT: ${{ vars.ATLAS_INCREMENTAL_CHECKPOINT_ROOT }}
+      ATLAS_BACKFILL_MANUAL_ACQUIRE_ENABLED: ${{ inputs.backfill_manual_enablement }}
+      EXPECTED_SOURCE_SHA: 2b95d4fdc03d56a22b341ef5cdc1648333eab04b
+      EXPECTED_ARTIFACT_ID: "12069093114"
+      EXPECTED_ARTIFACT_ZIP_SHA256: c898793aeb379bb5aad1a2b1fdc568692d8562f96d53a20c081f4dd3243135dd
+      EXPECTED_PACKAGE_SHA256: 594b4c45ce98b8466e742343d3c45a271cdf66dda68c8c07355ff46b801a8ee6
+      EXPECTED_PLAN_SHA256: f59c6af515f9004be1de10d48998f26fba9a4972feef9e75582a67ff66b2a258
+      EXPECTED_SCOPE_SHA256: 2059e22e81e47111ba14507c77828a5a54e6931ec1ab50fc4cc56b60b5cc6739
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - run: python3 -m pip install --disable-pip-version-check requests==2.32.3
+      - name: Enforce protected bounded authority
+        shell: bash
+        run: |
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "${{ inputs.backfill_workflow_source_sha }}" = "$GITHUB_SHA"
+          test -n "$FINNHUB_API_KEY"
+          test -n "$ATLAS_INCREMENTAL_RAW_ROOT"
+          test -n "$ATLAS_INCREMENTAL_CHECKPOINT_ROOT"
+          test "${{ inputs.backfill_manual_enablement }}" = "ENABLE_ATLAS_BACKFILL_ONCE:${{ inputs.backfill_claim_id }}"
+          test "${{ inputs.authorize_backfill_acquisition }}" = "AUTHORIZE_ATLAS_BACKFILL_CLAIM:${{ inputs.backfill_claim_id }}:${{ inputs.backfill_claim_scope_sha256 }}"
+      - name: Retrieve and verify exact plan artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          curl --fail --silent --show-error --location \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/${EXPECTED_ARTIFACT_ID}/zip" \
+            --output "$RUNNER_TEMP/backfill-plan.zip"
+          test "$(sha256sum "$RUNNER_TEMP/backfill-plan.zip" | cut -d' ' -f1)" = "$EXPECTED_ARTIFACT_ZIP_SHA256"
+          mkdir -p "$RUNNER_TEMP/backfill-plan"
+          unzip -q "$RUNNER_TEMP/backfill-plan.zip" -d "$RUNNER_TEMP/backfill-plan"
+      - name: Execute raw-first bounded acquisition without publication
+        shell: bash
+        run: |
+          package="$(find "$RUNNER_TEMP/backfill-plan" -name history_backfill_package.json -print -quit)"
+          test -n "$package"
+          python3 scripts/run_buy_now_history_backfill.py \
+            --package "$package" --state-root "$ATLAS_INCREMENTAL_CHECKPOINT_ROOT" \
+            --raw-root "$ATLAS_INCREMENTAL_RAW_ROOT" --source-sha "$EXPECTED_SOURCE_SHA" \
+            --workflow-source-sha "${{ inputs.backfill_workflow_source_sha }}" \
+            --artifact-id "$EXPECTED_ARTIFACT_ID" --artifact-zip-sha256 "$EXPECTED_ARTIFACT_ZIP_SHA256" \
+            --package-sha256 "$EXPECTED_PACKAGE_SHA256" --plan-sha256 "$EXPECTED_PLAN_SHA256" \
+            --scope-sha256 "$EXPECTED_SCOPE_SHA256" --claim-id "${{ inputs.backfill_claim_id }}" \
+            --claim-scope-sha256 "${{ inputs.backfill_claim_scope_sha256 }}" \
+            --execution-id "${GITHUB_RUN_ID}" \
+            --authorization "${{ inputs.authorize_backfill_acquisition }}" \
+            --output audit_results/daily_incremental/history_backfill_acquisition.json
+          test ! -e audit_results/daily_incremental/publication_result.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atlas-buy-now-history-backfill-acquisition-${{ github.run_id }}
+          path: audit_results/daily_incremental/history_backfill_acquisition.json
+          if-no-files-found: warn
           retention-days: 90

@@ -670,3 +670,33 @@ any other item.
 - **Customer state:** no new provider data was acquired and no customer snapshot
   was written. The retained customer publication remains the prior October 2
   market session / October 4 publication with 11 governed BUY NOW names.
+
+### Historical backfill consume-once safety gate — 2026-10-16
+
+- Provider-free plan run `38952832134` remains the immutable acquisition basis:
+  source `2b95d4fdc03d56a22b341ef5cdc1648333eab04b`, artifact `12069093114`,
+  artifact ZIP SHA-256 `c898793aeb379bb5aad1a2b1fdc568692d8562f96d53a20c081f4dd3243135dd`,
+  package SHA-256 `594b4c45ce98b8466e742343d3c45a271cdf66dda68c8c07355ff46b801a8ee6`,
+  plan self-hash `f59c6af515f9004be1de10d48998f26fba9a4972feef9e75582a67ff66b2a258`,
+  and canonical scope SHA-256 `2059e22e81e47111ba14507c77828a5a54e6931ec1ab50fc4cc56b60b5cc6739`.
+- The proposed protected executor durably consumes a claim before transport,
+  atomically records each request intent before its call, and atomically stores
+  a status/body envelope before inspection. A committed response can be
+  recovered without another call. An intent without a response is classified
+  `INDETERMINATE` and cannot be retried under the consumed claim. A different
+  execution ID, changed scope, concurrent worker, corrupt receipt, 429,
+  entitlement failure, HTTP failure, response-schema failure, missing volume,
+  and unordered or duplicate sessions all fail closed.
+- A local exact-artifact provider-free rehearsal exercised all 3,894 request
+  records and normalized 11,682 observations (1,298 securities x nine XNYS
+  sessions). It completed in 2.77 seconds with provider calls `0`, publication
+  writes `0`, result digest
+  `5e70a592fb97536377b4aad43a323de2d94bcfa9fdb3e8d1a8c0850f1fcadbc0`,
+  and normalized-observation digest
+  `85558a864372656f6fe8b4e01ea14ae8afb30772a5ee0df296e7771d89f2702d`.
+  This is fixture evidence, not licensed market evidence.
+- Live execution remains **NOT AUTHORIZED**. Registration and a protected
+  provider-free rehearsal on `atlas-worker-1` are still required. At 60 RPM,
+  3,894 attempts have a theoretical pacing floor of 64.9 minutes, plus provider
+  latency and integrity processing. Certification and customer publication
+  remain distinct downstream gates; no customer-visible state changed.
