@@ -7,6 +7,7 @@ from services.buy_now_history_backfill_execution import (
     BackfillExecutor, Response, authorization_token, build_claim_scope, scope_digest,
 )
 from tests.test_buy_now_history_continuity import _plan
+from scripts.inspect_buy_now_history_backfill_claim import inspect
 
 
 def _bound(tmp_path, transport, execution="run-1"):
@@ -87,3 +88,25 @@ def test_corporate_action_schema_and_range_fail_closed():
     envelope = {"status_code":200, "body_base64":__import__('base64').b64encode(json.dumps(body).encode()).decode()}
     with pytest.raises(RuntimeError, match="DATE_OUT_OF_RANGE"):
         BackfillExecutor._validate_response(request, envelope)
+
+
+def test_consumed_claim_forensics_sanitizes_no_data_and_reconciles(tmp_path):
+    calls=[]
+    def no_data(request):
+        calls.append(request["ordinal"])
+        return Response(200, b'{"s":"no_data"}', {"content-type":"application/json"})
+    executor, scope = _bound(tmp_path, no_data)
+    with pytest.raises(RuntimeError, match="CANDLE_SCHEMA_INVALID"):
+        executor.run()
+    package=tmp_path/"package.json"
+    package.write_text(json.dumps({"backfill_plan":_plan()}))
+    result=inspect(package=package,state_root=tmp_path/"state",raw_root=tmp_path/"raw",
+                   claim_id=scope["claim_id"],expected_claim_scope=scope["claim_scope_sha256"])
+    assert calls == [1]
+    assert result["durable_intents"] == result["raw_envelopes"] == 1
+    assert result["completed_receipts"] == result["indeterminate_requests"] == 0
+    assert result["not_attempted"] == 3893
+    assert result["remaining_authorized_budget"] == 0
+    assert result["failure"]["ordinal"] == 1
+    assert result["failure"]["response_shape"]["classification"] == "FINNHUB_NO_DATA"
+    assert "body_base64" not in json.dumps(result)

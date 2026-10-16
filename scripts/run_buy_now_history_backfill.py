@@ -17,6 +17,7 @@ if str(ROOT) not in sys.path:
 from services.buy_now_history_backfill_execution import (
     BackfillExecutor, Response, authorization_token, build_claim_scope, scope_digest,
 )
+from scripts.inspect_buy_now_history_backfill_claim import inspect
 
 
 class FinnhubZeroRetryTransport:
@@ -86,11 +87,23 @@ def main() -> int:
         raise PermissionError("BACKFILL_CLAIM_SCOPE_IDENTITY_INVALID")
     if args.authorization != authorization_token(scope):
         raise PermissionError("BACKFILL_CLAIM_AUTHORIZATION_INVALID")
-    result = BackfillExecutor(
-        state_root=args.state_root, raw_root=args.raw_root, scope=scope, plan=plan,
-        token=args.authorization, execution_id=args.execution_id,
-        transport=FinnhubZeroRetryTransport(key, rpm=60), provider_free=False,
-    ).run()
+    try:
+        result = BackfillExecutor(
+            state_root=args.state_root, raw_root=args.raw_root, scope=scope, plan=plan,
+            token=args.authorization, execution_id=args.execution_id,
+            transport=FinnhubZeroRetryTransport(key, rpm=60), provider_free=False,
+        ).run()
+    except BaseException as exc:
+        result = inspect(package=args.package, state_root=args.state_root, raw_root=args.raw_root,
+                         claim_id=args.claim_id, expected_claim_scope=args.claim_scope_sha256)
+        result.update({"status":"FAILED_CLOSED", "terminal_error":type(exc).__name__,
+                       "terminal_error_code":str(exc).split(":",1)[0],
+                       "source_sha":args.source_sha, "workflow_source_sha":args.workflow_source_sha,
+                       "plan_sha256":args.plan_sha256, "scope_sha256":args.scope_sha256})
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(json.dumps(result, sort_keys=True)+"\n")
+        print(json.dumps(result, sort_keys=True))
+        raise
     result.update({"evidence_classification":"LIVE_FINNHUB_RAW_EVIDENCE",
                    "publication_authorized":False, "source_sha":args.source_sha,
                    "workflow_source_sha":args.workflow_source_sha,
