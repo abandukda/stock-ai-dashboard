@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 import hashlib
 import json
 
-from engines.market_today import build_market_today, normalize_major_market_news
+from engines.market_today import build_market_today, normalize_major_market_news, normalize_official_macro_evidence
 from services.home_market_news import fetch_major_market_news
 from engines.home_guidance_story_v1 import (
     build_home_action_count_contract,
@@ -325,6 +325,31 @@ def test_major_news_requires_lineage_rights_and_relevance_and_deduplicates():
     output=normalize_major_market_news(records)
     assert len(output)==1 and output[0]["relevance"]=="FED"
     assert "Federal Reserve policy" in output[0]["why_it_matters"]
+
+
+def test_official_macro_contract_fails_closed_and_preserves_release_semantics():
+    valid={"agency":"BLS","series_id":"CUUR0000SA0","label":"Consumer Price Index",
+           "value":301.2,"unit":"INDEX","release_at":"2026-10-15T12:30:00Z",
+           "observation_period":"2026-09","revision_status":"FINAL","seasonal_adjustment":"NOT_SEASONALLY_ADJUSTED",
+           "evidence_id":"BLS-CPI-2026-09","source_url":"https://www.bls.gov/cpi/"}
+    output=normalize_official_macro_evidence([valid,dict(valid),{**valid,"agency":"BLOG"},
+        {**valid,"source_url":"http://example.com"},{**valid,"source_url":"https://example.com/fake-bls"}])
+    assert len(output)==1
+    assert output[0]["agency_label"]=="U.S. Bureau of Labor Statistics"
+    assert output[0]["non_scoring"] is True
+
+
+def test_market_today_renders_accessible_official_macro_release():
+    context=build_market_today({"rows":[]},macro=[{"agency":"FEDERAL_RESERVE","series_id":"FED-FUNDS",
+        "label":"Federal funds target range","value":"4.75–5.00","unit":"PERCENT",
+        "release_at":"2026-10-15T18:00:00Z","observation_period":"2026-10-15",
+        "revision_status":"NOT_APPLICABLE","evidence_id":"FED-20261015",
+        "source_url":"https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm"}])
+    app=_render_market_today_app({"market_today":context})
+    values="\n".join(str(item.value) for item in [*app.markdown,*app.caption])
+    assert not app.exception
+    assert "Official Economic Releases" in values and "context only" in values
+    assert 'aria-label="Federal funds target range official economic release"' in values
 
 
 def test_research_path_does_not_import_home_promotion_policy():

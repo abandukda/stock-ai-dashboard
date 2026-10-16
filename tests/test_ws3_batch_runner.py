@@ -73,6 +73,12 @@ def test_success_has_exact_call_cap_no_secret_telemetry(tmp_path,monkeypatch):
     assert summary["provider_calls"]==25 and summary["retry_count"]==0 and len(session.calls)==25
     assert all(call[1]["token"]=="secret" for call in session.calls)
     assert "secret" not in (tmp_path/"out/run_summary.json").read_text()
+    archive=json.loads((tmp_path/"out/archive_manifest.json").read_text())
+    assert archive["contract"]=="ATLAS_WS3_DURABLE_ARCHIVE_MANIFEST_V1"
+    assert archive["evidence_source_sha"]==SOURCE
+    assert archive["execution_source_sha"]==SOURCE
+    assert len(archive["files"])==50
+    assert all(row["sha256"] and row["bytes"] > 0 for row in archive["files"])
 
 
 def test_workflow_uses_protected_environment_and_registered_code():

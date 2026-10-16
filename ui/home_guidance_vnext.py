@@ -1535,6 +1535,22 @@ def _render_market_today(story: Mapping[str, Any]) -> None:
         st.caption("Current market data is temporarily unavailable.")
     st.markdown("### What ATLAS Thinks This Means")
     st.write(str(context.get("interpretation") or "ATLAS is not inferring a market backdrop without current governed evidence."))
+    macro=context.get("official_macro_evidence") or ()
+    if macro:
+        st.markdown("### Official Economic Releases")
+        st.caption("Verified government releases · context only · does not change ATLAS recommendations")
+        for item in macro[:3]:
+            value = "Unavailable" if item.get("value") is None else f'{item.get("value")} {item.get("unit")}'
+            label=html.escape(str(item.get("label") or item.get("series_id")))
+            url=html.escape(str(item.get("source_url")),quote=True)
+            agency=html.escape(str(item.get("agency_label")))
+            period=html.escape(str(item.get("observation_period")))
+            st.markdown(
+                f'<article aria-label="{label} official economic release"><b><a href="{url}" target="_blank" '
+                f'rel="noopener">{label}</a></b><p>{html.escape(value)} · {period}</p>'
+                f'<small>{agency} · {html.escape(str(item.get("revision_status")))}</small></article>',
+                unsafe_allow_html=True,
+            )
     news=context.get("major_market_news") or ()
     if news:
         st.markdown("### Major Market News")

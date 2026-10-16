@@ -5,11 +5,19 @@ from datetime import datetime, timezone
 import hashlib
 import re
 from typing import Any, Mapping, Sequence
+from urllib.parse import urlparse
 
 from services.live_market.models import classify_market_session
 
 VERSION = "ATLAS_MARKET_TODAY_V1"
 NEWS_VERSION = "ATLAS_MAJOR_MARKET_NEWS_V1"
+MACRO_VERSION = "ATLAS_OFFICIAL_MACRO_EVIDENCE_V1"
+_OFFICIAL_MACRO_SOURCES = {
+    "BLS": ("U.S. Bureau of Labor Statistics", "bls.gov"),
+    "BEA": ("U.S. Bureau of Economic Analysis", "bea.gov"),
+    "FEDERAL_RESERVE": ("Federal Reserve", "federalreserve.gov"),
+    "TREASURY": ("U.S. Treasury", "treasury.gov"),
+}
 _TAGS = {
     "FED": ("federal reserve", "fed ", "fomc"),
     "INFLATION": ("inflation", "cpi", "ppi"),
@@ -57,7 +65,41 @@ def normalize_major_market_news(records: Sequence[Mapping[str, Any]]) -> tuple[d
     return tuple(output[:4])
 
 
-def build_market_today(tape: Mapping[str, Any] | None, *, news: Sequence[Mapping[str, Any]]=(), now: datetime | None=None) -> dict[str, Any]:
+def normalize_official_macro_evidence(records: Sequence[Mapping[str, Any]]) -> tuple[dict[str, Any], ...]:
+    """Accept only source-linked official releases; never infer or revise values."""
+    output=[]; seen=set()
+    for item in records:
+        agency=str(item.get("agency") or "").upper().strip()
+        series_id=str(item.get("series_id") or "").strip()
+        label=" ".join(str(item.get("label") or "").split())
+        release_at=str(item.get("release_at") or "").strip()
+        observation_period=str(item.get("observation_period") or "").strip()
+        unit=str(item.get("unit") or "").strip()
+        evidence_id=str(item.get("evidence_id") or "").strip()
+        source_url=str(item.get("source_url") or "").strip()
+        revision=str(item.get("revision_status") or "").upper().strip()
+        identity=(agency,series_id,release_at,observation_period)
+        hostname=(urlparse(source_url).hostname or "").lower()
+        expected_domain=_OFFICIAL_MACRO_SOURCES.get(agency,("", ""))[1]
+        if (agency not in _OFFICIAL_MACRO_SOURCES or not all(identity) or not label or not unit
+                or not evidence_id or not source_url.startswith("https://")
+                or not (hostname == expected_domain or hostname.endswith("." + expected_domain))
+                or revision not in {"INITIAL","REVISED","FINAL","NOT_APPLICABLE"}
+                or identity in seen):
+            continue
+        seen.add(identity)
+        output.append({
+            "agency":agency,"agency_label":_OFFICIAL_MACRO_SOURCES[agency][0],"series_id":series_id,
+            "label":label,"value":item.get("value"),"unit":unit,"release_at":release_at,
+            "observation_period":observation_period,"revision_status":revision,
+            "seasonal_adjustment":str(item.get("seasonal_adjustment") or "NOT_SPECIFIED"),
+            "evidence_id":evidence_id,"source_url":source_url,"non_scoring":True,
+        })
+    return tuple(output[:3])
+
+
+def build_market_today(tape: Mapping[str, Any] | None, *, news: Sequence[Mapping[str, Any]]=(),
+                       macro: Sequence[Mapping[str, Any]]=(), now: datetime | None=None) -> dict[str, Any]:
     tape=dict(tape or {}); rows=[]
     for item in tape.get("rows") or ():
         if item.get("status") != "available" or item.get("price") is None:
@@ -91,7 +133,9 @@ def build_market_today(tape: Mapping[str, Any] | None, *, news: Sequence[Mapping
         interpretation="Broad U.S. equity benchmarks are mixed or little changed in the latest governed readings." + driver_copy + " Investors should watch whether the verified drivers broaden, while company ratings remain independent."
     return {"version":VERSION,"status":"AVAILABLE" if rows else "DATA_UNAVAILABLE","market_session":session,
             "as_of":tape.get("market_data_as_of"),"source":"TWELVE_DATA","instruments":tuple(rows),
-            "interpretation":interpretation,"major_market_news":governed_news,"non_scoring":True}
+            "interpretation":interpretation,"major_market_news":governed_news,
+            "official_macro_evidence":normalize_official_macro_evidence(macro),"non_scoring":True}
 
 
-__all__=["NEWS_VERSION","VERSION","build_market_today","normalize_major_market_news"]
+__all__=["MACRO_VERSION","NEWS_VERSION","VERSION","build_market_today","normalize_major_market_news",
+         "normalize_official_macro_evidence"]

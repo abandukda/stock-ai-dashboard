@@ -19,6 +19,14 @@ ALLOWED_ENDPOINT = "/stock/financials-reported"
 MAX_CALLS = 25
 
 
+def _sync_directory(path: Path) -> None:
+    descriptor = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
 def _manifest(package: dict[str, Any]) -> dict[str, Any]:
     requests = [
         {"ordinal": i + 1, "dataset": package["dataset"], "method": package["request_method"],
@@ -69,7 +77,13 @@ def validate_package(package: dict[str, Any], authorization_token: str, source_s
 def _persist(path: Path, body: bytes) -> str:
     with path.open("xb") as handle:
         handle.write(body); handle.flush(); os.fsync(handle.fileno())
+    _sync_directory(path.parent)
     return hashlib.sha256(body).hexdigest()
+
+
+def _persist_json(path: Path, value: Any) -> str:
+    body = (json.dumps(value, indent=2, sort_keys=True) + "\n").encode("utf-8")
+    return _persist(path, body)
 
 
 def run(*, package_path: Path, output: Path, authorization_token: str, source_sha: str,
@@ -95,7 +109,7 @@ def run(*, package_path: Path, output: Path, authorization_token: str, source_sh
         raw_sha=_persist(body_path,body)
         record={"ordinal":row["ordinal"],"ticker":row["ticker"],"endpoint":row["endpoint"],"parameters":row["parameters"],
                 "status_code":response.status_code,"raw_sha256":raw_sha,"raw_bytes":len(body),"latency_ms":round((monotonic()-started)*1000,2)}
-        (raw/f"{stem}.metadata.json").write_text(json.dumps(record,sort_keys=True)+"\n",encoding="utf-8");telemetry.append(record)
+        _persist_json(raw/f"{stem}.metadata.json", record);telemetry.append(record)
         if response.status_code==429:raise RuntimeError("WS3_HTTP_429_STOP")
         if response.status_code in {401,403}:raise RuntimeError("WS3_AUTH_OR_ENTITLEMENT_STOP")
         if response.status_code!=200:raise RuntimeError(f"WS3_HTTP_STOP:{response.status_code}")
@@ -103,8 +117,25 @@ def run(*, package_path: Path, output: Path, authorization_token: str, source_sh
         except json.JSONDecodeError as exc:raise RuntimeError("WS3_SCHEMA_STOP") from exc
         if not isinstance(payload,dict):raise RuntimeError("WS3_SCHEMA_STOP")
     summary={"contract":"ATLAS_WS3_BATCH_RUN_V1","batch_id":manifest["batch_id"],"source_commit_sha":source_sha,
+             "evidence_source_sha":source_sha,
+             "execution_source_sha":os.environ.get("GITHUB_SHA") or source_sha,
              "manifest_sha256":package["immutable_batch_manifest_sha256"],"provider_calls":len(telemetry),"retry_count":0,"telemetry":telemetry}
-    (output/"run_summary.json").write_text(json.dumps(summary,indent=2,sort_keys=True)+"\n",encoding="utf-8")
+    summary_sha256 = _persist_json(output/"run_summary.json", summary)
+    archive_manifest = {
+        "contract": "ATLAS_WS3_DURABLE_ARCHIVE_MANIFEST_V1",
+        "batch_id": manifest["batch_id"],
+        "evidence_source_sha": source_sha,
+        "execution_source_sha": summary["execution_source_sha"],
+        "immutable_batch_manifest_sha256": package["immutable_batch_manifest_sha256"],
+        "run_summary_sha256": summary_sha256,
+        "files": [
+            {"path": str(path.relative_to(output)), "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+             "bytes": path.stat().st_size}
+            for path in sorted(raw.iterdir()) if path.is_file()
+        ],
+    }
+    _persist_json(output/"archive_manifest.json", archive_manifest)
+    _sync_directory(output)
     return summary
 
 
