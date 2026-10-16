@@ -97,7 +97,10 @@ def load_retained_technical_history(
     membership = dict(plan.get("governed_membership") or {})
     expected_source = str(membership.get("source_commit_sha") or "")
     expected = _symbols(plan)
+    expected_set = set(expected)
     histories: dict[str, list[dict[str, Any]]] = {}
+    seen_source_symbols: set[str] = set()
+    excluded_source_symbols: list[str] = []
     insufficient_histories: dict[str, int] = {}
     history_blockers: dict[str, list[str]] = {}
     shard_digests: list[str] = []
@@ -115,8 +118,12 @@ def load_retained_technical_history(
         shard_digests.append(supplied)
         for item in payload.get("records") or ():
             symbol = str(item.get("ticker") or "").upper()
-            if not symbol or symbol in histories:
+            if not symbol or symbol in seen_source_symbols:
                 raise ValueError(f"INCREMENTAL_RETAINED_TECHNICAL_DUPLICATE:{symbol}")
+            seen_source_symbols.add(symbol)
+            if symbol not in expected_set:
+                excluded_source_symbols.append(symbol)
+                continue
             bars = list(item.get("bars") or ())
             parsed = deserialize_bars(bars)
             if len(parsed) != len(bars):
@@ -141,11 +148,6 @@ def load_retained_technical_history(
             if len(serialized) < MINIMUM_TECHNICAL_HISTORY:
                 insufficient_histories[symbol] = len(serialized)
             histories[symbol] = serialized
-    unexpected = sorted(set(histories) - set(expected))
-    if unexpected:
-        raise ValueError(
-            "INCREMENTAL_RETAINED_TECHNICAL_MEMBERSHIP_UNEXPECTED:" + ",".join(unexpected)
-        )
     missing_source_records = sorted(set(expected) - set(histories))
     for symbol in missing_source_records:
         # Absence from the immutable retained technical shard is itself
@@ -160,6 +162,9 @@ def load_retained_technical_history(
         "contract": "ATLAS_RETAINED_TECHNICAL_HISTORY_BINDING_V1",
         "source_run_id": membership.get("source_run_id"),
         "source_commit_sha": expected_source,
+        "source_record_count": len(seen_source_symbols),
+        "excluded_source_record_count": len(excluded_source_symbols),
+        "excluded_source_symbols_sha256": _digest(sorted(excluded_source_symbols)),
         "run_identity_sha256": next(iter(run_identities)),
         "symbol_count": len(histories), "shard_count": len(paths),
         "minimum_bar_count": min(len(value) for value in histories.values()),
