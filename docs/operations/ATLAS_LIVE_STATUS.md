@@ -32,7 +32,7 @@ and exact-SHA smoke remain open.
 | Watchlist | YES | YES | UNKNOWN | UNKNOWN | NO | No current production interaction proof. | Run add/search/sort/remove/reload smoke. |
 | Ask ATLAS | YES | YES | UNKNOWN | UNKNOWN | NO | No current grounded production response proof. | Capture settled response and authority metadata. |
 | BUY NOW | YES | Retained snapshot certified | YES/UNKNOWN SHA | STALE | PARTIAL | Production Home shows Oct 4 timestamp and 10 BUY NOW; retained authority has 11 BUY NOW for session `2026-10-02`, digest `72b37697…`. | Explain count divergence and expose exact digest/session; fresh live acquisition and promotion remain gated. |
-| Incremental acquisition | YES | Provider-free PASS | Workflow registered | NO | N/A | PR #37 merged as `6ce1efe2bf3551623d297f6985c65416a4ebefb3`. Protected [run 38829162008](https://github.com/abandukda/stock-ai-dashboard/actions/runs/38829162008) passed the exact-source plan and durable consume-once rehearsal. The authorized live [run 38830427157](https://github.com/abandukda/stock-ai-dashboard/actions/runs/38830427157) failed safely before claim consumption or transport because the entrypoint expected literal `true` while the workflow supplied the required claim-bound enablement value. Provider calls: 0; production writes: 0. | Merge and rehearse the exact-enable-contract correction, then issue a new claim and obtain new exact owner authorization. No October 15 evidence has been acquired and no customer publication changed. |
+| Incremental acquisition | YES | Provider-free PASS | Workflow registered | NO | N/A | PR #38 merged as `b7b53b93c8f13a65b766a23e1db10df148293e3e`. Protected [run 38832122252](https://github.com/abandukda/stock-ai-dashboard/actions/runs/38832122252) passed the exact-source plan and durable consume-once rehearsal after the enablement-contract correction. Provider calls: 0; production writes: 0. | A fresh claim is prepared but unconsumed; exact owner authorization is required before one licensed attempt. No October 15 evidence has been acquired and no customer publication changed. |
 | Daily 6:05 PM ET | YES | Provider-free controls tested | Registered | NO | NO | Dual UTC wakeups, XNYS gate, non-cancelling session lock and incremental-only path are registered. It still stops before acquisition/certification/promotion. | Register and certify the successor publication bridge, then obtain exact live acquisition/publication authorization. |
 | Finnhub acquisition | YES | Bounded plan certified | Registered | NO | N/A | Last real retained evidence belongs to the October 2 snapshot. | Do not describe planning run as provider refresh. |
 | Report Card G2 | YES | Provider-free only | Registered | NO | NO | 20-signal/SPY architecture; 61-call ceiling; CLOSED sentinel. | Fresh source-bound package and separate live authorization. |
@@ -97,6 +97,32 @@ and exact-SHA smoke remain open.
 - October 15 acquisition and certification remain **NOT LIVE**. A corrected
   exact-source rehearsal and a fresh claim-specific owner authorization are
   required before another licensed attempt.
+
+### Corrected exact-source protected rehearsal — PASS
+
+- PR #38 merged as `b7b53b93c8f13a65b766a23e1db10df148293e3e`.
+- Protected run `38832122252` passed against that exact source. The plan job
+  verified the immutable 1,298-security membership, 2,596 planned requests,
+  2,746 ceiling, October 15 finalized session and zero-provider plan. The live
+  acquire job was skipped.
+- On `atlas-worker-1`, the protected rehearsal verified distinct configured
+  raw/checkpoint roots, imported the registered transport entrypoint, atomically
+  persisted a rehearsal claim, rejected its duplicate, finalized it without
+  reopening it, and confirmed that no Finnhub credential was exposed.
+- Provider calls: `0`; production writes: `0`; customer publication writes:
+  `0`. The unattended scheduler remained disabled and was not dispatched.
+- Plan artifact: `atlas-incremental-buy-now-plan-38832122252`, ID
+  `12018320286`, archive SHA-256
+  `fd8d95a57abc2be875de7e3b24d8939bb92d2c6e59c8e63867b5786bb887e23b`.
+  Rehearsal artifact: `atlas-incremental-buy-now-rehearsal-38832122252`, ID
+  `12018170803`, archive SHA-256
+  `cdf6587287cf3f34fb46c845311ccbf7d189065cc2720ea21bcb483a608d36dc`.
+- Fresh unconsumed claim ID: `oct15-2026-live-38832122252-01`; source
+  `b7b53b93c8f13a65b766a23e1db10df148293e3e`; plan
+  `df03707da00c253cf089596e72515f5ceeb2d53b6ed46dd50155bfa59f9fa187`;
+  scope SHA-256
+  `e78d56f93569115413c90d30a0707aa632ecc1a631c8cd7fdad15cce365ab326`.
+  Preparation does not consume or authorize this claim.
 
 - PR #35 removes scheduled triggers from the obsolete full-universe workflow.
 - Its replacement coordinator exclusively builds the governed 1,298-security
