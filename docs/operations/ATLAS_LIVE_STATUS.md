@@ -1,7 +1,7 @@
 # ATLAS Live Operations Status
 
 **Authoritative as of:** 2026-10-15  
-**Repository main:** `225491ff82138b95840e75149fad2137c22716a8`
+**Repository main:** `0c61c8469d74f4fbe0e7319b9e78a5ee7d375e6f`
 **Production:** [stock-ai-dashboard.streamlit.app](https://stock-ai-dashboard.streamlit.app/)  
 **Production-truth correction merged:** [PR #35](https://github.com/abandukda/stock-ai-dashboard/pull/35)
 
@@ -32,7 +32,7 @@ and exact-SHA smoke remain open.
 | Watchlist | YES | YES | UNKNOWN | UNKNOWN | NO | No current production interaction proof. | Run add/search/sort/remove/reload smoke. |
 | Ask ATLAS | YES | YES | UNKNOWN | UNKNOWN | NO | No current grounded production response proof. | Capture settled response and authority metadata. |
 | BUY NOW | YES | Retained snapshot certified | YES/UNKNOWN SHA | STALE | PARTIAL | Production Home shows Oct 4 timestamp and 10 BUY NOW; retained authority has 11 BUY NOW for session `2026-10-02`, digest `72b37697…`. | Explain count divergence and expose exact digest/session; fresh live acquisition and promotion remain gated. |
-| Incremental acquisition | YES | Provider-free PASS | Workflow registered | NO | N/A | [Run 38785971147](https://github.com/abandukda/stock-ai-dashboard/actions/runs/38785971147): protected rehearsal succeeded, acquisition skipped, 1,298 symbols, 2,596 planned requests, 2,746 ceiling, plan `8aa6a83b5a6eaf14f61f4d99b82657d1a1040b131fdf2bfc8eaae127a5a25b2e`, zero calls. | Requires a fresh current-source one-time authorization; executor currently stops at non-publishing certification handoff. |
+| Incremental acquisition | YES | Provider-free PASS | Workflow registered | NO | N/A | Current-source plan [run 38824421575](https://github.com/abandukda/stock-ai-dashboard/actions/runs/38824421575): 1,298 symbols, 2,596 planned requests, 2,746 ceiling, plan `df03707da00c253cf089596e72515f5ceeb2d53b6ed46dd50155bfa59f9fa187`, zero calls. Live run [38826258218](https://github.com/abandukda/stock-ai-dashboard/actions/runs/38826258218) failed closed before provider transport because global live enablement remained false. | Consume-once claim repair is under review. No October 15 evidence has been acquired and no customer publication changed. |
 | Daily 6:05 PM ET | YES | Provider-free controls tested | Registered | NO | NO | Dual UTC wakeups, XNYS gate, non-cancelling session lock and incremental-only path are registered. It still stops before acquisition/certification/promotion. | Register and certify the successor publication bridge, then obtain exact live acquisition/publication authorization. |
 | Finnhub acquisition | YES | Bounded plan certified | Registered | NO | N/A | Last real retained evidence belongs to the October 2 snapshot. | Do not describe planning run as provider refresh. |
 | Report Card G2 | YES | Provider-free only | Registered | NO | NO | 20-signal/SPY architecture; 61-call ceiling; CLOSED sentinel. | Fresh source-bound package and separate live authorization. |
@@ -53,6 +53,21 @@ and exact-SHA smoke remain open.
 - Publication digest: `72b37697b2f4fc5dabd5438c1a3bb7c068cd12e86253b64e37b8a642c310bf17`
 
 ## Pending correction outcome
+
+### Consume-once acquisition claim repair
+
+- Review branch adds an atomic `O_EXCL` claim ledger under the durable protected
+  checkpoint root. A claim is persisted and directory-fsynced before the first
+  provider request; it is never removed, including after crashes or failures.
+- Each claim binds claim ID, registered source SHA, plan SHA-256, finalized
+  session, 1,298-member scope, 2,746 maximum requests, and zero retries.
+- Manual execution uses a dispatch-scoped enablement value. It does not set the
+  repository/environment daily-live variable; the 6:05 PM scheduler continues
+  to require that global variable to remain `false`.
+- Run `38826258218` made zero provider calls and produced no acquisition
+  artifact. Its old plan-only token must not be reused. A new claim does not
+  constitute owner approval and cannot be dispatched until the registered
+  source and protected rehearsal have been reviewed.
 
 - PR #35 removes scheduled triggers from the obsolete full-universe workflow.
 - Its replacement coordinator exclusively builds the governed 1,298-security

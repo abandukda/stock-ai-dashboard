@@ -21,6 +21,7 @@ from services.finnhub_canonical_authority import FinnhubCanonicalAdapter
 from services.finnhub_incremental_post_close import (
     DurableRawEvidenceSink, execute_incremental_plan,
 )
+from services.incremental_acquisition_claim import consume_claim, scope_payload
 
 
 def main() -> int:
@@ -30,15 +31,25 @@ def main() -> int:
     parser.add_argument("--raw-root", type=Path, required=True)
     parser.add_argument("--checkpoint", type=Path, required=True)
     parser.add_argument("--authorize-acquisition", required=True)
+    parser.add_argument("--claim-id", required=True)
+    parser.add_argument("--claim-scope-sha256", required=True)
+    parser.add_argument("--claims-root", type=Path, required=True)
+    parser.add_argument("--source-sha", required=True)
     args = parser.parse_args()
     plan = json.loads(args.plan.read_text(encoding="utf-8"))
-    expected = f"AUTHORIZE_ATLAS_INCREMENTAL_ONCE:{plan.get('plan_sha256', '')}"
-    if args.authorize_acquisition != expected:
-        raise PermissionError("INCREMENTAL_EXACT_PLAN_AUTHORIZATION_INVALID")
-    if os.getenv("ATLAS_DAILY_BUY_NOW_LIVE_ENABLED") != "true":
+    if os.getenv("ATLAS_INCREMENTAL_MANUAL_ACQUIRE_ENABLED") != "true":
         raise PermissionError("INCREMENTAL_LIVE_OPERATION_DISABLED")
     if not os.getenv("FINNHUB_API_KEY", "").strip():
         raise PermissionError("INCREMENTAL_FINNHUB_CREDENTIAL_UNAVAILABLE")
+    scope = scope_payload(
+        claim_id=args.claim_id, source_sha=args.source_sha,
+        plan_sha256=str(plan.get("plan_sha256", "")),
+        session=str(plan.get("session", "")),
+    )
+    if scope["claim_scope_sha256"] != args.claim_scope_sha256:
+        raise PermissionError("INCREMENTAL_CLAIM_SCOPE_DIGEST_INVALID")
+    consume_claim(claims_root=args.claims_root, scope=scope,
+                  token=args.authorize_acquisition)
     parameters = json.loads(args.parameters.read_text(encoding="utf-8"))
     sink = DurableRawEvidenceSink(args.raw_root / "transport")
     adapter = FinnhubCanonicalAdapter(raw_evidence_sink=sink)
