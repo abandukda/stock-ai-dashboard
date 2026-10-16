@@ -5,7 +5,7 @@ from datetime import datetime, time, timezone
 import hashlib
 import json
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 from zoneinfo import ZoneInfo
 
 from services.report_card_exchange_calendar import build_xnys_calendar, verify_xnys_calendar
@@ -56,6 +56,64 @@ def schedule_decision(*, now: datetime, last_published_session: str = "") -> dic
     }
     result["decision_sha256"] = _digest(result)
     return result
+
+
+def ordered_missing_sessions(
+    *, trading_sessions: Sequence[str], last_contiguous_session: str,
+    newest_finalized_session: str,
+) -> list[str]:
+    """Return every XNYS session after the retained contiguous boundary.
+
+    A daily refresh may only append the immediate next session.  This helper
+    intentionally fails closed when either boundary is absent from the same
+    verified calendar instead of treating calendar-day gaps as trading days.
+    """
+    sessions = [str(value) for value in trading_sessions]
+    if sessions != sorted(set(sessions)):
+        raise ValueError("DAILY_BUY_NOW_CALENDAR_SESSIONS_NOT_ORDERED_UNIQUE")
+    if last_contiguous_session not in sessions:
+        raise ValueError("DAILY_BUY_NOW_CONTIGUOUS_BOUNDARY_NOT_IN_CALENDAR")
+    if newest_finalized_session not in sessions:
+        raise ValueError("DAILY_BUY_NOW_FINALIZED_BOUNDARY_NOT_IN_CALENDAR")
+    start = sessions.index(last_contiguous_session)
+    end = sessions.index(newest_finalized_session)
+    if end < start:
+        raise ValueError("DAILY_BUY_NOW_CONTINUITY_BOUNDARIES_REVERSED")
+    return sessions[start + 1:end + 1]
+
+
+def continuity_decision(
+    *, now: datetime, last_contiguous_session: str,
+) -> dict[str, Any]:
+    """Bind the post-close operation to an ordered append/backfill decision."""
+    if now.tzinfo is None or now.utcoffset() is None:
+        raise ValueError("DAILY_BUY_NOW_NOW_MUST_BE_TIMEZONE_AWARE")
+    observed = now.astimezone(timezone.utc)
+    # Include the retained boundary even when it belongs to the prior month.
+    calendar = build_xnys_calendar(start_date=last_contiguous_session, as_of=observed)
+    verify_xnys_calendar(calendar, as_of=observed)
+    newest = str(calendar["finalized_session"])
+    missing = ordered_missing_sessions(
+        trading_sessions=calendar["trading_sessions"],
+        last_contiguous_session=last_contiguous_session,
+        newest_finalized_session=newest,
+    )
+    mode = "CURRENT" if not missing else "DAILY_APPEND" if len(missing) == 1 else "BOUNDED_BACKFILL"
+    value: dict[str, Any] = {
+        "schema_version": "ATLAS_BUY_NOW_CONTINUITY_V1",
+        "observed_at": observed.isoformat(),
+        "last_contiguous_session": last_contiguous_session,
+        "newest_finalized_session": newest,
+        "missing_sessions": missing,
+        "missing_session_count": len(missing),
+        "next_required_session": missing[0] if missing else "",
+        "mode": mode,
+        "provider_calls": 0,
+        "publication_writes": 0,
+        "calendar_sha256": calendar["artifact_sha256"],
+    }
+    value["continuity_sha256"] = _digest(value)
+    return value
 
 
 def classify_earnings(evidence: Mapping[str, Any] | None, *, prior_digest: str = "") -> dict[str, str]:
@@ -137,4 +195,7 @@ def validate_retained_publication(*, root: Path, output: Path) -> dict[str, Any]
     return result
 
 
-__all__ = ["classify_earnings", "schedule_decision", "validate_retained_publication"]
+__all__ = [
+    "classify_earnings", "continuity_decision", "ordered_missing_sessions",
+    "schedule_decision", "validate_retained_publication",
+]

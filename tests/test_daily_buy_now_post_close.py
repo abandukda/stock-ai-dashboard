@@ -5,7 +5,8 @@ import re
 import pytest
 
 from services.daily_buy_now_post_close import (
-    classify_earnings, schedule_decision, validate_retained_publication,
+    classify_earnings, continuity_decision, ordered_missing_sessions,
+    schedule_decision, validate_retained_publication,
 )
 
 
@@ -36,6 +37,33 @@ def test_early_close_is_finalized_by_six_pm():
     decision = schedule_decision(now=datetime(2026, 11, 27, 23, 5, tzinfo=UTC))
     assert decision["eligible"] is True
     assert decision["calendar"]["early_close"] is True
+
+
+def test_continuity_uses_ordered_xnys_sessions_not_calendar_days():
+    decision = continuity_decision(
+        now=datetime(2026, 10, 15, 22, 5, tzinfo=UTC),
+        last_contiguous_session="2026-10-02",
+    )
+    assert decision["mode"] == "BOUNDED_BACKFILL"
+    assert decision["missing_sessions"] == [
+        "2026-10-05", "2026-10-06", "2026-10-07", "2026-10-08", "2026-10-09",
+        "2026-10-12", "2026-10-13", "2026-10-14", "2026-10-15",
+    ]
+    assert decision["next_required_session"] == "2026-10-05"
+    assert decision["provider_calls"] == decision["publication_writes"] == 0
+
+
+def test_continuity_rejects_missing_or_unordered_boundaries():
+    with pytest.raises(ValueError, match="NOT_ORDERED_UNIQUE"):
+        ordered_missing_sessions(
+            trading_sessions=["2026-10-02", "2026-10-01"],
+            last_contiguous_session="2026-10-01", newest_finalized_session="2026-10-02",
+        )
+    with pytest.raises(ValueError, match="CONTIGUOUS_BOUNDARY"):
+        ordered_missing_sessions(
+            trading_sessions=["2026-10-02", "2026-10-05"],
+            last_contiguous_session="2026-10-01", newest_finalized_session="2026-10-05",
+        )
 
 
 def test_earnings_states_do_not_rewrite_pending_evidence():
@@ -112,6 +140,14 @@ def test_workflow_has_dual_wakeups_concurrency_and_live_fail_closed_contract():
     assert "run_finnhub_full_universe.py" not in source
     assert "schedule:" not in legacy
     assert "Live acquisition and publication remain disabled" in source
+    assert "ATLAS_LAST_CERTIFIED_CONTIGUOUS_SESSION" in source
+    assert "continuity_mode == 'DAILY_APPEND'" in source
+    assert "continuity-backfill-required:" in source
+    assert "Fail closed rather than skip missing sessions" in source
+    assert "prepare-history-backfill:" in source
+    assert "ATLAS_BUY_NOW_BACKFILL_PLAN_ONCE" in source
+    assert "plan_buy_now_history_backfill.py" in source
+    assert "atlas-buy-now-history-backfill-plan-${{ github.run_id }}" in source
 
 
 def test_daily_buy_now_workflow_needs_references_declared_jobs():

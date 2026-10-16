@@ -1,0 +1,108 @@
+import pytest
+
+from services.buy_now_history_continuity import (
+    build_history_backfill_plan, validate_backfill_observation_set,
+)
+from services.finnhub_incremental_post_close import _digest
+from services.operations_gateway import GatewayApproval, canonical_bytes, sha256, verify_scope
+
+
+def _plan(count=1298):
+    symbols = [f"S{i:04d}" for i in range(count)]
+    return build_history_backfill_plan(
+        source_sha="a" * 40,
+        symbols=symbols,
+        missing_sessions=["2026-10-05", "2026-10-06"],
+        membership_identity={
+            "membership_count": count,
+            "membership_sha256": _digest(symbols),
+            "source_run_id": "37216506983",
+        },
+        retained_history_identity={
+            "last_contiguous_session": "2026-10-02",
+            "artifact_set_sha256": "b" * 64,
+        },
+    )
+
+
+def test_backfill_plan_is_range_deduplicated_bounded_and_provider_free():
+    plan = _plan()
+    assert plan["request_count"] == plan["absolute_request_ceiling"] == 3894
+    assert plan["provider_calls"] == plan["publication_writes"] == 0
+    assert plan["automatic_retries"] == 0
+    assert plan["range_start"] == "2026-10-05"
+    assert plan["range_end"] == "2026-10-06"
+    assert plan["endpoint_allowlist"] == [
+        "/stock/candle", "/stock/split", "/stock/dividend2",
+    ]
+    assert len(plan["request_keys"]) == len(set(plan["request_keys"]))
+    assert len(plan["requests"]) == 3894
+    assert [row["ordinal"] for row in plan["requests"]] == list(range(1, 3895))
+    candle = next(row for row in plan["requests"] if row["capability"] == "historical_ohlcv")
+    assert isinstance(candle["parameters"]["from"], int)
+    assert isinstance(candle["parameters"]["to"], int)
+    assert candle["parameters"]["resolution"] == "D"
+    action = next(row for row in plan["requests"] if row["capability"] == "splits")
+    assert action["parameters"]["from"] == "2026-10-05"
+    assert plan["execution_policy"] == {
+        "concurrency": 1, "rate_limit_rpm": 60, "retry_count": 0,
+        "raw_persistence_before_inspection": True, "stop_on_http_429": True,
+        "stop_on_entitlement_error": True, "stop_on_schema_error": True,
+    }
+
+
+def test_backfill_plan_is_accepted_by_registered_gateway_contract(tmp_path):
+    plan = _plan()
+    path = tmp_path / "backfill.json"
+    path.write_text(__import__("json").dumps(plan, sort_keys=True, separators=(",", ":")))
+    scope_sha = sha256(canonical_bytes(plan))
+    approval = GatewayApproval.parse({
+        "operation": "plan", "source_sha": "a" * 40,
+        "scope_sha256": scope_sha, "max_provider_calls": 3894,
+        "authorization_token": f"ATLAS_PLAN:{scope_sha}",
+    })
+    assert len(verify_scope(path, approval)["requests"]) == 3894
+
+
+def test_backfill_plan_rejects_overlap_and_identity_mismatch():
+    symbols = [f"S{i:04d}" for i in range(1298)]
+    common = dict(
+        source_sha="a" * 40, symbols=symbols,
+        missing_sessions=["2026-10-05"],
+        membership_identity={"membership_count": 1298, "membership_sha256": _digest(symbols)},
+    )
+    with pytest.raises(ValueError, match="OVERLAPS"):
+        build_history_backfill_plan(
+            **common, retained_history_identity={
+                "last_contiguous_session": "2026-10-05", "artifact_set_sha256": "b" * 64,
+            },
+        )
+    with pytest.raises(ValueError, match="MEMBERSHIP_DIGEST"):
+        build_history_backfill_plan(
+            **{**common, "membership_identity": {"membership_count": 1298, "membership_sha256": "c" * 64}},
+            retained_history_identity={
+                "last_contiguous_session": "2026-10-02", "artifact_set_sha256": "b" * 64,
+            },
+        )
+
+
+def test_backfill_validation_requires_exact_sessions_ohlcv_lineage_and_actions():
+    plan = _plan()
+    tickers = sorted({key.split(":", 1)[0] for key in plan["request_keys"]})
+    observations = {
+        ticker: [
+            {
+                "session": session, "open": 1, "high": 2, "low": .5, "close": 1.5,
+                "volume": 100, "raw_response_sha256": "d" * 64,
+                "corporate_action_status": "NONE",
+            }
+            for session in plan["missing_sessions"]
+        ]
+        for ticker in tickers
+    }
+    result = validate_backfill_observation_set(plan=plan, observations=observations)
+    assert result["observation_count"] == 1298 * 2
+    assert result["provider_calls"] == result["publication_writes"] == 0
+    observations["S0000"] = list(reversed(observations["S0000"]))
+    with pytest.raises(ValueError, match="SESSION_SEQUENCE"):
+        validate_backfill_observation_set(plan=plan, observations=observations)

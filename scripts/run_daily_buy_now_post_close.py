@@ -11,22 +11,29 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from services.daily_buy_now_post_close import schedule_decision, validate_retained_publication
+from services.daily_buy_now_post_close import (
+    continuity_decision, schedule_decision, validate_retained_publication,
+)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--now", required=True)
     parser.add_argument("--last-published-session", default="")
+    parser.add_argument("--last-contiguous-session", default="")
     parser.add_argument("--root", type=Path, default=Path("."))
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     now = datetime.fromisoformat(args.now.replace("Z", "+00:00"))
     decision = schedule_decision(now=now, last_published_session=args.last_published_session)
+    boundary = args.last_contiguous_session or args.last_published_session
+    if not boundary:
+        raise ValueError("DAILY_BUY_NOW_CONTIGUOUS_BOUNDARY_REQUIRED")
+    continuity = continuity_decision(now=now, last_contiguous_session=boundary)
     dry_run = validate_retained_publication(
         root=args.root, output=args.output.parent / "provider_free_publication_validation.json"
     )
-    payload = {"schedule": decision, "dry_run": dry_run}
+    payload = {"schedule": decision, "continuity": continuity, "dry_run": dry_run}
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
     print(json.dumps(payload, sort_keys=True))
