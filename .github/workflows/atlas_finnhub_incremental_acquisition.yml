@@ -33,6 +33,15 @@ on:
       authorization_token:
         required: false
         type: string
+      claim_id:
+        required: false
+        type: string
+      claim_scope_sha256:
+        required: false
+        type: string
+      manual_enablement:
+        required: false
+        type: string
 
 permissions:
   actions: read
@@ -95,9 +104,9 @@ jobs:
     timeout-minutes: 360
     env:
       FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
-      ATLAS_DAILY_BUY_NOW_LIVE_ENABLED: ${{ vars.ATLAS_DAILY_BUY_NOW_LIVE_ENABLED }}
       ATLAS_INCREMENTAL_RAW_ROOT: ${{ vars.ATLAS_INCREMENTAL_RAW_ROOT }}
       ATLAS_INCREMENTAL_CHECKPOINT_ROOT: ${{ vars.ATLAS_INCREMENTAL_CHECKPOINT_ROOT }}
+      ATLAS_INCREMENTAL_MANUAL_ACQUIRE_ENABLED: ${{ inputs.manual_enablement }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -108,11 +117,13 @@ jobs:
         run: |
           test "$(git rev-parse HEAD)" = "${{ inputs.source_sha }}"
           test -n "$FINNHUB_API_KEY"
-          test "$ATLAS_DAILY_BUY_NOW_LIVE_ENABLED" = true
+          test "$ATLAS_INCREMENTAL_MANUAL_ACQUIRE_ENABLED" = "ENABLE_ATLAS_INCREMENTAL_ONCE:${{ inputs.claim_id }}"
           test -n "$ATLAS_INCREMENTAL_RAW_ROOT"
           test -n "$ATLAS_INCREMENTAL_CHECKPOINT_ROOT"
           test -n "${{ inputs.plan_run_id }}"
           test -n "${{ inputs.plan_artifact }}"
+          test -n "${{ inputs.claim_id }}"
+          test -n "${{ inputs.claim_scope_sha256 }}"
       - uses: actions/setup-python@v5
         with: {python-version: "3.11"}
       - run: python -m pip install --disable-pip-version-check requests==2.32.3
@@ -139,7 +150,6 @@ jobs:
           assert p['exact_max_requests'] == 2746
           assert p['governed_membership']['source_run_id'] == '37216506983'
           PY
-          test "${{ inputs.authorization_token }}" = "AUTHORIZE_ATLAS_INCREMENTAL_ONCE:${{ inputs.plan_sha256 }}"
           cp "$plan" audit_results/incremental_plan.json
           python - "${{ inputs.finalized_session }}" <<'PY'
           import json,sys
@@ -161,8 +171,22 @@ jobs:
             --parameters audit_results/incremental_parameters.json \
             --raw-root "$ATLAS_INCREMENTAL_RAW_ROOT/${{ inputs.plan_sha256 }}" \
             --checkpoint "$ATLAS_INCREMENTAL_CHECKPOINT_ROOT/${{ inputs.plan_sha256 }}.json" \
+            --claims-root "$ATLAS_INCREMENTAL_CHECKPOINT_ROOT/claims" \
+            --claim-id "${{ inputs.claim_id }}" \
+            --claim-scope-sha256 "${{ inputs.claim_scope_sha256 }}" \
+            --source-sha "${{ inputs.source_sha }}" \
             --authorize-acquisition "${{ inputs.authorization_token }}" \
             | tee audit_results/incremental_buy_now/acquisition_result.json
+      - name: Finalize consumed claim without reopening it
+        if: always()
+        shell: bash
+        run: |
+          claim="$ATLAS_INCREMENTAL_CHECKPOINT_ROOT/claims/${{ inputs.claim_id }}.json"
+          if test -f "$claim"; then
+            outcome=FAILED_OR_INTERRUPTED
+            test -f audit_results/incremental_buy_now/acquisition_result.json && outcome=ACQUISITION_RESULT_WRITTEN
+            python3 scripts/manage_incremental_acquisition_claim.py finalize --claim-file "$claim" --outcome "$outcome"
+          fi
       - name: Require certification handoff and forbid direct publication
         run: |
           python3 - <<'PY'
@@ -217,6 +241,33 @@ jobs:
           open('audit_results/incremental_buy_now/protected_rehearsal.json','w').write(
               json.dumps(value,sort_keys=True,indent=2)+'\n')
           PY
+      - name: Prove durable consume-once claim and cleanup entrypoint
+        shell: bash
+        env:
+          CLAIM_ID: rehearsal-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          claim_root="$ATLAS_INCREMENTAL_CHECKPOINT_ROOT/claims-rehearsal"
+          read scope token < <(python3 - <<'PY'
+          from services.incremental_acquisition_claim import authorization_token, scope_payload
+          import os
+          s=scope_payload(claim_id=os.environ['CLAIM_ID'],source_sha=os.environ['GITHUB_SHA'],plan_sha256='0'*64,session='2026-10-15')
+          print(s['claim_scope_sha256'], authorization_token(s))
+          PY
+          )
+          zero_sha="$(printf '0%.0s' {1..64})"
+          python3 scripts/manage_incremental_acquisition_claim.py consume \
+            --claims-root "$claim_root" --claim-id "$CLAIM_ID" \
+            --source-sha "$GITHUB_SHA" --plan-sha256 "$zero_sha" \
+            --session 2026-10-15 --claim-scope-sha256 "$scope" --authorization-token "$token"
+          if python3 scripts/manage_incremental_acquisition_claim.py consume \
+            --claims-root "$claim_root" --claim-id "$CLAIM_ID" \
+            --source-sha "$GITHUB_SHA" --plan-sha256 "$zero_sha" \
+            --session 2026-10-15 --claim-scope-sha256 "$scope" --authorization-token "$token"; then
+            exit 1
+          fi
+          python3 scripts/manage_incremental_acquisition_claim.py finalize \
+            --claim-file "$claim_root/$CLAIM_ID.json" --outcome PROVIDER_FREE_REHEARSAL_PASS
+          test -z "${FINNHUB_API_KEY:-}"
       - uses: actions/upload-artifact@v4
         with:
           name: atlas-incremental-buy-now-rehearsal-${{ github.run_id }}
