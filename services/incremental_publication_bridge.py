@@ -99,6 +99,7 @@ def load_retained_technical_history(
     expected = _symbols(plan)
     histories: dict[str, list[dict[str, Any]]] = {}
     insufficient_histories: dict[str, int] = {}
+    history_blockers: dict[str, list[str]] = {}
     shard_digests: list[str] = []
     run_identities: set[str] = set()
     for path in paths:
@@ -118,15 +119,24 @@ def load_retained_technical_history(
                 raise ValueError(f"INCREMENTAL_RETAINED_TECHNICAL_DUPLICATE:{symbol}")
             bars = list(item.get("bars") or ())
             parsed = deserialize_bars(bars)
-            if not parsed or len(parsed) != len(bars) or any(not bar.completed for bar in parsed):
+            if not parsed or len(parsed) != len(bars):
                 raise ValueError(f"INCREMENTAL_RETAINED_TECHNICAL_HISTORY_INVALID:{symbol}")
-            if any(a.timestamp >= b.timestamp for a, b in zip(parsed, parsed[1:])):
+            # A governed shard can retain an in-progress tail bar.  It is not
+            # eligible technical evidence for a finalized-session replay, but
+            # it must not make the security disappear from the 1,298-member
+            # population.  Remove only those explicitly incomplete bars and
+            # carry a terminal blocker into the unchanged evaluator.
+            completed = [bar for bar in parsed if bar.completed]
+            if len(completed) != len(parsed):
+                history_blockers[symbol] = ["INCREMENTAL_RETAINED_TECHNICAL_HISTORY_INCOMPLETE"]
+            if any(a.timestamp >= b.timestamp for a, b in zip(completed, completed[1:])):
                 raise ValueError(f"INCREMENTAL_RETAINED_TECHNICAL_HISTORY_UNORDERED:{symbol}")
-            if parsed[-1].timestamp.date().isoformat() >= str(plan.get("session")):
+            if completed and completed[-1].timestamp.date().isoformat() >= str(plan.get("session")):
                 raise ValueError(f"INCREMENTAL_RETAINED_TECHNICAL_HISTORY_NOT_PRIOR:{symbol}")
-            if len(bars) < MINIMUM_TECHNICAL_HISTORY:
-                insufficient_histories[symbol] = len(bars)
-            histories[symbol] = bars
+            serialized = serialize_bars(completed)
+            if len(serialized) < MINIMUM_TECHNICAL_HISTORY:
+                insufficient_histories[symbol] = len(serialized)
+            histories[symbol] = serialized
     if sorted(histories) != expected:
         raise ValueError("INCREMENTAL_RETAINED_TECHNICAL_MEMBERSHIP_MISMATCH")
     if len(run_identities) != 1 or not next(iter(run_identities)):
@@ -140,6 +150,7 @@ def load_retained_technical_history(
         "minimum_bar_count": min(len(value) for value in histories.values()),
         "insufficient_history_count": len(insufficient_histories),
         "insufficient_history_symbols": dict(sorted(insufficient_histories.items())),
+        "history_blockers": dict(sorted(history_blockers.items())),
         "shard_set_sha256": _digest(shard_digests),
     }
     report["binding_sha256"] = _digest(report)
@@ -162,6 +173,7 @@ def materialize_acquired_records(
     *, plan: Mapping[str, Any], checkpoint: Mapping[str, Any], raw_root: Path,
     retained_rows: Sequence[Mapping[str, Any]],
     retained_technical_history: Mapping[str, Sequence[Mapping[str, Any]]] | None = None,
+    retained_technical_blockers: Mapping[str, Sequence[str]] | None = None,
 ) -> list[dict[str, Any]]:
     """Create canonical executor input from raw-first receipts and retained rows.
 
@@ -195,7 +207,8 @@ def materialize_acquired_records(
         # population, but it cannot be scored.  Preserve the unchanged evaluator's
         # fail-closed terminal path with an explicit, source-bound withholding
         # reason instead of dropping the security or weakening the 200-bar rule.
-        blockers: list[str] = (
+        blockers: list[str] = list((retained_technical_blockers or {}).get(symbol) or ())
+        blockers += (
             ["INCREMENTAL_TECHNICAL_HISTORY_INSUFFICIENT"]
             if len(retained_bars) < MINIMUM_TECHNICAL_HISTORY else []
         )
