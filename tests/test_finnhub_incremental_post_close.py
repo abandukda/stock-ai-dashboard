@@ -2,6 +2,7 @@ import pytest
 import json
 import subprocess
 import sys
+from datetime import datetime, timezone
 
 from services.finnhub_incremental_post_close import (
     FUNDAMENTAL_FAMILIES,
@@ -18,6 +19,7 @@ from services.finnhub_incremental_post_close import (
     execute_incremental_plan,
     load_governed_membership,
     prepare_certification_handoff,
+    canonical_transport_parameters,
 )
 
 
@@ -255,9 +257,37 @@ class FakeAdapter:
 
 
 def transport_parameters():
-    return {family: {"bounded_window": "fixture"} for family in (
-        "completed_session_price", "filing_change_probe", *FUNDAMENTAL_FAMILIES
-    )}
+    return {
+        "completed_session_price": {
+            "resolution": "D", "from": "2026-10-14", "to": "2026-10-14",
+        },
+        "filing_change_probe": {"from": "2026-10-14", "to": "2026-10-14"},
+        **{family: {"bounded_window": "fixture"} for family in FUNDAMENTAL_FAMILIES},
+    }
+
+
+def test_completed_session_price_uses_finnhub_unix_second_contract():
+    result = canonical_transport_parameters(
+        family="completed_session_price",
+        parameters={"resolution": "D", "from": "2026-10-15", "to": "2026-10-15"},
+        session="2026-10-15",
+    )
+    assert result == {
+        "resolution": "D",
+        "from": int(datetime(2026, 10, 15, tzinfo=timezone.utc).timestamp()),
+        "to": int(datetime(2026, 10, 16, tzinfo=timezone.utc).timestamp()) - 1,
+    }
+
+
+@pytest.mark.parametrize("parameters", [
+    {"resolution": "D", "from": "2026-10-14", "to": "2026-10-15"},
+    {"resolution": "5", "from": "2026-10-15", "to": "2026-10-15"},
+])
+def test_completed_session_price_rejects_scope_or_resolution_drift(parameters):
+    with pytest.raises(ValueError, match="INCREMENTAL_PRICE_"):
+        canonical_transport_parameters(
+            family="completed_session_price", parameters=parameters, session="2026-10-15",
+        )
 
 
 def test_raw_first_transport_checkpoint_and_certification_handoff_are_non_promoting(tmp_path):
@@ -268,6 +298,9 @@ def test_raw_first_transport_checkpoint_and_certification_handoff_are_non_promot
     )
     assert result["status"] == "ACQUISITION_COMPLETE_PUBLICATION_NOT_PERFORMED"
     assert result["attempts_this_run"] == 4 and len(adapter.calls) == 4
+    price_call = next(item for item in adapter.calls if item[0] == "historical_ohlcv")
+    assert isinstance(price_call[2]["from"], int) and isinstance(price_call[2]["to"], int)
+    assert price_call[2]["from"] < price_call[2]["to"]
     checkpoint = load_checkpoint(path=tmp_path / "checkpoint.json", plan=plan)
     for value in checkpoint["receipts"].values():
         raw = tmp_path / "raw" / value["raw_path"]

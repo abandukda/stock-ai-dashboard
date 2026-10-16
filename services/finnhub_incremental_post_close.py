@@ -7,6 +7,7 @@ adapter and canonical evaluation pipeline may execute after authorization.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date, datetime, time, timedelta, timezone
 import hashlib
 import json
 from pathlib import Path
@@ -36,6 +37,34 @@ FAMILY_CAPABILITY = {
 UNAVAILABLE_CERTIFICATION_STATES = {
     "DATA_UNAVAILABLE", "ENTITLEMENT_UNAVAILABLE", "REJECTED",
 }
+
+
+def canonical_transport_parameters(
+    *, family: str, parameters: Mapping[str, Any], session: str,
+) -> dict[str, Any]:
+    """Return endpoint-correct parameters without changing the plan scope.
+
+    Finnhub's stock-candle contract requires Unix seconds for ``from`` and
+    ``to``.  The incremental workflow intentionally carries an ISO XNYS
+    session in its plan, so the conversion belongs at this transport boundary
+    rather than in the plan identity or in unrelated date-based endpoints.
+    """
+    result = dict(parameters)
+    if family != PRICE_FAMILY:
+        return result
+    if result.get("resolution") != "D":
+        raise ValueError("INCREMENTAL_PRICE_RESOLUTION_INVALID")
+    if result.get("from") != session or result.get("to") != session:
+        raise ValueError("INCREMENTAL_PRICE_SESSION_PARAMETERS_INVALID")
+    try:
+        session_date = date.fromisoformat(session)
+    except ValueError as exc:
+        raise ValueError("INCREMENTAL_SESSION_DATE_INVALID") from exc
+    start = datetime.combine(session_date, time.min, tzinfo=timezone.utc)
+    end = datetime.combine(session_date + timedelta(days=1), time.min, tzinfo=timezone.utc)
+    result["from"] = int(start.timestamp())
+    result["to"] = int(end.timestamp()) - 1
+    return result
 
 
 def _digest(value: Any) -> str:
@@ -445,9 +474,10 @@ def execute_incremental_plan(
             before_request(key)
         attempted_this_run += 1
         try:
-            record = adapter.fetch(
-                capability, symbol, **dict(parameters_by_family[family])
+            transport_parameters = canonical_transport_parameters(
+                family=family, parameters=parameters_by_family[family], session=session,
             )
+            record = adapter.fetch(capability, symbol, **transport_parameters)
             provider_record = _json_safe(record)
         except BaseException as exc:
             failure = {

@@ -6,7 +6,7 @@ on:
       operation:
         required: true
         type: choice
-        options: [plan, acquire]
+        options: [plan, diagnose, acquire]
       source_sha:
         required: true
         type: string
@@ -52,6 +52,37 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  diagnose:
+    if: inputs.operation == 'diagnose'
+    environment: atlas-licensed-research-acquisition
+    runs-on: [self-hosted, Linux, X64, atlas-worker-1]
+    timeout-minutes: 20
+    env:
+      ATLAS_INCREMENTAL_RAW_ROOT: ${{ vars.ATLAS_INCREMENTAL_RAW_ROOT }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Enforce source and provider-free diagnostic
+        run: |
+          test "$(git rev-parse HEAD)" = "${{ inputs.source_sha }}"
+          test -n "$ATLAS_INCREMENTAL_RAW_ROOT"
+          test -n "${{ inputs.plan_sha256 }}"
+          test -z "${FINNHUB_API_KEY:-}"
+      - name: Diagnose durable failed record without provider access
+        run: |
+          python3 scripts/diagnose_incremental_provider_record.py \
+            --raw-root "$ATLAS_INCREMENTAL_RAW_ROOT/${{ inputs.plan_sha256 }}/transport" \
+            --request-key historical_ohlcv:A:1 \
+            --session "${{ inputs.finalized_session }}" \
+            --output audit_results/incremental_buy_now/provider_failure_diagnostic.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: atlas-incremental-provider-diagnostic-${{ github.run_id }}
+          path: audit_results/incremental_buy_now/provider_failure_diagnostic.json
+          retention-days: 90
+
   plan:
     if: inputs.operation == 'plan'
     runs-on: ubuntu-24.04
