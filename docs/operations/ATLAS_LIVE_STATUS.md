@@ -746,3 +746,28 @@ any other item.
   zero retries, durable intent/response checkpoints, and fail-closed recovery.
   Live Finnhub acquisition, certification, customer publication, and unattended
   operation remain separate gates; customer-visible data did not change.
+
+### First licensed historical-backfill attempt — stopped closed (2026-10-16)
+
+- Owner-authorized run `38963126133` (protected job `117182893809`) used exact
+  workflow source `38468b4a8ca2c295b7a9830e17f451f43ad96e80`, claim
+  `oct02-oct15-2026-backfill-38962431540-01`, and claim-scope SHA-256
+  `37de17d0217483bcba4046d381c811faa84f33227237b468e705f5e9bbf77b3d`.
+  Protected authority, credential/storage presence, checkout identity and the
+  immutable plan artifact all passed before transport.
+- The claim was atomically consumed once. After 47m43s in the zero-retry,
+  concurrency-one transport, the executor stopped closed with
+  `BACKFILL_CANDLE_SCHEMA_INVALID`. The raw envelope and prior successful
+  receipts remain on protected durable storage; the claim must not be reused
+  and the operation was not retried.
+- No certification, customer publication, Report Card mutation or unattended
+  activation occurred. The workflow's failure path did not emit its summary
+  JSON, so GitHub artifact upload reported no matching file. Exact durable
+  request accounting and the sanitized failing response classification require
+  a provider-free claim-inspection operation on `atlas-worker-1`; elapsed time
+  alone is not accepted as evidence of the failing ordinal or ticker.
+- Customer-visible state remains the retained October 2 market session,
+  October 4 publication and 11 governed BUY NOW names. A new acquisition is
+  **not ready for authorization** until the durable failure evidence is
+  inspected and the demonstrated response-contract or availability condition
+  is handled without weakening the continuity gate.
