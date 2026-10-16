@@ -31,6 +31,11 @@ def main() -> int:
     parser.add_argument("--workflow-run-id", required=True)
     parser.add_argument("--candidate-dir", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--evidence-classification",
+        choices=("LIVE_PROVIDER_EVIDENCE", "PROVIDER_FREE_SIMULATED_REPLAY"),
+        default="LIVE_PROVIDER_EVIDENCE",
+    )
     args = parser.parse_args()
     plan, checkpoint = _read(args.plan), _read(args.checkpoint)
     if args.acquired_records:
@@ -51,6 +56,7 @@ def main() -> int:
         plan=plan, checkpoint=checkpoint,
         acquired_records=records, source_sha=args.source_sha,
         candidate_dir=args.candidate_dir, workflow_run_id=args.workflow_run_id,
+        evidence_classification=args.evidence_classification,
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")

@@ -240,7 +240,7 @@ jobs:
     if: inputs.operation == 'plan'
     environment: atlas-licensed-research-acquisition
     runs-on: [self-hosted, Linux, X64, atlas-worker-1]
-    timeout-minutes: 20
+    timeout-minutes: 90
     env:
       ATLAS_INCREMENTAL_RAW_ROOT: ${{ vars.ATLAS_INCREMENTAL_RAW_ROOT }}
       ATLAS_INCREMENTAL_CHECKPOINT_ROOT: ${{ vars.ATLAS_INCREMENTAL_CHECKPOINT_ROOT }}
@@ -249,6 +249,22 @@ jobs:
         with:
           ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
+      - name: Download the exact plan produced by this run
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ github.run_id }}
+          name: atlas-incremental-buy-now-plan-${{ github.run_id }}
+          path: ${{ runner.temp }}/plan
+      - name: Download immutable governed retained rows
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.membership_run_id }}
+          name: ${{ inputs.membership_artifact }}
+          path: ${{ runner.temp }}/membership
       - name: Prove exact registered graph without provider access
         shell: bash
         run: |
@@ -272,35 +288,99 @@ jobs:
           open('audit_results/incremental_buy_now/protected_rehearsal.json','w').write(
               json.dumps(value,sort_keys=True,indent=2)+'\n')
           PY
-      - name: Prove durable consume-once claim and cleanup entrypoint
+      - name: Exercise full provider-free acquisition entrypoint and durable claim
         shell: bash
         env:
           CLAIM_ID: rehearsal-${{ github.run_id }}-${{ github.run_attempt }}
         run: |
           claim_root="$ATLAS_INCREMENTAL_CHECKPOINT_ROOT/claims-rehearsal"
+          replay_root="$RUNNER_TEMP/incremental-full-entrypoint-replay"
+          plan="$(find "$RUNNER_TEMP/plan" -type f -name plan.json -print -quit)"
+          retained="$(find "$RUNNER_TEMP/membership" -type f -name full_evaluation_pool.json -print -quit)"
+          test -n "$plan"; test -n "$retained"
+          plan_sha="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["plan_sha256"])' "$plan")"
+          export PLAN="$plan"
           read scope token < <(python3 - <<'PY'
           from services.incremental_acquisition_claim import authorization_token, scope_payload
           import os
-          s=scope_payload(claim_id=os.environ['CLAIM_ID'],source_sha=os.environ['GITHUB_SHA'],plan_sha256='0'*64,session='2026-10-15')
+          import json
+          plan=json.load(open(os.environ['PLAN']))
+          s=scope_payload(claim_id=os.environ['CLAIM_ID'],source_sha=os.environ['GITHUB_SHA'],plan_sha256=plan['plan_sha256'],session=plan['session'])
           print(s['claim_scope_sha256'], authorization_token(s))
           PY
           )
-          zero_sha="$(printf '0%.0s' {1..64})"
-          python3 scripts/manage_incremental_acquisition_claim.py consume \
+          session="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["session"])' "$plan")"
+          mkdir -p "$replay_root"
+          python3 - "$session" "$replay_root/parameters.json" <<'PY'
+          import json,sys
+          s=sys.argv[1]
+          value={'completed_session_price':{'resolution':'D','from':s,'to':s},
+                 'filing_change_probe':{'from':s,'to':s},
+                 'company_profile':{},'financial_statements':{'freq':'annual'},
+                 'basic_financials':{'metric':'all'}}
+          open(sys.argv[2],'w').write(json.dumps(value,sort_keys=True)+'\n')
+          PY
+          ATLAS_INCREMENTAL_MANUAL_ACQUIRE_ENABLED="ENABLE_ATLAS_INCREMENTAL_REPLAY_ONCE:$CLAIM_ID" \
+          python3 scripts/run_finnhub_incremental_post_close.py \
+            --plan "$plan" --parameters "$replay_root/parameters.json" \
+            --raw-root "$replay_root/raw" --checkpoint "$replay_root/checkpoint.json" \
             --claims-root "$claim_root" --claim-id "$CLAIM_ID" \
-            --source-sha "$GITHUB_SHA" --plan-sha256 "$zero_sha" \
-            --session 2026-10-15 --claim-scope-sha256 "$scope" --authorization-token "$token"
+            --claim-scope-sha256 "$scope" --source-sha "$GITHUB_SHA" \
+            --authorize-acquisition "$token" --provider-free-replay \
+            --replay-retained-records "$retained" \
+            > audit_results/incremental_buy_now/full_entrypoint_replay.json
           if python3 scripts/manage_incremental_acquisition_claim.py consume \
             --claims-root "$claim_root" --claim-id "$CLAIM_ID" \
-            --source-sha "$GITHUB_SHA" --plan-sha256 "$zero_sha" \
-            --session 2026-10-15 --claim-scope-sha256 "$scope" --authorization-token "$token"; then
+            --source-sha "$GITHUB_SHA" --plan-sha256 "$plan_sha" \
+            --session "$session" --claim-scope-sha256 "$scope" --authorization-token "$token"; then
             exit 1
           fi
           python3 scripts/manage_incremental_acquisition_claim.py finalize \
             --claim-file "$claim_root/$CLAIM_ID.json" --outcome PROVIDER_FREE_REHEARSAL_PASS
           test -z "${FINNHUB_API_KEY:-}"
+          python3 - "$replay_root/checkpoint.json" <<'PY'
+          import json,sys
+          c=json.load(open(sys.argv[1])); r=json.load(open('audit_results/incremental_buy_now/full_entrypoint_replay.json'))
+          assert len(c['receipts']) == 2596
+          assert r['attempts_this_run'] == 2596
+          assert r['evidence_classification'] == 'PROVIDER_FREE_SIMULATED_REPLAY'
+          assert r['publication_authorized'] is False
+          assert r['readiness']['status'] == 'READY_FOR_EXISTING_ATOMIC_PROMOTER'
+          assert r['readiness']['production_writes'] == 0
+          PY
+          python3 scripts/certify_incremental_buy_now.py \
+            --plan "$plan" --checkpoint "$replay_root/checkpoint.json" \
+            --raw-root "$replay_root/raw/governed" --retained-records "$retained" \
+            --source-sha "$GITHUB_SHA" --workflow-run-id "$GITHUB_RUN_ID" \
+            --candidate-dir "$replay_root/candidate" \
+            --evidence-classification PROVIDER_FREE_SIMULATED_REPLAY \
+            --output audit_results/incremental_buy_now/certification_replay.json
+          python3 - <<'PY'
+          import json
+          r=json.load(open('audit_results/incremental_buy_now/certification_replay.json'))
+          assert r['status'] == 'PROVIDER_FREE_REPLAY_CERTIFIED_NOT_PUBLISHABLE'
+          assert r['symbol_count'] == 1298
+          assert r['unaccounted_publication_records'] == 0
+          assert r['production_writes'] == 0
+          assert r['publication_authorized'] is False
+          assert r['publishable_count'] + r['withheld_count'] == 1298
+          PY
+          mkdir -p "$replay_root/production"
+          cp market_full_scan.json market_scan_state.json discovery_candidate_pool.json \
+             full_evaluation_pool.json market_prescreen.json total_market_universe.json \
+             recovery_scan.json etf_scan.json publication_manifest.json publication_audit.jsonl \
+             "$replay_root/production/"
+          if python3 scripts/promote_daily_buy_now_snapshot.py \
+            --artifact-root "$replay_root/candidate" --production-root "$replay_root/production" \
+            --run-id "$GITHUB_RUN_ID" --source-sha "$GITHUB_SHA" \
+            --finalized-session "$session" --output "$replay_root/promotion.json"; then
+            echo "provider-free replay unexpectedly reached promoter" >&2
+            exit 1
+          fi
+          test ! -e "$replay_root/promotion.json"
+          test "$(git status --porcelain -- market_full_scan.json market_scan_state.json publication_manifest.json)" = ""
       - uses: actions/upload-artifact@v4
         with:
           name: atlas-incremental-buy-now-rehearsal-${{ github.run_id }}
-          path: audit_results/incremental_buy_now/protected_rehearsal.json
+          path: audit_results/incremental_buy_now
           retention-days: 90

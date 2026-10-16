@@ -16,3 +16,15 @@ def test_workflow_binds_unique_claim_inputs():
     for required in ('claim_id:', 'claim_scope_sha256:', 'manual_enablement:',
                      '--claim-id', '--claim-scope-sha256'):
         assert required in source
+
+
+def test_protected_rehearsal_executes_full_entrypoint_without_credentials():
+    source=(ROOT/'.github/workflows/atlas_finnhub_incremental_acquisition.yml').read_text()
+    assert '--provider-free-replay' in source
+    assert '--replay-retained-records' in source
+    assert "assert len(c['receipts']) == 2596" in source
+    assert "assert r['symbol_count'] == 1298" in source
+    assert "assert r['unaccounted_publication_records'] == 0" in source
+    assert "assert r['production_writes'] == 0" in source
+    assert 'ENABLE_ATLAS_INCREMENTAL_REPLAY_ONCE:' in source
+    assert 'test -z "${FINNHUB_API_KEY:-}"' in source

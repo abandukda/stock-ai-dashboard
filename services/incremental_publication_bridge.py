@@ -247,8 +247,13 @@ def certify_incremental_candidate(
     *, plan: Mapping[str, Any], checkpoint: Mapping[str, Any],
     acquired_records: Sequence[Mapping[str, Any]], source_sha: str,
     candidate_dir: Path, workflow_run_id: str,
+    evidence_classification: str = "LIVE_PROVIDER_EVIDENCE",
 ) -> dict[str, Any]:
     """Run the unchanged evaluator twice and stage, but never promote, output."""
+    if evidence_classification not in {
+        "LIVE_PROVIDER_EVIDENCE", "PROVIDER_FREE_SIMULATED_REPLAY",
+    }:
+        raise ValueError("INCREMENTAL_EVIDENCE_CLASSIFICATION_INVALID")
     records = _validate_acquired_records(
         plan=plan, checkpoint=checkpoint, acquired_records=acquired_records,
     )
@@ -309,6 +314,8 @@ def certify_incremental_candidate(
     manifest["incremental_receipt_set_sha256"] = publication_readiness(
         plan=plan, checkpoint=checkpoint
     )["receipt_set_sha256"]
+    manifest["incremental_evidence_classification"] = evidence_classification
+    manifest["incremental_publication_authorized"] = evidence_classification == "LIVE_PROVIDER_EVIDENCE"
     report_root = candidate_dir
     bundle_dir = report_root / "publication_bundle"
     artifacts = {
@@ -336,7 +343,11 @@ def certify_incremental_candidate(
         },
     )
     report = {
-        "contract": CONTRACT, "status": "CERTIFIED_NOT_PUBLISHED",
+        "contract": CONTRACT,
+        "status": (
+            "CERTIFIED_NOT_PUBLISHED" if evidence_classification == "LIVE_PROVIDER_EVIDENCE"
+            else "PROVIDER_FREE_REPLAY_CERTIFIED_NOT_PUBLISHABLE"
+        ),
         "source_sha": source_sha, "session": plan["session"],
         "plan_sha256": plan["plan_sha256"],
         "receipt_set_sha256": manifest["incremental_receipt_set_sha256"],
@@ -348,6 +359,8 @@ def certify_incremental_candidate(
         "publishable_count": reconciliation["publishable_count"],
         "withheld_count": reconciliation["withheld_count"],
         "unaccounted_publication_records": 0,
+        "evidence_classification": evidence_classification,
+        "publication_authorized": evidence_classification == "LIVE_PROVIDER_EVIDENCE",
         "production_writes": 0,
         "required_promoter": "scripts.promote_daily_buy_now_snapshot.promote",
     }

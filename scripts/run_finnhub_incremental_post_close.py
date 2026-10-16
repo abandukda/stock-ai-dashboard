@@ -22,6 +22,7 @@ from services.finnhub_incremental_post_close import (
     DurableRawEvidenceSink, execute_incremental_plan,
 )
 from services.incremental_acquisition_claim import consume_claim, scope_payload
+from services.incremental_provider_free_replay import ProviderFreeReplayAdapter, REPLAY_CONTRACT
 
 
 def require_manual_enablement(claim_id: str) -> None:
@@ -42,11 +43,22 @@ def main() -> int:
     parser.add_argument("--claim-scope-sha256", required=True)
     parser.add_argument("--claims-root", type=Path, required=True)
     parser.add_argument("--source-sha", required=True)
+    parser.add_argument("--provider-free-replay", action="store_true")
+    parser.add_argument("--replay-retained-records", type=Path)
     args = parser.parse_args()
     plan = json.loads(args.plan.read_text(encoding="utf-8"))
-    require_manual_enablement(args.claim_id)
-    if not os.getenv("FINNHUB_API_KEY", "").strip():
-        raise PermissionError("INCREMENTAL_FINNHUB_CREDENTIAL_UNAVAILABLE")
+    if args.provider_free_replay:
+        expected = f"ENABLE_ATLAS_INCREMENTAL_REPLAY_ONCE:{args.claim_id}"
+        if os.getenv("ATLAS_INCREMENTAL_MANUAL_ACQUIRE_ENABLED") != expected:
+            raise PermissionError("INCREMENTAL_PROVIDER_FREE_REPLAY_DISABLED")
+        if os.getenv("FINNHUB_API_KEY", "").strip():
+            raise PermissionError("INCREMENTAL_PROVIDER_FREE_REPLAY_CREDENTIAL_PRESENT")
+        if not args.replay_retained_records:
+            raise ValueError("INCREMENTAL_PROVIDER_FREE_RETAINED_RECORDS_REQUIRED")
+    else:
+        require_manual_enablement(args.claim_id)
+        if not os.getenv("FINNHUB_API_KEY", "").strip():
+            raise PermissionError("INCREMENTAL_FINNHUB_CREDENTIAL_UNAVAILABLE")
     scope = scope_payload(
         claim_id=args.claim_id, source_sha=args.source_sha,
         plan_sha256=str(plan.get("plan_sha256", "")),
@@ -57,13 +69,25 @@ def main() -> int:
     consume_claim(claims_root=args.claims_root, scope=scope,
                   token=args.authorize_acquisition)
     parameters = json.loads(args.parameters.read_text(encoding="utf-8"))
-    sink = DurableRawEvidenceSink(args.raw_root / "transport")
-    adapter = FinnhubCanonicalAdapter(raw_evidence_sink=sink)
+    sink = None
+    if args.provider_free_replay:
+        retained = json.loads(args.replay_retained_records.read_text(encoding="utf-8"))
+        if not isinstance(retained, list) or len(retained) != 1298:
+            raise ValueError("INCREMENTAL_PROVIDER_FREE_RETAINED_SCOPE_INVALID")
+        adapter = ProviderFreeReplayAdapter(retained_rows=retained, session=str(plan.get("session") or ""))
+    else:
+        sink = DurableRawEvidenceSink(args.raw_root / "transport")
+        adapter = FinnhubCanonicalAdapter(raw_evidence_sink=sink)
     result = execute_incremental_plan(
         plan=plan, adapter=adapter, raw_root=args.raw_root / "governed",
         checkpoint_path=args.checkpoint, parameters_by_family=parameters,
     )
-    result["raw_transport_records"] = sink.count
+    result["raw_transport_records"] = sink.count if sink else 0
+    result["evidence_classification"] = (
+        "LIVE_PROVIDER_EVIDENCE" if sink else "PROVIDER_FREE_SIMULATED_REPLAY"
+    )
+    result["replay_contract"] = None if sink else REPLAY_CONTRACT
+    result["publication_authorized"] = False
     print(json.dumps(result, sort_keys=True))
     return 0
 
