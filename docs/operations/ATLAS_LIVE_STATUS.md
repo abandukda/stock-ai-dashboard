@@ -584,3 +584,33 @@ any other item.
   manufacture the expected split. A protected terminal replay must therefore
   either use an ordered completed-session catch-up evidence set or remain
   fail-closed; it must not assert `1,223/75` against unsupported retained data.
+## Iteration 3 — data continuity gate (2026-10-16)
+
+- **BUY NOW certification:** OOM is resolved on the exact retained workload
+  (peak RSS 3.25 GiB; 491.527 seconds), but terminal customer certification is
+  intentionally blocked by evidence continuity, not compute. The retained
+  governed technical histories end at `2026-10-02`. For the approved
+  `2026-10-15` target, the verified XNYS calendar identifies nine ordered
+  missing sessions: `2026-10-05` through `2026-10-09` and `2026-10-12`
+  through `2026-10-15`.
+- **Retained evidence:** all 41 exact technical-history shard archives from run
+  `37216506983` remain reusable. Their locally verified canonical archive-set
+  digest is `2d166790b8855a72621cbce34bf70425197c2aae3ff73bfb4b231f753223ab82`.
+  The provider-free Oct. 15 receipt is simulated validation evidence and is not
+  licensed market evidence; it cannot close the nine-session gap.
+- **Backfill contract:** the provider-free planner binds the exact 1,298-member
+  governed population, retained artifact-set identity, source SHA, and ordered
+  XNYS gap. It deduplicates all missing sessions into one range request per
+  ticker for each licensed capability: `/stock/candle`, `/stock/split`, and
+  `/stock/dividend2`. This is **3,894 maximum attempts**, concurrency and pacing
+  still subject to the protected executor, and **zero automatic retries**.
+  It requires complete OHLCV plus volume for every ticker/session and explicit
+  corporate-action consistency; partial, duplicate, missing, unexpected, or
+  out-of-order evidence fails closed.
+- **Daily continuity:** the 6:05 PM coordinator now distinguishes `CURRENT`,
+  one-session `DAILY_APPEND`, and multi-session `BOUNDED_BACKFILL`. It will not
+  jump from an old retained boundary directly to the newest session. Live
+  acquisition/publication and unattended operation remain disabled.
+- **Customer state:** no new provider data was acquired and no customer snapshot
+  was written. The retained customer publication remains the prior October 2
+  market session / October 4 publication with 11 governed BUY NOW names.
