@@ -38,6 +38,10 @@ def promote(*, artifact_root: Path, production_root: Path, run_id: str,
     )
     bundle = Path(validated["bundle"])
     manifest = _read(bundle / "publication_manifest.json")
+    if manifest.get("incremental_evidence_classification") == "PROVIDER_FREE_SIMULATED_REPLAY":
+        raise RuntimeError("DAILY_BUY_NOW_PROVIDER_FREE_REPLAY_PUBLICATION_FORBIDDEN")
+    if manifest.get("incremental_publication_authorized") is False:
+        raise RuntimeError("DAILY_BUY_NOW_INCREMENTAL_PUBLICATION_NOT_AUTHORIZED")
     manifest["finalized_market_session"] = finalized_session
     manifest["published_at"] = datetime.now(timezone.utc).isoformat()
     manifest["daily_operation"] = {

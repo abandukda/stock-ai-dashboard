@@ -1,5 +1,6 @@
 import json
 from datetime import datetime, timezone
+from datetime import timedelta
 import hashlib
 from pathlib import Path
 
@@ -34,6 +35,15 @@ def fixture():
         "normalization_method": "EXISTING_FINNHUB_CANONICAL_NORMALIZER",
     } for symbol in ("AAA", "BBB")]
     return plan, checkpoint, records
+
+
+def retained_history(*symbols, session="2026-10-14"):
+    end = datetime.fromisoformat(session).replace(tzinfo=timezone.utc) - timedelta(days=1)
+    return {symbol: [{
+        "symbol": symbol, "timestamp": (end - timedelta(days=220-index)).isoformat(),
+        "open": 1, "high": 2, "low": 1, "close": 1.5, "volume": 100,
+        "completed": True,
+    } for index in range(221)] for symbol in symbols}
 
 
 def successful_aggregate(**kwargs):
@@ -103,6 +113,72 @@ def test_complete_incremental_chain_stages_existing_publisher_handoff(monkeypatc
         source_sha="s" * 40, require_authorization=False,
     )
     assert validated["status"] == "PASS"
+
+
+def test_provider_free_replay_is_certified_but_never_publication_authorized(monkeypatch, tmp_path):
+    plan, checkpoint, records = fixture()
+    monkeypatch.setattr(bridge, "aggregate_complete_run", successful_aggregate)
+    report = bridge.certify_incremental_candidate(
+        plan=plan, checkpoint=checkpoint, acquired_records=records,
+        source_sha="s" * 40, candidate_dir=tmp_path, workflow_run_id="replay",
+        evidence_classification="PROVIDER_FREE_SIMULATED_REPLAY",
+    )
+    assert report["status"] == "PROVIDER_FREE_REPLAY_CERTIFIED_NOT_PUBLISHABLE"
+    assert report["publication_authorized"] is False
+    manifest = json.loads((tmp_path / "publication_bundle" / "publication_manifest.json").read_text())
+    assert manifest["incremental_evidence_classification"] == "PROVIDER_FREE_SIMULATED_REPLAY"
+    assert manifest["incremental_publication_authorized"] is False
+
+
+def test_daily_promoter_rejects_provider_free_replay_before_writes(monkeypatch, tmp_path):
+    import scripts.promote_daily_buy_now_snapshot as promoter
+    bundle = tmp_path / "candidate" / "publication_bundle"
+    bundle.mkdir(parents=True)
+    (bundle / "publication_manifest.json").write_text(json.dumps({
+        "incremental_evidence_classification": "PROVIDER_FREE_SIMULATED_REPLAY",
+        "incremental_publication_authorized": False,
+    }))
+    monkeypatch.setattr(promoter, "validate", lambda *_args, **_kwargs: {"bundle": str(bundle)})
+    with pytest.raises(RuntimeError, match="PROVIDER_FREE_REPLAY_PUBLICATION_FORBIDDEN"):
+        promoter.promote(
+            artifact_root=tmp_path / "candidate", production_root=tmp_path / "production",
+            run_id="replay", source_sha="s" * 40, finalized_session="2026-10-15",
+        )
+    assert not (tmp_path / "production").exists()
+
+
+def test_retained_technical_history_is_source_bound_complete_and_prior(tmp_path):
+    plan, _, _ = fixture()
+    plan["governed_membership"] = {
+        "source_run_id": "retained-run", "source_commit_sha": "a" * 40,
+    }
+    payload = {
+        "run_identity": {"source_sha": "a" * 40, "run_identity_sha256": "r" * 64},
+        "records": [
+            {"ticker": symbol, "bars": retained_history(symbol)[symbol]}
+            for symbol in ("AAA", "BBB")
+        ],
+    }
+    payload["shard_digest"] = bridge._digest(payload)
+    (tmp_path / "shard-000.json").write_text(json.dumps(payload))
+    (tmp_path / "shard_manifest.json").write_text(json.dumps({"not": "a payload"}))
+    histories, report = bridge.load_retained_technical_history(root=tmp_path, plan=plan)
+    assert sorted(histories) == ["AAA", "BBB"]
+    assert report["symbol_count"] == 2 and report["minimum_bar_count"] == 221
+    assert report["source_commit_sha"] == "a" * 40
+
+
+def test_retained_technical_history_rejects_wrong_source(tmp_path):
+    plan, _, _ = fixture()
+    plan["governed_membership"] = {"source_commit_sha": "a" * 40}
+    payload = {
+        "run_identity": {"source_sha": "b" * 40, "run_identity_sha256": "r" * 64},
+        "records": [{"ticker": "AAA", "bars": retained_history("AAA")["AAA"]}],
+    }
+    payload["shard_digest"] = bridge._digest(payload)
+    (tmp_path / "shard-000.json").write_text(json.dumps(payload))
+    with pytest.raises(ValueError, match="SOURCE_MISMATCH"):
+        bridge.load_retained_technical_history(root=tmp_path, plan=plan)
 
 
 @pytest.mark.parametrize("mutation, message", [
@@ -184,6 +260,7 @@ def test_raw_receipts_materialize_retained_fundamentals_and_new_completed_bars(t
     value["checkpoint_sha256"] = bridge._digest(value)
     rows = bridge.materialize_acquired_records(
         plan=plan, checkpoint=value, raw_root=tmp_path,
+        retained_technical_history=retained_history("AAA", "BBB"),
         retained_rows=[
             {"ticker": "AAA", "professional_evidence_as_of": "2026-10-01T00:00:00Z"},
             {"ticker": "BBB", "professional_evidence_as_of": "2026-10-01T00:00:00Z"},
@@ -216,6 +293,7 @@ def test_new_filing_without_bounded_fundamental_expansion_fails_closed(tmp_path)
     with pytest.raises(ValueError, match="CHANGED_FUNDAMENTALS_NOT_ACQUIRED"):
         bridge.materialize_acquired_records(
             plan=plan, checkpoint=value, raw_root=tmp_path,
+            retained_technical_history=retained_history("AAA", "BBB"),
             retained_rows=[
                 {"ticker": "AAA", "professional_evidence_as_of": "2026-10-01T00:00:00Z"},
                 {"ticker": "BBB", "professional_evidence_as_of": "2026-10-01T00:00:00Z"},

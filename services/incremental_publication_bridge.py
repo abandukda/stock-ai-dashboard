@@ -13,11 +13,13 @@ from datetime import datetime, timezone
 import hashlib
 import json
 from pathlib import Path
+import re
 from typing import Any, Mapping, Sequence
 
 from services.finnhub_full_universe_executor import (
     aggregate_complete_run,
     build_run_identity,
+    deserialize_bars,
     deterministic_shards,
     serialize_bars,
 )
@@ -34,6 +36,7 @@ from scripts.finnhub_canonical_proving_set import _bars, _normalized_row
 
 
 CONTRACT = "ATLAS_INCREMENTAL_PUBLICATION_BRIDGE_V1"
+MINIMUM_TECHNICAL_HISTORY = 200
 
 
 def _digest(value: Any) -> str:
@@ -78,9 +81,86 @@ def _new_filing(*, probe: Mapping[str, Any], retained_row: Mapping[str, Any]) ->
     )
 
 
+def load_retained_technical_history(
+    *, root: Path, plan: Mapping[str, Any],
+) -> tuple[dict[str, list[dict[str, Any]]], dict[str, Any]]:
+    """Recover source-bound completed bars from the governed acquisition shards.
+
+    Publication bundles intentionally omit raw technical histories.  Reusing
+    their rows alone would replace the technical series with one fresh bar and
+    silently withhold the universe.  The original governed shard artifacts are
+    therefore the only accepted retained source.
+    """
+    paths = sorted(path for path in root.rglob("shard-*.json") if re.fullmatch(r"shard-\d{3}\.json", path.name))
+    if not paths:
+        raise ValueError("INCREMENTAL_RETAINED_TECHNICAL_SHARDS_MISSING")
+    membership = dict(plan.get("governed_membership") or {})
+    expected_source = str(membership.get("source_commit_sha") or "")
+    expected = _symbols(plan)
+    histories: dict[str, list[dict[str, Any]]] = {}
+    shard_digests: list[str] = []
+    run_identities: set[str] = set()
+    for path in paths:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        supplied = str(payload.get("shard_digest") or "")
+        calculated = _digest({key: value for key, value in payload.items() if key != "shard_digest"})
+        if supplied != calculated:
+            raise ValueError(f"INCREMENTAL_RETAINED_SHARD_DIGEST_INVALID:{path.name}")
+        identity = dict(payload.get("run_identity") or {})
+        if expected_source and identity.get("source_sha") != expected_source:
+            raise ValueError(f"INCREMENTAL_RETAINED_SHARD_SOURCE_MISMATCH:{path.name}")
+        run_identities.add(str(identity.get("run_identity_sha256") or ""))
+        shard_digests.append(supplied)
+        for item in payload.get("records") or ():
+            symbol = str(item.get("ticker") or "").upper()
+            if not symbol or symbol in histories:
+                raise ValueError(f"INCREMENTAL_RETAINED_TECHNICAL_DUPLICATE:{symbol}")
+            bars = list(item.get("bars") or ())
+            if len(bars) < MINIMUM_TECHNICAL_HISTORY:
+                raise ValueError(f"INCREMENTAL_RETAINED_TECHNICAL_HISTORY_INSUFFICIENT:{symbol}")
+            parsed = deserialize_bars(bars)
+            if len(parsed) != len(bars) or any(not bar.completed for bar in parsed):
+                raise ValueError(f"INCREMENTAL_RETAINED_TECHNICAL_HISTORY_INVALID:{symbol}")
+            if any(a.timestamp >= b.timestamp for a, b in zip(parsed, parsed[1:])):
+                raise ValueError(f"INCREMENTAL_RETAINED_TECHNICAL_HISTORY_UNORDERED:{symbol}")
+            if parsed[-1].timestamp.date().isoformat() >= str(plan.get("session")):
+                raise ValueError(f"INCREMENTAL_RETAINED_TECHNICAL_HISTORY_NOT_PRIOR:{symbol}")
+            histories[symbol] = bars
+    if sorted(histories) != expected:
+        raise ValueError("INCREMENTAL_RETAINED_TECHNICAL_MEMBERSHIP_MISMATCH")
+    if len(run_identities) != 1 or not next(iter(run_identities)):
+        raise ValueError("INCREMENTAL_RETAINED_RUN_IDENTITY_MISMATCH")
+    report = {
+        "contract": "ATLAS_RETAINED_TECHNICAL_HISTORY_BINDING_V1",
+        "source_run_id": membership.get("source_run_id"),
+        "source_commit_sha": expected_source,
+        "run_identity_sha256": next(iter(run_identities)),
+        "symbol_count": len(histories), "shard_count": len(paths),
+        "minimum_bar_count": min(len(value) for value in histories.values()),
+        "shard_set_sha256": _digest(shard_digests),
+    }
+    report["binding_sha256"] = _digest(report)
+    return histories, report
+
+
+def _merge_completed_history(
+    *, symbol: str, retained: Sequence[Mapping[str, Any]], fresh: Sequence[Any], session: str,
+) -> list[Any]:
+    prior = deserialize_bars(retained)
+    if len(prior) < MINIMUM_TECHNICAL_HISTORY:
+        raise ValueError(f"INCREMENTAL_RETAINED_TECHNICAL_HISTORY_INSUFFICIENT:{symbol}")
+    if not fresh or fresh[-1].timestamp.date().isoformat() != session:
+        raise ValueError(f"INCREMENTAL_COMPLETED_SESSION_MISMATCH:{symbol}")
+    merged = [bar for bar in prior if bar.timestamp.date().isoformat() < session] + list(fresh)
+    if len(merged) < MINIMUM_TECHNICAL_HISTORY or any(a.timestamp >= b.timestamp for a, b in zip(merged, merged[1:])):
+        raise ValueError(f"INCREMENTAL_MERGED_TECHNICAL_HISTORY_INVALID:{symbol}")
+    return merged
+
+
 def materialize_acquired_records(
     *, plan: Mapping[str, Any], checkpoint: Mapping[str, Any], raw_root: Path,
     retained_rows: Sequence[Mapping[str, Any]],
+    retained_technical_history: Mapping[str, Sequence[Mapping[str, Any]]] | None = None,
 ) -> list[dict[str, Any]]:
     """Create canonical executor input from raw-first receipts and retained rows.
 
@@ -101,9 +181,13 @@ def materialize_acquired_records(
         per_symbol = {key.split(":", 2)[2]: value for key, value in receipts.items() if key.startswith(prefix)}
         price = _provider_record(raw_root=raw_root, receipt=per_symbol[PRICE_FAMILY])
         probe = _provider_record(raw_root=raw_root, receipt=per_symbol[CHANGE_PROBE_FAMILY])
-        bars = _bars(symbol, price)
-        if not bars or bars[-1].timestamp.astimezone(timezone.utc).date().isoformat() != plan["session"]:
-            raise ValueError(f"INCREMENTAL_COMPLETED_SESSION_MISMATCH:{symbol}")
+        fresh_bars = _bars(symbol, price)
+        if retained_technical_history is None or symbol not in retained_technical_history:
+            raise ValueError(f"INCREMENTAL_RETAINED_TECHNICAL_HISTORY_REQUIRED:{symbol}")
+        bars = _merge_completed_history(
+            symbol=symbol, retained=retained_technical_history[symbol],
+            fresh=fresh_bars, session=str(plan["session"]),
+        )
         row = dict(retained[symbol])
         blockers: list[str] = []
         if _new_filing(probe=probe, retained_row=row):
@@ -247,8 +331,14 @@ def certify_incremental_candidate(
     *, plan: Mapping[str, Any], checkpoint: Mapping[str, Any],
     acquired_records: Sequence[Mapping[str, Any]], source_sha: str,
     candidate_dir: Path, workflow_run_id: str,
+    evidence_classification: str = "LIVE_PROVIDER_EVIDENCE",
+    retained_technical_binding: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Run the unchanged evaluator twice and stage, but never promote, output."""
+    if evidence_classification not in {
+        "LIVE_PROVIDER_EVIDENCE", "PROVIDER_FREE_SIMULATED_REPLAY",
+    }:
+        raise ValueError("INCREMENTAL_EVIDENCE_CLASSIFICATION_INVALID")
     records = _validate_acquired_records(
         plan=plan, checkpoint=checkpoint, acquired_records=acquired_records,
     )
@@ -309,6 +399,8 @@ def certify_incremental_candidate(
     manifest["incremental_receipt_set_sha256"] = publication_readiness(
         plan=plan, checkpoint=checkpoint
     )["receipt_set_sha256"]
+    manifest["incremental_evidence_classification"] = evidence_classification
+    manifest["incremental_publication_authorized"] = evidence_classification == "LIVE_PROVIDER_EVIDENCE"
     report_root = candidate_dir
     bundle_dir = report_root / "publication_bundle"
     artifacts = {
@@ -336,7 +428,11 @@ def certify_incremental_candidate(
         },
     )
     report = {
-        "contract": CONTRACT, "status": "CERTIFIED_NOT_PUBLISHED",
+        "contract": CONTRACT,
+        "status": (
+            "CERTIFIED_NOT_PUBLISHED" if evidence_classification == "LIVE_PROVIDER_EVIDENCE"
+            else "PROVIDER_FREE_REPLAY_CERTIFIED_NOT_PUBLISHABLE"
+        ),
         "source_sha": source_sha, "session": plan["session"],
         "plan_sha256": plan["plan_sha256"],
         "receipt_set_sha256": manifest["incremental_receipt_set_sha256"],
@@ -348,9 +444,13 @@ def certify_incremental_candidate(
         "publishable_count": reconciliation["publishable_count"],
         "withheld_count": reconciliation["withheld_count"],
         "unaccounted_publication_records": 0,
+        "evidence_classification": evidence_classification,
+        "publication_authorized": evidence_classification == "LIVE_PROVIDER_EVIDENCE",
         "production_writes": 0,
         "required_promoter": "scripts.promote_daily_buy_now_snapshot.promote",
     }
+    if retained_technical_binding is not None:
+        report["retained_technical_binding"] = dict(retained_technical_binding)
     report["report_sha256"] = _digest(report)
     (report_root / "incremental_certification_report.json").write_text(
         json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
@@ -360,5 +460,5 @@ def certify_incremental_candidate(
 
 __all__ = [
     "CONTRACT", "certify_incremental_candidate", "materialize_acquired_records",
-    "reconcile_publication_population",
+    "reconcile_publication_population", "load_retained_technical_history",
 ]

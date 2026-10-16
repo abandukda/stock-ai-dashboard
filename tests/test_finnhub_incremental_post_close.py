@@ -21,6 +21,7 @@ from services.finnhub_incremental_post_close import (
     prepare_certification_handoff,
     canonical_transport_parameters,
 )
+from services.incremental_provider_free_replay import ProviderFreeReplayAdapter
 
 
 def symbols(count=1298):
@@ -277,6 +278,20 @@ def test_completed_session_price_uses_finnhub_unix_second_contract():
         "from": int(datetime(2026, 10, 15, tzinfo=timezone.utc).timestamp()),
         "to": int(datetime(2026, 10, 16, tzinfo=timezone.utc).timestamp()) - 1,
     }
+
+
+def test_provider_free_replay_proves_timestamp_contract_and_fixture_identity():
+    adapter = ProviderFreeReplayAdapter(
+        retained_rows=[{"ticker": "A", "current_price": 42.0}], session="2026-10-15",
+    )
+    record = adapter.fetch(
+        "historical_ohlcv", "A", resolution="D",
+        **{"from": 1792022400, "to": 1792108799},
+    )
+    assert record["payload"]["close"] == [42.0]
+    assert record["provenance"]["fixture_classification"] == "SIMULATED_NOT_PROVIDER_EVIDENCE"
+    with pytest.raises(ValueError, match="TIMESTAMP_CONTRACT"):
+        adapter.fetch("historical_ohlcv", "A", resolution="D", **{"from": "2026-10-15", "to": "2026-10-15"})
 
 
 @pytest.mark.parametrize("parameters", [
