@@ -1,7 +1,7 @@
 # ATLAS Live Operations Status
 
 **Authoritative as of:** 2026-10-16
-**Repository main:** `a6995fc9aad38268011ff0b6fd5781af3f6606a6`
+**Repository main:** `2b95d4fdc03d56a22b341ef5cdc1648333eab04b`
 
 **Verified deployed runtime:** `e838d05b3c92563c514d4d185365b4c8e97bfdba`
 **Production:** [stock-ai-dashboard.streamlit.app](https://stock-ai-dashboard.streamlit.app/)  
@@ -11,18 +11,33 @@ Evidence policy: a merge is not deployment; a provider-free run is not acquisiti
 
 ## 2026-10-16 protected backfill plan
 
-- PR #57 merged as `96fcefae1acc4190039b1ceb1d09d9db57c05d0a`.
-- Provider-free run `38951345212` succeeded with artifact ID `12068951882`;
-  archive SHA-256 `94121142a540bf3840466ab22c889f7843e708beac28392016e37697f7ad6d1f`,
-  plan SHA-256 `a9c92be7a92b40947502c44070bf7bf6a848d2e1633a119612b51ab965110798`
-  and canonical scope SHA-256
-  `303f864c4d7b5c32955cf3f9566004106113f1e685cb82f8e258c6307f2deb5e`.
-- It proved 1,298 members, nine finalized sessions and 3,894 requests with
-  concurrency one, 60 RPM and zero retries. Provider calls and writes were zero.
-- Live execution remains blocked because the produced dividend request used
-  `/stock/dividend2` while the signed entitlement matrix identifies
-  `/stock/dividend`. The accompanying correction aligns the backfill planner
-  with the signed endpoint; a fresh protected plan is required after merge.
+- PR #58 merged as `2b95d4fdc03d56a22b341ef5cdc1648333eab04b`;
+  registration CI run `38951956274` passed.
+- Corrected provider-free planning run `38952832134` succeeded. Artifact
+  `atlas-buy-now-history-backfill-plan-38952832134` has ID `12069093114`, ZIP
+  SHA-256 `c898793aeb379bb5aad1a2b1fdc568692d8562f96d53a20c081f4dd3243135dd`
+  and package-file SHA-256
+  `594b4c45ce98b8466e742343d3c45a271cdf66dda68c8c07355ff46b801a8ee6`.
+- The plan self-hash is
+  `f59c6af515f9004be1de10d48998f26fba9a4972feef9e75582a67ff66b2a258`;
+  canonical full-plan/scope SHA-256 is
+  `2059e22e81e47111ba14507c77828a5a54e6931ec1ab50fc4cc56b60b5cc6739`.
+- It proves 1,298 governed members (membership SHA-256
+  `d6be219fdb882bb451f604b23d93f6eb2856a370140e70e895edfc0f2c2327f9`),
+  nine finalized XNYS sessions from October 5 through October 15, and exactly
+  3,894 unique range requests. The allowlist now exactly matches the signed
+  entitlement: `/stock/candle`, `/stock/split`, `/stock/dividend`.
+- Execution is bounded to concurrency one, initial 60 RPM, zero retries and a
+  3,894 absolute ceiling. Planning made zero provider calls and zero production
+  writes. Exact-source recovery, normalization, durable duplicate/restart claim
+  rejection and fail-closed publication tests passed 82/82.
+- The run binds the previously verified 41-shard aggregate identity
+  `2d166790b8855a72621cbce34bf70425197c2aae3ff73bfb4b231f753223ab82`.
+  It does not redownload or individually re-audit the 41 large shards.
+- Live licensed backfill remains **NOT RUN**. Provider-free planning cannot
+  observe current provider quota headers. Live transport must stop on HTTP 429,
+  entitlement or schema errors, persist raw responses before inspection and
+  consume a separately approved durable one-time claim before request one.
 
 ## 2026-10-16 provider-free history-backfill planning
 
