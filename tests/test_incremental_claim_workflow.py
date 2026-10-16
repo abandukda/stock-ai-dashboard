@@ -52,4 +52,6 @@ def test_protected_rehearsal_executes_full_entrypoint_without_credentials():
     assert 'ENABLE_ATLAS_INCREMENTAL_REPLAY_ONCE:' in source
     assert 'test -z "${FINNHUB_API_KEY:-}"' in source
     assert 'expected_duplicate_claim.stderr' in source
-    assert "grep -q 'INCREMENTAL_ACQUISITION_CLAIM_ALREADY_CONSUMED'" in source
+    assert "grep -q 'INCREMENTAL_CLAIM_ALREADY_CONSUMED'" in source
+    assert "ATLAS_INCREMENTAL_REPLAY_FAILURE_EVIDENCE_V1" in source
+    assert "if: ${{ always() }}" in source
