@@ -98,6 +98,7 @@ def load_retained_technical_history(
     expected_source = str(membership.get("source_commit_sha") or "")
     expected = _symbols(plan)
     histories: dict[str, list[dict[str, Any]]] = {}
+    insufficient_histories: dict[str, int] = {}
     shard_digests: list[str] = []
     run_identities: set[str] = set()
     for path in paths:
@@ -116,15 +117,15 @@ def load_retained_technical_history(
             if not symbol or symbol in histories:
                 raise ValueError(f"INCREMENTAL_RETAINED_TECHNICAL_DUPLICATE:{symbol}")
             bars = list(item.get("bars") or ())
-            if len(bars) < MINIMUM_TECHNICAL_HISTORY:
-                raise ValueError(f"INCREMENTAL_RETAINED_TECHNICAL_HISTORY_INSUFFICIENT:{symbol}")
             parsed = deserialize_bars(bars)
-            if len(parsed) != len(bars) or any(not bar.completed for bar in parsed):
+            if not parsed or len(parsed) != len(bars) or any(not bar.completed for bar in parsed):
                 raise ValueError(f"INCREMENTAL_RETAINED_TECHNICAL_HISTORY_INVALID:{symbol}")
             if any(a.timestamp >= b.timestamp for a, b in zip(parsed, parsed[1:])):
                 raise ValueError(f"INCREMENTAL_RETAINED_TECHNICAL_HISTORY_UNORDERED:{symbol}")
             if parsed[-1].timestamp.date().isoformat() >= str(plan.get("session")):
                 raise ValueError(f"INCREMENTAL_RETAINED_TECHNICAL_HISTORY_NOT_PRIOR:{symbol}")
+            if len(bars) < MINIMUM_TECHNICAL_HISTORY:
+                insufficient_histories[symbol] = len(bars)
             histories[symbol] = bars
     if sorted(histories) != expected:
         raise ValueError("INCREMENTAL_RETAINED_TECHNICAL_MEMBERSHIP_MISMATCH")
@@ -137,6 +138,8 @@ def load_retained_technical_history(
         "run_identity_sha256": next(iter(run_identities)),
         "symbol_count": len(histories), "shard_count": len(paths),
         "minimum_bar_count": min(len(value) for value in histories.values()),
+        "insufficient_history_count": len(insufficient_histories),
+        "insufficient_history_symbols": dict(sorted(insufficient_histories.items())),
         "shard_set_sha256": _digest(shard_digests),
     }
     report["binding_sha256"] = _digest(report)
@@ -147,12 +150,10 @@ def _merge_completed_history(
     *, symbol: str, retained: Sequence[Mapping[str, Any]], fresh: Sequence[Any], session: str,
 ) -> list[Any]:
     prior = deserialize_bars(retained)
-    if len(prior) < MINIMUM_TECHNICAL_HISTORY:
-        raise ValueError(f"INCREMENTAL_RETAINED_TECHNICAL_HISTORY_INSUFFICIENT:{symbol}")
     if not fresh or fresh[-1].timestamp.date().isoformat() != session:
         raise ValueError(f"INCREMENTAL_COMPLETED_SESSION_MISMATCH:{symbol}")
     merged = [bar for bar in prior if bar.timestamp.date().isoformat() < session] + list(fresh)
-    if len(merged) < MINIMUM_TECHNICAL_HISTORY or any(a.timestamp >= b.timestamp for a, b in zip(merged, merged[1:])):
+    if any(a.timestamp >= b.timestamp for a, b in zip(merged, merged[1:])):
         raise ValueError(f"INCREMENTAL_MERGED_TECHNICAL_HISTORY_INVALID:{symbol}")
     return merged
 
@@ -184,12 +185,20 @@ def materialize_acquired_records(
         fresh_bars = _bars(symbol, price)
         if retained_technical_history is None or symbol not in retained_technical_history:
             raise ValueError(f"INCREMENTAL_RETAINED_TECHNICAL_HISTORY_REQUIRED:{symbol}")
+        retained_bars = retained_technical_history[symbol]
         bars = _merge_completed_history(
-            symbol=symbol, retained=retained_technical_history[symbol],
+            symbol=symbol, retained=retained_bars,
             fresh=fresh_bars, session=str(plan["session"]),
         )
         row = dict(retained[symbol])
-        blockers: list[str] = []
+        # A short retained series remains represented in the governed 1,298-row
+        # population, but it cannot be scored.  Preserve the unchanged evaluator's
+        # fail-closed terminal path with an explicit, source-bound withholding
+        # reason instead of dropping the security or weakening the 200-bar rule.
+        blockers: list[str] = (
+            ["INCREMENTAL_TECHNICAL_HISTORY_INSUFFICIENT"]
+            if len(retained_bars) < MINIMUM_TECHNICAL_HISTORY else []
+        )
         if _new_filing(probe=probe, retained_row=row):
             missing = [family for family in FUNDAMENTAL_FAMILIES if family not in per_symbol]
             if missing:

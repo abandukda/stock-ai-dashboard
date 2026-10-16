@@ -1,9 +1,9 @@
 # ATLAS Live Operations Status
 
-**Authoritative as of:** 2026-10-15
-**Repository main:** `ade1382becab446cb7d47b26998df709948bd358`
+**Authoritative as of:** 2026-10-16
+**Repository main:** `e838d05b3c92563c514d4d185365b4c8e97bfdba`
 
-**Verified deployed runtime:** `731457ecae7a9d805cb2977da12c94330d7593d3`
+**Verified deployed runtime:** `e838d05b3c92563c514d4d185365b4c8e97bfdba`
 **Production:** [stock-ai-dashboard.streamlit.app](https://stock-ai-dashboard.streamlit.app/)  
 **Production-truth correction merged:** [PR #35](https://github.com/abandukda/stock-ai-dashboard/pull/35)
 
@@ -13,14 +13,14 @@ Evidence policy: a merge is not deployment; a provider-free run is not acquisiti
 
 | Classification | Component | Current evidence |
 |---|---|---|
-| **VERIFIED LIVE** | Streamlit service and deployment identity | Fresh production inspection found `data-atlas-health="APP_READY"` and exact `data-atlas-source-sha="731457ecae7a9d805cb2977da12c94330d7593d3"`. |
+| **VERIFIED LIVE** | Streamlit service and deployment identity | Fresh production inspection found exact `data-atlas-source-sha="e838d05b3c92563c514d4d185365b4c8e97bfdba"`, matching `origin/main`; the login boundary is healthy. |
 | **NOT LIVE** | Fresh daily BUY NOW | Latest retained certified session is **2026-10-02**, published **2026-10-04T12:21:38-04:00**. No later live acquisition/publication is verified. |
 | **NOT LIVE** | Report Card G2/G3/G4 | Public Report Card remains off; no live G2 acquisition, G3 durable append, or active G4 cycle is recorded. |
 | **NOT LIVE** | WS3 expansion | Annual/quarterly pilots exist; broader WS3 acquisition is not operational. |
 | **INHERITED CERTIFICATION** | Authenticated customer routes | Governed run `38838300289` on prior deployed source `7d353c1…` passed 144/144 checks and generated all 200/200 required screenshots for desktop and mobile. Artifact `12020755751`, SHA-256 `2a13d533ca87e4400fd7343af0deccfcbef14d895be0c8bb47ec6703530db3ac`. The route evidence is inherited; authenticated routes were not freshly exercised on `731457ec…`. |
 | **VERIFIED LIVE** | Current customer-visible Home snapshot | Production still exposes the retained October 2 session, published October 4, with governed BUY NOW inventory `11` and digest `72b37697…`. Full authenticated-route behavior was not freshly exercised on `731457ec…`. |
 
-The production source marker proves deployment of `731457ec…`. The latest full
+The production source marker proves deployment of `e838d05b…`. The latest full
 customer/admin route and mobile certification remains governed run
 `38838300289` on prior source `7d353c1…`; those authenticated routes were not
 freshly exercised after the deployment change. Customer data remains the
@@ -34,7 +34,7 @@ Lifecycle labels below are deliberately independent. `CERTIFIED` does not mean
 was refreshed.
 
 - **Premium UI — DEPLOYED; certification inherited, not current-source.**
-  Production exposes source `731457ecae7a9d805cb2977da12c94330d7593d3`.
+  Production exposes source `e838d05b3c92563c514d4d185365b4c8e97bfdba`.
   Customer QA run
   `38838300289` passed 144/144 checks, including all 126 mandatory checks and
   18 supplementary checks, and produced all 200/200 screenshots. It covered
@@ -115,6 +115,21 @@ was refreshed.
   acquisition ran and no production writes occurred. Certification did not
   complete, so the required 1,223 publishable/75 withheld result remains
   unproved.
+  PR #47 merged on `main` at `e838d05b…` and corrected the false duplicate-
+  claim assertion while retaining failure evidence. Protected run
+  `38848397513` proved the complete provider-free acquisition entrypoint:
+  2,596 attempts and receipts, consume-once duplicate rejection, zero provider
+  calls, zero production writes, source `6,033`, selected `1,298`, excluded
+  `4,735`, missing `0`, duplicates `0`. Plan artifact `12024322460`, archive
+  digest `be7921e6fe683474b09355f99c382fb1c099f9911e69eb52964b748870b94424`;
+  rehearsal artifact `12024736683`, digest
+  `e37a38d38d506dbb3826704f76bc5f8b00ce5c2bbd7ca014613bcc5242abf609`.
+  Certification then failed closed at `AAC` because its source-bound retained
+  technical series has fewer than the unchanged 200-bar scoring minimum. The
+  replay did not yet produce the required 1,223 publishable/75 withheld result.
+  The coordinated successor change preserves `AAC` in the 1,298 population and
+  routes insufficient history to an explicit governed withholding; it does not
+  lower the 200-bar requirement or fabricate history.
   The retained October 2 publication remains customer-visible.
 - **Report Card G2 — exact-current provider-free CERTIFIED; NOT OPERATIONAL.**
   Protected validation `38846172970` succeeded on `731457ec…` with artifact
