@@ -1,13 +1,33 @@
 # ATLAS Live Operations Status
 
 **Authoritative as of:** 2026-10-16
-**Repository main:** `e838d05b3c92563c514d4d185365b4c8e97bfdba`
+**Repository main:** `69425fda163a636a65261a5e303ab5f1c7fd1c8e`
 
 **Verified deployed runtime:** `e838d05b3c92563c514d4d185365b4c8e97bfdba`
 **Production:** [stock-ai-dashboard.streamlit.app](https://stock-ai-dashboard.streamlit.app/)  
 **Production-truth correction merged:** [PR #35](https://github.com/abandukda/stock-ai-dashboard/pull/35)
 
 Evidence policy: a merge is not deployment; a provider-free run is not acquisition; a monitor ping is not publication; and repository data is not customer-visible until authenticated production evidence proves it.
+
+## 2026-10-16 protected replay continuation
+
+Runs `38849621878`, `38850874170` and `38851875272` exercised the complete
+provider-free protected entrypoint on the real retained artifacts. Each kept
+the live acquisition and diagnose jobs skipped, produced 2,596 durable replay
+receipts, verified consume-once duplicate rejection, and made zero provider
+calls and zero production writes. They successively exposed three authentic
+retained-data conditions: a short history (`AAC`), an empty history (`AAC.UN`),
+and members omitted from the technical shard. Merged PRs #48–#51 preserve all
+such members and route them to explicit terminal withholding without changing
+the 200-bar scoring minimum or fabricating evidence.
+
+Run `38852953602` then proved the retained technical artifact is the governed
+6,033-security source rather than a prefiltered 1,298-member shard. PR #52 at
+`71870473686982d20f9929213712be9d5fe0f1f6` implements the exact projection:
+validate the immutable source, select the 1,298 plan members, and report the
+4,735 excluded records and their digest. Its 59 focused tests pass. Until PR
+#52 is merged and its protected replay reaches terminal success, no new live
+acquisition claim is valid and customer-visible data remains unchanged.
 
 ## Release scoreboard
 
