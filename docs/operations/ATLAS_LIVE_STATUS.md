@@ -32,7 +32,7 @@ and exact-SHA smoke remain open.
 | Watchlist | YES | YES | UNKNOWN | UNKNOWN | NO | No current production interaction proof. | Run add/search/sort/remove/reload smoke. |
 | Ask ATLAS | YES | YES | UNKNOWN | UNKNOWN | NO | No current grounded production response proof. | Capture settled response and authority metadata. |
 | BUY NOW | YES | Retained snapshot certified | YES/UNKNOWN SHA | STALE | PARTIAL | Production Home shows Oct 4 timestamp and 10 BUY NOW; retained authority has 11 BUY NOW for session `2026-10-02`, digest `72b37697…`. | Explain count divergence and expose exact digest/session; fresh live acquisition and promotion remain gated. |
-| Incremental acquisition | YES | Provider-free PASS | Workflow registered | NO | N/A | PR #38 merged as `b7b53b93c8f13a65b766a23e1db10df148293e3e`. Protected [run 38832122252](https://github.com/abandukda/stock-ai-dashboard/actions/runs/38832122252) passed the exact-source plan and durable consume-once rehearsal after the enablement-contract correction. Provider calls: 0; production writes: 0. | A fresh claim is prepared but unconsumed; exact owner authorization is required before one licensed attempt. No October 15 evidence has been acquired and no customer publication changed. |
+| Incremental acquisition | YES | Provider-free PASS | Workflow registered | FAILED CLOSED | N/A | Live [run 38836052667](https://github.com/abandukda/stock-ai-dashboard/actions/runs/38836052667) consumed the approved claim and stopped on request 1 (`A`, completed-session price) with `DATA_UNAVAILABLE`. Attempts: 1; retries: 0; publication writes: 0. | Diagnose the provider-record boundary before preparing a fresh claim. The consumed claim cannot be reused. |
 | Daily 6:05 PM ET | YES | Provider-free controls tested | Registered | NO | NO | Dual UTC wakeups, XNYS gate, non-cancelling session lock and incremental-only path are registered. It still stops before acquisition/certification/promotion. | Register and certify the successor publication bridge, then obtain exact live acquisition/publication authorization. |
 | Finnhub acquisition | YES | Bounded plan certified | Registered | NO | N/A | Last real retained evidence belongs to the October 2 snapshot. | Do not describe planning run as provider refresh. |
 | Report Card G2 | YES | Provider-free only | Registered | NO | NO | Acquisition workflow history contains one failed live run (`38628414964`) at an older source; no successful G2 acquisition exists. | Fresh source-bound validation/package and separate exact live authorization. |
@@ -124,6 +124,29 @@ and exact-SHA smoke remain open.
   scope SHA-256
   `e78d56f93569115413c90d30a0707aa632ecc1a631c8cd7fdad15cce365ab326`.
   Preparation does not consume or authorize this claim.
+
+### Approved October 15 live acquisition — failed closed on first record
+
+- Owner-approved protected run `38836052667` executed at exact source
+  `b7b53b93c8f13a65b766a23e1db10df148293e3e` with claim
+  `oct15-2026-live-38832122252-01`. Source, session, plan, 1,298-member
+  population, 2,596 planned requests, 2,746 ceiling, credential presence,
+  durable roots and claim scope all passed before transport.
+- The consume-once claim was atomically persisted and finalized; it cannot be
+  reused. The run stopped on the first request, ticker `A`, family
+  `completed_session_price`, because the canonical adapter returned
+  `DATA_UNAVAILABLE`. Actual attempts: `1`; successful securities: `0`;
+  unsuccessful securities: `1`; retries: `0`.
+- The unavailable provider record was persisted raw-first on protected durable
+  storage. No certification handoff ran and no customer publication, ledger or
+  production data was written. The retained October 2 customer snapshot is
+  unchanged.
+- Diagnostic artifact `atlas-incremental-buy-now-acquisition-38836052667`, ID
+  `12019665699`, archive SHA-256
+  `593350303da0cd4164ba9861f035a722be3f885ea9937103aefc321c7915ff61`.
+- A new exact claim and owner decision are required only after the provider
+  `DATA_UNAVAILABLE` boundary is diagnosed; this failed claim must not be
+  retried.
 
 - PR #35 removes scheduled triggers from the obsolete full-universe workflow.
 - Its replacement coordinator exclusively builds the governed 1,298-security
