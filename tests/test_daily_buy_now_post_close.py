@@ -144,6 +144,10 @@ def test_workflow_has_dual_wakeups_concurrency_and_live_fail_closed_contract():
     assert "continuity_mode == 'DAILY_APPEND'" in source
     assert "continuity-backfill-required:" in source
     assert "Fail closed rather than skip missing sessions" in source
+    assert "prepare-history-backfill:" in source
+    assert "ATLAS_BUY_NOW_BACKFILL_PLAN_ONCE" in source
+    assert "plan_buy_now_history_backfill.py" in source
+    assert "atlas-buy-now-history-backfill-plan-${{ github.run_id }}" in source
 
 
 def test_daily_buy_now_workflow_needs_references_declared_jobs():
