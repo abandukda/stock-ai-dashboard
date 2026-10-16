@@ -29,9 +29,8 @@ on:
         required: true
         type: string
       cutoff_utc:
-        description: Exact Oct 13 XNYS close plus 30-minute grace, in UTC
+        description: Explicit timezone-aware UTC evidence cutoff for finalized XNYS sessions
         required: true
-        default: "2026-10-13T20:30:00Z"
         type: string
 
 permissions:
@@ -156,7 +155,8 @@ jobs:
           test -n "$ATLAS_REPORT_CARD_BACKUP_ROOT"
           test "$ATLAS_REPORT_CARD_DURABLE_ROOT" != "$ATLAS_REPORT_CARD_BACKUP_ROOT"
           test "$TOKEN" = "REPORT_CARD_${OPERATION^^}_ONCE:$SCOPE_SHA256"
-          test "$REPORT_CARD_CUTOFF_UTC" = "2026-10-13T20:30:00Z"
+          test "$(python3 scripts/validate_report_card_cutoff.py "$REPORT_CARD_CUTOFF_UTC")" = "$REPORT_CARD_CUTOFF_UTC"
+          test "$(git rev-parse HEAD)" = "${{ inputs.source_sha }}"
           if [ "$OPERATION" = validate ] || [ "$OPERATION" = plan ]; then test -z "${FINNHUB_API_KEY:-}"; fi
       - name: Verify exact CLOSED acquisition sentinel
         # Verifies ATLAS_REPORT_CARD_DURABLE_ROOT/ACQUISITION_KILL_SWITCH is

@@ -116,6 +116,7 @@ def main() -> int:
     parser.add_argument("--entitlement-sha256", default="")
     parser.add_argument("--kill-switch")
     parser.add_argument("--authorization-package-sha256", default="")
+    parser.add_argument("--release-binding", type=Path)
     parser.add_argument("--execution-id", default="")
     parser.add_argument("--raw-evidence-root", type=Path)
     args = parser.parse_args()
@@ -140,12 +141,27 @@ def main() -> int:
         if not all((args.approved_plan, args.approved_plan_sha256,
                     args.entitlement, args.entitlement_sha256, args.kill_switch)):
             raise PermissionError("G2_APPROVED_PLAN_ENTITLEMENT_AND_KILL_SWITCH_REQUIRED")
-        if args.source_sha != BOUND_SOURCE_SHA:
-            raise PermissionError("G2_SOURCE_SHA_NOT_APPROVED")
-        if args.approved_plan_sha256 != BOUND_PLAN_SHA256:
-            raise PermissionError("G2_PLAN_SHA_NOT_APPROVED")
-        if args.authorization_package_sha256 != BOUND_PACKAGE_SHA256:
+        if args.release_binding is None or not args.release_binding.is_file():
+            raise PermissionError("G2_SOURCE_BOUND_RELEASE_BINDING_REQUIRED")
+        release_binding = json.loads(args.release_binding.read_text(encoding="utf-8"))
+        binding_payload = {key: value for key, value in release_binding.items() if key != "package_sha256"}
+        if digest(binding_payload) != release_binding.get("package_sha256"):
+            raise PermissionError("G2_RELEASE_BINDING_DIGEST_INVALID")
+        scope = release_binding.get("scope") or {}
+        if (release_binding.get("status") != "OWNER_AUTHORIZATION_REQUIRED_NOT_EXECUTABLE"
+                or scope.get("due_ticker_count") != 20
+                or scope.get("benchmark") != "SPY"
+                or scope.get("maximum_provider_calls") != 61
+                or scope.get("automatic_retries") != 0
+                or scope.get("ledger_writes") != 0
+                or scope.get("customer_publication") is not False):
+            raise PermissionError("G2_RELEASE_BINDING_SCOPE_INVALID")
+        if release_binding.get("package_sha256") != args.authorization_package_sha256:
             raise PermissionError("G2_AUTHORIZATION_PACKAGE_NOT_APPROVED")
+        if args.source_sha != release_binding.get("release_source_sha"):
+            raise PermissionError("G2_SOURCE_SHA_NOT_APPROVED")
+        if args.approved_plan_sha256 != release_binding.get("canonical_plan_sha256"):
+            raise PermissionError("G2_PLAN_SHA_NOT_APPROVED")
         if not args.execution_id or args.raw_evidence_root is None:
             raise PermissionError("G2_EXECUTION_ID_AND_RAW_ROOT_REQUIRED")
         approved_plan = load_approved_plan(Path(args.approved_plan), args.approved_plan_sha256)
@@ -169,6 +185,7 @@ def main() -> int:
         with protected_g2_window(
             sentinel=Path(args.kill_switch), ledger=args.ledger,
             backup=backup_ledger, execution_id=args.execution_id,
+            binding=release_binding,
         ):
             evidence = acquire_market_evidence(
                 ledger=ledger,
@@ -182,6 +199,7 @@ def main() -> int:
                 approved_plan_hash=args.approved_plan_sha256,
                 kill_switch_check=protected_kill_switch(Path(args.kill_switch)),
                 entitlement_evidence=entitlement,
+                authorization_package_sha256=args.authorization_package_sha256,
             )
         if raw_sink.count != 61:
             raise RuntimeError(f"G2_RAW_EVIDENCE_COUNT_INVALID:{raw_sink.count}")

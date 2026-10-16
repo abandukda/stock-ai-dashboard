@@ -130,6 +130,31 @@ def test_provider_free_replay_is_certified_but_never_publication_authorized(monk
     assert manifest["incremental_publication_authorized"] is False
 
 
+def test_certification_checkpoint_is_source_plan_receipt_and_batch_bound(monkeypatch, tmp_path):
+    plan, checkpoint, records = fixture()
+    monkeypatch.setattr(bridge, "aggregate_complete_run", successful_aggregate)
+    checkpoint_dir = tmp_path / "durable-checkpoints"
+    bridge.certify_incremental_candidate(
+        plan=plan, checkpoint=checkpoint, acquired_records=records,
+        source_sha="s" * 40, candidate_dir=tmp_path / "first", workflow_run_id="123",
+        checkpoint_dir=checkpoint_dir, batch_size=1,
+    )
+    binding = json.loads((checkpoint_dir / "checkpoint-binding.json").read_text())
+    assert binding["plan_sha256"] == plan["plan_sha256"]
+    assert binding["symbol_count"] == 2
+    assert (checkpoint_dir / "forward" / "AAA.json").is_file()
+    terminal_set = json.loads((checkpoint_dir / "terminal-set-manifest.json").read_text())
+    assert terminal_set["sets"]["forward"]["record_count"] == 2
+    assert terminal_set["sets"]["reverse"]["record_count"] == 2
+    assert not (checkpoint_dir / "evaluation-checkpoint.json").exists()
+    with pytest.raises(ValueError, match="CHECKPOINT_BINDING_MISMATCH"):
+        bridge.certify_incremental_candidate(
+            plan=plan, checkpoint=checkpoint, acquired_records=records,
+            source_sha="s" * 40, candidate_dir=tmp_path / "second", workflow_run_id="124",
+            checkpoint_dir=checkpoint_dir, batch_size=2,
+        )
+
+
 def test_daily_promoter_rejects_provider_free_replay_before_writes(monkeypatch, tmp_path):
     import scripts.promote_daily_buy_now_snapshot as promoter
     bundle = tmp_path / "candidate" / "publication_bundle"
@@ -406,9 +431,10 @@ def test_raw_receipts_materialize_retained_fundamentals_and_new_completed_bars(t
     value = {key: item for key, item in next_checkpoint.items() if key != "checkpoint_sha256"}
     value["receipts"] = receipts
     value["checkpoint_sha256"] = bridge._digest(value)
+    histories = retained_history("AAA", "BBB")
     rows = bridge.materialize_acquired_records(
         plan=plan, checkpoint=value, raw_root=tmp_path,
-        retained_technical_history=retained_history("AAA", "BBB"),
+        retained_technical_history=histories, consume_retained_history=True,
         retained_rows=[
             {"ticker": "AAA", "professional_evidence_as_of": "2026-10-01T00:00:00Z"},
             {"ticker": "BBB", "professional_evidence_as_of": "2026-10-01T00:00:00Z"},
@@ -416,6 +442,7 @@ def test_raw_receipts_materialize_retained_fundamentals_and_new_completed_bars(t
     )
     assert [item["ticker"] for item in rows] == ["AAA", "BBB"]
     assert all(item["row"]["price"] == 1.5 for item in rows)
+    assert histories == {}
 
 
 def test_new_filing_without_bounded_fundamental_expansion_fails_closed(tmp_path):

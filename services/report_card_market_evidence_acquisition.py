@@ -222,9 +222,14 @@ def acquire_market_evidence(
     approved_plan_hash: str = "",
     kill_switch_check: Callable[[], bool] | None = None,
     entitlement_evidence: Mapping[str, Any] | None = None,
+    authorization_package_sha256: str = "",
 ) -> dict[str, Any]:
     """Acquire one bounded, replayable internal market-evidence snapshot."""
-    if authorization != AUTHORIZATION_TOKEN:
+    expected_authorization = (
+        f"REPORT_CARD_ACQUIRE_ONCE:{authorization_package_sha256}"
+        if authorization_package_sha256 else AUTHORIZATION_TOKEN
+    )
+    if authorization != expected_authorization:
         raise PermissionError("REPORT_CARD_ACQUISITION_NOT_AUTHORIZED")
     if len(source_sha) != 40:
         raise ValueError("SOURCE_SHA_REQUIRED")

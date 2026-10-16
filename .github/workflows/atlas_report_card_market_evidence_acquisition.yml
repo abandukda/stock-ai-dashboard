@@ -156,6 +156,7 @@ jobs:
             --entitlement-sha256 "${{ inputs.entitlement_sha256 }}" \
             --kill-switch "$ATLAS_REPORT_CARD_DURABLE_ROOT/ACQUISITION_KILL_SWITCH" \
             --authorization-package-sha256 "${{ inputs.authorization_package_sha256 }}" \
+            --release-binding audit_results/report_card_g2_release_binding.json \
             --execution-id "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
             --raw-evidence-root audit_results/report_card_market_evidence/raw \
             --output audit_results/report_card_market_evidence/report_card_market_evidence.json

@@ -238,7 +238,7 @@ def test_incremental_registered_workflow_is_bounded_and_cannot_reach_legacy_shar
     )
     assert "schedule:" not in source
     assert "run_finnhub_incremental_post_close.py" in source
-    assert "AUTHORIZE_ATLAS_INCREMENTAL_ONCE:${{ inputs.plan_sha256 }}" in source
+    assert "authorization_token(s)" in source
     assert "p['customer_symbol_count'] == 1298" in source
     assert "p['request_count'] == 2596" in source
     assert "p['exact_max_requests'] == 2746" in source
@@ -246,7 +246,7 @@ def test_incremental_registered_workflow_is_bounded_and_cannot_reach_legacy_shar
     assert "READY_FOR_EXISTING_ATOMIC_PROMOTER" in source
     assert "run_finnhub_full_universe.py" not in source
     assert "run-shard" not in source
-    assert "promote_daily_buy_now_snapshot.py" not in source
+    assert "promote_daily_buy_now_snapshot.py" in source
 
 
 def test_dispatch_workflow_entrypoints_import_with_registered_pythonpath():

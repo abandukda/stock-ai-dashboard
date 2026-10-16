@@ -473,3 +473,114 @@ any other item.
    certification, publication and alert paths are independently proven.
 4. Complete BUY NOW completion and missed-heartbeat email confirmation,
    independent commercial-frame review and real beginner acceptance testing.
+
+## Iteration 2 terminal-certification status — 2026-10-16
+
+- Current registered `main` source is
+  `7feb7aeff2ad335712e8ce46bf412eeb96e5f4e7` (merged PR #54).
+- Provider-free protected replay `38920625431` validated the exact source and
+  completed its plan job successfully in 1m22s. Plan artifact
+  `12054970081` has archive digest
+  `6491f1cd863733fc11bc3089a36af9d8a7c91689ffbefe990ff8d1d61763445c`.
+  The acquire and diagnose jobs were skipped, so provider calls and customer
+  publication writes remain zero.
+- Protected environment approval was granted for provider-free replay only.
+  The terminal-certification job `117039980916` is queued because the sole
+  matching self-hosted runner, `atlas-worker-1`, is **offline**. No terminal
+  `1,223 publishable / 75 withheld` result exists from this run yet. Do not
+  classify the replay as complete until the same queued job reaches a terminal
+  successful conclusion.
+- PR #55 at `48c0d5063ceb7d983586d32906b21dff28038af6` contains the
+  Iteration 2 source-current Report Card binding, strict explicit-UTC cutoff
+  validation, exact checkout-source verification, and BUY NOW certification
+  resource/exit telemetry. Relevant consolidated tests: `246 passed`.
+  Required GitHub runs `38921322366` and `38921322381` both completed
+  successfully. PR #55 is not merged and does not authorize any protected
+  operation.
+- The currently queued replay was dispatched from merged PR #54 and therefore
+  can establish terminal reconciliation and wall-clock runner outcome, but it
+  cannot emit PR #55's new `/usr/bin/time -v` CPU/max-RSS artifact. After PR
+  #55 receives exact-head merge authorization and registration, one fresh
+  provider-free replay is required for the requested CPU, memory and explicit
+  exit-condition measurements.
+- Production/customer truth is unchanged pending direct evidence: deployed
+  runtime source `e838d05b3c92563c514d4d185365b4c8e97bfdba`; certified
+  market session `2026-10-02`; publication
+  `2026-10-04T12:21:38-04:00`; governed BUY NOW inventory `11`; publication
+  digest `72b37697b2f4fc5dabd5438c1a3bb7c068cd12e86253b64e37b8a642c310bf17`.
+
+### Iteration 2B runner investigation
+
+- GitHub still lists runner registration `21` as `atlas-worker-1`, Linux x64,
+  with labels `self-hosted`, `Linux`, `X64`, and `atlas-worker-1`; these labels
+  exactly match queued protected job `117039980916`. GitHub reports the runner
+  `Offline` and no active job. Registration or label drift is therefore not
+  the observed blocker.
+- The runner is hosted by DigitalOcean as Droplet `605142688`. The available
+  DigitalOcean control-plane session expired before host power, service, or
+  system-log state could be inspected, so no unsupported restart was attempted.
+  The existing runner was not removed, replaced, or re-registered.
+- Owner recovery must use the DigitalOcean Droplet console and first inspect
+  host and service state. Discover the installed unit instead of guessing its
+  name: `systemctl list-units --type=service --all 'actions.runner*'`; then run
+  `systemctl status <discovered-unit> --no-pager -l` and
+  `journalctl -u <discovered-unit> --since '2026-10-16 00:00:00 UTC' --no-pager`.
+  Also collect `uptime`, `free -h`, `df -h`, `df -i`, `dmesg -T | tail -200`,
+  and `journalctl -k --since '2026-10-16 00:00:00 UTC' --no-pager` before any
+  service change. If the host is running and the discovered unit is inactive,
+  the supported recovery is `systemctl restart <discovered-unit>` followed by
+  `systemctl is-active <discovered-unit>` and GitHub runner-status verification.
+  These commands do not expose or rotate registration credentials.
+- Source-current combined verification on PR #55 now covers Report Card,
+  incremental BUY NOW, daily coordinator, customer Research, Home and Ask
+  contracts: `493 passed`. One obsolete Home assertion was corrected to target
+  the last (active) renderer definition and its multiline render call; no
+  runtime behavior or investment output changed.
+
+### Confirmed OOM and bounded-certification repair — 2026-10-16
+
+- Protected run `38920625431` completed plan, protected registration rehearsal,
+  exact retained-artifact download, 2,596 provider-free receipt generation and
+  duplicate-claim rejection. Certification job `117059234617` then failed with
+  exit 137 at 22m14s. The DigitalOcean kernel recorded an OOM kill of PID
+  `393777` (`python3`) at `anon-rss:7633808kB` on the 8 GiB host. This supersedes
+  the earlier runner-lifecycle hypothesis.
+- The allocation was caused by overlapping full-population object graphs:
+  retained multi-year histories, merged histories, shard acquisition records,
+  two complete evaluation passes, and two immutable candidate graphs. The
+  repaired path consumes retained histories as each symbol is materialized,
+  prepares peer evidence once, evaluates deterministic batches of 64, writes
+  atomic per-symbol terminal checkpoints, releases bars before candidate
+  construction, and garbage-collects batch intermediates. Scoring algorithms,
+  the 200-bar minimum, ordering, withholding rules and publication gate are
+  unchanged.
+- Durable resume is fail-closed and binds the checkpoint directory to source,
+  plan, receipt set, session, exact membership, batch size and run identity.
+  A mismatched or partial checkpoint cannot be used for certification or
+  publication.
+- The registered workflow now captures `/proc/meminfo`, GNU-time CPU/wall/RSS
+  evidence even when the certification child exits nonzero, and rejects a
+  successful run unless measured peak RSS is below 5 GiB. No identical replay
+  of the OOM implementation will be dispatched.
+- Provider calls and production writes remain zero. Terminal protected proof
+  of `1,223 publishable / 75 withheld` remains pending registration of this
+  repair and one fresh provider-free protected replay.
+- A local exact-artifact execution used plan artifact `12054970081`, transport
+  artifact `12057435684`, all 41 retained shard artifacts from run
+  `37216506983`, 1,298 governed rows and 2,596 receipts. It completed in
+  `491.53s` with `465.05s` user CPU, `15.07s` system CPU and peak RSS
+  `3,484,631,040` bytes (3.25 GiB), below the 5 GiB target and 54% below the
+  killed process's recorded anonymous RSS. It produced 2,596 terminal
+  checkpoints, zero unexplained members, zero provider calls and zero
+  production writes.
+- That exact retained replay did **not** support the historical `1,223/75`
+  publication split: all 1,298 members were explicitly withheld. The retained
+  technical shards end at the October 2 certified snapshot, while the
+  provider-free October 15 receipt supplies only one terminal bar. The
+  unchanged evaluator correctly reports `UNREPAIRABLE_BAR_GAP`, missing
+  technical-method evidence and unavailable volume for that discontinuous
+  series. This is a distinct evidence-continuity blocker, not an OOM or
+  unexplained-population defect. No scoring or withholding rule was relaxed to
+  manufacture the expected split. A protected terminal replay must therefore
+  either use an ordered completed-session catch-up evidence set or remain
+  fail-closed; it must not assert `1,223/75` against unsupported retained data.

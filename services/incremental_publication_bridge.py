@@ -9,20 +9,28 @@ incremental evidence set.
 from __future__ import annotations
 
 from collections import Counter
+import gc
 from datetime import datetime, timezone
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
-from typing import Any, Mapping, Sequence
+from typing import Any, Mapping, MutableMapping, Sequence
 
 from services.finnhub_full_universe_executor import (
     aggregate_complete_run,
+    build_single_immutable_candidate,
     build_run_identity,
+    certify_complete_run,
+    combine_evaluation_results,
+    compare_replay_candidates,
     deserialize_bars,
     deterministic_shards,
+    evaluate_records,
     serialize_bars,
 )
+from services.professional_valuation_evidence import apply_peer_multiple_evidence
 from services.finnhub_incremental_post_close import (
     CHANGE_PROBE_FAMILY,
     FUNDAMENTAL_FAMILIES,
@@ -196,6 +204,7 @@ def materialize_acquired_records(
     retained_rows: Sequence[Mapping[str, Any]],
     retained_technical_history: Mapping[str, Sequence[Mapping[str, Any]]] | None = None,
     retained_technical_blockers: Mapping[str, Sequence[str]] | None = None,
+    consume_retained_history: bool = False,
 ) -> list[dict[str, Any]]:
     """Create canonical executor input from raw-first receipts and retained rows.
 
@@ -260,6 +269,15 @@ def materialize_acquired_records(
             "incremental_receipt_set_sha256": readiness["receipt_set_sha256"],
             "normalization_method": "EXISTING_FINNHUB_CANONICAL_NORMALIZER",
         })
+        # The retained history and the merged acquired history are otherwise
+        # simultaneously resident for the remainder of the 1,298-symbol loop.
+        # The CLI owns this mapping and may explicitly consume it after the
+        # source-bound symbol has been materialized and serialized.
+        if consume_retained_history:
+            if not isinstance(retained_technical_history, MutableMapping):
+                raise ValueError("INCREMENTAL_RETAINED_TECHNICAL_HISTORY_NOT_CONSUMABLE")
+            retained_technical_history.pop(symbol, None)
+        del bars, retained_bars, fresh_bars, price, probe, row
     return output
 
 
@@ -377,6 +395,8 @@ def certify_incremental_candidate(
     candidate_dir: Path, workflow_run_id: str,
     evidence_classification: str = "LIVE_PROVIDER_EVIDENCE",
     retained_technical_binding: Mapping[str, Any] | None = None,
+    checkpoint_dir: Path | None = None,
+    batch_size: int = 64,
 ) -> dict[str, Any]:
     """Run the unchanged evaluator twice and stage, but never promote, output."""
     if evidence_classification not in {
@@ -407,7 +427,9 @@ def certify_incremental_candidate(
         evidence_snapshot_at=f"{plan['session']}T21:00:00+00:00",
         source_sha=source_sha,
     )
-    by_symbol = {str(item["ticker"]).upper(): dict(item) for item in records}
+    if batch_size < 1 or batch_size > 256:
+        raise ValueError("INCREMENTAL_CERTIFICATION_BATCH_SIZE_INVALID")
+    by_symbol = {str(item["ticker"]).upper(): item for item in records}
     shard_payloads = []
     for shard in deterministic_shards(symbols):
         shard_records = [by_symbol[symbol] for symbol in shard["symbols"]]
@@ -426,8 +448,184 @@ def certify_incremental_candidate(
         }
         payload["shard_digest"] = _digest(payload)
         shard_payloads.append(payload)
+    # The full-universe executor historically received every multi-year bar
+    # array at once and then copied the complete acquisition set for forward
+    # and replay evaluation.  On the 1,298-member retained population that
+    # retained ~7.3 GiB and triggered the kernel OOM killer.  Prepare the peer
+    # evidence once, evaluate deterministic bounded batches, atomically retain
+    # each terminal record, and remove bars before candidate aggregation.
+    checkpoint_root = checkpoint_dir
+    if checkpoint_root is not None:
+        checkpoint_root.mkdir(parents=True, exist_ok=True)
+        checkpoint_binding = {
+            "contract": "ATLAS_INCREMENTAL_CERTIFICATION_CHECKPOINT_V1",
+            "source_sha": source_sha,
+            "plan_sha256": plan.get("plan_sha256"),
+            "receipt_set_sha256": publication_readiness(
+                plan=plan, checkpoint=checkpoint
+            )["receipt_set_sha256"],
+            "session": plan.get("session"),
+            "membership_sha256": _digest(symbols),
+            "symbol_count": len(symbols),
+            "batch_size": batch_size,
+            "run_identity_sha256": identity["run_identity_sha256"],
+        }
+        binding_path = checkpoint_root / "checkpoint-binding.json"
+        if binding_path.exists():
+            if json.loads(binding_path.read_text(encoding="utf-8")) != checkpoint_binding:
+                raise ValueError("INCREMENTAL_CERTIFICATION_CHECKPOINT_BINDING_MISMATCH")
+        else:
+            temporary_binding = binding_path.with_suffix(".tmp")
+            temporary_binding.write_text(
+                json.dumps(checkpoint_binding, sort_keys=True, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            temporary_binding.replace(binding_path)
+    prepared_rows = apply_peer_multiple_evidence([
+        dict(item["row"]) for item in records if item.get("row") is not None
+    ])
+    prepared_by_symbol = {str(row.get("ticker")): row for row in prepared_rows}
+
+    def evaluate_bounded(*, reverse: bool, phase: str) -> dict[str, Any]:
+        ordered = list(reversed(symbols)) if reverse else list(symbols)
+        results = []
+        phase_root = checkpoint_root / phase if checkpoint_root is not None else None
+        for start in range(0, len(ordered), batch_size):
+            batch_symbols = ordered[start:start + batch_size]
+            batch = []
+            for symbol in batch_symbols:
+                item = by_symbol[symbol]
+                batch.append({
+                    **item,
+                    "row": prepared_by_symbol.get(symbol, item.get("row")),
+                })
+            results.append(evaluate_records(
+                identity=identity, acquired=batch,
+                checkpoint_dir=phase_root, peer_evidence_prepared=True,
+            ))
+            del batch
+            gc.collect()
+        combined = combine_evaluation_results(results)
+        results.clear()
+        gc.collect()
+        return combined
+
+    first = evaluate_bounded(reverse=False, phase="forward")
+    completeness = certify_complete_run(
+        universe=universe, records=first["terminal_records"],
+        acquisition_complete=True, decision_processing_complete=True,
+    )
+    second = evaluate_bounded(reverse=True, phase="reverse")
+    second_completeness = certify_complete_run(
+        universe=universe, records=second["terminal_records"],
+        acquisition_complete=True, decision_processing_complete=True,
+    )
+    evaluation_checkpoint = {
+        "run_identity_sha256": identity["run_identity_sha256"],
+        "first_evaluation": first, "first_completeness": completeness,
+        "second_evaluation": second, "second_completeness": second_completeness,
+    }
+    if checkpoint_root is not None:
+        # Do not serialize the combined evaluation graph: on the retained
+        # population it is ~1.7 GiB and constructing that JSON string recreates
+        # the very memory spike this checkpoint design prevents.  The atomic
+        # per-symbol files are the resumable source of truth; bind their names
+        # and byte digests in one small terminal manifest.
+        checkpoint_sets: dict[str, Any] = {}
+        for phase in ("forward", "reverse"):
+            phase_files = sorted((checkpoint_root / phase).glob("*.json"))
+            checkpoint_sets[phase] = {
+                "record_count": len(phase_files),
+                "set_sha256": _digest([
+                    [path.name, hashlib.sha256(path.read_bytes()).hexdigest()]
+                    for path in phase_files
+                ]),
+            }
+        checkpoint_manifest = {
+            "contract": "ATLAS_INCREMENTAL_CERTIFICATION_TERMINAL_SET_V1",
+            "run_identity_sha256": identity["run_identity_sha256"],
+            "expected_record_count": len(symbols),
+            "sets": checkpoint_sets,
+        }
+        temporary = checkpoint_root / "terminal-set-manifest.tmp"
+        final_checkpoint = checkpoint_root / "terminal-set-manifest.json"
+        temporary.write_text(
+            json.dumps(checkpoint_manifest, sort_keys=True, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        temporary.replace(final_checkpoint)
+
+    # Candidate normalization is itself large.  The legacy determinism helper
+    # held both normalized candidates concurrently, on top of both evaluation
+    # graphs.  Build them sequentially, stream the first to durable storage,
+    # retain only the second digest, then reconstruct the first for publication.
+    # Both digests still use the unchanged build_immutable_candidate contract.
+    if (
+        checkpoint_root is not None
+        and completeness.get("state") == "FULL_UNIVERSE_CERTIFIED"
+        and second_completeness.get("state") == "FULL_UNIVERSE_CERTIFIED"
+    ):
+        first_candidate = build_single_immutable_candidate(
+            universe=universe, identity=identity,
+            evaluation=first, completeness=completeness,
+        )
+        candidate_path = checkpoint_root / "immutable-candidate.json"
+        temporary_candidate = candidate_path.with_suffix(".tmp")
+        with temporary_candidate.open("w", encoding="utf-8") as stream:
+            json.dump(first_candidate, stream, sort_keys=True, default=str)
+            stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        temporary_candidate.replace(candidate_path)
+        first_digest = first_candidate["candidate_digest"]
+        del first_candidate
+        gc.collect()
+        second_candidate = build_single_immutable_candidate(
+            universe=universe, identity=identity,
+            evaluation=second, completeness=second_completeness,
+        )
+        second_digest = second_candidate["candidate_digest"]
+        determinism = {
+            "status": "PASS" if first_digest == second_digest else "FAIL",
+            "first_digest": first_digest,
+            "second_digest": second_digest,
+            "structural_diff": compare_replay_candidates(
+                {"evaluations": first["terminal_records"]},
+                {"evaluations": second["terminal_records"]},
+            ),
+        }
+        del second_candidate
+        gc.collect()
+        first_candidate = build_single_immutable_candidate(
+            universe=universe, identity=identity,
+            evaluation=first, completeness=completeness,
+        )
+        candidate_checkpoint = {
+            "run_identity_sha256": identity["run_identity_sha256"],
+            "candidate": first_candidate,
+            "second_candidate": {"candidate_digest": second_digest},
+            "determinism": determinism,
+        }
+        evaluation_checkpoint["second_evaluation"] = {
+            key: value for key, value in second.items() if key != "terminal_records"
+        }
+        del second
+        gc.collect()
+    else:
+        candidate_checkpoint = None
+
+    # Candidate construction needs source rows but never historical arrays.
+    # Release the bars before aggregate_complete_run validates the lightweight
+    # shard inventory and constructs the immutable publication artifacts.
+    for item in records:
+        item["bars"] = []
+    prepared_rows.clear()
+    prepared_by_symbol.clear()
+    gc.collect()
     result = aggregate_complete_run(
         universe=universe, identity=identity, shard_payloads=shard_payloads,
+        evaluation_checkpoint=evaluation_checkpoint,
+        candidate_checkpoint=candidate_checkpoint,
     )
     if result.get("new_full_universe_candidate_certified") is not True:
         raise ValueError("INCREMENTAL_CERTIFIED_CANDIDATE_REJECTED")
