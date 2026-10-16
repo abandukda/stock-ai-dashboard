@@ -305,8 +305,7 @@ jobs:
           claim_root="$ATLAS_INCREMENTAL_CHECKPOINT_ROOT/claims-rehearsal"
           replay_root="$RUNNER_TEMP/incremental-full-entrypoint-replay"
           plan="$(find "$RUNNER_TEMP/plan" -type f -name plan.json -print -quit)"
-          retained="$(find "$RUNNER_TEMP/membership" -type f -name full_evaluation_pool.json -print -quit)"
-          test -n "$plan"; test -n "$retained"
+          test -n "$plan"
           plan_sha="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["plan_sha256"])' "$plan")"
           export PLAN="$plan"
           read scope token < <(python3 - <<'PY'
@@ -320,6 +319,11 @@ jobs:
           )
           session="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["session"])' "$plan")"
           mkdir -p "$replay_root"
+          python3 scripts/resolve_incremental_retained_records.py \
+            --artifact-root "$RUNNER_TEMP/membership" --plan "$plan" \
+            --output "$replay_root/retained_records.json" \
+            --report audit_results/incremental_buy_now/retained_record_resolution.json
+          retained="$replay_root/retained_records.json"
           python3 - "$session" "$replay_root/parameters.json" <<'PY'
           import json,sys
           s=sys.argv[1]

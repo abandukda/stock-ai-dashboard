@@ -22,7 +22,9 @@ from services.finnhub_incremental_post_close import (
     DurableRawEvidenceSink, execute_incremental_plan,
 )
 from services.incremental_acquisition_claim import consume_claim, scope_payload
-from services.incremental_provider_free_replay import ProviderFreeReplayAdapter, REPLAY_CONTRACT
+from services.incremental_provider_free_replay import (
+    ProviderFreeReplayAdapter, REPLAY_CONTRACT, validate_replay_retained_scope,
+)
 
 
 def require_manual_enablement(claim_id: str) -> None:
@@ -71,9 +73,10 @@ def main() -> int:
     parameters = json.loads(args.parameters.read_text(encoding="utf-8"))
     sink = None
     if args.provider_free_replay:
-        retained = json.loads(args.replay_retained_records.read_text(encoding="utf-8"))
-        if not isinstance(retained, list) or len(retained) != 1298:
-            raise ValueError("INCREMENTAL_PROVIDER_FREE_RETAINED_SCOPE_INVALID")
+        retained = validate_replay_retained_scope(
+            retained_rows=json.loads(args.replay_retained_records.read_text(encoding="utf-8")),
+            plan=plan,
+        )
         adapter = ProviderFreeReplayAdapter(retained_rows=retained, session=str(plan.get("session") or ""))
     else:
         sink = DurableRawEvidenceSink(args.raw_root / "transport")
