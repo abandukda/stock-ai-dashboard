@@ -12,7 +12,8 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from services.incremental_publication_bridge import (
-    certify_incremental_candidate, materialize_acquired_records,
+    certify_incremental_candidate, load_retained_technical_history,
+    materialize_acquired_records,
 )
 
 
@@ -27,6 +28,7 @@ def main() -> int:
     parser.add_argument("--acquired-records", type=Path)
     parser.add_argument("--raw-root", type=Path)
     parser.add_argument("--retained-records", type=Path)
+    parser.add_argument("--retained-technical-root", type=Path)
     parser.add_argument("--source-sha", required=True)
     parser.add_argument("--workflow-run-id", required=True)
     parser.add_argument("--candidate-dir", type=Path, required=True)
@@ -38,18 +40,22 @@ def main() -> int:
     )
     args = parser.parse_args()
     plan, checkpoint = _read(args.plan), _read(args.checkpoint)
+    technical_binding = None
     if args.acquired_records:
         records = _read(args.acquired_records)
-    elif args.raw_root and args.retained_records:
+    elif args.raw_root and args.retained_records and args.retained_technical_root:
         retained = _read(args.retained_records)
         if not isinstance(retained, list):
             raise ValueError("INCREMENTAL_RETAINED_RECORDS_SCHEMA_INVALID")
+        technical, technical_binding = load_retained_technical_history(
+            root=args.retained_technical_root, plan=plan,
+        )
         records = materialize_acquired_records(
             plan=plan, checkpoint=checkpoint, raw_root=args.raw_root,
-            retained_rows=retained,
+            retained_rows=retained, retained_technical_history=technical,
         )
     else:
-        parser.error("provide --acquired-records or both --raw-root and --retained-records")
+        parser.error("provide --acquired-records or --raw-root, --retained-records and --retained-technical-root")
     if not isinstance(records, list):
         raise ValueError("INCREMENTAL_ACQUIRED_RECORDS_SCHEMA_INVALID")
     result = certify_incremental_candidate(
@@ -57,6 +63,7 @@ def main() -> int:
         acquired_records=records, source_sha=args.source_sha,
         candidate_dir=args.candidate_dir, workflow_run_id=args.workflow_run_id,
         evidence_classification=args.evidence_classification,
+        retained_technical_binding=technical_binding,
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")

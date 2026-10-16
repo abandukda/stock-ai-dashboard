@@ -265,6 +265,15 @@ jobs:
           run-id: ${{ inputs.membership_run_id }}
           name: ${{ inputs.membership_artifact }}
           path: ${{ runner.temp }}/membership
+      - name: Download source-bound governed technical-history shards
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.membership_run_id }}
+          pattern: atlas-finnhub-full-shard-*-${{ inputs.membership_run_id }}
+          path: ${{ runner.temp }}/retained-shards
+          merge-multiple: true
       - name: Prove exact registered graph without provider access
         shell: bash
         run: |
@@ -351,6 +360,7 @@ jobs:
           python3 scripts/certify_incremental_buy_now.py \
             --plan "$plan" --checkpoint "$replay_root/checkpoint.json" \
             --raw-root "$replay_root/raw/governed" --retained-records "$retained" \
+            --retained-technical-root "$RUNNER_TEMP/retained-shards" \
             --source-sha "$GITHUB_SHA" --workflow-run-id "$GITHUB_RUN_ID" \
             --candidate-dir "$replay_root/candidate" \
             --evidence-classification PROVIDER_FREE_SIMULATED_REPLAY \
@@ -364,6 +374,8 @@ jobs:
           assert r['production_writes'] == 0
           assert r['publication_authorized'] is False
           assert r['publishable_count'] + r['withheld_count'] == 1298
+          assert r['publishable_count'] == 1223
+          assert r['withheld_count'] == 75
           PY
           mkdir -p "$replay_root/production"
           cp market_full_scan.json market_scan_state.json discovery_candidate_pool.json \
