@@ -122,6 +122,7 @@ def test_finnhub_workflow_uses_only_governed_post_close_wakeups():
     assert "coordinator:" in source
     for cron in ("15 4", "00 11", "00 16", "00 19", "00 23"):
         assert cron not in source
-    assert "plan_finnhub_incremental_post_close.py" in source
+    assert "atlas_finnhub_incremental_acquisition.yml" in source
+    assert "provider-free-end-to-end" in source
     assert "run_finnhub_full_universe.py" not in source
     assert "  schedule:" not in legacy

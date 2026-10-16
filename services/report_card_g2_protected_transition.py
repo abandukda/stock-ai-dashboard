@@ -69,21 +69,22 @@ def atomic_sentinel(path: Path, state: str) -> None:
         temporary.unlink(missing_ok=True)
 
 
-def claim_once(root: Path, execution_id: str) -> Path:
+def claim_once(root: Path, execution_id: str, *, binding: dict) -> Path:
     if not execution_id or any(character not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_" for character in execution_id):
         raise ValueError("G2_EXECUTION_ID_INVALID")
     # The package is the attempt identity.  A different GitHub run ID must not
     # make the same owner authorization reusable after any runner-side claim.
-    receipt = root / f".g2-acquisition-{BOUND_PACKAGE_SHA256}.claim"
+    package_sha = str(binding["package_sha256"])
+    receipt = root / f".g2-acquisition-{package_sha}.claim"
     descriptor = os.open(receipt, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     try:
         os.write(descriptor, json.dumps({
             "execution_id": execution_id,
-            "plan_sha256": BOUND_PLAN_SHA256,
-            "source_sha": BOUND_SOURCE_SHA,
-            "package_sha256": BOUND_PACKAGE_SHA256,
+            "plan_sha256": binding["canonical_plan_sha256"],
+            "source_sha": binding["release_source_sha"],
+            "package_sha256": package_sha,
             "authorization_token_sha256": hashlib.sha256(
-                BOUND_AUTHORIZATION_TOKEN.encode()
+                f"REPORT_CARD_ACQUIRE_ONCE:{package_sha}".encode()
             ).hexdigest(),
         }, sort_keys=True).encode() + b"\n")
         os.fsync(descriptor)
@@ -94,14 +95,21 @@ def claim_once(root: Path, execution_id: str) -> Path:
 
 @contextmanager
 def protected_g2_window(*, sentinel: Path, ledger: Path, backup: Path,
-                        execution_id: str) -> Iterator[Path]:
+                        execution_id: str, binding: dict | None = None) -> Iterator[Path]:
     """Open once and always close, while proving protected data invariance."""
     verify_sentinel(sentinel, "CLOSED")
-    if sha256_file(ledger) != BOUND_LEDGER_SHA256:
+    binding = binding or {
+        "package_sha256": BOUND_PACKAGE_SHA256,
+        "canonical_plan_sha256": BOUND_PLAN_SHA256,
+        "release_source_sha": BOUND_SOURCE_SHA,
+        "ledger_identity": {"sha256": BOUND_LEDGER_SHA256},
+        "independent_backup_sha256": [BOUND_BACKUP_SHA256],
+    }
+    if sha256_file(ledger) != binding["ledger_identity"]["sha256"]:
         raise PermissionError("G2_LEDGER_IDENTITY_MISMATCH")
-    if sha256_file(backup) != BOUND_BACKUP_SHA256:
+    if sha256_file(backup) not in set(binding["independent_backup_sha256"]):
         raise PermissionError("G2_BACKUP_IDENTITY_MISMATCH")
-    receipt = claim_once(sentinel.parent, execution_id)
+    receipt = claim_once(sentinel.parent, execution_id, binding=binding)
     ledger_before, backup_before = sha256_file(ledger), sha256_file(backup)
     opened = False
     try:

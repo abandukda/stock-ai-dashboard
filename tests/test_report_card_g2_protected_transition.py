@@ -65,6 +65,25 @@ def test_repeat_execution_is_rejected_without_opening(tmp_path, monkeypatch):
     assert sentinel.read_bytes() == b"CLOSED\n"
 
 
+def test_source_current_binding_controls_claim_and_protected_identities(tmp_path, monkeypatch):
+    sentinel, ledger, backup = _protected_files(tmp_path, monkeypatch)
+    binding = {
+        "package_sha256": "a" * 64,
+        "canonical_plan_sha256": "b" * 64,
+        "release_source_sha": "c" * 40,
+        "ledger_identity": {"sha256": hashlib.sha256(b"ledger").hexdigest()},
+        "independent_backup_sha256": [hashlib.sha256(b"backup").hexdigest()],
+    }
+    with transition.protected_g2_window(
+        sentinel=sentinel, ledger=ledger, backup=backup,
+        execution_id="source-current", binding=binding,
+    ) as receipt:
+        value = json.loads(receipt.read_text())
+        assert value["source_sha"] == "c" * 40
+        assert value["plan_sha256"] == "b" * 64
+        assert value["package_sha256"] == "a" * 64
+
+
 def test_kill_switch_failure_still_cleans_up(tmp_path, monkeypatch):
     sentinel, ledger, backup = _protected_files(tmp_path, monkeypatch)
     with pytest.raises(PermissionError, match="KILL_SWITCH_ACTIVE"):
@@ -132,10 +151,10 @@ def test_provider_persists_raw_response_before_normalization(monkeypatch):
 def test_workflow_is_inert_and_bound_to_reviewed_scope():
     workflow = Path(".github/workflows/atlas_report_card_market_evidence_acquisition.yml").read_text()
     assert "schedule:" not in workflow
-    assert transition.BOUND_SOURCE_SHA in workflow
-    assert transition.BOUND_PLAN_SHA256 in workflow
-    assert transition.BOUND_PACKAGE_SHA256 in workflow
-    assert transition.BOUND_AUTHORIZATION_TOKEN in workflow
+    assert '--release-binding audit_results/report_card_g2_release_binding.json' in workflow
+    assert 'REPORT_CARD_ACQUIRE_ONCE:${{ inputs.authorization_package_sha256 }}' in workflow
+    assert '--source-sha "${{ inputs.source_sha }}"' in workflow
+    assert '--approved-plan-sha256 "${{ inputs.approved_plan_sha256 }}"' in workflow
     assert OWNER_APPROVED_ENTITLEMENT_SHA256 in workflow
     assert "--raw-evidence-root" in workflow
     assert "close_report_card_g2_sentinel.py" in workflow

@@ -71,6 +71,6 @@ def test_protected_validation_requires_explicit_utc_cutoff():
     assert "cutoff_utc:" in source
     assert "--cutoff-utc" in source
     assert "inputs.as_of" not in source
-    assert 'default: "2026-10-13T20:30:00Z"' in source
-    assert 'test "$REPORT_CARD_VALIDATION_CUTOFF_UTC" = "2026-10-13T20:30:00Z"' in source
-    assert '${{ inputs.cutoff_utc }}' not in source.split("steps:", 1)[1]
+    assert "validate_report_card_cutoff.py" in source
+    assert "2026-10-13T20:30:00Z" not in source
+    assert 'validate_report_card_cutoff.py "$REPORT_CARD_VALIDATION_CUTOFF_UTC"' in source

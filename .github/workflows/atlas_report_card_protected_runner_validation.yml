@@ -13,9 +13,8 @@ on:
         default: "2026-10-08"
         type: string
       cutoff_utc:
-        description: Exact Oct 13 XNYS close plus 30-minute grace, in UTC
+        description: Explicit timezone-aware UTC evidence cutoff for finalized XNYS sessions
         required: true
-        default: "2026-10-13T20:30:00Z"
         type: string
 
 permissions:
@@ -46,7 +45,7 @@ jobs:
       - name: Enforce provider-free authorization and roots
         run: |
           test "$REPORT_CARD_VALIDATION_AUTHORIZATION" = "REPORT_CARD_PROTECTED_VALIDATE_ONCE"
-          test "$REPORT_CARD_VALIDATION_CUTOFF_UTC" = "2026-10-13T20:30:00Z"
+          test "$(python3 scripts/validate_report_card_cutoff.py "$REPORT_CARD_VALIDATION_CUTOFF_UTC")" = "$REPORT_CARD_VALIDATION_CUTOFF_UTC"
           test -n "$ATLAS_REPORT_CARD_DURABLE_ROOT"
           test -n "$ATLAS_REPORT_CARD_BACKUP_ROOT"
           test -z "${FINNHUB_API_KEY:-}"

@@ -521,6 +521,8 @@ jobs:
           replay_root="$RUNNER_TEMP/replay"
           session="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["session"])' "$plan")"
           mkdir -p audit_results/incremental_buy_now
+          set +e
+          /usr/bin/time -v -o audit_results/incremental_buy_now/certification_resources.txt \
           python3 scripts/certify_incremental_buy_now.py \
             --plan "$plan" --checkpoint "$replay_root/checkpoint.json" \
             --raw-root "$replay_root/raw/governed" --retained-records "$replay_root/retained_records.json" \
@@ -529,6 +531,19 @@ jobs:
             --candidate-dir "$replay_root/candidate" \
             --evidence-classification PROVIDER_FREE_SIMULATED_REPLAY \
             --output audit_results/incremental_buy_now/certification_replay.json
+          certification_status=$?
+          set -e
+          python3 - "$certification_status" <<'PY'
+          import json, sys
+          from pathlib import Path
+          status = int(sys.argv[1])
+          resource = Path('audit_results/incremental_buy_now/certification_resources.txt')
+          Path('audit_results/incremental_buy_now/certification_exit.json').write_text(
+              json.dumps({'exit_code': status, 'resource_metrics_present': resource.exists()}, sort_keys=True, indent=2) + '\n'
+          )
+          if status:
+              raise SystemExit(status)
+          PY
           python3 - <<'PY'
           import json
           r=json.load(open('audit_results/incremental_buy_now/certification_replay.json'))
