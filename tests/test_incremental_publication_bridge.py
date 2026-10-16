@@ -243,6 +243,28 @@ def test_empty_retained_history_is_kept_as_explicit_missing_history_blocker(tmp_
     }
 
 
+def test_absent_retained_member_is_kept_as_explicit_missing_record_blocker(tmp_path):
+    plan, _, _ = fixture()
+    plan["governed_membership"] = {
+        "source_run_id": "retained-run", "source_commit_sha": "a" * 40,
+    }
+    payload = {
+        "run_identity": {"source_sha": "a" * 40, "run_identity_sha256": "r" * 64},
+        "records": [{"ticker": "BBB", "bars": retained_history("BBB")["BBB"]}],
+    }
+    payload["shard_digest"] = bridge._digest(payload)
+    (tmp_path / "shard-000.json").write_text(json.dumps(payload))
+
+    histories, report = bridge.load_retained_technical_history(root=tmp_path, plan=plan)
+
+    assert sorted(histories) == ["AAA", "BBB"]
+    assert histories["AAA"] == []
+    assert report["missing_source_record_symbols"] == ["AAA"]
+    assert report["history_blockers"]["AAA"] == [
+        "INCREMENTAL_RETAINED_TECHNICAL_RECORD_MISSING"
+    ]
+
+
 def test_short_retained_history_becomes_explicit_terminal_blocker(monkeypatch, tmp_path):
     plan, checkpoint, _ = fixture()
     histories = retained_history("AAA", "BBB")

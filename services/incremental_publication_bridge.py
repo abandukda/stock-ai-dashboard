@@ -141,8 +141,19 @@ def load_retained_technical_history(
             if len(serialized) < MINIMUM_TECHNICAL_HISTORY:
                 insufficient_histories[symbol] = len(serialized)
             histories[symbol] = serialized
-    if sorted(histories) != expected:
-        raise ValueError("INCREMENTAL_RETAINED_TECHNICAL_MEMBERSHIP_MISMATCH")
+    unexpected = sorted(set(histories) - set(expected))
+    if unexpected:
+        raise ValueError(
+            "INCREMENTAL_RETAINED_TECHNICAL_MEMBERSHIP_UNEXPECTED:" + ",".join(unexpected)
+        )
+    missing_source_records = sorted(set(expected) - set(histories))
+    for symbol in missing_source_records:
+        # Absence from the immutable retained technical shard is itself
+        # governed evidence of unavailability.  Keep the member in the exact
+        # customer population and route it to an explicit terminal blocker.
+        histories[symbol] = []
+        insufficient_histories[symbol] = 0
+        history_blockers[symbol] = ["INCREMENTAL_RETAINED_TECHNICAL_RECORD_MISSING"]
     if len(run_identities) != 1 or not next(iter(run_identities)):
         raise ValueError("INCREMENTAL_RETAINED_RUN_IDENTITY_MISMATCH")
     report = {
@@ -155,6 +166,8 @@ def load_retained_technical_history(
         "insufficient_history_count": len(insufficient_histories),
         "insufficient_history_symbols": dict(sorted(insufficient_histories.items())),
         "history_blockers": dict(sorted(history_blockers.items())),
+        "missing_source_record_count": len(missing_source_records),
+        "missing_source_record_symbols": missing_source_records,
         "shard_set_sha256": _digest(shard_digests),
     }
     report["binding_sha256"] = _digest(report)
