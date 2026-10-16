@@ -132,12 +132,30 @@ def build_history_backfill_plan(
 
 def validate_backfill_observation_set(
     *, plan: Mapping[str, Any], observations: Mapping[str, Sequence[Mapping[str, Any]]],
+    unavailable: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
     expected_sessions = list(plan.get("missing_sessions") or [])
     expected_tickers = sorted({key.split(":", 1)[0] for key in plan.get("request_keys") or []})
-    if sorted(observations) != expected_tickers:
+    unavailable = dict(unavailable or {})
+    if set(observations) & set(unavailable):
+        raise ValueError("BUY_NOW_BACKFILL_AVAILABILITY_PARTITION_OVERLAP")
+    if sorted(set(observations) | set(unavailable)) != expected_tickers:
         raise ValueError("BUY_NOW_BACKFILL_OBSERVATION_TICKERS_INCOMPLETE")
-    for ticker in expected_tickers:
+    unavailable_inventory = []
+    for ticker in sorted(unavailable):
+        record = unavailable[ticker]
+        if record.get("reason") != "FINNHUB_NO_DATA":
+            raise ValueError(f"BUY_NOW_BACKFILL_UNAVAILABLE_REASON_INVALID:{ticker}")
+        if record.get("requested_sessions") != expected_sessions:
+            raise ValueError(f"BUY_NOW_BACKFILL_UNAVAILABLE_SESSION_SCOPE_INVALID:{ticker}")
+        if len(str(record.get("raw_response_sha256") or "")) != 64:
+            raise ValueError(f"BUY_NOW_BACKFILL_UNAVAILABLE_LINEAGE_INVALID:{ticker}")
+        unavailable_inventory.append({
+            "ticker": ticker,
+            "reason": "FINNHUB_NO_DATA",
+            "raw_response_sha256": record["raw_response_sha256"],
+        })
+    for ticker in sorted(observations):
         rows = list(observations[ticker])
         sessions = [str(row.get("session") or "") for row in rows]
         if sessions != expected_sessions:
@@ -150,8 +168,11 @@ def validate_backfill_observation_set(
     result = {
         "status": "COMPLETE",
         "ticker_count": len(expected_tickers),
+        "available_ticker_count": len(observations),
+        "unavailable_ticker_count": len(unavailable_inventory),
+        "unavailable_inventory": unavailable_inventory,
         "session_count": len(expected_sessions),
-        "observation_count": len(expected_tickers) * len(expected_sessions),
+        "observation_count": len(observations) * len(expected_sessions),
         "provider_calls": 0,
         "publication_writes": 0,
         "plan_sha256": plan.get("plan_sha256"),

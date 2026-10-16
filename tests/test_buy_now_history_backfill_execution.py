@@ -90,11 +90,33 @@ def test_corporate_action_schema_and_range_fail_closed():
         BackfillExecutor._validate_response(request, envelope)
 
 
+def test_no_data_is_terminal_unavailable_evidence_not_a_valid_candle(tmp_path):
+    calls=[]
+    def no_data(request):
+        calls.append(request["ordinal"])
+        if request["endpoint"] == "/stock/candle" and request["ticker"] == "S0000":
+            return Response(200, b'{"s":"no_data"}', {"content-type":"application/json"})
+        return _transport([])(request)
+    executor, scope = _bound(tmp_path, no_data)
+    result = executor.run()
+    assert result["status"] == "COMPLETE"
+    validation = result["observation_validation"]
+    assert validation["ticker_count"] == 1298
+    assert validation["available_ticker_count"] == 1297
+    assert validation["unavailable_ticker_count"] == 1
+    assert validation["unavailable_inventory"][0]["ticker"] == "S0000"
+    assert validation["unavailable_inventory"][0]["reason"] == "FINNHUB_NO_DATA"
+    receipt = json.loads((tmp_path/"state"/"history_backfill_claims"/
+                          scope["claim_id"] / "receipts" / "00001.json").read_text())
+    assert receipt["evidence_disposition"] == "FINNHUB_NO_DATA"
+
+
 def test_consumed_claim_forensics_sanitizes_no_data_and_reconciles(tmp_path):
     calls=[]
     def no_data(request):
         calls.append(request["ordinal"])
-        return Response(200, b'{"s":"no_data"}', {"content-type":"application/json"})
+        return Response(200, b'{"s":"no_data","unexpected":true}',
+                        {"content-type":"application/json"})
     executor, scope = _bound(tmp_path, no_data)
     with pytest.raises(RuntimeError, match="CANDLE_SCHEMA_INVALID"):
         executor.run()
