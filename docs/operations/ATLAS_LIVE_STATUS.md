@@ -473,3 +473,38 @@ any other item.
    certification, publication and alert paths are independently proven.
 4. Complete BUY NOW completion and missed-heartbeat email confirmation,
    independent commercial-frame review and real beginner acceptance testing.
+
+## Iteration 2 terminal-certification status — 2026-10-16
+
+- Current registered `main` source is
+  `7feb7aeff2ad335712e8ce46bf412eeb96e5f4e7` (merged PR #54).
+- Provider-free protected replay `38920625431` validated the exact source and
+  completed its plan job successfully in 1m22s. Plan artifact
+  `12054970081` has archive digest
+  `6491f1cd863733fc11bc3089a36af9d8a7c91689ffbefe990ff8d1d61763445c`.
+  The acquire and diagnose jobs were skipped, so provider calls and customer
+  publication writes remain zero.
+- Protected environment approval was granted for provider-free replay only.
+  The terminal-certification job `117039980916` is queued because the sole
+  matching self-hosted runner, `atlas-worker-1`, is **offline**. No terminal
+  `1,223 publishable / 75 withheld` result exists from this run yet. Do not
+  classify the replay as complete until the same queued job reaches a terminal
+  successful conclusion.
+- PR #55 at `48c0d5063ceb7d983586d32906b21dff28038af6` contains the
+  Iteration 2 source-current Report Card binding, strict explicit-UTC cutoff
+  validation, exact checkout-source verification, and BUY NOW certification
+  resource/exit telemetry. Relevant consolidated tests: `246 passed`.
+  Required GitHub runs `38921322366` and `38921322381` both completed
+  successfully. PR #55 is not merged and does not authorize any protected
+  operation.
+- The currently queued replay was dispatched from merged PR #54 and therefore
+  can establish terminal reconciliation and wall-clock runner outcome, but it
+  cannot emit PR #55's new `/usr/bin/time -v` CPU/max-RSS artifact. After PR
+  #55 receives exact-head merge authorization and registration, one fresh
+  provider-free replay is required for the requested CPU, memory and explicit
+  exit-condition measurements.
+- Production/customer truth is unchanged pending direct evidence: deployed
+  runtime source `e838d05b3c92563c514d4d185365b4c8e97bfdba`; certified
+  market session `2026-10-02`; publication
+  `2026-10-04T12:21:38-04:00`; governed BUY NOW inventory `11`; publication
+  digest `72b37697b2f4fc5dabd5438c1a3bb7c068cd12e86253b64e37b8a642c310bf17`.
