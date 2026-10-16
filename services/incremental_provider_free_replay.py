@@ -8,10 +8,83 @@ never reads credentials or opens a network connection.
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
+import hashlib
+import json
+from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 
 REPLAY_CONTRACT = "ATLAS_INCREMENTAL_PROVIDER_FREE_REPLAY_V1"
+
+
+def _plan_symbols(plan: Mapping[str, Any]) -> list[str]:
+    return sorted({
+        str(key).split(":", 2)[1].upper()
+        for key in plan.get("request_keys") or () if str(key).count(":") == 2
+    })
+
+
+def validate_replay_retained_scope(
+    *, retained_rows: Any, plan: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    if not isinstance(retained_rows, list):
+        raise ValueError("INCREMENTAL_PROVIDER_FREE_RETAINED_SCHEMA_INVALID")
+    expected = _plan_symbols(plan)
+    observed = [str(row.get("ticker") or "").upper() for row in retained_rows if isinstance(row, Mapping)]
+    if len(observed) != len(retained_rows):
+        raise ValueError("INCREMENTAL_PROVIDER_FREE_RETAINED_ROW_INVALID")
+    if len(observed) != len(set(observed)):
+        raise ValueError("INCREMENTAL_PROVIDER_FREE_RETAINED_DUPLICATE_SYMBOL")
+    if sorted(observed) != expected:
+        raise ValueError(
+            f"INCREMENTAL_PROVIDER_FREE_RETAINED_MEMBERSHIP_MISMATCH:{len(observed)}:{len(expected)}"
+        )
+    return [dict(row) for row in retained_rows]
+
+
+def resolve_replay_retained_records(
+    *, artifact_root: Path, plan: Mapping[str, Any],
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Select the exact membership file by the plan-bound raw file digest.
+
+    The retained artifact contains more than one publication tree.  Filesystem
+    traversal order is not an identity contract, so selecting the first
+    ``full_evaluation_pool.json`` can bind the replay to the wrong projection.
+    """
+    expected_sha = str((plan.get("governed_membership") or {}).get("source_file_sha256") or "")
+    if len(expected_sha) != 64:
+        raise ValueError("INCREMENTAL_PROVIDER_FREE_RETAINED_SOURCE_DIGEST_MISSING")
+    candidates = []
+    matches: list[tuple[Path, bytes]] = []
+    for path in sorted(artifact_root.rglob("full_evaluation_pool.json")):
+        raw = path.read_bytes()
+        digest = hashlib.sha256(raw).hexdigest()
+        try:
+            value = json.loads(raw)
+            schema = "LIST" if isinstance(value, list) else type(value).__name__.upper()
+            count = len(value) if isinstance(value, list) else None
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            schema, count = "INVALID_JSON", None
+        candidates.append({"relative_path": str(path.relative_to(artifact_root)),
+                           "sha256": digest, "schema": schema, "row_count": count})
+        if digest == expected_sha:
+            matches.append((path, raw))
+    if not matches:
+        raise ValueError("INCREMENTAL_PROVIDER_FREE_RETAINED_SOURCE_NOT_FOUND")
+    selected = matches[0]
+    rows = validate_replay_retained_scope(retained_rows=json.loads(selected[1]), plan=plan)
+    report = {
+        "contract": "ATLAS_INCREMENTAL_RETAINED_RECORD_RESOLUTION_V1",
+        "expected_source_file_sha256": expected_sha,
+        "selected_relative_path": str(selected[0].relative_to(artifact_root)),
+        "selected_row_count": len(rows), "candidate_count": len(candidates),
+        "matching_source_count": len(matches),
+        "candidates": candidates,
+    }
+    report["resolution_sha256"] = hashlib.sha256(
+        json.dumps(report, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    return rows, report
 
 
 class ProviderFreeReplayAdapter:
@@ -64,4 +137,7 @@ class ProviderFreeReplayAdapter:
                 "limitations": ["PROVIDER_FREE_SIMULATION", "NOT_CUSTOMER_PUBLISHABLE"]}
 
 
-__all__ = ["ProviderFreeReplayAdapter", "REPLAY_CONTRACT"]
+__all__ = [
+    "ProviderFreeReplayAdapter", "REPLAY_CONTRACT",
+    "resolve_replay_retained_records", "validate_replay_retained_scope",
+]

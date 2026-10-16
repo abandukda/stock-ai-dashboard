@@ -22,6 +22,9 @@ from services.finnhub_incremental_post_close import (
     canonical_transport_parameters,
 )
 from services.incremental_provider_free_replay import ProviderFreeReplayAdapter
+from services.incremental_provider_free_replay import (
+    resolve_replay_retained_records, validate_replay_retained_scope,
+)
 
 
 def symbols(count=1298):
@@ -292,6 +295,35 @@ def test_provider_free_replay_proves_timestamp_contract_and_fixture_identity():
     assert record["provenance"]["fixture_classification"] == "SIMULATED_NOT_PROVIDER_EVIDENCE"
     with pytest.raises(ValueError, match="TIMESTAMP_CONTRACT"):
         adapter.fetch("historical_ohlcv", "A", resolution="D", **{"from": "2026-10-15", "to": "2026-10-15"})
+
+
+def test_retained_resolver_uses_plan_digest_not_filesystem_first_match(tmp_path):
+    plan = small_plan()
+    rows = [{"ticker": "A", "current_price": 1}, {"ticker": "B", "current_price": 2}]
+    raw = json.dumps(rows, sort_keys=True).encode()
+    import hashlib
+    plan["governed_membership"] = {"source_file_sha256": hashlib.sha256(raw).hexdigest()}
+    wrong = tmp_path / "00-wrong" / "full_evaluation_pool.json"
+    right = tmp_path / "99-right" / "full_evaluation_pool.json"
+    duplicate = tmp_path / "zz-duplicate" / "full_evaluation_pool.json"
+    wrong.parent.mkdir(); right.parent.mkdir(); duplicate.parent.mkdir()
+    wrong.write_text(json.dumps({"rows": rows}))
+    right.write_bytes(raw); duplicate.write_bytes(raw)
+    selected, report = resolve_replay_retained_records(artifact_root=tmp_path, plan=plan)
+    assert [row["ticker"] for row in selected] == ["A", "B"]
+    assert report["selected_relative_path"] == "99-right/full_evaluation_pool.json"
+    assert report["candidate_count"] == 3 and report["matching_source_count"] == 2
+    assert report["candidates"][0]["schema"] == "DICT"
+
+
+def test_retained_scope_rejects_schema_duplicates_and_membership_drift():
+    plan = small_plan()
+    with pytest.raises(ValueError, match="SCHEMA_INVALID"):
+        validate_replay_retained_scope(retained_rows={"rows": []}, plan=plan)
+    with pytest.raises(ValueError, match="DUPLICATE_SYMBOL"):
+        validate_replay_retained_scope(retained_rows=[{"ticker": "A"}, {"ticker": "A"}], plan=plan)
+    with pytest.raises(ValueError, match="MEMBERSHIP_MISMATCH:2:2"):
+        validate_replay_retained_scope(retained_rows=[{"ticker": "A"}, {"ticker": "C"}], plan=plan)
 
 
 @pytest.mark.parametrize("parameters", [
