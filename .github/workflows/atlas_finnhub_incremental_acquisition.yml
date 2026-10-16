@@ -249,9 +249,16 @@ jobs:
         with:
           ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
+      - name: Bind protected rehearsal to managed Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
       - name: Install and verify pinned certification dependency
         shell: bash
         run: |
+          test "$(python3 -c 'import sys; print(sys.version_info[:2] == (3, 11))')" = "True"
+          test "$(python3 -c 'import os,sys; print(os.path.realpath(sys.executable))')" != "/usr/bin/python3"
+          python3 -m pip --version
           test "$(awk -F '==' '$1 == "ijson" {print $2}' requirements.txt)" = "3.5.1"
           python3 -m pip install --disable-pip-version-check --no-deps ijson==3.5.1
           python3 - <<'PY'

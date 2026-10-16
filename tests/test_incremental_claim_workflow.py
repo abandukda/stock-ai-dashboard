@@ -20,9 +20,16 @@ def test_workflow_binds_unique_claim_inputs():
 
 def test_protected_rehearsal_executes_full_entrypoint_without_credentials():
     source=(ROOT/'.github/workflows/atlas_finnhub_incremental_acquisition.yml').read_text()
+    managed_python = source.index('Bind protected rehearsal to managed Python')
     install = source.index('Install and verify pinned certification dependency')
     certification = source.index('python3 scripts/certify_incremental_buy_now.py')
-    assert install < certification
+    assert managed_python < install < certification
+    protected_job = source[source.index('protected-registration-rehearsal:'):]
+    assert 'uses: actions/setup-python@v5' in protected_job
+    assert 'python-version: "3.11"' in protected_job
+    assert 'print(sys.version_info[:2] == (3, 11))' in source
+    assert '!= "/usr/bin/python3"' in source
+    assert 'python3 -m pip --version' in source
     assert 'python3 -m pip install --disable-pip-version-check --no-deps ijson==3.5.1' in source
     assert "assert version('ijson') == '3.5.1'" in source
     assert 'import services.incremental_publication_bridge' in source
