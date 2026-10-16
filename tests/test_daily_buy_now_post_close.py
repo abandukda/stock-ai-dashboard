@@ -90,18 +90,25 @@ def test_retained_dry_run_fails_closed(tmp_path, field, value):
 
 def test_workflow_has_dual_wakeups_concurrency_and_live_fail_closed_contract():
     source = open(".github/workflows/atlas_daily_incremental_buy_now.yml", encoding="utf-8").read()
+    acquisition = open(
+        ".github/workflows/atlas_finnhub_incremental_acquisition.yml", encoding="utf-8"
+    ).read()
     legacy = open(
         ".github/workflows/atlas_finnhub_full_universe_certification.yml", encoding="utf-8"
     ).read()
     assert 'cron: "5 22 * * 1-5"' in source
     assert 'cron: "5 23 * * 1-5"' in source
     assert "atlas-daily-incremental-buy-now" in source
-    assert "ATLAS_DAILY_BUY_NOW_LIVE_ENABLED" in source
-    assert "plan_finnhub_incremental_post_close.py" in source
-    assert "customer_symbol_count'] == 1298" in source
-    assert "request_count'] == 2596" in source
-    assert "exact_max_requests'] == 2746" in source
-    assert "test -z \"${FINNHUB_API_KEY:-}\"" in source
+    assert "uses: ./.github/workflows/atlas_finnhub_incremental_acquisition.yml" in source
+    assert "operation: plan" in source
+    assert "workflow_call:" in acquisition
+    assert "plan_finnhub_incremental_post_close.py" in acquisition
+    assert "customer_symbol_count'] == 1298" in acquisition
+    assert "request_count'] == 2596" in acquisition
+    assert "exact_max_requests'] == 2746" in acquisition
+    assert "test -z \"${FINNHUB_API_KEY:-}\"" in acquisition
+    assert "certification_replay.json" in acquisition
+    assert "provider-free replay unexpectedly reached promoter" in acquisition
     assert "run_finnhub_full_universe.py" not in source
     assert "schedule:" not in legacy
     assert "Live acquisition and publication remain disabled" in source

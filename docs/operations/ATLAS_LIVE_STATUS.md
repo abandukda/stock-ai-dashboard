@@ -1,13 +1,39 @@
 # ATLAS Live Operations Status
 
 **Authoritative as of:** 2026-10-16
-**Repository main:** `69425fda163a636a65261a5e303ab5f1c7fd1c8e`
+**Repository main:** `9be9e0f2464e11a5047479c4c798cef301739809`
 
 **Verified deployed runtime:** `e838d05b3c92563c514d4d185365b4c8e97bfdba`
 **Production:** [stock-ai-dashboard.streamlit.app](https://stock-ai-dashboard.streamlit.app/)  
 **Production-truth correction merged:** [PR #35](https://github.com/abandukda/stock-ai-dashboard/pull/35)
 
 Evidence policy: a merge is not deployment; a provider-free run is not acquisition; a monitor ping is not publication; and repository data is not customer-visible until authenticated production evidence proves it.
+
+## Iteration 1 integration audit — 2026-10-16
+
+- PR #52 merged normally as `9be9e0f2464e11a5047479c4c798cef301739809`
+  after exact-head customer QA run `38854049606` passed. The retained technical
+  source contract is now explicit: 6,033 source records project to 1,298
+  governed members and 4,735 excluded records, with an exclusion digest and
+  fail-closed duplicate/missing handling.
+- Protected replay run `38907237708` is bound to that merge SHA and plan
+  artifact `12048198353` (archive SHA-256
+  `40b3e267ce224f4b32001242d18b2e79a66d6bb8c3ffce64a819978dbd50b6cf`).
+  The `diagnose` and `acquire` jobs are skipped. The protected rehearsal is the
+  only allowed continuation and has no Finnhub credential, provider call, or
+  production publication authority.
+- Integration inspection found the daily coordinator's scheduled path stopped
+  after bounded planning plus file-presence checks. It did not execute the
+  retained-evidence certification or prove the promoter rejection. The
+  coordinated Iteration 1 change makes the registered bounded acquisition
+  workflow reusable and calls it in `plan` mode from the daily coordinator,
+  so the scheduled provider-free path exercises the same entrypoint,
+  consume-once claim, 2,596 receipts, retained shards, deterministic
+  certification, and fail-closed publisher boundary. Live acquisition and
+  publication remain disabled.
+- Focused downstream regression evidence: 107 BUY NOW, publication,
+  freshness, heartbeat, and Report Card tests pass. Workflow YAML parsing and
+  diff checks also pass.
 
 ## 2026-10-16 protected replay continuation
 

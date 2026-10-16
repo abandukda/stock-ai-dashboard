@@ -1,6 +1,46 @@
 name: ATLAS Bounded Incremental BUY NOW Acquisition
 
 on:
+  workflow_call:
+    inputs:
+      operation:
+        required: true
+        type: string
+      source_sha:
+        required: true
+        type: string
+      finalized_session:
+        required: true
+        type: string
+      membership_run_id:
+        required: false
+        default: "37216506983"
+        type: string
+      membership_artifact:
+        required: false
+        default: atlas-finnhub-full-universe-final-37216506983
+        type: string
+      plan_run_id:
+        required: false
+        type: string
+      plan_artifact:
+        required: false
+        type: string
+      plan_sha256:
+        required: false
+        type: string
+      authorization_token:
+        required: false
+        type: string
+      claim_id:
+        required: false
+        type: string
+      claim_scope_sha256:
+        required: false
+        type: string
+      manual_enablement:
+        required: false
+        type: string
   workflow_dispatch:
     inputs:
       operation:
