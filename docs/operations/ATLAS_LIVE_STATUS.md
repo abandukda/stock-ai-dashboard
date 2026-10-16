@@ -508,3 +508,31 @@ any other item.
   market session `2026-10-02`; publication
   `2026-10-04T12:21:38-04:00`; governed BUY NOW inventory `11`; publication
   digest `72b37697b2f4fc5dabd5438c1a3bb7c068cd12e86253b64e37b8a642c310bf17`.
+
+### Iteration 2B runner investigation
+
+- GitHub still lists runner registration `21` as `atlas-worker-1`, Linux x64,
+  with labels `self-hosted`, `Linux`, `X64`, and `atlas-worker-1`; these labels
+  exactly match queued protected job `117039980916`. GitHub reports the runner
+  `Offline` and no active job. Registration or label drift is therefore not
+  the observed blocker.
+- The runner is hosted by DigitalOcean as Droplet `605142688`. The available
+  DigitalOcean control-plane session expired before host power, service, or
+  system-log state could be inspected, so no unsupported restart was attempted.
+  The existing runner was not removed, replaced, or re-registered.
+- Owner recovery must use the DigitalOcean Droplet console and first inspect
+  host and service state. Discover the installed unit instead of guessing its
+  name: `systemctl list-units --type=service --all 'actions.runner*'`; then run
+  `systemctl status <discovered-unit> --no-pager -l` and
+  `journalctl -u <discovered-unit> --since '2026-10-16 00:00:00 UTC' --no-pager`.
+  Also collect `uptime`, `free -h`, `df -h`, `df -i`, `dmesg -T | tail -200`,
+  and `journalctl -k --since '2026-10-16 00:00:00 UTC' --no-pager` before any
+  service change. If the host is running and the discovered unit is inactive,
+  the supported recovery is `systemctl restart <discovered-unit>` followed by
+  `systemctl is-active <discovered-unit>` and GitHub runner-status verification.
+  These commands do not expose or rotate registration credentials.
+- Source-current combined verification on PR #55 now covers Report Card,
+  incremental BUY NOW, daily coordinator, customer Research, Home and Ask
+  contracts: `493 passed`. One obsolete Home assertion was corrected to target
+  the last (active) renderer definition and its multiline render call; no
+  runtime behavior or investment output changed.

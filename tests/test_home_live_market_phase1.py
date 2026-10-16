@@ -114,9 +114,12 @@ def test_wrong_symbol_and_provider_failure_leave_home_fail_closed():
 
 def test_home_provider_work_is_after_renderer_page_interactive_seam():
     app = (Path(__file__).resolve().parents[1] / "app.py").read_text(encoding="utf-8")
-    start = app.index("def v810_render_dynamic_home")
+    # app.py intentionally retains historical renderer definitions, while the
+    # last definition is the active Streamlit contract.  Bind this assertion
+    # to the runtime implementation instead of the first retired definition.
+    start = app.rindex("def v810_render_dynamic_home")
     body = app[start:]
-    assert body.index("render_home_guidance_vnext(story") < body.index("acquire_home_phase1_evaluations(")
+    assert body.index("render_home_guidance_vnext(") < body.index("acquire_home_phase1_evaluations(")
 
 
 def test_default_home_cohort_is_bounded_to_current_top_ten():
