@@ -4,6 +4,7 @@ from services.buy_now_history_continuity import (
     build_history_backfill_plan, validate_backfill_observation_set,
 )
 from services.finnhub_incremental_post_close import _digest
+from services.operations_gateway import GatewayApproval, canonical_bytes, sha256, verify_scope
 
 
 def _plan(count=1298):
@@ -35,6 +36,32 @@ def test_backfill_plan_is_range_deduplicated_bounded_and_provider_free():
         "/stock/candle", "/stock/split", "/stock/dividend2",
     ]
     assert len(plan["request_keys"]) == len(set(plan["request_keys"]))
+    assert len(plan["requests"]) == 3894
+    assert [row["ordinal"] for row in plan["requests"]] == list(range(1, 3895))
+    candle = next(row for row in plan["requests"] if row["capability"] == "historical_ohlcv")
+    assert isinstance(candle["parameters"]["from"], int)
+    assert isinstance(candle["parameters"]["to"], int)
+    assert candle["parameters"]["resolution"] == "D"
+    action = next(row for row in plan["requests"] if row["capability"] == "splits")
+    assert action["parameters"]["from"] == "2026-10-05"
+    assert plan["execution_policy"] == {
+        "concurrency": 1, "rate_limit_rpm": 60, "retry_count": 0,
+        "raw_persistence_before_inspection": True, "stop_on_http_429": True,
+        "stop_on_entitlement_error": True, "stop_on_schema_error": True,
+    }
+
+
+def test_backfill_plan_is_accepted_by_registered_gateway_contract(tmp_path):
+    plan = _plan()
+    path = tmp_path / "backfill.json"
+    path.write_text(__import__("json").dumps(plan, sort_keys=True, separators=(",", ":")))
+    scope_sha = sha256(canonical_bytes(plan))
+    approval = GatewayApproval.parse({
+        "operation": "plan", "source_sha": "a" * 40,
+        "scope_sha256": scope_sha, "max_provider_calls": 3894,
+        "authorization_token": f"ATLAS_PLAN:{scope_sha}",
+    })
+    assert len(verify_scope(path, approval)["requests"]) == 3894
 
 
 def test_backfill_plan_rejects_overlap_and_identity_mismatch():

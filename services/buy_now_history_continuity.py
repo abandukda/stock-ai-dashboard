@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Any, Mapping, Sequence
 
 
@@ -56,6 +57,29 @@ def build_history_backfill_plan(
         }
         for ticker in governed for capability in CAPABILITIES
     ]
+    first_date = date.fromisoformat(sessions[0])
+    last_date = date.fromisoformat(sessions[-1])
+    candle_from = int(datetime.combine(first_date, time.min, tzinfo=timezone.utc).timestamp())
+    candle_to = int(
+        datetime.combine(last_date + timedelta(days=1), time.min, tzinfo=timezone.utc).timestamp()
+    ) - 1
+    gateway_requests = []
+    for ordinal, item in enumerate(requests, 1):
+        parameters: dict[str, Any] = {
+            "symbol": item["ticker"],
+            "from": sessions[0],
+            "to": sessions[-1],
+        }
+        if item["capability"] == "historical_ohlcv":
+            parameters.update({"resolution": "D", "from": candle_from, "to": candle_to})
+        gateway_requests.append({
+            "ordinal": ordinal,
+            "method": "GET",
+            "endpoint": item["endpoint"],
+            "ticker": item["ticker"],
+            "capability": item["capability"],
+            "parameters": parameters,
+        })
     request_keys = [
         f"{item['ticker']}:{item['capability']}:{sessions[0]}:{sessions[-1]}"
         for item in requests
@@ -79,6 +103,16 @@ def build_history_backfill_plan(
         "request_count": len(requests),
         "absolute_request_ceiling": len(requests),
         "request_keys": request_keys,
+        "requests": gateway_requests,
+        "execution_policy": {
+            "concurrency": 1,
+            "rate_limit_rpm": 60,
+            "retry_count": 0,
+            "raw_persistence_before_inspection": True,
+            "stop_on_http_429": True,
+            "stop_on_entitlement_error": True,
+            "stop_on_schema_error": True,
+        },
         "membership_identity": dict(membership_identity),
         "retained_history_identity": dict(retained_history_identity),
         "acceptance_contract": {
