@@ -1,7 +1,7 @@
 # ATLAS Live Operations Status
 
 **Authoritative as of:** 2026-10-15  
-**Repository main:** `0c61c8469d74f4fbe0e7319b9e78a5ee7d375e6f`
+**Repository main:** `6ce1efe2bf3551623d297f6985c65416a4ebefb3`
 **Production:** [stock-ai-dashboard.streamlit.app](https://stock-ai-dashboard.streamlit.app/)  
 **Production-truth correction merged:** [PR #35](https://github.com/abandukda/stock-ai-dashboard/pull/35)
 
@@ -32,7 +32,7 @@ and exact-SHA smoke remain open.
 | Watchlist | YES | YES | UNKNOWN | UNKNOWN | NO | No current production interaction proof. | Run add/search/sort/remove/reload smoke. |
 | Ask ATLAS | YES | YES | UNKNOWN | UNKNOWN | NO | No current grounded production response proof. | Capture settled response and authority metadata. |
 | BUY NOW | YES | Retained snapshot certified | YES/UNKNOWN SHA | STALE | PARTIAL | Production Home shows Oct 4 timestamp and 10 BUY NOW; retained authority has 11 BUY NOW for session `2026-10-02`, digest `72b37697…`. | Explain count divergence and expose exact digest/session; fresh live acquisition and promotion remain gated. |
-| Incremental acquisition | YES | Provider-free PASS | Workflow registered | NO | N/A | Current-source plan [run 38824421575](https://github.com/abandukda/stock-ai-dashboard/actions/runs/38824421575): 1,298 symbols, 2,596 planned requests, 2,746 ceiling, plan `df03707da00c253cf089596e72515f5ceeb2d53b6ed46dd50155bfa59f9fa187`, zero calls. Live run [38826258218](https://github.com/abandukda/stock-ai-dashboard/actions/runs/38826258218) failed closed before provider transport because global live enablement remained false. | Consume-once claim repair is under review. No October 15 evidence has been acquired and no customer publication changed. |
+| Incremental acquisition | YES | Provider-free PASS | Workflow registered | NO | N/A | PR #37 merged as `6ce1efe2bf3551623d297f6985c65416a4ebefb3`. Protected [run 38829162008](https://github.com/abandukda/stock-ai-dashboard/actions/runs/38829162008) passed the exact-source plan and durable consume-once rehearsal. The authorized live [run 38830427157](https://github.com/abandukda/stock-ai-dashboard/actions/runs/38830427157) failed safely before claim consumption or transport because the entrypoint expected literal `true` while the workflow supplied the required claim-bound enablement value. Provider calls: 0; production writes: 0. | Merge and rehearse the exact-enable-contract correction, then issue a new claim and obtain new exact owner authorization. No October 15 evidence has been acquired and no customer publication changed. |
 | Daily 6:05 PM ET | YES | Provider-free controls tested | Registered | NO | NO | Dual UTC wakeups, XNYS gate, non-cancelling session lock and incremental-only path are registered. It still stops before acquisition/certification/promotion. | Register and certify the successor publication bridge, then obtain exact live acquisition/publication authorization. |
 | Finnhub acquisition | YES | Bounded plan certified | Registered | NO | N/A | Last real retained evidence belongs to the October 2 snapshot. | Do not describe planning run as provider refresh. |
 | Report Card G2 | YES | Provider-free only | Registered | NO | NO | 20-signal/SPY architecture; 61-call ceiling; CLOSED sentinel. | Fresh source-bound package and separate live authorization. |
@@ -54,9 +54,9 @@ and exact-SHA smoke remain open.
 
 ## Pending correction outcome
 
-### Consume-once acquisition claim repair
+### Consume-once acquisition claim repair — registered and rehearsed
 
-- Review branch adds an atomic `O_EXCL` claim ledger under the durable protected
+- PR #37 merged at `6ce1efe2bf3551623d297f6985c65416a4ebefb3` and adds an atomic `O_EXCL` claim ledger under the durable protected
   checkpoint root. A claim is persisted and directory-fsynced before the first
   provider request; it is never removed, including after crashes or failures.
 - Each claim binds claim ID, registered source SHA, plan SHA-256, finalized
@@ -64,10 +64,39 @@ and exact-SHA smoke remain open.
 - Manual execution uses a dispatch-scoped enablement value. It does not set the
   repository/environment daily-live variable; the 6:05 PM scheduler continues
   to require that global variable to remain `false`.
-- Run `38826258218` made zero provider calls and produced no acquisition
-  artifact. Its old plan-only token must not be reused. A new claim does not
-  constitute owner approval and cannot be dispatched until the registered
-  source and protected rehearsal have been reviewed.
+- Protected run `38829162008` completed successfully. The acquire job was
+  skipped; the protected runner verified source binding, distinct durable roots,
+  claim persistence, duplicate rejection and the cleanup/finalization entrypoint.
+  It made zero provider calls and zero production writes. Plan artifact digest:
+  `7d5c032d434ad9e5ff900e854cb53fe4d3379cdb2d4a3e8f67d67f029a9d06cc`;
+  rehearsal artifact digest:
+  `1522da8b998f3d4347817d4e0182ec30ea3d8f66bb4956fa682c0ddffbbc98bd`.
+- The prepared live claim `oct15-2026-live-38829162008-01` is bound to source
+  `6ce1efe2bf3551623d297f6985c65416a4ebefb3`, plan
+  `df03707da00c253cf089596e72515f5ceeb2d53b6ed46dd50155bfa59f9fa187`,
+  finalized session `2026-10-15`, 1,298 members, maximum 2,746 requests and
+  zero retries. Preparing the claim does not consume it or authorize execution.
+
+### First live acquisition attempt — failed safely before transport
+
+- Owner-authorized run `38830427157` used the exact source, session, plan,
+  membership, manual-enablement and claim inputs approved for
+  `oct15-2026-live-38829162008-01`.
+- Protected checkout, credential presence, storage variables, membership and
+  plan validation succeeded. The transport entrypoint then rejected execution
+  with `INCREMENTAL_LIVE_OPERATION_DISABLED`: the workflow correctly supplied
+  `ENABLE_ATLAS_INCREMENTAL_ONCE:<claim-id>`, while the Python entrypoint still
+  compared the value with the obsolete literal `true`.
+- The rejection occurred before durable claim consumption and before provider
+  adapter construction. Actual Finnhub calls: `0`; successful securities: `0`;
+  unsuccessful securities: `0`; raw provider records: `0`; ledger writes: `0`;
+  customer publication writes: `0`. The claim will not be reused.
+- Diagnostic artifact: `atlas-incremental-buy-now-acquisition-38830427157`,
+  artifact ID `12016798109`, archive SHA-256
+  `b4140d7e33dc6c906a3a5ff4136fad6ab1b398f11a44142b68e612401905ccd9`.
+- October 15 acquisition and certification remain **NOT LIVE**. A corrected
+  exact-source rehearsal and a fresh claim-specific owner authorization are
+  required before another licensed attempt.
 
 - PR #35 removes scheduled triggers from the obsolete full-universe workflow.
 - Its replacement coordinator exclusively builds the governed 1,298-security
