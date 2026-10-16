@@ -1,7 +1,9 @@
 # ATLAS Live Operations Status
 
-**Authoritative as of:** 2026-10-15
-**Repository main / deployed runtime:** `7d353c1b1e2247f60e19b1cf88e83c8eaa23881f`
+**Authoritative as of:** 2026-10-16
+**Repository main:** `e838d05b3c92563c514d4d185365b4c8e97bfdba`
+
+**Verified deployed runtime:** `e838d05b3c92563c514d4d185365b4c8e97bfdba`
 **Production:** [stock-ai-dashboard.streamlit.app](https://stock-ai-dashboard.streamlit.app/)  
 **Production-truth correction merged:** [PR #35](https://github.com/abandukda/stock-ai-dashboard/pull/35)
 
@@ -11,16 +13,19 @@ Evidence policy: a merge is not deployment; a provider-free run is not acquisiti
 
 | Classification | Component | Current evidence |
 |---|---|---|
-| **VERIFIED LIVE** | Streamlit service and deployment identity | Direct live inspection on 2026-10-16 found `data-atlas-health="APP_READY"` and exact `data-atlas-source-sha="7d353c1b1e2247f60e19b1cf88e83c8eaa23881f"`. |
+| **VERIFIED LIVE** | Streamlit service and deployment identity | Fresh production inspection found exact `data-atlas-source-sha="e838d05b3c92563c514d4d185365b4c8e97bfdba"`, matching `origin/main`; the login boundary is healthy. |
 | **NOT LIVE** | Fresh daily BUY NOW | Latest retained certified session is **2026-10-02**, published **2026-10-04T12:21:38-04:00**. No later live acquisition/publication is verified. |
 | **NOT LIVE** | Report Card G2/G3/G4 | Public Report Card remains off; no live G2 acquisition, G3 durable append, or active G4 cycle is recorded. |
 | **NOT LIVE** | WS3 expansion | Annual/quarterly pilots exist; broader WS3 acquisition is not operational. |
-| **CERTIFIED** | Current authenticated customer routes | Exact-source governed run `38838300289` passed 144/144 checks and generated all 200/200 required screenshots for desktop and mobile. Artifact `12020755751`, SHA-256 `2a13d533ca87e4400fd7343af0deccfcbef14d895be0c8bb47ec6703530db3ac`. This certifies the retained QA runtime; it is not evidence of a fresh market publication. |
-| **VERIFIED LIVE** | Current customer-visible Home snapshot | Authenticated Home displayed `As of Oct 4, 2026 · 12:21 PM ET` and the governed BUY NOW inventory of `11`, with at most ten featured cards. It did not expose a publication digest or finalized-session marker in the visible Home DOM. |
+| **INHERITED CERTIFICATION** | Authenticated customer routes | Governed run `38838300289` on prior deployed source `7d353c1…` passed 144/144 checks and generated all 200/200 required screenshots for desktop and mobile. Artifact `12020755751`, SHA-256 `2a13d533ca87e4400fd7343af0deccfcbef14d895be0c8bb47ec6703530db3ac`. The route evidence is inherited; authenticated routes were not freshly exercised on `731457ec…`. |
+| **VERIFIED LIVE** | Current customer-visible Home snapshot | Production still exposes the retained October 2 session, published October 4, with governed BUY NOW inventory `11` and digest `72b37697…`. Full authenticated-route behavior was not freshly exercised on `731457ec…`. |
 
-The production source marker proves deployment of `7d353c1…`. Exact-SHA
-customer/admin route and mobile certification is complete in governed run
-`38838300289`; customer data remains the retained October 2 session.
+The production source marker proves deployment of `e838d05b…`. The latest full
+customer/admin route and mobile certification remains governed run
+`38838300289` on prior source `7d353c1…`; those authenticated routes were not
+freshly exercised after the deployment change. Customer data remains the
+retained October 2 session, published October 4, with BUY NOW inventory `11`
+and publication digest `72b37697b2f4fc5dabd5438c1a3bb7c068cd12e86253b64e37b8a642c310bf17`.
 
 ## Current-source collective closeout evidence
 
@@ -28,8 +33,9 @@ Lifecycle labels below are deliberately independent. `CERTIFIED` does not mean
 `OPERATIONAL`, and a successful provider-free run does not mean customer data
 was refreshed.
 
-- **Premium UI — DEPLOYED and current-source CERTIFIED.** Production exposes
-  source `7d353c1b1e2247f60e19b1cf88e83c8eaa23881f`. Customer QA run
+- **Premium UI — DEPLOYED; certification inherited, not current-source.**
+  Production exposes source `e838d05b3c92563c514d4d185365b4c8e97bfdba`.
+  Customer QA run
   `38838300289` passed 144/144 checks, including all 126 mandatory checks and
   18 supplementary checks, and produced all 200/200 screenshots. It covered
   Home, Research, Watchlist and Ask at desktop/mobile viewports, NVDA/MSFT/AVT/
@@ -47,7 +53,7 @@ was refreshed.
   `c12aefd02b1f0b3c25b07ef3bdab9204551410450e897bb69acd7c2e008be052`;
   rehearsal artifact `12020036929`, digest
   `cb22dc3495813275f48136d1f2fb9e14f401ecb657bee182c349df6b12381760`.
-  Consolidated review PR #41 adds a true provider-free execution of the same
+  Merged PR #41 adds a true provider-free execution of the same
   acquisition entrypoint: 2,596 attempts/receipts, 2,596 durable raw-first
   records, consume-once duplicate rejection, zero provider calls and zero
   production writes. Certification reconciled all 1,298 records with zero
@@ -57,16 +63,82 @@ was refreshed.
   governed shard artifacts, verifies every shard digest, run/source identity,
   exact 1,298 membership and at least 200 ordered pre-session bars per ticker,
   then merges exactly one new completed-session bar. Publication-row-only
-  fallback is rejected. A protected replay against the real retained shards is
-  still required to prove the expected 1,223 publishable/75 withheld outcome.
+  fallback is rejected. The implementation and protected workflow registration
+  are now on `main` at merge SHA `8ff3086d0569c3243fdabdc0ac89133edff33810`.
+  Protected run `38841054213` successfully built the exact-source plan and
+  downloaded the governed membership plus all 41 retained shard artifacts, but
+  the protected rehearsal failed closed at the exact entrypoint with
+  `INCREMENTAL_PROVIDER_FREE_RETAINED_SCOPE_INVALID` before certification.
+  The plan artifact is `12021248101`, digest
+  `9d2d7bc5f8e5b8be5a2e974e3c346c77c4db814e8e256b4fe9e5655abb33cea3`.
+  Provider calls and production writes remained zero; acquire and diagnose were
+  skipped. Therefore the expected 1,223 publishable/75 withheld outcome remains
+  unproved. PR #43 is now merged on `main` at `01a921c…`; it resolves the exact
+  retained replay projection by the governed plan digest and adds schema-bound
+  fail-closed handling. Protected run `38843374435` tested the merged repair:
+  its plan succeeded and membership plus all 41 shards downloaded, but the
+  exact entrypoint failed closed with
+  `INCREMENTAL_PROVIDER_FREE_RETAINED_MEMBERSHIP_MISMATCH:6033:1298` before
+  certification. Plan artifact `12021813420`, digest
+  `b5d5bb2f18b8c143ade542df200d3669e8cf0c92b9024e22f2f4ec6c303f96ac`.
+  Acquire and diagnose were skipped; provider calls and production writes were
+  zero. The expected 1,223/75 outcome therefore remains unproved.
+  PR #44 is now merged on `main` at `cf0d1a26…`; it projects the exact customer
+  replay membership from the governed source and adds fail-closed tests for the
+  prior `6033:1298` boundary. Protected run `38844493989` built its plan
+  successfully and proved that repair: exact reconciliation passed with source
+  `6,033`, selected `1,298`, excluded
+  `4,735`, missing `0` and duplicate `0`; resolution SHA-256
+  `29b940e3c23bf477cfdf6c7bf7e47a32733a1dd78d1a8a16a2a5343c519b1ee5`.
+  Expected consume-once duplicate-claim rejection also passed. Certification
+  then failed closed on the protected runner before evaluation because Python
+  dependency `ijson` was absent (`ModuleNotFoundError`). Acquire and diagnose
+  were skipped; provider calls and production writes were zero. The required
+  1,223 publishable/75 withheld result therefore remains unproved.
+  PR #45 is now merged on `main` at `731457ec…`; it installs the pinned replay
+  certification dependency in the protected workflow and adds fail-closed
+  coverage for that setup. Protected run `38846139148` built its plan
+  successfully but failed closed during dependency preflight because the
+  protected `/usr/bin/python3` has no `pip`. The failure occurred before
+  artifact download or claim handling; acquire and diagnose were skipped, and
+  provider calls and production writes were zero.
+  PR #46 is now merged on `main` at `ade1382…`; it binds protected replay setup
+  and execution to the managed Python runtime instead of `/usr/bin/python3`.
+  Protected run `38846888234` built its plan successfully and advanced through
+  managed Python 3.11, pinned `ijson`, governed membership download, all
+  retained-shard downloads and graph proof. The resolver again proved source
+  `6,033`, selected `1,298`, excluded `4,735`, missing `0` and duplicate `0`,
+  with source-file-digest prefix `c0f04a…` and resolution SHA-256
+  `29b940e3c23bf477cfdf6c7bf7e47a32733a1dd78d1a8a16a2a5343c519b1ee5`.
+  The protected rehearsal then failed in step 9 inside the full acquisition
+  entrypoint, before artifact upload. The acquire job was skipped, no provider
+  acquisition ran and no production writes occurred. Certification did not
+  complete, so the required 1,223 publishable/75 withheld result remains
+  unproved.
+  PR #47 merged on `main` at `e838d05b…` and corrected the false duplicate-
+  claim assertion while retaining failure evidence. Protected run
+  `38848397513` proved the complete provider-free acquisition entrypoint:
+  2,596 attempts and receipts, consume-once duplicate rejection, zero provider
+  calls, zero production writes, source `6,033`, selected `1,298`, excluded
+  `4,735`, missing `0`, duplicates `0`. Plan artifact `12024322460`, archive
+  digest `be7921e6fe683474b09355f99c382fb1c099f9911e69eb52964b748870b94424`;
+  rehearsal artifact `12024736683`, digest
+  `e37a38d38d506dbb3826704f76bc5f8b00ce5c2bbd7ca014613bcc5242abf609`.
+  Certification then failed closed at `AAC` because its source-bound retained
+  technical series has fewer than the unchanged 200-bar scoring minimum. The
+  replay did not yet produce the required 1,223 publishable/75 withheld result.
+  The coordinated successor change preserves `AAC` in the 1,298 population and
+  routes insufficient history to an explicit governed withholding; it does not
+  lower the 200-bar requirement or fabricate history.
   The retained October 2 publication remains customer-visible.
-- **Report Card G2 — provider-free CERTIFIED; NOT OPERATIONAL.** Current-source
-  protected validation `38837956400` succeeded with artifact `12019898029`,
-  digest `cbbf5d5ac1ec3f707130dd4dc8fc3aed440cbff84c45549737d0f9ad8c0dafeb`.
-  It preserved the CLOSED sentinel, ledger and independent backup, with zero
-  provider calls and zero ledger writes. Stable Gateway binding `38838142131`
-  succeeded with artifact `12019213979`, digest
-  `bc91e881edf6950cd8a85abfe5cd0c2191977e4b31a3adf9013ec3c9770cbc2b`.
+- **Report Card G2 — exact-current provider-free CERTIFIED; NOT OPERATIONAL.**
+  Protected validation `38846172970` succeeded on `731457ec…` with artifact
+  `12022384661`, archive-digest prefix `7f7f9f…`, plan-digest prefix `9fd124…`
+  and package-digest prefix `cb4096…`. Stable Gateway binding `38846333719`
+  succeeded with artifact `12023396704`, archive-digest prefix `ac96a…` and
+  binding-package-digest prefix `e430f…`. Both preserved the CLOSED sentinel,
+  ledger and independent backup, with zero provider calls and zero ledger
+  writes.
   The bounded scope remains 20 original signals plus SPY, maximum 61 calls and
   zero retries.
 - **Report Card G3 — BUILT/OFFLINE TESTED; NOT RUN.** No governed observation
@@ -105,16 +177,16 @@ fresh reconciliation.
 
 | Component | BUILT | CERTIFIED | DEPLOYED | OPERATIONAL | CUSTOMER VERIFIED | Latest evidence | Blocker / next action |
 |---|---|---|---|---|---|---|---|
-| Premium UI | YES | YES — current-source run `38838300289`, 144/144 checks and 200/200 screenshots | YES — `7d353c1…` | YES for retained-data customer runtime | YES for governed exact-SHA QA | Artifact `12020755751`, digest `2a13d533…`; customer Report Card OFF and provider calls 0. | Independent commercial frame review and real beginner testing remain open; certification does not refresh market data. |
-| Home | YES | YES | YES — `7d353c1…` | YES | YES/PARTIAL | Authenticated Home displays Oct 4 retained freshness and governed BUY NOW inventory 11 with at most ten featured cards. | Capture exact publication digest/session in authenticated current-source evidence. |
-| Research | YES | YES | YES | YES for retained evidence | YES in governed QA | Run `38838300289` covers NVDA/MSFT/AVT/CRC at desktop/mobile with retained certified authority. | Fresh evidence and broader histories remain separate data operations. |
-| Watchlist | YES | YES | YES | YES for tested interactions | YES in governed QA | Current-source exact-SHA add/search/sort/remove/persistence evidence passed. | Real-user acceptance remains open. |
-| Ask ATLAS | YES | YES | YES | YES for grounded retained answers | YES in governed QA | Current-source grounded Ask checks and desktop/mobile captures passed. | External model synthesis is not active. |
-| BUY NOW | YES | Retained snapshot certified | YES — `7d353c1…` | STALE | PARTIAL | Production Home shows Oct 4 timestamp and 11 BUY NOW; retained authority is session `2026-10-02`, digest `72b37697…`. | Expose exact digest/session; fresh live acquisition, certification and promotion remain separately gated. |
-| Incremental acquisition | YES; full-entrypoint replay and retained-history binding in PR #41 | Local provider-free PASS; protected proof pending | Workflow registration pending PR #41 | FAILED CLOSED | N/A | Bridge now verifies the original governed shard set and merges its pre-session technical history with one fresh completed-session bar; 56 focused tests pass. | Merge only after CI/owner review, then run the protected retained-artifact replay and require exactly 1,223 publishable/75 withheld before any fresh live claim. |
+| Premium UI | YES | YES — prior-source run `38838300289`, 144/144 checks and 200/200 screenshots | YES — `731457ec…` marker freshly verified | YES for retained-data customer runtime | INHERITED; not freshly exercised on `731457ec…` | Artifact `12020755751`, digest `2a13d533…`; prior-source customer Report Card OFF and provider calls 0. | Repeat authenticated route/mobile certification on current deployed source; independent commercial review and real beginner testing remain open. |
+| Home | YES | YES on prior source | YES — `731457ec…` | YES for retained snapshot | YES/PARTIAL | Production snapshot remains finalized session `2026-10-02`, publication `2026-10-04T12:21:38-04:00`, inventory 11 and digest `72b37697…`; full authenticated routes were not freshly exercised. | Capture the exact publication digest/session in authenticated current-source evidence. |
+| Research | YES | YES on prior source | YES | YES for retained evidence | INHERITED from governed QA | Run `38838300289` on `7d353c1…` covers NVDA/MSFT/AVT/CRC at desktop/mobile with retained certified authority; not freshly exercised on `731457ec…`. | Repeat current-source authenticated checks; fresh evidence and broader histories remain separate data operations. |
+| Watchlist | YES | YES on prior source | YES | YES for previously tested interactions | INHERITED from governed QA | Prior-source add/search/sort/remove/persistence evidence passed; not freshly exercised on `731457ec…`. | Repeat current-source interaction checks; real-user acceptance remains open. |
+| Ask ATLAS | YES | YES on prior source | YES | YES for previously tested grounded retained answers | INHERITED from governed QA | Prior-source grounded Ask checks and desktop/mobile captures passed; not freshly exercised on `731457ec…`. | Repeat current-source grounded-answer checks; external model synthesis is not active. |
+| BUY NOW | YES | Retained snapshot certified | YES — `731457ec…` | STALE | PARTIAL | Production remains Oct 2/Oct 4 with 11 BUY NOW; retained digest `72b37697…`. | Expose exact digest/session in authenticated current-source evidence; fresh live acquisition, certification and promotion remain separately gated. |
+| Incremental acquisition | YES; replay/history binding in PR #41, projection repairs in PRs #43/#44, pinned dependency setup in PR #45 and managed-Python binding in PR #46 | Membership reconciliation PASS; protected full-entrypoint replay still fails before certification | YES on `main` at `ade1382…`; deployed marker remains `731457ec…` pending fresh verification | FAILED CLOSED | N/A | Run `38846888234`: plan, Python 3.11, pinned `ijson`, membership/shard downloads and graph proof passed; exact `6033/1298/4735` resolution with `0/0` missing/duplicates passed; full entrypoint failed in step 9 before artifact upload; acquire skipped and no production writes. | Diagnose the step-9 full-entrypoint failure, then repeat provider-free protected replay and require exactly 1,223 publishable/75 withheld before any fresh live claim. |
 | Daily 6:05 PM ET | YES | Provider-free controls tested | Registered | NO | NO | Dual UTC wakeups, XNYS gate, non-cancelling session lock and incremental-only path are registered. It still stops before acquisition/certification/promotion. | Register and certify the successor publication bridge, then obtain exact live acquisition/publication authorization. |
 | Finnhub acquisition | YES | Bounded plan certified | Registered | NO | N/A | Last real retained evidence belongs to the October 2 snapshot. | Do not describe planning run as provider refresh. |
-| Report Card G2 | YES | Current-source provider-free validation `38837956400` and binding `38838142131` | Registered | NO | NO | Exact 20-signal plus SPY scope; 61-call ceiling; zero retries/calls/writes; CLOSED sentinel and storage integrity verified. | Separate exact live G2 authorization is required. |
+| Report Card G2 | YES | Exact-current provider-free validation `38846172970` and binding `38846333719` | Registered | NO | NO | Artifacts `12022384661`/`12023396704`; exact 20-signal plus SPY scope; 61-call ceiling; zero retries/calls/writes; CLOSED sentinel and storage integrity verified. | Separate exact live G2 authorization is required; certification alone does not authorize acquisition. |
 | Report Card G3 | YES | Offline only | Registered | NO | NO | Producer and append workflows each have zero runs; no durable observation append or backup result exists. | Requires successful G2, deterministic bundle validation and separate append authorization. |
 | Report Card G4 | Controls only | NO | No active schedule | NO | NO | Report Card workflows remain dispatch-only. | Requires successful G2/G3, restore proof, monitoring proof and schedule authorization. |
 | Research financial history | YES | Bounded 11-ticker artifact tests | Deployed projection not customer-verified | Retained/read-only | NO | AVT, BKTI, CODA, CSCO, CTS, DIOD, EXTR, GNE, MSFT and NVDA expose 5 annual/8 quarterly periods; SBC exposes 2/6. Focused suite: 59 passed. | Add source/generation identity to customer manifests; broader 1,298-security coverage requires a separately authorized acquisition. |
@@ -294,3 +366,44 @@ fresh reconciliation.
 ## Required handoff update
 
 Every future operational handoff must update this file with the exact source SHA, run timestamp, run ID, artifact ID/digest, provider-call count, finalized session, publication result, and authenticated customer result. Lifecycle states may advance only from direct evidence.
+
+## Outstanding protected decisions
+
+These decisions remain independent. Authorization for one does not authorize
+any other item.
+
+### BUY NOW
+
+1. Diagnose the step-9 full acquisition-entrypoint failure from protected run
+   `38846888234`, then repeat the provider-free retained-shard replay on exact
+   source `ade1382becab446cb7d47b26998df709948bd358`. Require exactly `1,223`
+   publishable plus `75` explicitly withheld, with zero provider calls and zero
+   production writes.
+2. Only after that proof, prepare and separately authorize one fresh
+   consume-once Finnhub acquisition claim with an exact source, finalized
+   session, membership digest, request ceiling and zero-retry contract.
+3. Keep certification and customer publication fail-closed. Customer
+   publication requires a separate authorization after acquisition evidence is
+   certified; no acquisition approval implies publication approval.
+
+### Report Card
+
+1. Decide whether to authorize the bounded G2 live acquisition for the 20
+   original signals plus SPY, maximum 61 calls and zero retries.
+2. If and only if G2 succeeds, separately authorize G3 deterministic bundle
+   validation and durable ledger append.
+3. Consider G4 scheduling only after G2/G3, restore and monitoring evidence are
+   complete. Public Report Card remains OFF until separately authorized.
+
+### Research, intelligence and commercial operations
+
+1. Decide whether to authorize WS3-B0001's 25-call financial-history batch.
+   Broader financial Research acquisition remains separately bounded and must
+   include an independent durable archive, restore proof and off-runner backup.
+2. Decide whether to activate an official macro-data feed and external
+   model-backed synthesis. Neither is verified active, and neither may alter
+   scoring without a separately governed contract.
+3. Activate unattended 6:05 PM operation only after the acquisition,
+   certification, publication and alert paths are independently proven.
+4. Complete BUY NOW completion and missed-heartbeat email confirmation,
+   independent commercial-frame review and real beginner acceptance testing.

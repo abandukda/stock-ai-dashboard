@@ -168,6 +168,60 @@ def test_retained_technical_history_is_source_bound_complete_and_prior(tmp_path)
     assert report["source_commit_sha"] == "a" * 40
 
 
+def test_short_retained_history_is_explicitly_bound_for_governed_withholding(tmp_path):
+    plan, _, _ = fixture()
+    plan["governed_membership"] = {
+        "source_run_id": "retained-run", "source_commit_sha": "a" * 40,
+    }
+    short = retained_history("AAA")["AAA"][:25]
+    complete = retained_history("BBB")["BBB"]
+    payload = {
+        "run_identity": {"source_sha": "a" * 40, "run_identity_sha256": "r" * 64},
+        "records": [
+            {"ticker": "AAA", "bars": short},
+            {"ticker": "BBB", "bars": complete},
+        ],
+    }
+    payload["shard_digest"] = bridge._digest(payload)
+    (tmp_path / "shard-000.json").write_text(json.dumps(payload))
+
+    histories, report = bridge.load_retained_technical_history(root=tmp_path, plan=plan)
+
+    assert len(histories["AAA"]) == 25
+    assert report["minimum_bar_count"] == 25
+    assert report["insufficient_history_count"] == 1
+    assert report["insufficient_history_symbols"] == {"AAA": 25}
+
+
+def test_short_retained_history_becomes_explicit_terminal_blocker(monkeypatch, tmp_path):
+    plan, checkpoint, _ = fixture()
+    histories = retained_history("AAA", "BBB")
+    histories["AAA"] = histories["AAA"][:25]
+    retained = [{"ticker": symbol, "professional_evidence_as_of": "2026-10-13"}
+                for symbol in ("AAA", "BBB")]
+    session_end = datetime(2026, 10, 14, 23, 59, 59, tzinfo=timezone.utc)
+    fresh = bridge.deserialize_bars([{
+        "symbol": "AAA", "timestamp": session_end.isoformat(),
+        "open": 2, "high": 2, "low": 2, "close": 2, "volume": 1,
+        "completed": True,
+    }])
+    monkeypatch.setattr(bridge, "_bars", lambda *_args: fresh)
+    monkeypatch.setattr(bridge, "_new_filing", lambda **_kwargs: False)
+    monkeypatch.setattr(bridge, "_provider_record", lambda **kwargs: {
+        "payload": {"filings": []},
+        "provenance": {"raw_evidence_id": kwargs["receipt"]["request_key"]},
+    })
+
+    records = bridge.materialize_acquired_records(
+        plan=plan, checkpoint=checkpoint, raw_root=tmp_path,
+        retained_rows=retained, retained_technical_history=histories,
+    )
+
+    by_symbol = {record["ticker"]: record for record in records}
+    assert by_symbol["AAA"]["blockers"] == ["INCREMENTAL_TECHNICAL_HISTORY_INSUFFICIENT"]
+    assert by_symbol["BBB"]["blockers"] == []
+
+
 def test_retained_technical_history_rejects_wrong_source(tmp_path):
     plan, _, _ = fixture()
     plan["governed_membership"] = {"source_commit_sha": "a" * 40}
