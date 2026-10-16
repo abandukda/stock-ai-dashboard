@@ -9,6 +9,21 @@
 
 Evidence policy: a merge is not deployment; a provider-free run is not acquisition; a monitor ping is not publication; and repository data is not customer-visible until authenticated production evidence proves it.
 
+## 2026-10-16 protected backfill plan
+
+- PR #57 merged as `96fcefae1acc4190039b1ceb1d09d9db57c05d0a`.
+- Provider-free run `38951345212` succeeded with artifact ID `12068951882`;
+  archive SHA-256 `94121142a540bf3840466ab22c889f7843e708beac28392016e37697f7ad6d1f`,
+  plan SHA-256 `a9c92be7a92b40947502c44070bf7bf6a848d2e1633a119612b51ab965110798`
+  and canonical scope SHA-256
+  `303f864c4d7b5c32955cf3f9566004106113f1e685cb82f8e258c6307f2deb5e`.
+- It proved 1,298 members, nine finalized sessions and 3,894 requests with
+  concurrency one, 60 RPM and zero retries. Provider calls and writes were zero.
+- Live execution remains blocked because the produced dividend request used
+  `/stock/dividend2` while the signed entitlement matrix identifies
+  `/stock/dividend`. The accompanying correction aligns the backfill planner
+  with the signed endpoint; a fresh protected plan is required after merge.
+
 ## 2026-10-16 provider-free history-backfill planning
 
 - PR #56 is merged on `main` at `a6995fc9aad38268011ff0b6fd5781af3f6606a6`.

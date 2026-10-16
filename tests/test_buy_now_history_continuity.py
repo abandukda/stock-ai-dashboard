@@ -35,7 +35,7 @@ def test_backfill_plan_is_range_deduplicated_bounded_and_provider_free():
     assert plan["range_start"] == "2026-10-05"
     assert plan["range_end"] == "2026-10-06"
     assert plan["endpoint_allowlist"] == [
-        "/stock/candle", "/stock/split", "/stock/dividend2",
+        "/stock/candle", "/stock/split", "/stock/dividend",
     ]
     assert len(plan["request_keys"]) == len(set(plan["request_keys"]))
     assert len(plan["requests"]) == 3894

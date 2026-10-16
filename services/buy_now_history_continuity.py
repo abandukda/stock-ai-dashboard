@@ -12,7 +12,7 @@ CAPABILITIES = ("historical_ohlcv", "splits", "dividends")
 ENDPOINTS = {
     "historical_ohlcv": "/stock/candle",
     "splits": "/stock/split",
-    "dividends": "/stock/dividend2",
+    "dividends": "/stock/dividend",
 }
 
 
