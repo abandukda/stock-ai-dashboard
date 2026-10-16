@@ -193,6 +193,32 @@ def test_short_retained_history_is_explicitly_bound_for_governed_withholding(tmp
     assert report["insufficient_history_symbols"] == {"AAA": 25}
 
 
+def test_incomplete_retained_tail_is_removed_and_explicitly_blocked(tmp_path):
+    plan, _, _ = fixture()
+    plan["governed_membership"] = {
+        "source_run_id": "retained-run", "source_commit_sha": "a" * 40,
+    }
+    bars = retained_history("AAA")["AAA"]
+    bars[-1]["completed"] = False
+    payload = {
+        "run_identity": {"source_sha": "a" * 40, "run_identity_sha256": "r" * 64},
+        "records": [
+            {"ticker": "AAA", "bars": bars},
+            {"ticker": "BBB", "bars": retained_history("BBB")["BBB"]},
+        ],
+    }
+    payload["shard_digest"] = bridge._digest(payload)
+    (tmp_path / "shard-000.json").write_text(json.dumps(payload))
+
+    histories, report = bridge.load_retained_technical_history(root=tmp_path, plan=plan)
+
+    assert len(histories["AAA"]) == 220
+    assert all(item["completed"] for item in histories["AAA"])
+    assert report["history_blockers"] == {
+        "AAA": ["INCREMENTAL_RETAINED_TECHNICAL_HISTORY_INCOMPLETE"]
+    }
+
+
 def test_short_retained_history_becomes_explicit_terminal_blocker(monkeypatch, tmp_path):
     plan, checkpoint, _ = fixture()
     histories = retained_history("AAA", "BBB")

@@ -53,6 +53,7 @@ def main() -> int:
         records = materialize_acquired_records(
             plan=plan, checkpoint=checkpoint, raw_root=args.raw_root,
             retained_rows=retained, retained_technical_history=technical,
+            retained_technical_blockers=(technical_binding or {}).get("history_blockers"),
         )
     else:
         parser.error("provide --acquired-records or --raw-root, --retained-records and --retained-technical-root")
