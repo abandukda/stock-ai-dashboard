@@ -846,3 +846,18 @@ any other item.
   and make ordinals outside 2,849 through 3,894 unreachable. The existing owner
   acquisition approval cannot be exercised until that workflow is separately
   reviewed and registered.
+- The consolidated registration candidate is commit
+  `896ceb11b23b0a56591c60888f1f2fe931bab2ff` on PR #65. It adds a distinct
+  protected live-recovery job and executor, hard-binds artifact `12083244989`
+  and the verified package/plan/claim identities, requires explicit manual
+  enablement plus the exact recovery authorization, runs credential and durable
+  storage preflight before claim consumption, and uploads sanitized evidence
+  even after a failed execution. The executor can address only ordinals 2,849
+  through 3,894 and writes to separate recovery claim/raw namespaces; it has no
+  publication path. Focused recovery, durability, duplicate/indeterminate,
+  authorization, preflight, and original-backfill tests report `20 passed` in
+  11.52 seconds; YAML parsing, Python compilation, and diff checks pass.
+- This candidate is **BUILT AND TESTED, NOT REGISTERED**. Because registration
+  changes the workflow source SHA, both its merge and a fresh exact-source live
+  recovery decision remain protected gates. The earlier acquisition approval
+  is not treated as authority to run newly registered code at a different SHA.
