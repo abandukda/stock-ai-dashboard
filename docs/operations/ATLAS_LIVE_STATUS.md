@@ -901,3 +901,15 @@ any other item.
   and scope above. Approval authorizes acquisition only. Customer publication,
   Report Card mutation and unattended scheduling remain disabled and require
   separate decisions.
+
+### Registered-source authorization reconciliation — 2026-10-16
+
+- Issue #53 comment `6228009434` authorizes acquisition only against the older
+  workflow source `d52974ad79ce49ff4986d149a3d9c0e5a215e0d8`. Comment
+  `6228569074` authorizes only PR #65's merge and explicitly excludes Finnhub
+  calls. No owner comment currently authorizes acquisition using registered
+  source `c038e31d0e055a0569e8fa05e0ae2f11203c5c9a`.
+- The execution request expressly stated it was not independent authorization.
+  The dispatch therefore failed closed at the approval check: no workflow was
+  dispatched; the recovery claim was not consumed; and provider calls,
+  publication writes and Report Card mutations remained `0 / 0 / 0`.
