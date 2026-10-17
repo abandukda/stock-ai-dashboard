@@ -149,9 +149,13 @@ def test_workflow_has_dual_wakeups_concurrency_and_live_fail_closed_contract():
     assert "plan_buy_now_history_backfill.py" in source
     assert "atlas-buy-now-history-backfill-plan-${{ github.run_id }}" in source
     assert "atlas-incremental-buy-now-plan-38829162008" in source
-    assert "atlas-finnhub-full-universe-final-37216506983" not in source.split(
-        "  prepare-history-backfill:", 1
-    )[1]
+    planning_job = source.split("  prepare-history-backfill:", 1)[1].split(
+        "  protected-history-backfill-rehearsal:", 1
+    )[0]
+    assert "atlas-finnhub-full-universe-final-37216506983" not in planning_job
+    certification_job = source.split("  protected-completed-backfill-certification:", 1)[1]
+    assert "atlas-finnhub-full-universe-final-37216506983" in certification_job
+    assert "certify_buy_now_backfill.py" in certification_job
 
 
 def test_daily_buy_now_workflow_needs_references_declared_jobs():

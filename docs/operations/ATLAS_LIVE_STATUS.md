@@ -1,7 +1,7 @@
 # ATLAS Live Operations Status
 
 **Authoritative as of:** 2026-10-16
-**Repository main:** `2b95d4fdc03d56a22b341ef5cdc1648333eab04b`
+**Repository main:** `c038e31d0e055a0569e8fa05e0ae2f11203c5c9a`
 
 **Verified deployed runtime:** `e838d05b3c92563c514d4d185365b4c8e97bfdba`
 **Production:** [stock-ai-dashboard.streamlit.app](https://stock-ai-dashboard.streamlit.app/)  
@@ -861,3 +861,140 @@ any other item.
   changes the workflow source SHA, both its merge and a fresh exact-source live
   recovery decision remain protected gates. The earlier acquisition approval
   is not treated as authority to run newly registered code at a different SHA.
+
+### Registered licensed-recovery approval gate — 2026-10-16
+
+- PR #65 is merged and the authoritative remote `main` is
+  `c038e31d0e055a0569e8fa05e0ae2f11203c5c9a`. The registered workflow contains
+  the dedicated `protected-history-backfill-recovery-acquisition` job on the
+  `atlas-licensed-research-acquisition` environment and
+  `atlas-worker-1`. Repository permissions are read-only (`actions: read`,
+  `contents: read`); the Finnhub credential and durable raw/checkpoint roots are
+  supplied only by that protected environment.
+- The immutable recovery evidence remains artifact `12083244989`, ZIP SHA-256
+  `997a9395cdbb3f4c7eb208fcfb45bdd331daee1953baef0fa2726a85f05b69f9`,
+  package-file SHA-256
+  `2663fd9e6e7edf8553c8383c26cd8af8c392fa23c4920e60da4a23ad4d7f93b3`,
+  package identity
+  `ed079c74ab79f030a7078b8cd8ed9672856a438ffaa8988592cc99502edeeff9`,
+  plan SHA-256
+  `f996189b53d661c2af984214f6a0b530fb99a06c4c468f55ab4ca9d092e44970`
+  and claim-scope SHA-256
+  `4d2edddf98d1f6edb56f54d82f382d9df8f70b430f7355d9d40c524b8cbbe577`.
+- The executable recovery scope is unchanged: exactly 1,046 original ordinals
+  2,849 through 3,894; 348 candles, 349 splits and 349 dividends; concurrency
+  one; initial 60 RPM pacing; zero automatic retries. Scope validation requires
+  that exact consecutive ordinal list, unique request digests and the signed
+  three-endpoint allowlist before the durable claim can be consumed.
+- The original 2,847 completed receipts and QRVO ordinal 2,848 terminal
+  `FINNHUB_NO_DATA` evidence are inputs to forensic reconciliation and are not
+  executable by the recovery plan. Protected rehearsal run `38987831148`, job
+  `117263311859`, established zero indeterminate requests and left recovery
+  claim `oct02-oct15-2026-backfill-recovery-38987831148-01` unconsumed.
+- No licensed recovery dispatch or matching acquisition artifact is recorded
+  after that rehearsal. The job itself performs exact checkout, credential,
+  durable-storage and request-budget preflight before atomically consuming the
+  claim. Current quota and credential validity therefore remain a protected
+  execution-time check, not a provider-free claim.
+- The remaining decision is one explicit owner authorization bound to workflow
+  source `c038e31d0e055a0569e8fa05e0ae2f11203c5c9a`, the existing immutable claim
+  and scope above. Approval authorizes acquisition only. Customer publication,
+  Report Card mutation and unattended scheduling remain disabled and require
+  separate decisions.
+
+### Registered-source authorization reconciliation — 2026-10-16
+
+- Issue #53 comment `6228009434` authorizes acquisition only against the older
+  workflow source `d52974ad79ce49ff4986d149a3d9c0e5a215e0d8`. Comment
+  `6228569074` authorizes only PR #65's merge and explicitly excludes Finnhub
+  calls. No owner comment currently authorizes acquisition using registered
+  source `c038e31d0e055a0569e8fa05e0ae2f11203c5c9a`.
+- The execution request expressly stated it was not independent authorization.
+  The dispatch therefore failed closed at the approval check: no workflow was
+  dispatched; the recovery claim was not consumed; and provider calls,
+  publication writes and Report Card mutations remained `0 / 0 / 0`.
+
+### Licensed recovery acquisition — 2026-10-16
+
+- Issue #53 comment `6228610074` supplied the distinct exact-source owner
+  authorization for registered workflow source
+  `c038e31d0e055a0569e8fa05e0ae2f11203c5c9a`. The protected workflow was
+  dispatched exactly once as run `38995851425`; protected job
+  `117288139034` completed successfully on `atlas-worker-1` in 17m37s. All
+  unrelated workflow jobs were skipped.
+- The protected preflight passed before claim consumption with the Finnhub
+  credential present, concurrency one, initial 60 RPM pacing, zero automatic
+  retries, a 1,046-request ceiling, durable raw root
+  `/mnt/atlas_incremental_raw`, durable checkpoint root
+  `/mnt/atlas_incremental_checkpoints`, and 7,653,285,888 bytes available
+  memory. The successful execution consumed the unique recovery claim; the
+  preflight artifact's `claim_consumed: false` describes only its state before
+  transport and must not be interpreted as reusable authority.
+- Actual licensed accounting is exact: 1,046 attempts, 1,046 provider calls,
+  1,046 `AVAILABLE` durable receipts, zero new terminal-unavailable responses,
+  zero indeterminate requests, and zero unattempted recovery slots. Combined
+  with the preserved 2,847 receipts and QRVO ordinal 2,848 terminal
+  `FINNHUB_NO_DATA`, all 3,894 original request slots are now accounted for.
+  No completed or terminal-unavailable request was reacquired.
+- Sanitized evidence is retained as
+  `atlas-buy-now-history-backfill-recovery-acquisition-38995851425` (artifact
+  ID `12087173200`, ZIP SHA-256
+  `4afde02d80a1a27e942d66391e1dd25f03559a5d40ea431ada599b7e24096ec8`).
+  The raw-envelope manifest SHA-256 is
+  `a0b7f906ba0d89c3cb5283cc395a3a9e1df35e5a6368cda8946be654fcf1b7c5`
+  and the normalized-receipt manifest SHA-256 is
+  `43b1a35d61a6db20f75b0f35a2d97bf955155de37dcbd386caf58995145630c7`.
+  The execution reverified recovery artifact `12083244989` at ZIP SHA-256
+  `997a9395cdbb3f4c7eb208fcfb45bdd331daee1953baef0fa2726a85f05b69f9`
+  and plan SHA-256
+  `f996189b53d661c2af984214f6a0b530fb99a06c4c468f55ab4ca9d092e44970`.
+- The artifact classifies the evidence as
+  `LIVE_FINNHUB_RECOVERY_RAW_EVIDENCE` and the handoff as
+  `RECOVERY_EVIDENCE_READY_FOR_COMBINATION`. This proves acquisition and
+  request-ledger continuity, not terminal BUY NOW certification or customer
+  publication. QRVO remains explicitly unavailable for the affected evidence;
+  the memory-bounded certification must apply the existing withholding rules.
+- Customer publication writes and Report Card mutations remained `0 / 0`.
+  The customer-visible snapshot therefore remains the October 2, 2026 market
+  session published October 4, 2026 with 11 governed BUY NOW names and digest
+  `72b37697b2f4fc5dabd5438c1a3bb7c068cd12e86253b64e37b8a642c310bf17`.
+- XNYS calendar `exchange_calendars==4.13.2` confirms October 16, 2026 is the
+  next trading session after the backfill boundary and closed at 20:00 UTC.
+  It is not covered by this authorization and requires a distinct bounded
+  acquisition before it may be represented as current.
+- **Next protected step:** run the provider-free, memory-bounded combination
+  and certification over the preserved original and recovery evidence. Only a
+  terminal certification artifact may support a separate atomic-publication
+  decision. No additional Finnhub acquisition, publication, Report Card
+  mutation, or unattended activation is implied by this completed run.
+
+### Real-evidence certification bridge candidate — 2026-10-16
+
+- PR #66 now contains the smallest downstream bridge from the two durable raw
+  namespaces into the existing memory-bounded incremental certifier. It does
+  not implement scoring, thresholds, or an alternative publisher. The bridge
+  verifies exactly one raw envelope for every original ordinal, rechecks each
+  request and body digest, validates the Finnhub response contract, joins the
+  nine completed XNYS sessions to the source-bound retained 41-shard technical
+  history, and preserves QRVO as terminal unavailable.
+- The protected workflow candidate downloads and verifies the immutable
+  original, recovery-package, and successful-recovery artifacts; retrieves the
+  exact governed 6,033-row membership source plus 41 retained technical
+  shards; runs the existing deterministic evaluator in 64-symbol bounded
+  batches with durable checkpoints; measures peak RSS against the 5-GiB
+  ceiling; and writes only certification artifacts. `FINNHUB_API_KEY` must be
+  absent from this job.
+- A publication simulation promotes the certified bundle only into an isolated
+  runner-temporary copy of the current snapshot, verifies prior and published
+  digests plus rollback inventory, and asserts that repository production
+  files remain unchanged. Real publication remains impossible from this job.
+- Focused bridge, recovery, incremental-certification and scheduler regression
+  coverage reports `46 passed` in 9.31 seconds; workflow YAML parsing and
+  Python compilation pass. These are engineering results, not terminal
+  real-data certification.
+- Status is **BUILT AND LOCALLY VERIFIED, NOT REGISTERED**. PR #66 head must be
+  reviewed and explicitly approved for merge before the protected runner can
+  execute this new workflow source. After registration, the provider-free
+  dispatch input is `certify_completed_history_backfill=true` with authority
+  `ATLAS_BUY_NOW_BACKFILL_CERTIFY_ONCE:38995851425`. It performs zero provider
+  calls, customer-publication writes, and Report Card mutations.
