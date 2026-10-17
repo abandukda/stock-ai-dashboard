@@ -64,6 +64,43 @@ def test_combines_original_and_recovery_once_and_preserves_terminal_unavailable(
     assert report["unavailable_ticker_count"] == 1
 
 
+def test_partial_candle_session_coverage_is_explicitly_withheld(tmp_path):
+    plan = _plan(); original = tmp_path / "original"; recovery = tmp_path / "recovery"
+    timestamps = [int(datetime.fromisoformat(plan["missing_sessions"][0]).replace(
+        tzinfo=timezone.utc).timestamp())]
+    for request in plan["requests"]:
+        root = original if request["ordinal"] <= 3 else recovery
+        if request["endpoint"] == "/stock/candle":
+            body = ({"s": "no_data"} if request["ticker"] == "QRVO" else
+                    {"s": "ok", "t": timestamps, "o": [1], "h": [2],
+                     "l": [1], "c": [2], "v": [10]})
+        else:
+            body = []
+        _write(root, request, body)
+    observations, unavailable, report = combine_backfill_observations(
+        plan=plan, original_raw_dir=original, recovery_raw_dir=recovery,
+    )
+    assert observations == {}
+    assert unavailable["AAA"]["reason"] == "FINNHUB_PARTIAL_SESSION_COVERAGE"
+    assert unavailable["AAA"]["missing_sessions"] == ["2026-10-06"]
+    assert report["unavailable_ticker_count"] == 2
+
+
+def test_unexpected_candle_session_still_fails_closed(tmp_path):
+    plan = _plan(); original = tmp_path / "original"; recovery = tmp_path / "recovery"
+    unexpected = int(datetime(2026, 10, 7, tzinfo=timezone.utc).timestamp())
+    for request in plan["requests"]:
+        root = original if request["ordinal"] <= 3 else recovery
+        body = ({"s": "ok", "t": [unexpected], "o": [1], "h": [2], "l": [1],
+                 "c": [2], "v": [10]} if request["endpoint"] == "/stock/candle" else [])
+        _write(root, request, body)
+    import pytest
+    with pytest.raises(ValueError, match="BACKFILL_COMBINED_SESSION_SET_INVALID:AAA"):
+        combine_backfill_observations(
+            plan=plan, original_raw_dir=original, recovery_raw_dir=recovery,
+        )
+
+
 def test_certification_inputs_append_sessions_and_withhold_no_data():
     plan = _plan()
     retained_rows = [{"ticker": symbol, "current_price": 1.0} for symbol in ("AAA", "QRVO")]
