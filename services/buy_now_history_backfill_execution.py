@@ -325,4 +325,142 @@ class BackfillExecutor:
         return "AVAILABLE"
 
 
-__all__ = ["BackfillExecutor", "Response", "authorization_token", "build_claim_scope", "scope_digest"]
+RECOVERY_CLAIM_SCHEMA = "ATLAS_BUY_NOW_HISTORY_BACKFILL_RECOVERY_CLAIM_V1"
+
+
+def recovery_authorization_token(scope: Mapping[str, Any]) -> str:
+    return f"AUTHORIZE_ATLAS_BACKFILL_RECOVERY_CLAIM:{scope['claim_id']}:{scope['claim_scope_sha256']}"
+
+
+def validate_recovery_scope(scope: Mapping[str, Any], plan: Mapping[str, Any]) -> None:
+    supplied = str(scope.get("claim_scope_sha256", ""))
+    if supplied != digest({k: v for k, v in scope.items() if k != "claim_scope_sha256"}):
+        raise PermissionError("BACKFILL_RECOVERY_CLAIM_SCOPE_DIGEST_INVALID")
+    requests = list(plan.get("requests") or [])
+    ordinals = [int(row.get("ordinal", 0)) for row in requests]
+    checks = (
+        scope.get("schema") == RECOVERY_CLAIM_SCHEMA,
+        scope.get("registered_source_sha") == plan.get("registered_source_sha"),
+        scope.get("recovery_plan_sha256") == plan.get("plan_sha256"),
+        plan.get("plan_sha256") == digest({k: v for k, v in plan.items() if k != "plan_sha256"}),
+        scope.get("original_claim_id") == plan.get("original_claim_id"),
+        scope.get("original_claim_scope_sha256") == plan.get("original_claim_scope_sha256"),
+        scope.get("request_count") == plan.get("request_count") == len(requests) == 1046,
+        scope.get("maximum_requests") == plan.get("absolute_request_ceiling") == 1046,
+        scope.get("request_ordinals_sha256") == hashlib.sha256(canonical(ordinals)).hexdigest(),
+        ordinals == list(range(2849, 3895)),
+        len({digest(row) for row in requests}) == 1046,
+        all(row.get("endpoint") in ALLOWED_ENDPOINTS for row in requests),
+        scope.get("concurrency") == (plan.get("execution_policy") or {}).get("concurrency") == 1,
+        scope.get("initial_rpm") == (plan.get("execution_policy") or {}).get("rate_limit_rpm") == 60,
+        scope.get("automatic_retries") == (plan.get("execution_policy") or {}).get("automatic_retries") == 0,
+    )
+    if not all(checks):
+        raise PermissionError("BACKFILL_RECOVERY_CLAIM_SCOPE_BINDING_INVALID")
+
+
+class RecoveryBackfillExecutor:
+    """Consume exactly the never-attempted suffix without touching the original claim."""
+
+    def __init__(self, *, state_root: Path, raw_root: Path, scope: Mapping[str, Any],
+                 plan: Mapping[str, Any], token: str, execution_id: str,
+                 transport: Callable[[Mapping[str, Any]], Response]):
+        validate_recovery_scope(scope, plan)
+        if token != recovery_authorization_token(scope):
+            raise PermissionError("BACKFILL_RECOVERY_CLAIM_AUTHORIZATION_INVALID")
+        self.scope, self.plan = dict(scope), dict(plan)
+        self.execution_id, self.transport = execution_id, transport
+        self.claim_dir = state_root / "history_backfill_recovery_claims" / str(scope["claim_id"])
+        self.raw_dir = raw_root / "history_backfill_recovery" / str(scope["claim_id"])
+
+    def _claim(self) -> dict[str, Any]:
+        self.claim_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+        path = self.claim_dir / "claim.json"
+        if not path.exists():
+            record = {"scope": self.scope, "state": "CONSUMED", "execution_id": self.execution_id,
+                      "consumed_at": datetime.now(timezone.utc).isoformat()}
+            fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            with os.fdopen(fd, "wb") as handle:
+                handle.write(canonical(record)); handle.flush(); os.fsync(handle.fileno())
+            fsync_dir(self.claim_dir)
+            return record
+        record = json.loads(path.read_text())
+        if record.get("scope") != self.scope:
+            raise PermissionError("BACKFILL_RECOVERY_CLAIM_REUSE_SCOPE_MISMATCH")
+        if record.get("execution_id") != self.execution_id:
+            raise PermissionError("BACKFILL_RECOVERY_CLAIM_ALREADY_CONSUMED")
+        if record.get("state") == "COMPLETE":
+            raise PermissionError("BACKFILL_RECOVERY_CLAIM_ALREADY_COMPLETE")
+        return record
+
+    def run(self) -> dict[str, Any]:
+        self.claim_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+        with (self.claim_dir / "execution.lock").open("a+b") as lock:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError as exc:
+                raise PermissionError("BACKFILL_RECOVERY_CLAIM_COMPETING_WORKER") from exc
+            claim = self._claim()
+            attempts = recovered = 0
+            dispositions: dict[str, int] = {}
+            for request in self.plan["requests"]:
+                ordinal = int(request["ordinal"])
+                intent = self.claim_dir / "intents" / f"{ordinal:05d}.json"
+                envelope = self.raw_dir / f"{ordinal:05d}.json"
+                receipt = self.claim_dir / "receipts" / f"{ordinal:05d}.json"
+                if receipt.exists():
+                    saved = json.loads(receipt.read_text())
+                    if not envelope.exists() or saved.get("envelope_sha256") != file_sha256(envelope):
+                        raise RuntimeError(f"BACKFILL_RECOVERY_RECEIPT_CORRUPT:{ordinal}")
+                    disposition = str(saved.get("evidence_disposition", ""))
+                    dispositions[disposition] = dispositions.get(disposition, 0) + 1
+                    recovered += 1
+                    continue
+                if envelope.exists():
+                    disposition = BackfillExecutor._validate_response(request, json.loads(envelope.read_text()))
+                    atomic_json(receipt, {"ordinal": ordinal, "request_sha256": digest(request),
+                                         "envelope_sha256": file_sha256(envelope), "recovered": True,
+                                         "evidence_disposition": disposition})
+                    dispositions[disposition] = dispositions.get(disposition, 0) + 1
+                    recovered += 1
+                    continue
+                if intent.exists():
+                    raise RuntimeError(f"BACKFILL_RECOVERY_ATTEMPT_INDETERMINATE:{ordinal}")
+                atomic_json(intent, {"ordinal": ordinal, "request_sha256": digest(request),
+                                     "state": "INTENT_RECORDED", "attempt_budget_consumed": True})
+                attempts += 1
+                response = self.transport(request)
+                value = {"ordinal": ordinal, "request_sha256": digest(request),
+                         "status_code": int(response.status_code), "headers": dict(response.headers or {}),
+                         "body_base64": base64.b64encode(response.body).decode(),
+                         "body_sha256": hashlib.sha256(response.body).hexdigest()}
+                atomic_json(envelope, value)
+                disposition = BackfillExecutor._validate_response(request, value)
+                atomic_json(receipt, {"ordinal": ordinal, "request_sha256": digest(request),
+                                     "envelope_sha256": file_sha256(envelope), "recovered": False,
+                                     "evidence_disposition": disposition})
+                dispositions[disposition] = dispositions.get(disposition, 0) + 1
+            receipts = sorted((self.claim_dir / "receipts").glob("*.json"))
+            if len(receipts) != 1046:
+                raise RuntimeError(f"BACKFILL_RECOVERY_NOT_TERMINAL:{len(receipts)}:1046")
+            receipt_manifest = [{"name": p.name, "sha256": file_sha256(p)} for p in receipts]
+            envelope_paths = sorted(self.raw_dir.glob("*.json"))
+            envelope_manifest = [{"name": p.name, "sha256": file_sha256(p)} for p in envelope_paths]
+            claim["state"] = "COMPLETE"; claim["completed_at"] = datetime.now(timezone.utc).isoformat()
+            atomic_json(self.claim_dir / "claim.next.json", claim)
+            os.replace(self.claim_dir / "claim.next.json", self.claim_dir / "claim.json")
+            fsync_dir(self.claim_dir)
+            return {"status": "COMPLETE", "authorized_requests": 1046,
+                    "attempts_this_run": attempts, "recovered_receipts": recovered,
+                    "provider_calls": attempts, "publication_writes": 0,
+                    "report_card_mutations": 0, "dispositions": dispositions,
+                    "receipt_manifest_sha256": digest(receipt_manifest),
+                    "envelope_manifest_sha256": digest(envelope_manifest),
+                    "claim_scope_sha256": self.scope["claim_scope_sha256"],
+                    "certification_handoff": "RECOVERY_EVIDENCE_READY_FOR_COMBINATION",
+                    "publication_boundary": "SEPARATE_AUTHORIZATION_REQUIRED"}
+
+
+__all__ = ["BackfillExecutor", "RecoveryBackfillExecutor", "Response", "authorization_token",
+           "build_claim_scope", "recovery_authorization_token", "scope_digest",
+           "validate_recovery_scope"]

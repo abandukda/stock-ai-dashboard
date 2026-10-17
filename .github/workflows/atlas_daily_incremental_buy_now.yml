@@ -32,6 +32,11 @@ on:
         required: true
         type: boolean
         default: false
+      execute_consumed_backfill_recovery_acquisition:
+        description: "Execute the separately authorized never-attempted recovery suffix"
+        required: true
+        type: boolean
+        default: false
       authorize_backfill_rehearsal:
         description: "Provider-free exact-source rehearsal authority"
         required: false
@@ -56,6 +61,14 @@ on:
         type: string
       authorize_backfill_recovery:
         description: "Provider-free exact-source recovery authority"
+        required: false
+        type: string
+      authorize_backfill_recovery_acquisition:
+        description: "Exact consume-once recovery acquisition authority"
+        required: false
+        type: string
+      backfill_recovery_manual_enablement:
+        description: "Manual one-run recovery enablement"
         required: false
         type: string
       authorize_backfill_plan:
@@ -87,7 +100,7 @@ jobs:
   coordinator:
     if: >-
       github.event_name == 'schedule' ||
-      (inputs.prepare_history_backfill != true && inputs.execute_history_backfill_rehearsal != true && inputs.execute_history_backfill_acquisition != true && inputs.inspect_consumed_backfill_claim != true && inputs.prepare_consumed_backfill_recovery != true)
+      (inputs.prepare_history_backfill != true && inputs.execute_history_backfill_rehearsal != true && inputs.execute_history_backfill_acquisition != true && inputs.inspect_consumed_backfill_claim != true && inputs.prepare_consumed_backfill_recovery != true && inputs.execute_consumed_backfill_recovery_acquisition != true)
     runs-on: ubuntu-24.04
     outputs:
       eligible: ${{ steps.gate.outputs.eligible }}
@@ -556,4 +569,107 @@ jobs:
             audit_results/daily_incremental/history_backfill_recovery_preflight.json
             audit_results/daily_incremental/history_backfill_recovery_package.json
           if-no-files-found: error
+          retention-days: 90
+
+  protected-history-backfill-recovery-acquisition:
+    if: github.event_name == 'workflow_dispatch' && inputs.execute_consumed_backfill_recovery_acquisition == true
+    environment: atlas-licensed-research-acquisition
+    runs-on: [self-hosted, Linux, X64, atlas-worker-1]
+    timeout-minutes: 90
+    env:
+      FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+      ATLAS_INCREMENTAL_RAW_ROOT: ${{ vars.ATLAS_INCREMENTAL_RAW_ROOT }}
+      ATLAS_INCREMENTAL_CHECKPOINT_ROOT: ${{ vars.ATLAS_INCREMENTAL_CHECKPOINT_ROOT }}
+      ATLAS_BACKFILL_RECOVERY_MANUAL_ACQUIRE_ENABLED: ${{ inputs.backfill_recovery_manual_enablement }}
+      RECOVERY_REGISTERED_SOURCE_SHA: d52974ad79ce49ff4986d149a3d9c0e5a215e0d8
+      RECOVERY_ARTIFACT_ID: "12083244989"
+      RECOVERY_ARTIFACT_ZIP_SHA256: 997a9395cdbb3f4c7eb208fcfb45bdd331daee1953baef0fa2726a85f05b69f9
+      RECOVERY_PACKAGE_FILE_SHA256: 2663fd9e6e7edf8553c8383c26cd8af8c392fa23c4920e60da4a23ad4d7f93b3
+      RECOVERY_PACKAGE_SHA256: ed079c74ab79f030a7078b8cd8ed9672856a438ffaa8988592cc99502edeeff9
+      RECOVERY_PLAN_SHA256: f996189b53d661c2af984214f6a0b530fb99a06c4c468f55ab4ca9d092e44970
+      RECOVERY_CLAIM_ID: oct02-oct15-2026-backfill-recovery-38987831148-01
+      RECOVERY_CLAIM_SCOPE_SHA256: 4d2edddf98d1f6edb56f54d82f382d9df8f70b430f7355d9d40c524b8cbbe577
+      ORIGINAL_ARTIFACT_ID: "12069093114"
+      ORIGINAL_ARTIFACT_ZIP_SHA256: c898793aeb379bb5aad1a2b1fdc568692d8562f96d53a20c081f4dd3243135dd
+      ATLAS_RUNNER_LABELS: self-hosted,Linux,X64,atlas-worker-1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - run: python3 -m pip install --disable-pip-version-check requests==2.32.3
+      - name: Enforce exact recovery acquisition authority
+        env:
+          TOKEN: ${{ inputs.authorize_backfill_recovery_acquisition }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -n "$FINNHUB_API_KEY"
+          test -n "$ATLAS_INCREMENTAL_RAW_ROOT"
+          test -n "$ATLAS_INCREMENTAL_CHECKPOINT_ROOT"
+          test "$ATLAS_BACKFILL_RECOVERY_MANUAL_ACQUIRE_ENABLED" = "ENABLE_ATLAS_BACKFILL_RECOVERY_ONCE:$RECOVERY_CLAIM_ID"
+          test "$TOKEN" = "AUTHORIZE_ATLAS_BACKFILL_RECOVERY_CLAIM:$RECOVERY_CLAIM_ID:$RECOVERY_CLAIM_SCOPE_SHA256"
+      - name: Retrieve exact original and recovery artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for kind in original recovery; do
+            if [ "$kind" = original ]; then
+              artifact="$ORIGINAL_ARTIFACT_ID"; expected="$ORIGINAL_ARTIFACT_ZIP_SHA256"
+            else
+              artifact="$RECOVERY_ARTIFACT_ID"; expected="$RECOVERY_ARTIFACT_ZIP_SHA256"
+            fi
+            curl --fail --silent --show-error --location \
+              --header "Authorization: Bearer $GH_TOKEN" \
+              --header "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/${artifact}/zip" \
+              --output "$RUNNER_TEMP/${kind}.zip"
+            test "$(sha256sum "$RUNNER_TEMP/${kind}.zip" | cut -d' ' -f1)" = "$expected"
+          done
+          python3 - "$RUNNER_TEMP/original.zip" "$RUNNER_TEMP/recovery.zip" "$RUNNER_TEMP" <<'PY'
+          import pathlib,sys,zipfile
+          target=pathlib.Path(sys.argv[3])
+          with zipfile.ZipFile(sys.argv[1]) as archive:
+              target.joinpath('history_backfill_package.json').write_bytes(archive.read('history_backfill_package.json'))
+          with zipfile.ZipFile(sys.argv[2]) as archive:
+              target.joinpath('history_backfill_recovery_package.json').write_bytes(archive.read('history_backfill_recovery_package.json'))
+          PY
+      - name: Fail-before-claim runner, credential, storage, and budget preflight
+        run: >-
+          python3 scripts/preflight_buy_now_operation.py
+          --source-sha "$GITHUB_SHA" --checked-out-sha "$(git rev-parse HEAD)"
+          --raw-root "$ATLAS_INCREMENTAL_RAW_ROOT"
+          --checkpoint-root "$ATLAS_INCREMENTAL_CHECKPOINT_ROOT"
+          --request-ceiling 1046 --timeout-minutes 90 --require-credential
+          --output audit_results/daily_incremental/history_backfill_recovery_acquisition_preflight.json
+      - name: Execute only the never-attempted suffix without publication
+        env:
+          AUTHORIZATION: ${{ inputs.authorize_backfill_recovery_acquisition }}
+        run: >-
+          python3 scripts/run_buy_now_history_backfill_recovery.py
+          --recovery-package "$RUNNER_TEMP/history_backfill_recovery_package.json"
+          --original-package "$RUNNER_TEMP/history_backfill_package.json"
+          --state-root "$ATLAS_INCREMENTAL_CHECKPOINT_ROOT"
+          --raw-root "$ATLAS_INCREMENTAL_RAW_ROOT"
+          --workflow-source-sha "$GITHUB_SHA"
+          --registered-source-sha "$RECOVERY_REGISTERED_SOURCE_SHA"
+          --artifact-id "$RECOVERY_ARTIFACT_ID"
+          --artifact-zip-sha256 "$RECOVERY_ARTIFACT_ZIP_SHA256"
+          --package-file-sha256 "$RECOVERY_PACKAGE_FILE_SHA256"
+          --package-sha256 "$RECOVERY_PACKAGE_SHA256"
+          --plan-sha256 "$RECOVERY_PLAN_SHA256"
+          --claim-id "$RECOVERY_CLAIM_ID"
+          --claim-scope-sha256 "$RECOVERY_CLAIM_SCOPE_SHA256"
+          --execution-id "$GITHUB_RUN_ID" --authorization "$AUTHORIZATION"
+          --output audit_results/daily_incremental/history_backfill_recovery_acquisition.json
+      - name: Upload sanitized acquisition evidence even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: atlas-buy-now-history-backfill-recovery-acquisition-${{ github.run_id }}
+          path: |
+            audit_results/daily_incremental/history_backfill_recovery_acquisition_preflight.json
+            audit_results/daily_incremental/history_backfill_recovery_acquisition.json
+          if-no-files-found: warn
           retention-days: 90
