@@ -1029,3 +1029,35 @@ any other item.
   same provider-free certification authority against the new source. Customer
   publication remains separately gated and is not ready unless that run emits
   a terminal candidate and publication digest under the sub-5-GiB contract.
+
+### PR #67 registered certification execution — 2026-10-17
+
+- PR #67 is registered on `main` as
+  `2dbc70fa0ba1e2d502f95e87fd419bcd8ae55ce1`. Protected workflow run
+  `39000169605` was dispatched with only
+  `certify_completed_history_backfill=true` and authority
+  `ATLAS_BUY_NOW_BACKFILL_CERTIFY_ONCE:38995851425`; every acquisition and
+  production-publication operation remained disabled.
+- Attempt 1 job `117301226183` passed exact-source authority, immutable plan
+  packages, governed retained-row restoration, and all 41 retained technical
+  history downloads. It entered the memory-bounded scoring step at
+  `2026-10-17T03:52:37Z`.
+- At `2026-10-17T04:23:31Z` the registered self-hosted runner received an
+  external shutdown signal. GitHub cancelled scoring and skipped artifact
+  upload. The run therefore produced no terminal certification, candidate
+  digest, publication digest, publishable/withheld counts, or complete peak-RSS
+  measurement. This is an infrastructure interruption, not a demonstrated
+  ticker-integrity or scoring failure.
+- Zero Finnhub calls, zero customer-publication writes, and zero Report Card
+  mutations occurred. The customer-visible snapshot remains the October 2,
+  2026 session published October 4 with 11 BUY NOW names and digest
+  `72b37697b2f4fc5dabd5438c1a3bb7c068cd12e86253b64e37b8a642c310bf17`.
+- A same-run retry was created to resume from the durable source/session
+  checkpoint. Attempt 2 job `117308012613` has protected-environment approval
+  but is queued because `atlas-worker-1` is offline. No second live operation
+  or provider authorization was created or consumed.
+- **Current blocker:** restore the existing registered runner service/host
+  without deleting the durable certification checkpoint. Once it reconnects,
+  attempt 2 can resume the exact provider-free certification. Exact-snapshot
+  publication approval is not yet actionable because no terminal certified
+  artifact exists.
