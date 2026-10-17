@@ -1,7 +1,7 @@
 # ATLAS Live Operations Status
 
 **Authoritative as of:** 2026-10-16
-**Repository main:** `2b95d4fdc03d56a22b341ef5cdc1648333eab04b`
+**Repository main:** `c038e31d0e055a0569e8fa05e0ae2f11203c5c9a`
 
 **Verified deployed runtime:** `e838d05b3c92563c514d4d185365b4c8e97bfdba`
 **Production:** [stock-ai-dashboard.streamlit.app](https://stock-ai-dashboard.streamlit.app/)  
@@ -861,3 +861,43 @@ any other item.
   changes the workflow source SHA, both its merge and a fresh exact-source live
   recovery decision remain protected gates. The earlier acquisition approval
   is not treated as authority to run newly registered code at a different SHA.
+
+### Registered licensed-recovery approval gate — 2026-10-16
+
+- PR #65 is merged and the authoritative remote `main` is
+  `c038e31d0e055a0569e8fa05e0ae2f11203c5c9a`. The registered workflow contains
+  the dedicated `protected-history-backfill-recovery-acquisition` job on the
+  `atlas-licensed-research-acquisition` environment and
+  `atlas-worker-1`. Repository permissions are read-only (`actions: read`,
+  `contents: read`); the Finnhub credential and durable raw/checkpoint roots are
+  supplied only by that protected environment.
+- The immutable recovery evidence remains artifact `12083244989`, ZIP SHA-256
+  `997a9395cdbb3f4c7eb208fcfb45bdd331daee1953baef0fa2726a85f05b69f9`,
+  package-file SHA-256
+  `2663fd9e6e7edf8553c8383c26cd8af8c392fa23c4920e60da4a23ad4d7f93b3`,
+  package identity
+  `ed079c74ab79f030a7078b8cd8ed9672856a438ffaa8988592cc99502edeeff9`,
+  plan SHA-256
+  `f996189b53d661c2af984214f6a0b530fb99a06c4c468f55ab4ca9d092e44970`
+  and claim-scope SHA-256
+  `4d2edddf98d1f6edb56f54d82f382d9df8f70b430f7355d9d40c524b8cbbe577`.
+- The executable recovery scope is unchanged: exactly 1,046 original ordinals
+  2,849 through 3,894; 348 candles, 349 splits and 349 dividends; concurrency
+  one; initial 60 RPM pacing; zero automatic retries. Scope validation requires
+  that exact consecutive ordinal list, unique request digests and the signed
+  three-endpoint allowlist before the durable claim can be consumed.
+- The original 2,847 completed receipts and QRVO ordinal 2,848 terminal
+  `FINNHUB_NO_DATA` evidence are inputs to forensic reconciliation and are not
+  executable by the recovery plan. Protected rehearsal run `38987831148`, job
+  `117263311859`, established zero indeterminate requests and left recovery
+  claim `oct02-oct15-2026-backfill-recovery-38987831148-01` unconsumed.
+- No licensed recovery dispatch or matching acquisition artifact is recorded
+  after that rehearsal. The job itself performs exact checkout, credential,
+  durable-storage and request-budget preflight before atomically consuming the
+  claim. Current quota and credential validity therefore remain a protected
+  execution-time check, not a provider-free claim.
+- The remaining decision is one explicit owner authorization bound to workflow
+  source `c038e31d0e055a0569e8fa05e0ae2f11203c5c9a`, the existing immutable claim
+  and scope above. Approval authorizes acquisition only. Customer publication,
+  Report Card mutation and unattended scheduling remain disabled and require
+  separate decisions.
