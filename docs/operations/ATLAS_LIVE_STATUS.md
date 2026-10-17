@@ -822,3 +822,27 @@ any other item.
   operational: approve at most one consume-once acquisition using the exact
   protected claim and 1,046-request scope. Publication, daily activation, and
   Report Card mutations remain separately gated.
+
+### Licensed recovery dispatch gate — 2026-10-16
+
+- Owner approval is recorded in Issue #53 comment `6228009434`, but the
+  authorized recovery could not be dispatched. Main at
+  `d52974ad79ce49ff4986d149a3d9c0e5a215e0d8` registers the provider-free
+  recovery-package operation only; it has no live job or workflow input that
+  accepts the `ATLAS_BACKFILL_RECOVERY_CLAIM_V1` claim.
+- The existing live backfill job is not a safe substitute. It is hard-bound to
+  source `2b95d4fdc03d56a22b341ef5cdc1648333eab04b`, artifact `12069093114`,
+  the original 3,894-request package, and the older
+  `AUTHORIZE_ATLAS_BACKFILL_CLAIM` contract. Dispatching it would violate the
+  approved source, artifact, token, and 1,046-request boundary.
+- The recovery therefore failed closed before dispatch: no provider call, claim
+  consumption, publication write, or Report Card mutation occurred. The exact
+  2,847 completed receipts, QRVO terminal-unavailable receipt, and 1,046
+  unattempted ordinals remain unchanged.
+- Required registration is narrowly scoped: one protected live-recovery job
+  must retrieve and verify artifact `12083244989`, accept only recovery claim
+  `oct02-oct15-2026-backfill-recovery-38987831148-01` with scope
+  `4d2edddf98d1f6edb56f54d82f382d9df8f70b430f7355d9d40c524b8cbbe577`,
+  and make ordinals outside 2,849 through 3,894 unreachable. The existing owner
+  acquisition approval cannot be exercised until that workflow is separately
+  reviewed and registered.
