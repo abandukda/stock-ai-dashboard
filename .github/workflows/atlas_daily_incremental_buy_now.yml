@@ -500,6 +500,7 @@ jobs:
       CLAIM_SCOPE_SHA256: 37de17d0217483bcba4046d381c811faa84f33227237b468e705f5e9bbf77b3d
       PLAN_ARTIFACT_ID: "12069093114"
       PLAN_ARTIFACT_ZIP_SHA256: c898793aeb379bb5aad1a2b1fdc568692d8562f96d53a20c081f4dd3243135dd
+      ATLAS_RUNNER_LABELS: self-hosted,Linux,X64,atlas-worker-1
     steps:
       - uses: actions/checkout@v4
         with:
@@ -530,6 +531,14 @@ jobs:
               member=archive.getinfo('history_backfill_package.json')
               pathlib.Path(sys.argv[2]).write_bytes(archive.read(member))
           PY
+      - name: Fail-before-claim runner and storage preflight
+        run: >-
+          python3 scripts/preflight_buy_now_operation.py
+          --source-sha "$GITHUB_SHA" --checked-out-sha "$(git rev-parse HEAD)"
+          --raw-root "$ATLAS_INCREMENTAL_RAW_ROOT"
+          --checkpoint-root "$ATLAS_INCREMENTAL_CHECKPOINT_ROOT"
+          --request-ceiling 1046 --timeout-minutes 30
+          --output audit_results/daily_incremental/history_backfill_recovery_preflight.json
       - name: Verify preserved evidence and build recovery package
         run: >-
           python3 scripts/prepare_buy_now_backfill_recovery.py
@@ -543,6 +552,8 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: atlas-buy-now-history-backfill-recovery-${{ github.run_id }}
-          path: audit_results/daily_incremental/history_backfill_recovery_package.json
+          path: |
+            audit_results/daily_incremental/history_backfill_recovery_preflight.json
+            audit_results/daily_incremental/history_backfill_recovery_package.json
           if-no-files-found: error
           retention-days: 90

@@ -178,6 +178,7 @@ jobs:
       ATLAS_INCREMENTAL_RAW_ROOT: ${{ vars.ATLAS_INCREMENTAL_RAW_ROOT }}
       ATLAS_INCREMENTAL_CHECKPOINT_ROOT: ${{ vars.ATLAS_INCREMENTAL_CHECKPOINT_ROOT }}
       ATLAS_INCREMENTAL_MANUAL_ACQUIRE_ENABLED: ${{ inputs.manual_enablement }}
+      ATLAS_RUNNER_LABELS: self-hosted,Linux,X64,atlas-worker-1
     steps:
       - uses: actions/checkout@v4
         with:
@@ -233,6 +234,14 @@ jobs:
           }
           open('audit_results/incremental_parameters.json','w').write(json.dumps(value,sort_keys=True)+'\n')
           PY
+      - name: Fail-before-claim runner, credential, storage and budget preflight
+        run: >-
+          python3 scripts/preflight_buy_now_operation.py
+          --source-sha "${{ inputs.source_sha }}" --checked-out-sha "$(git rev-parse HEAD)"
+          --raw-root "$ATLAS_INCREMENTAL_RAW_ROOT"
+          --checkpoint-root "$ATLAS_INCREMENTAL_CHECKPOINT_ROOT"
+          --request-ceiling 2746 --timeout-minutes 360 --require-credential
+          --output audit_results/incremental_buy_now/preflight.json
       - name: Execute exact raw-first zero-retry transport
         shell: bash
         run: |
@@ -272,7 +281,9 @@ jobs:
         if: always()
         with:
           name: atlas-incremental-buy-now-acquisition-${{ github.run_id }}
-          path: audit_results/incremental_buy_now
+          path: |
+            audit_results/incremental_buy_now
+            audit_results/incremental_buy_now/preflight.json
           retention-days: 90
 
   protected-registration-rehearsal:
