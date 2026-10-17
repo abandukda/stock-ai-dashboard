@@ -744,3 +744,38 @@ any other item.
   missing array, invalid volume, or population-partition mismatch still fails
   closed. A fresh licensed acquisition is not yet authorized; the consumed
   claim cannot be reused.
+- PR #63 merged at `1a432bcdf3caceaf9acb5d140061c6127a1c811b` after the
+  earlier local remote-tracking ref was observed before GitHub completed the
+  merge. The corrected classifier is now registered. The merged workflow has
+  forensic inspection but no operation that can derive a new authority limited
+  to never-attempted slots; a provider-free recovery registration is therefore
+  required before a protected 1,046-slot rehearsal or live decision package.
+
+### Efficiency and fail-before-claim hardening — 2026-10-16
+
+- PR #64 consolidates the preserved-evidence recovery operation with an
+  immutable, content-addressed market-evidence cache, minimal-session request
+  planning, explicit ticker/systemic failure disposition, and a no-claim
+  runner/storage/credential/budget preflight. Existing evidence is verified on
+  reuse and cannot be overwritten under the same request identity.
+- The daily planning contract requests no data for already-current tickers,
+  requests only the missing candle range for contiguous lagging tickers, and
+  refreshes splits/dividends only when their independent cache status is not
+  fresh. Tickers without a provable contiguous boundary are explicitly
+  withheld rather than silently dropped.
+- On a representative 1,298-member, one-session update with fresh corporate
+  actions, the deterministic plan contains 1,298 requests versus the 3,894
+  three-family historical repair scope: 2,596 fewer requests (66.7%). This is
+  provider-free planning evidence, not a newly authorized call budget.
+- Terminal no-data and per-ticker integrity failures are isolated as explicit
+  withholding. Rate limiting, entitlement failure, shared integrity failure,
+  and indeterminate transport outcomes stop the operation globally. Automatic
+  retries remain zero.
+- The protected recovery and incremental-acquisition jobs now run source,
+  labels, Python, durable-root separation/write access, disk, memory, timeout,
+  endpoint allowlist, pacing and request-ceiling checks before any claim can be
+  consumed. The live path checks credential presence without outputting it.
+- Focused and cross-module provider-free verification completed with `93
+  passed` in 11.04 seconds. Workflow YAML parsing, Python compilation and diff
+  checks passed. No Finnhub request, publication write, or Report Card mutation
+  occurred.
