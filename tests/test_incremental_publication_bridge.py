@@ -56,36 +56,75 @@ def successful_aggregate(**kwargs):
         "source_commit_sha": "s" * 40, "artifact_hashes": {},
         "customer_publication_count": 1, "executor_candidate_digest_verified": True,
         "report_card_prospective_active": False,
-        "executor_candidate_identity": {
-            "candidate_digest": "c" * 64, "source_sha": "s" * 40,
-            "universe_sha256": "u" * 64,
-        },
+        "executor_candidate_identity": {"candidate_digest": "c" * 64,
+            "source_sha": "s" * 40, "universe_sha256": "u" * 64},
     }
-    return {
-        "new_full_universe_candidate_certified": True,
-        "immutable_candidate": candidate,
-        "publication_bundle_digest": "p" * 64,
+    return {"new_full_universe_candidate_certified": True,
+        "immutable_candidate": candidate, "publication_bundle_digest": "p" * 64,
         "full_universe_completeness": {"state": "FULL_UNIVERSE_CERTIFIED", "customer_publishable": True},
         "determinism": {"status": "PASS", "first_digest": "c" * 64, "second_digest": "c" * 64,
                         "structural_diff": {"analytical_mismatch_count": 0}},
         "evidence_inspector_coverage": {"status": "PASS", "failures": []},
-        "publication_bundle": {
-            "artifacts": {
-                "market_full_scan.json": [],
-                "full_evaluation_pool.json": [
-                    {"ticker": "AAA", "publication_certification": {
-                        "customer_publication_allowed": True,
-                        "certification_state": "CERTIFIED", "components": {},
-                    }},
-                    {"ticker": "BBB", "publication_certification": {
-                        "customer_publication_allowed": False,
-                        "certification_state": "INSUFFICIENT_INPUTS",
-                        "components": {"market": {"blockers": ["MARKET_EVIDENCE_STALE"]}},
-                    }},
-                ],
-            }, "manifest": manifest,
-        },
-    }
+        "publication_bundle": {"artifacts": {"market_full_scan.json": [],
+            "full_evaluation_pool.json": [
+                {"ticker": "AAA", "publication_certification": {"customer_publication_allowed": True,
+                    "certification_state": "CERTIFIED", "components": {}}},
+                {"ticker": "BBB", "publication_certification": {"customer_publication_allowed": False,
+                    "certification_state": "INSUFFICIENT_INPUTS",
+                    "components": {"market": {"blockers": ["MARKET_EVIDENCE_STALE"]}}}},
+            ]}, "manifest": manifest}}
+
+
+def _exercise_complete_checkpoint_path(monkeypatch, tmp_path, *, mismatch=False):
+    plan, checkpoint, records = fixture()
+
+    def fake_evaluate(*, identity, acquired, checkpoint_dir, **_kwargs):
+        terminal = []
+        reverse = checkpoint_dir.name == "reverse"
+        for item in acquired:
+            action = ("BUILD_A_POSITION" if mismatch and reverse and item["ticker"] == "BBB"
+                      else "WATCH_NOT_READY")
+            record = {
+                "ticker": item["ticker"], "terminal_data_state": "CERTIFIED_EVALUATION",
+                "canonical_action": action, "valuation_routes": {"P_FCF": "CERTIFIED"},
+                "reason_codes": [], "credential_entitlement_failures": 0,
+                "checkpoint_identity_sha256": identity["checkpoint_identity_sha256"],
+                "run_identity_sha256": identity["run_identity_sha256"],
+                "evaluation": {"decision_digest": item["ticker"], "guidance": {"state": action}},
+            }
+            checkpoint_dir.mkdir(parents=True, exist_ok=True)
+            (checkpoint_dir / f"{item['ticker']}.json").write_text(json.dumps(record))
+            terminal.append(record)
+        return bridge.combine_evaluation_results(({"terminal_records": terminal},))
+
+    def fake_candidate(*, evaluation, **_kwargs):
+        normalized = [bridge.normalize_terminal_record(item)
+                      for item in evaluation["terminal_records"]]
+        digest = bridge._digest(sorted(normalized, key=lambda item: item["ticker"]))
+        return {"candidate_digest": digest, "evaluations": normalized,
+                "supported_symbol_count": len(normalized)}
+
+    monkeypatch.setattr(bridge, "evaluate_records", fake_evaluate)
+    monkeypatch.setattr(bridge, "build_single_immutable_candidate", fake_candidate)
+    monkeypatch.setattr(bridge, "aggregate_complete_run", successful_aggregate)
+    return bridge.certify_incremental_candidate(
+        plan=plan, checkpoint=checkpoint, acquired_records=records,
+        source_sha="s" * 40, candidate_dir=tmp_path / "candidate",
+        workflow_run_id="full", checkpoint_dir=tmp_path / "checkpoints", batch_size=1,
+    )
+
+
+def test_complete_certification_reloads_forward_after_reverse_release(monkeypatch, tmp_path):
+    report = _exercise_complete_checkpoint_path(monkeypatch, tmp_path)
+    stages = [item["stage"] for item in report["memory_telemetry"]]
+    assert "forward:released" in stages
+    assert "reverse:released" in stages
+    assert "forward:checkpoint-reloaded" in stages
+
+
+def test_complete_certification_rejects_real_reverse_mismatch(monkeypatch, tmp_path):
+    with pytest.raises(ValueError, match="REPLAY_MISMATCH"):
+        _exercise_complete_checkpoint_path(monkeypatch, tmp_path, mismatch=True)
 
 
 def test_complete_incremental_chain_stages_existing_publisher_handoff(monkeypatch, tmp_path):

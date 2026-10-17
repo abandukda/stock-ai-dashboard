@@ -16,6 +16,9 @@ import json
 import os
 from pathlib import Path
 import re
+import resource
+import sys
+import time
 from typing import Any, Mapping, MutableMapping, Sequence
 
 from services.finnhub_full_universe_executor import (
@@ -29,7 +32,9 @@ from services.finnhub_full_universe_executor import (
     deterministic_shards,
     evaluate_records,
     serialize_bars,
+    validate_executor_checkpoint,
 )
+from services.full_universe_brain_certification import normalize_terminal_record
 from services.professional_valuation_evidence import apply_peer_multiple_evidence
 from services.finnhub_incremental_post_close import (
     CHANGE_PROBE_FAMILY,
@@ -455,6 +460,22 @@ def certify_incremental_candidate(
     # evidence once, evaluate deterministic bounded batches, atomically retain
     # each terminal record, and remove bars before candidate aggregation.
     checkpoint_root = checkpoint_dir
+    memory_telemetry: list[dict[str, Any]] = []
+
+    def record_memory(stage: str) -> None:
+        peak = int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
+        if sys.platform == "darwin":
+            peak //= 1024
+        current = peak
+        status = Path("/proc/self/status")
+        if status.exists():
+            match = re.search(r"^VmRSS:\s+(\d+)\s+kB", status.read_text(), re.MULTILINE)
+            if match:
+                current = int(match.group(1))
+        memory_telemetry.append({"stage": stage, "current_rss_kb": current,
+                                 "peak_rss_kb": peak, "observed_at": time.time()})
+        if current >= 5 * 1024 * 1024:
+            raise MemoryError(f"INCREMENTAL_CERTIFICATION_MEMORY_LIMIT:{stage}:{current}")
     if checkpoint_root is not None:
         checkpoint_root.mkdir(parents=True, exist_ok=True)
         checkpoint_binding = {
@@ -488,7 +509,7 @@ def certify_incremental_candidate(
 
     def evaluate_bounded(*, reverse: bool, phase: str) -> dict[str, Any]:
         ordered = list(reversed(symbols)) if reverse else list(symbols)
-        results = []
+        combined: dict[str, Any] | None = None
         phase_root = checkpoint_root / phase if checkpoint_root is not None else None
         for start in range(0, len(ordered), batch_size):
             batch_symbols = ordered[start:start + batch_size]
@@ -499,15 +520,19 @@ def certify_incremental_candidate(
                     **item,
                     "row": prepared_by_symbol.get(symbol, item.get("row")),
                 })
-            results.append(evaluate_records(
+            result = evaluate_records(
                 identity=identity, acquired=batch,
                 checkpoint_dir=phase_root, peer_evidence_prepared=True,
-            ))
+            )
+            combined = result if combined is None else combine_evaluation_results(
+                (combined, result), reverse=reverse,
+            )
             del batch
+            del result
             gc.collect()
-        combined = combine_evaluation_results(results)
-        results.clear()
-        gc.collect()
+            record_memory(f"{phase}:batch:{start // batch_size + 1}")
+        if combined is None:
+            raise ValueError("INCREMENTAL_CERTIFICATION_EMPTY_EVALUATION")
         return combined
 
     first = evaluate_bounded(reverse=False, phase="forward")
@@ -515,16 +540,125 @@ def certify_incremental_candidate(
         universe=universe, records=first["terminal_records"],
         acquisition_complete=True, decision_processing_complete=True,
     )
-    second = evaluate_bounded(reverse=True, phase="reverse")
-    second_completeness = certify_complete_run(
+    # Materialize the canonical candidate before replay, then release the full
+    # forward evaluation graph.  Previously forward and reverse graphs were
+    # simultaneously retained and the resumed production run reached 7.26 GiB.
+    if checkpoint_root is None or completeness.get("state") != "FULL_UNIVERSE_CERTIFIED":
+        second = evaluate_bounded(reverse=True, phase="reverse")
+        second_completeness = certify_complete_run(
+            universe=universe, records=second["terminal_records"],
+            acquisition_complete=True, decision_processing_complete=True,
+        )
+        evaluation_checkpoint = {"run_identity_sha256": identity["run_identity_sha256"],
+            "first_evaluation": first, "first_completeness": completeness,
+            "second_evaluation": second, "second_completeness": second_completeness}
+        candidate_checkpoint = None
+        optimized_terminal_ready = False
+    else:
+        optimized_terminal_ready = True
+    if optimized_terminal_ready:
+        first_candidate = build_single_immutable_candidate(
+        universe=universe, identity=identity, evaluation=first, completeness=completeness,
+    )
+        candidate_path = checkpoint_root / "immutable-candidate.json"
+        temporary_candidate = candidate_path.with_suffix(".tmp")
+        with temporary_candidate.open("w", encoding="utf-8") as stream:
+            json.dump(first_candidate, stream, sort_keys=True, default=str)
+            stream.write("\n"); stream.flush(); os.fsync(stream.fileno())
+        temporary_candidate.replace(candidate_path)
+        first_digest = first_candidate["candidate_digest"]
+        del first_candidate, first
+        gc.collect(); record_memory("forward:released")
+
+        second = evaluate_bounded(reverse=True, phase="reverse")
+        second_completeness = certify_complete_run(
         universe=universe, records=second["terminal_records"],
         acquisition_complete=True, decision_processing_complete=True,
     )
-    evaluation_checkpoint = {
-        "run_identity_sha256": identity["run_identity_sha256"],
-        "first_evaluation": first, "first_completeness": completeness,
-        "second_evaluation": second, "second_completeness": second_completeness,
-    }
+        second_candidate = build_single_immutable_candidate(
+        universe=universe, identity=identity, evaluation=second,
+        completeness=second_completeness,
+    )
+        second_digest = second_candidate["candidate_digest"]
+        del second_candidate, second
+        gc.collect(); record_memory("reverse:released")
+
+    def phase_inventory(phase: str) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
+        """Validate one durable terminal set while retaining only compact digests."""
+        root = checkpoint_root / phase
+        paths = sorted(root.glob("*.json"))
+        expected_names = {f"{symbol}.json" for symbol in symbols}
+        observed_names = {path.name for path in paths}
+        if observed_names != expected_names:
+            raise ValueError(f"INCREMENTAL_CERTIFICATION_CHECKPOINT_SET_MISMATCH:{phase}")
+        projections: dict[str, dict[str, Any]] = {}
+        file_digests: dict[str, str] = {}
+        for path in paths:
+            raw = path.read_bytes()
+            try:
+                record = json.loads(raw)
+                validate_executor_checkpoint(record, identity)
+                normalized = normalize_terminal_record(record)
+            except (ValueError, TypeError, json.JSONDecodeError) as exc:
+                raise ValueError(
+                    f"INCREMENTAL_CERTIFICATION_CHECKPOINT_CORRUPT:{phase}:{path.name}"
+                ) from exc
+            ticker = str(normalized.get("ticker") or "")
+            if ticker in projections:
+                raise ValueError(f"INCREMENTAL_CERTIFICATION_CHECKPOINT_DUPLICATE:{phase}:{ticker}")
+            projections[ticker] = {
+                "digest": _digest(normalized),
+                "canonical_action": normalized.get("canonical_action"),
+                "terminal_data_state": normalized.get("terminal_data_state"),
+            }
+            file_digests[path.name] = hashlib.sha256(raw).hexdigest()
+            del record, normalized, raw
+        return projections, file_digests
+
+    if optimized_terminal_ready:
+        forward_projection, forward_files = phase_inventory("forward")
+        reverse_projection, reverse_files = phase_inventory("reverse")
+        mismatch_tickers = sorted(
+            symbol for symbol in symbols
+            if forward_projection.get(symbol) != reverse_projection.get(symbol)
+        )
+        action_mismatches = sum(
+            forward_projection.get(symbol, {}).get("canonical_action")
+            != reverse_projection.get(symbol, {}).get("canonical_action")
+            for symbol in symbols
+        )
+        structural_diff = {
+            "records_compared": len(symbols),
+            "analytical_mismatch_count": len(mismatch_tickers),
+            "analytical_mismatch_tickers": mismatch_tickers,
+            "order_only_mismatch_count": 0,
+            "classifications": {
+                "NUMERICAL_DIFFERENCE": len(mismatch_tickers),
+                "ACTION_DIFFERENCE": action_mismatches,
+                "PEER_SET_DIFFERENCE": 0,
+                "ORDER_ONLY_DIFFERENCE": 0,
+                "TIMESTAMP_DIFFERENCE": 0,
+                "PROVENANCE_ORDER_DIFFERENCE": 0,
+                "OTHER": 0,
+            },
+        }
+        if mismatch_tickers or first_digest != second_digest:
+            raise ValueError("INCREMENTAL_CERTIFICATION_REPLAY_MISMATCH")
+        # Reload only the canonical set after the reverse graph has been freed.
+        first_records = []
+        for path in sorted((checkpoint_root / "forward").glob("*.json")):
+            record = json.loads(path.read_text(encoding="utf-8"))
+            validate_executor_checkpoint(record, identity)
+            first_records.append(record)
+        first = combine_evaluation_results(({"terminal_records": first_records},))
+        evaluation_checkpoint = {
+            "run_identity_sha256": identity["run_identity_sha256"],
+            "first_evaluation": first,
+            "first_completeness": completeness,
+            "second_evaluation": {},
+            "second_completeness": second_completeness,
+        }
+        record_memory("forward:checkpoint-reloaded")
     if checkpoint_root is not None:
         # Do not serialize the combined evaluation graph: on the retained
         # population it is ~1.7 GiB and constructing that JSON string recreates
@@ -565,52 +699,19 @@ def certify_incremental_candidate(
         and completeness.get("state") == "FULL_UNIVERSE_CERTIFIED"
         and second_completeness.get("state") == "FULL_UNIVERSE_CERTIFIED"
     ):
-        first_candidate = build_single_immutable_candidate(
-            universe=universe, identity=identity,
-            evaluation=first, completeness=completeness,
-        )
-        candidate_path = checkpoint_root / "immutable-candidate.json"
-        temporary_candidate = candidate_path.with_suffix(".tmp")
-        with temporary_candidate.open("w", encoding="utf-8") as stream:
-            json.dump(first_candidate, stream, sort_keys=True, default=str)
-            stream.write("\n")
-            stream.flush()
-            os.fsync(stream.fileno())
-        temporary_candidate.replace(candidate_path)
-        first_digest = first_candidate["candidate_digest"]
-        del first_candidate
-        gc.collect()
-        second_candidate = build_single_immutable_candidate(
-            universe=universe, identity=identity,
-            evaluation=second, completeness=second_completeness,
-        )
-        second_digest = second_candidate["candidate_digest"]
+        first_candidate = json.loads(candidate_path.read_text(encoding="utf-8"))
         determinism = {
             "status": "PASS" if first_digest == second_digest else "FAIL",
             "first_digest": first_digest,
             "second_digest": second_digest,
-            "structural_diff": compare_replay_candidates(
-                {"evaluations": first["terminal_records"]},
-                {"evaluations": second["terminal_records"]},
-            ),
+            "structural_diff": structural_diff,
         }
-        del second_candidate
-        gc.collect()
-        first_candidate = build_single_immutable_candidate(
-            universe=universe, identity=identity,
-            evaluation=first, completeness=completeness,
-        )
         candidate_checkpoint = {
             "run_identity_sha256": identity["run_identity_sha256"],
             "candidate": first_candidate,
             "second_candidate": {"candidate_digest": second_digest},
             "determinism": determinism,
         }
-        evaluation_checkpoint["second_evaluation"] = {
-            key: value for key, value in second.items() if key != "terminal_records"
-        }
-        del second
-        gc.collect()
     else:
         candidate_checkpoint = None
 
@@ -694,6 +795,7 @@ def certify_incremental_candidate(
     if retained_technical_binding is not None:
         report["retained_technical_binding"] = dict(retained_technical_binding)
     report["report_sha256"] = _digest(report)
+    report["memory_telemetry"] = memory_telemetry
     (report_root / "incremental_certification_report.json").write_text(
         json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
