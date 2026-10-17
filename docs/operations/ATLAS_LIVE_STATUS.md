@@ -913,3 +913,57 @@ any other item.
   The dispatch therefore failed closed at the approval check: no workflow was
   dispatched; the recovery claim was not consumed; and provider calls,
   publication writes and Report Card mutations remained `0 / 0 / 0`.
+
+### Licensed recovery acquisition — 2026-10-16
+
+- Issue #53 comment `6228610074` supplied the distinct exact-source owner
+  authorization for registered workflow source
+  `c038e31d0e055a0569e8fa05e0ae2f11203c5c9a`. The protected workflow was
+  dispatched exactly once as run `38995851425`; protected job
+  `117288139034` completed successfully on `atlas-worker-1` in 17m37s. All
+  unrelated workflow jobs were skipped.
+- The protected preflight passed before claim consumption with the Finnhub
+  credential present, concurrency one, initial 60 RPM pacing, zero automatic
+  retries, a 1,046-request ceiling, durable raw root
+  `/mnt/atlas_incremental_raw`, durable checkpoint root
+  `/mnt/atlas_incremental_checkpoints`, and 7,653,285,888 bytes available
+  memory. The successful execution consumed the unique recovery claim; the
+  preflight artifact's `claim_consumed: false` describes only its state before
+  transport and must not be interpreted as reusable authority.
+- Actual licensed accounting is exact: 1,046 attempts, 1,046 provider calls,
+  1,046 `AVAILABLE` durable receipts, zero new terminal-unavailable responses,
+  zero indeterminate requests, and zero unattempted recovery slots. Combined
+  with the preserved 2,847 receipts and QRVO ordinal 2,848 terminal
+  `FINNHUB_NO_DATA`, all 3,894 original request slots are now accounted for.
+  No completed or terminal-unavailable request was reacquired.
+- Sanitized evidence is retained as
+  `atlas-buy-now-history-backfill-recovery-acquisition-38995851425` (artifact
+  ID `12087173200`, ZIP SHA-256
+  `4afde02d80a1a27e942d66391e1dd25f03559a5d40ea431ada599b7e24096ec8`).
+  The raw-envelope manifest SHA-256 is
+  `a0b7f906ba0d89c3cb5283cc395a3a9e1df35e5a6368cda8946be654fcf1b7c5`
+  and the normalized-receipt manifest SHA-256 is
+  `43b1a35d61a6db20f75b0f35a2d97bf955155de37dcbd386caf58995145630c7`.
+  The execution reverified recovery artifact `12083244989` at ZIP SHA-256
+  `997a9395cdbb3f4c7eb208fcfb45bdd331daee1953baef0fa2726a85f05b69f9`
+  and plan SHA-256
+  `f996189b53d661c2af984214f6a0b530fb99a06c4c468f55ab4ca9d092e44970`.
+- The artifact classifies the evidence as
+  `LIVE_FINNHUB_RECOVERY_RAW_EVIDENCE` and the handoff as
+  `RECOVERY_EVIDENCE_READY_FOR_COMBINATION`. This proves acquisition and
+  request-ledger continuity, not terminal BUY NOW certification or customer
+  publication. QRVO remains explicitly unavailable for the affected evidence;
+  the memory-bounded certification must apply the existing withholding rules.
+- Customer publication writes and Report Card mutations remained `0 / 0`.
+  The customer-visible snapshot therefore remains the October 2, 2026 market
+  session published October 4, 2026 with 11 governed BUY NOW names and digest
+  `72b37697b2f4fc5dabd5438c1a3bb7c068cd12e86253b64e37b8a642c310bf17`.
+- XNYS calendar `exchange_calendars==4.13.2` confirms October 16, 2026 is the
+  next trading session after the backfill boundary and closed at 20:00 UTC.
+  It is not covered by this authorization and requires a distinct bounded
+  acquisition before it may be represented as current.
+- **Next protected step:** run the provider-free, memory-bounded combination
+  and certification over the preserved original and recovery evidence. Only a
+  terminal certification artifact may support a separate atomic-publication
+  decision. No additional Finnhub acquisition, publication, Report Card
+  mutation, or unattended activation is implied by this completed run.
