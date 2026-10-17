@@ -1007,6 +1007,10 @@ any other item.
   `12083244989`, and `12087173200`, restored the governed membership plus all
   41 retained-history shards, and then failed closed before scoring at
   `BACKFILL_COMBINED_SESSION_SET_INVALID:BLFS`.
+- The failed pre-scoring process ran for 3.20 seconds at 87% CPU and peaked at
+  134,008 KiB RSS (about 131 MiB), comfortably below the 5-GiB ceiling. This
+  measurement does not certify full scoring memory because execution stopped
+  at the session-integrity boundary.
 - The failed run made zero Finnhub calls, zero production-publication writes,
   and zero Report Card mutations. Its sanitized failure artifact is
   `atlas-buy-now-backfill-certification-38998598401` (artifact ID
