@@ -779,3 +779,46 @@ any other item.
   passed` in 11.04 seconds. Workflow YAML parsing, Python compilation and diff
   checks passed. No Finnhub request, publication write, or Report Card mutation
   occurred.
+
+### Preserved-evidence recovery rehearsal — 2026-10-16
+
+- PR #64 is registered on main at
+  `d52974ad79ce49ff4986d149a3d9c0e5a215e0d8`. Protected provider-free
+  recovery run `38987831148`, job `117263311859`, completed successfully on
+  `atlas-worker-1` after the required `atlas-licensed-research-acquisition`
+  environment review. Every acquisition, publication, and unrelated workflow
+  job was skipped.
+- The immutable artifact is
+  `atlas-buy-now-history-backfill-recovery-38987831148` (artifact ID
+  `12083244989`, ZIP SHA-256
+  `997a9395cdbb3f4c7eb208fcfb45bdd331daee1953baef0fa2726a85f05b69f9`).
+  The verified recovery-package SHA-256 is
+  `ed079c74ab79f030a7078b8cd8ed9672856a438ffaa8988592cc99502edeeff9`.
+- Recovery accounting is exact: 3,894 original request slots; 2,847 preserved
+  completed receipts; QRVO ordinal 2,848 preserved as terminal
+  `FINNHUB_NO_DATA`; zero indeterminate, duplicate, unexpected, or corrupted
+  evidence; and exactly 1,046 never-attempted ordinals 2,849 through 3,894.
+  The remaining set comprises 348 candle, 349 split, and 349 dividend requests
+  across 349 tickers.
+- The recovery plan SHA-256 is
+  `f996189b53d661c2af984214f6a0b530fb99a06c4c468f55ab4ca9d092e44970`;
+  request-ordinal SHA-256 is
+  `e8c3ebae1d5eba9876899604399c1065e5975404d31ff86602fd4e9212bd21a7`;
+  and the unconsumed recovery claim scope SHA-256 is
+  `4d2edddf98d1f6edb56f54d82f382d9df8f70b430f7355d9d40c524b8cbbe577`.
+  The claim ID is
+  `oct02-oct15-2026-backfill-recovery-38987831148-01`; the complete proposed
+  live token is retained only in the protected artifact, not copied into this
+  repository ledger.
+- Fail-before-claim preflight status is `PASS_BEFORE_CLAIM`: concurrency one,
+  60 RPM initial pacing, zero retries, 1,046 maximum requests, separated
+  durable raw/checkpoint roots, and 7,687,991,296 bytes available memory. The
+  theoretical pacing floor is 17.433 minutes. The protected job ran from
+  00:45:49 to 00:45:55 UTC (approximately six seconds wall time); the workflow
+  did not instrument process-level CPU or peak RSS, so those values are not
+  claimed.
+- Provider calls, customer-publication writes, and Report Card mutations were
+  all zero. The live recovery is **READY FOR A DISTINCT OWNER DECISION**, not
+  operational: approve at most one consume-once acquisition using the exact
+  protected claim and 1,046-request scope. Publication, daily activation, and
+  Report Card mutations remain separately gated.
