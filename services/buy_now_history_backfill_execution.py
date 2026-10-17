@@ -342,6 +342,7 @@ def validate_recovery_scope(scope: Mapping[str, Any], plan: Mapping[str, Any]) -
         scope.get("schema") == RECOVERY_CLAIM_SCHEMA,
         scope.get("registered_source_sha") == plan.get("registered_source_sha"),
         scope.get("recovery_plan_sha256") == plan.get("plan_sha256"),
+        plan.get("plan_sha256") == digest({k: v for k, v in plan.items() if k != "plan_sha256"}),
         scope.get("original_claim_id") == plan.get("original_claim_id"),
         scope.get("original_claim_scope_sha256") == plan.get("original_claim_scope_sha256"),
         scope.get("request_count") == plan.get("request_count") == len(requests) == 1046,
