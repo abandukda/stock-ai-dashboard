@@ -744,3 +744,9 @@ any other item.
   missing array, invalid volume, or population-partition mismatch still fails
   closed. A fresh licensed acquisition is not yet authorized; the consumed
   claim cannot be reused.
+- PR #63 merged at `1a432bcdf3caceaf9acb5d140061c6127a1c811b` after the
+  earlier local remote-tracking ref was observed before GitHub completed the
+  merge. The corrected classifier is now registered. The merged workflow has
+  forensic inspection but no operation that can derive a new authority limited
+  to never-attempted slots; a provider-free recovery registration is therefore
+  required before a protected 1,046-slot rehearsal or live decision package.
