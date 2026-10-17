@@ -37,6 +37,11 @@ on:
         required: true
         type: boolean
         default: false
+      certify_completed_history_backfill:
+        description: "Combine durable live evidence and run provider-free memory-bounded certification"
+        required: true
+        type: boolean
+        default: false
       authorize_backfill_rehearsal:
         description: "Provider-free exact-source rehearsal authority"
         required: false
@@ -71,6 +76,10 @@ on:
         description: "Manual one-run recovery enablement"
         required: false
         type: string
+      authorize_backfill_certification:
+        description: "Provider-free certification authority for completed recovery run 38995851425"
+        required: false
+        type: string
       authorize_backfill_plan:
         description: "Exact provider-free planning authorization"
         required: false
@@ -100,7 +109,7 @@ jobs:
   coordinator:
     if: >-
       github.event_name == 'schedule' ||
-      (inputs.prepare_history_backfill != true && inputs.execute_history_backfill_rehearsal != true && inputs.execute_history_backfill_acquisition != true && inputs.inspect_consumed_backfill_claim != true && inputs.prepare_consumed_backfill_recovery != true && inputs.execute_consumed_backfill_recovery_acquisition != true)
+      (inputs.prepare_history_backfill != true && inputs.execute_history_backfill_rehearsal != true && inputs.execute_history_backfill_acquisition != true && inputs.inspect_consumed_backfill_claim != true && inputs.prepare_consumed_backfill_recovery != true && inputs.execute_consumed_backfill_recovery_acquisition != true && inputs.certify_completed_history_backfill != true)
     runs-on: ubuntu-24.04
     outputs:
       eligible: ${{ steps.gate.outputs.eligible }}
@@ -672,4 +681,124 @@ jobs:
             audit_results/daily_incremental/history_backfill_recovery_acquisition_preflight.json
             audit_results/daily_incremental/history_backfill_recovery_acquisition.json
           if-no-files-found: warn
+          retention-days: 90
+
+  protected-completed-backfill-certification:
+    if: github.event_name == 'workflow_dispatch' && inputs.certify_completed_history_backfill == true
+    environment: atlas-licensed-research-acquisition
+    runs-on: [self-hosted, Linux, X64, atlas-worker-1]
+    timeout-minutes: 90
+    env:
+      ATLAS_INCREMENTAL_RAW_ROOT: ${{ vars.ATLAS_INCREMENTAL_RAW_ROOT }}
+      ATLAS_INCREMENTAL_CHECKPOINT_ROOT: ${{ vars.ATLAS_INCREMENTAL_CHECKPOINT_ROOT }}
+      ORIGINAL_CLAIM_ID: oct02-oct15-2026-backfill-38962431540-01
+      RECOVERY_CLAIM_ID: oct02-oct15-2026-backfill-recovery-38987831148-01
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - name: Install pinned provider-free certification dependencies
+        run: python3 -m pip install --disable-pip-version-check --no-deps ijson==3.5.1
+      - name: Enforce exact provider-free certification authority
+        run: |
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "${{ inputs.authorize_backfill_certification }}" = "ATLAS_BUY_NOW_BACKFILL_CERTIFY_ONCE:38995851425"
+          test -z "${FINNHUB_API_KEY:-}"
+          test -n "$ATLAS_INCREMENTAL_RAW_ROOT"
+          test -n "$ATLAS_INCREMENTAL_CHECKPOINT_ROOT"
+      - name: Retrieve immutable backfill plan packages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for item in \
+            "12069093114:original:c898793aeb379bb5aad1a2b1fdc568692d8562f96d53a20c081f4dd3243135dd" \
+            "12083244989:recovery:997a9395cdbb3f4c7eb208fcfb45bdd331daee1953baef0fa2726a85f05b69f9" \
+            "12087173200:acquisition:4afde02d80a1a27e942d66391e1dd25f03559a5d40ea431ada599b7e24096ec8"; do
+            IFS=: read -r artifact name expected <<< "$item"
+            curl --fail --silent --show-error --location \
+              --header "Authorization: Bearer $GH_TOKEN" \
+              --header "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/${artifact}/zip" \
+              --output "$RUNNER_TEMP/${name}.zip"
+            test "$(sha256sum "$RUNNER_TEMP/${name}.zip" | cut -d' ' -f1)" = "$expected"
+            mkdir "$RUNNER_TEMP/$name"
+            python3 -m zipfile -e "$RUNNER_TEMP/${name}.zip" "$RUNNER_TEMP/$name"
+          done
+          test "$(python3 -c 'import json; print(json.load(open("'"$RUNNER_TEMP"'/acquisition/history_backfill_recovery_acquisition.json"))["status"])')" = COMPLETE
+      - name: Download immutable governed retained rows
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: "37216506983"
+          name: atlas-finnhub-full-universe-final-37216506983
+          path: ${{ runner.temp }}/membership
+      - name: Download source-bound governed technical-history shards
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: "37216506983"
+          pattern: atlas-finnhub-full-shard-*-37216506983
+          path: ${{ runner.temp }}/retained-shards
+          merge-multiple: true
+      - name: Certify combined licensed evidence under the memory bound
+        shell: bash
+        run: |
+          mkdir -p audit_results/daily_incremental "$RUNNER_TEMP/backfill-candidate" "$RUNNER_TEMP/publication-simulation"
+          checkpoint="$ATLAS_INCREMENTAL_CHECKPOINT_ROOT/backfill-certification/$GITHUB_SHA/2026-10-15"
+          set +e
+          /usr/bin/time -v -o audit_results/daily_incremental/backfill_certification_resources.txt \
+          python3 scripts/certify_buy_now_backfill.py \
+            --package "$RUNNER_TEMP/original/history_backfill_package.json" \
+            --original-raw-dir "$ATLAS_INCREMENTAL_RAW_ROOT/history_backfill/$ORIGINAL_CLAIM_ID" \
+            --recovery-raw-dir "$ATLAS_INCREMENTAL_RAW_ROOT/history_backfill_recovery/$RECOVERY_CLAIM_ID" \
+            --retained-artifact-root "$RUNNER_TEMP/membership" \
+            --retained-technical-root "$RUNNER_TEMP/retained-shards" \
+            --source-sha "$GITHUB_SHA" --workflow-run-id "$GITHUB_RUN_ID" \
+            --candidate-dir "$RUNNER_TEMP/backfill-candidate" --checkpoint-dir "$checkpoint" \
+            --output audit_results/daily_incremental/backfill_certification.json
+          status=$?
+          set -e
+          python3 - "$status" <<'PY'
+          import json,re,sys
+          from pathlib import Path
+          status=int(sys.argv[1]); text=Path('audit_results/daily_incremental/backfill_certification_resources.txt').read_text()
+          match=re.search(r'Maximum resident set size \(kbytes\):\s*(\d+)', text)
+          rss=int(match.group(1)) if match else None
+          value={'exit_code':status,'max_rss_kb':rss,'memory_target_kb':5*1024*1024,
+                 'memory_target_pass':rss is not None and rss < 5*1024*1024}
+          Path('audit_results/daily_incremental/backfill_certification_exit.json').write_text(json.dumps(value,indent=2,sort_keys=True)+'\n')
+          if status or not value['memory_target_pass']: raise SystemExit(status or 1)
+          PY
+          cp market_full_scan.json market_prescreen.json market_scan_state.json \
+             discovery_candidate_pool.json full_evaluation_pool.json \
+             total_market_universe.json recovery_scan.json etf_scan.json \
+             publication_manifest.json publication_audit.jsonl \
+             "$RUNNER_TEMP/publication-simulation/"
+          python3 scripts/promote_daily_buy_now_snapshot.py \
+            --artifact-root "$RUNNER_TEMP/backfill-candidate" \
+            --production-root "$RUNNER_TEMP/publication-simulation" \
+            --run-id "$GITHUB_RUN_ID" --source-sha "$GITHUB_SHA" \
+            --finalized-session 2026-10-15 \
+            --output audit_results/daily_incremental/backfill_publication_simulation.json
+          python3 - <<'PY'
+          import json
+          value=json.load(open('audit_results/daily_incremental/backfill_publication_simulation.json'))
+          assert value['status'] == 'PUBLISHED'
+          assert value['finalized_market_session'] == '2026-10-15'
+          assert value['prior_sha256']
+          assert value['published_sha256']
+          assert value['rollback_files']
+          PY
+          test "$(git status --porcelain -- market_full_scan.json market_scan_state.json publication_manifest.json)" = ""
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atlas-buy-now-backfill-certification-${{ github.run_id }}
+          path: audit_results/daily_incremental
+          if-no-files-found: error
           retention-days: 90

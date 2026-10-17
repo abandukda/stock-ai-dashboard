@@ -967,3 +967,34 @@ any other item.
   terminal certification artifact may support a separate atomic-publication
   decision. No additional Finnhub acquisition, publication, Report Card
   mutation, or unattended activation is implied by this completed run.
+
+### Real-evidence certification bridge candidate — 2026-10-16
+
+- PR #66 now contains the smallest downstream bridge from the two durable raw
+  namespaces into the existing memory-bounded incremental certifier. It does
+  not implement scoring, thresholds, or an alternative publisher. The bridge
+  verifies exactly one raw envelope for every original ordinal, rechecks each
+  request and body digest, validates the Finnhub response contract, joins the
+  nine completed XNYS sessions to the source-bound retained 41-shard technical
+  history, and preserves QRVO as terminal unavailable.
+- The protected workflow candidate downloads and verifies the immutable
+  original, recovery-package, and successful-recovery artifacts; retrieves the
+  exact governed 6,033-row membership source plus 41 retained technical
+  shards; runs the existing deterministic evaluator in 64-symbol bounded
+  batches with durable checkpoints; measures peak RSS against the 5-GiB
+  ceiling; and writes only certification artifacts. `FINNHUB_API_KEY` must be
+  absent from this job.
+- A publication simulation promotes the certified bundle only into an isolated
+  runner-temporary copy of the current snapshot, verifies prior and published
+  digests plus rollback inventory, and asserts that repository production
+  files remain unchanged. Real publication remains impossible from this job.
+- Focused bridge, recovery, incremental-certification and scheduler regression
+  coverage reports `46 passed` in 9.31 seconds; workflow YAML parsing and
+  Python compilation pass. These are engineering results, not terminal
+  real-data certification.
+- Status is **BUILT AND LOCALLY VERIFIED, NOT REGISTERED**. PR #66 head must be
+  reviewed and explicitly approved for merge before the protected runner can
+  execute this new workflow source. After registration, the provider-free
+  dispatch input is `certify_completed_history_backfill=true` with authority
+  `ATLAS_BUY_NOW_BACKFILL_CERTIFY_ONCE:38995851425`. It performs zero provider
+  calls, customer-publication writes, and Report Card mutations.
