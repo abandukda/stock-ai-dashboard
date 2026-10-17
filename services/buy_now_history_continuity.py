@@ -15,6 +15,11 @@ ENDPOINTS = {
     "dividends": "/stock/dividend",
 }
 
+UNAVAILABLE_REASONS = {
+    "FINNHUB_NO_DATA",
+    "FINNHUB_PARTIAL_SESSION_COVERAGE",
+}
+
 
 def _digest(value: Any) -> str:
     return hashlib.sha256(
@@ -144,7 +149,7 @@ def validate_backfill_observation_set(
     unavailable_inventory = []
     for ticker in sorted(unavailable):
         record = unavailable[ticker]
-        if record.get("reason") != "FINNHUB_NO_DATA":
+        if record.get("reason") not in UNAVAILABLE_REASONS:
             raise ValueError(f"BUY_NOW_BACKFILL_UNAVAILABLE_REASON_INVALID:{ticker}")
         if record.get("requested_sessions") != expected_sessions:
             raise ValueError(f"BUY_NOW_BACKFILL_UNAVAILABLE_SESSION_SCOPE_INVALID:{ticker}")
@@ -152,8 +157,10 @@ def validate_backfill_observation_set(
             raise ValueError(f"BUY_NOW_BACKFILL_UNAVAILABLE_LINEAGE_INVALID:{ticker}")
         unavailable_inventory.append({
             "ticker": ticker,
-            "reason": "FINNHUB_NO_DATA",
+            "reason": record["reason"],
             "raw_response_sha256": record["raw_response_sha256"],
+            **({"missing_sessions": list(record.get("missing_sessions") or [])}
+               if record["reason"] == "FINNHUB_PARTIAL_SESSION_COVERAGE" else {}),
         })
     for ticker in sorted(observations):
         rows = list(observations[ticker])

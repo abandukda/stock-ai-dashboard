@@ -998,3 +998,30 @@ any other item.
   dispatch input is `certify_completed_history_backfill=true` with authority
   `ATLAS_BUY_NOW_BACKFILL_CERTIFY_ONCE:38995851425`. It performs zero provider
   calls, customer-publication writes, and Report Card mutations.
+
+### First protected real-evidence certification — 2026-10-16
+
+- PR #66 merged as source `887fe8c2de6f688f718f00f91aa6de043617f68e`.
+  Protected run `38998598401`, job `117296526496`, passed exact-source and
+  provider-free authority enforcement, verified artifacts `12069093114`,
+  `12083244989`, and `12087173200`, restored the governed membership plus all
+  41 retained-history shards, and then failed closed before scoring at
+  `BACKFILL_COMBINED_SESSION_SET_INVALID:BLFS`.
+- The failed run made zero Finnhub calls, zero production-publication writes,
+  and zero Report Card mutations. Its sanitized failure artifact is
+  `atlas-buy-now-backfill-certification-38998598401` (artifact ID
+  `12087987362`, ZIP SHA-256
+  `682b5b55b34f77d7d458e904951e389e77fa2e43cc05ddec0d9e78f43e7711e6`).
+  No certified candidate or publication digest was produced, and the current
+  customer snapshot remains October 2 / October 4.
+- The narrow correction preserves strict rejection for duplicate, unordered,
+  or out-of-scope candle sessions, but treats a valid ordered strict subset of
+  the nine requested sessions as explicit
+  `FINNHUB_PARTIAL_SESSION_COVERAGE`. The affected security is withheld with
+  its raw-response digest and missing-session inventory; no bar is fabricated
+  and no scoring rule changes. Focused continuity, bridge, execution, and
+  publication regressions pass `40/40`.
+- **Next protected step:** merge the exact reviewed correction, then rerun the
+  same provider-free certification authority against the new source. Customer
+  publication remains separately gated and is not ready unless that run emits
+  a terminal candidate and publication digest under the sub-5-GiB contract.

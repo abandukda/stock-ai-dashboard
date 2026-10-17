@@ -79,8 +79,21 @@ def combine_backfill_observations(
             continue
         sessions = [datetime.fromtimestamp(int(value), timezone.utc).date().isoformat()
                     for value in candle_body["t"]]
-        if sessions != wanted:
+        lengths = {len(candle_body[field]) for field in ("t", "o", "h", "l", "c", "v")}
+        if len(lengths) != 1:
+            raise ValueError(f"BACKFILL_COMBINED_CANDLE_ARRAY_LENGTH_INVALID:{ticker}")
+        if sessions != sorted(set(sessions)) or any(session not in wanted for session in sessions):
             raise ValueError(f"BACKFILL_COMBINED_SESSION_SET_INVALID:{ticker}")
+        if sessions != wanted:
+            missing = [session for session in wanted if session not in sessions]
+            unavailable[ticker] = {
+                "reason": "FINNHUB_PARTIAL_SESSION_COVERAGE",
+                "requested_sessions": wanted,
+                "observed_sessions": sessions,
+                "missing_sessions": missing,
+                "raw_response_sha256": file_sha256(candle_path),
+            }
+            continue
         lineage = hashlib.sha256(
             (file_sha256(candle_path) + file_sha256(split_path) + file_sha256(dividend_path)).encode()
         ).hexdigest()
@@ -137,7 +150,13 @@ def build_certification_inputs(
         bars = deserialize_bars(retained_histories[symbol])
         blockers: list[str] = []
         if symbol in unavailable:
-            blockers.append("BACKFILL_TERMINAL_FINNHUB_NO_DATA")
+            blocker = {
+                "FINNHUB_NO_DATA": "BACKFILL_TERMINAL_FINNHUB_NO_DATA",
+                "FINNHUB_PARTIAL_SESSION_COVERAGE": "BACKFILL_PARTIAL_SESSION_COVERAGE",
+            }.get(str(unavailable[symbol].get("reason")))
+            if not blocker:
+                raise ValueError(f"BACKFILL_CERTIFICATION_UNAVAILABLE_REASON_INVALID:{symbol}")
+            blockers.append(blocker)
         else:
             for item in observations[symbol]:
                 timestamp = datetime.combine(
