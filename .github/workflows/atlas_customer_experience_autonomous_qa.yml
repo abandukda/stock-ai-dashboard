@@ -107,6 +107,10 @@ jobs:
       ATLAS_REPORT_CARD_BACKUP_ROOT: ${{ github.workspace }}/audit_results/report-card-qa-backup
       PYTHONPATH: .
       ATLAS_QA_MODE: "1"
+      # Browser certification must exercise the real login boundary.  Without
+      # this fail-closed switch ATLAS_QA_MODE may legitimately bootstrap an
+      # internal role, while the Report Card crawler waits for a password field.
+      ATLAS_REQUIRE_AUTH: "true"
       ATLAS_WALL_STREET_CONTEXT_ENABLED: "true"
       ATLAS_RESEARCH_V2_CHART_ENABLED: "true"
       ATLAS_RESEARCH_V2_BENCHMARK_ENABLED: "true"
@@ -169,7 +173,7 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
-      - run: pip install -r requirements.txt playwright pyyaml
+      - run: pip install -r requirements.txt playwright pyyaml exchange_calendars==4.13.2
       - run: python3 -m playwright install --with-deps chromium
       - name: Require exact governed runtime handoff
         env:
@@ -341,6 +345,34 @@ jobs:
           python3 -m streamlit run app.py --server.headless true --server.port 8501 > "$RUNNER_TEMP/atlas-streamlit.log" 2>&1 &
           echo $! > "$RUNNER_TEMP/atlas-streamlit.pid"
           curl --retry 30 --retry-delay 2 --retry-connrefused -fsS http://127.0.0.1:8501/_stcore/health
+          # Streamlit can report a healthy server while app.py has failed on
+          # its first script run.  Require the pre-auth exact-source marker in
+          # a real browser before handing the process to the governed crawlers.
+          python3 - <<'PY'
+          import asyncio
+          import os
+          from playwright.async_api import async_playwright
+
+          async def verify() -> None:
+              expected = os.environ["ATLAS_SOURCE_SHA"]
+              async with async_playwright() as playwright:
+                  browser = await playwright.chromium.launch(headless=True)
+                  page = await browser.new_page()
+                  await page.goto("http://127.0.0.1:8501", wait_until="domcontentloaded")
+                  marker = page.locator('[data-atlas-qa="deployment-readiness"]')
+                  await marker.wait_for(state="attached", timeout=30000)
+                  observed = await marker.get_attribute("data-atlas-source-sha")
+                  if observed != expected:
+                      raise RuntimeError(
+                          f"EXACT_CANDIDATE_READINESS_MISMATCH:{expected}:{observed}"
+                      )
+                  await page.locator('input[type="password"]').wait_for(
+                      state="visible", timeout=30000
+                  )
+                  await browser.close()
+
+          asyncio.run(verify())
+          PY
       - name: Required-first customer surface certification
         id: required_browser
         continue-on-error: true
