@@ -1243,3 +1243,16 @@ any other item.
 - The Milestone 3 review change adds the missing `SOURCE_IDENTITY.md` to visual
   bundles plus fail-closed Contabo migration and 48-GB certification runbooks.
   It does not deploy, migrate, certify, publish, acquire, or activate anything.
+- PR #73 (`codex/milestone3-readiness`) head
+  `4f5e87a746685cb7adbf8117130fd9c447294de8` passed its pull-request policy CI
+  runs `39137695005`, `39137890823`, and the exact-head policy/self-test job in
+  manual run `39138060207`. The governed browser job produced QA artifact
+  `12140463847` and visual-review artifact `12140314381`, but its final green
+  certification and visual-package build steps failed. These artifacts are
+  retained as diagnostic evidence; they are not a hosted-preview pass or a
+  production acceptance result. A malformed-candidate probe (`39137894185`)
+  was correctly rejected before governed browser execution.
+- The 48-GB readiness contract was tightened: certification retains its 5-GiB
+  operating target and must checkpoint/fail closed at an 8-GiB job-scoped hard
+  stop. Additional host RAM is recovery headroom, not permission for unbounded
+  scoring memory.
