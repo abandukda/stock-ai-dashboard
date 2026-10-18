@@ -486,7 +486,8 @@ def test_read_only_market_context_enriches_chart_without_changing_certified_clos
     source = report(); before = deepcopy(source)
     context = {
         "__atlas_ticker__": "NVDA",
-        "__read_model__": {"provider_calls": 0, "rating_authority": "UNCHANGED"},
+        "__read_model__": {"provider_calls": 0, "serving_request_budget": 0,
+                           "rating_authority": "UNCHANGED"},
         "historical_ohlcv": {
             "payload": {
                 "timestamps": list(range(1, 24)),

@@ -24,6 +24,10 @@ FAMILY_MAX_AGE_SECONDS = {
     "basic_financials": 8 * 3600,
     "stock_earnings": 8 * 3600,
     "earnings_calendar": 8 * 3600,
+    "company_profile": 7 * 86400,
+    "recommendations": 4 * 3600,
+    "price_targets": 4 * 3600,
+    "company_news": 3600,
 }
 
 
@@ -43,6 +47,36 @@ def _instant(value: Any) -> datetime | None:
 
 def _safe_ticker(value: str) -> str:
     return "".join(ch for ch in str(value).upper().strip() if ch.isalnum() or ch in {"-", "."})
+
+
+def _market_identity(payload: Any) -> dict[str, Any] | None:
+    if not isinstance(payload, Mapping):
+        return None
+    timestamps = list(payload.get("timestamps") or ())
+    closes = list(payload.get("close") or ())
+    flags = list(payload.get("completed_session_flags") or ())
+    required = ("open", "high", "low", "volume")
+    arrays = {name: list(payload.get(name) or ()) for name in required}
+    if not timestamps or len(timestamps) != len(closes) or any(len(values) != len(timestamps) for values in arrays.values()):
+        return None
+    completed = [index for index in range(len(timestamps)) if index < len(flags) and flags[index] is True]
+    if not completed:
+        return None
+    index = completed[-1]
+    try:
+        timestamp = datetime.fromtimestamp(float(timestamps[index]), tz=timezone.utc)
+        close = float(closes[index])
+        if close <= 0:
+            return None
+    except (TypeError, ValueError, OSError):
+        return None
+    return {
+        "latest_verified_close": close,
+        "latest_completed_session": timestamp.date().isoformat(),
+        "price_basis": "END_OF_DAY_COMPLETED_SESSION",
+        "is_real_time": False,
+        "is_delayed_intraday": False,
+    }
 
 
 def _family(envelope: Any, *, ticker: str, now: datetime) -> dict[str, Any] | None:
@@ -72,34 +106,49 @@ def _family(envelope: Any, *, ticker: str, now: datetime) -> dict[str, Any] | No
     age = max(0.0, (now - captured).total_seconds())
     max_age = FAMILY_MAX_AGE_SECONDS.get(capability)
     status = "FRESH_CACHE" if max_age is None or age <= max_age else "STALE_RETAINED"
-    return {
+    result = {
         "payload": payload,
         "provenance": {**dict(provenance), "source": provenance.get("source") or "FINNHUB_RETAINED_EVIDENCE"},
         "cache_status": status,
         "age_seconds": age,
         "classification": CLASSIFICATION,
     }
+    if capability == "historical_ohlcv":
+        identity = _market_identity(payload)
+        if identity is None:
+            return None
+        result["market_identity"] = identity
+    return result
 
 
 def load_research_market_context(
     ticker: str, root: str | Path | None, *, now: datetime | None = None,
+    backup_root: str | Path | None = None,
 ) -> dict[str, Any]:
     """Load a verified retained bundle without network access or mutation."""
     symbol = _safe_ticker(ticker)
-    if not symbol or root in (None, ""):
+    if not symbol or (root in (None, "") and backup_root in (None, "")):
         return {}
-    path = Path(root) / f"{symbol}.json"
-    try:
-        document = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError, TypeError):
-        return {}
-    supplied = str(document.pop("record_sha256", ""))
-    if (
-        document.get("schema") != SCHEMA
-        or str(document.get("ticker") or "").upper() != symbol
-        or not document.get("source_sha")
-        or supplied != hashlib.sha256(_canonical(document)).hexdigest()
-    ):
+    document = None
+    supplied = ""
+    cache_source = ""
+    for label, candidate in (("PRIMARY", root), ("BACKUP", backup_root)):
+        if candidate in (None, ""):
+            continue
+        try:
+            proposed = json.loads((Path(candidate) / f"{symbol}.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError, TypeError):
+            continue
+        proposed_hash = str(proposed.pop("record_sha256", ""))
+        if (
+            proposed.get("schema") == SCHEMA
+            and str(proposed.get("ticker") or "").upper() == symbol
+            and proposed.get("source_sha")
+            and proposed_hash == hashlib.sha256(_canonical(proposed)).hexdigest()
+        ):
+            document, supplied, cache_source = proposed, proposed_hash, label
+            break
+    if document is None:
         return {}
     checked = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
     modules: dict[str, Any] = {}
@@ -117,9 +166,15 @@ def load_research_market_context(
         "record_sha256": supplied,
         "classification": CLASSIFICATION,
         "provider_calls": 0,
+        "serving_request_budget": 0,
+        "refresh_authority": "NOT_AUTHORIZED_BY_READ_MODEL",
+        "cache_source": cache_source,
         "rating_authority": "UNCHANGED",
         "publication_authority": "UNCHANGED",
     }
+    market = modules.get("historical_ohlcv") or {}
+    if market.get("market_identity"):
+        modules["__read_model__"]["market_identity"] = dict(market["market_identity"])
     return modules
 
 

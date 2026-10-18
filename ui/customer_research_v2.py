@@ -778,6 +778,14 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
     _marker("section", ticker, section_name="Technical & Trade State")
     st.markdown("## Technical & Trade State")
     st.markdown("### Price history")
+    market_context = page.get("market_context") if isinstance(page.get("market_context"), Mapping) else {}
+    market_identity = market_context.get("market_identity") if isinstance(market_context.get("market_identity"), Mapping) else {}
+    if market_context.get("status") == "AVAILABLE" and market_identity:
+        st.caption(
+            f'Independent verified close: {_money(market_identity.get("latest_verified_close"))} · '
+            f'completed session {market_identity.get("latest_completed_session") or "Unavailable"} · '
+            'display context only; the certified recommendation remains unchanged.'
+        )
     _marker("chart-root", ticker, status=page["chart"]["status"])
     chart = page["chart"]
     ownership = chart.get("ownership") or {}

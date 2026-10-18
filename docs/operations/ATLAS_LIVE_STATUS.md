@@ -22,6 +22,11 @@ Evidence policy: a merge is not deployment; a provider-free run is not acquisiti
   payload digests, capture timestamps and explicit no-raw-redistribution
   provenance. It has no provider adapter and cannot alter certified price,
   Action, Fair Value, ranking, publication or Report Card observations.
+- The read path has a hard provider-request budget of zero, identifies pricing
+  as completed-session end-of-day rather than real-time/delayed intraday, and
+  exposes the verified close plus market-session identity. A separately
+  self-hashed backup bundle may be used only when the primary bundle cannot be
+  verified; no cache read mutates or refreshes either copy.
 - Retained Research histories disclose `FRESH_CACHE` or `STALE_RETAINED`; a
   stale retained history is never presented as a newly refreshed customer
   snapshot. OHLCV, volume, corporate-action provenance, fundamentals and

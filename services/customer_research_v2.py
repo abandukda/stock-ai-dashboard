@@ -829,7 +829,8 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
     enrichment = _qa_enrichment(ticker)
     if not enrichment:
         enrichment = load_research_market_context(
-            ticker, os.getenv("ATLAS_RESEARCH_MARKET_DATA_ROOT", "").strip()
+            ticker, os.getenv("ATLAS_RESEARCH_MARKET_DATA_ROOT", "").strip(),
+            backup_root=os.getenv("ATLAS_RESEARCH_MARKET_DATA_BACKUP_ROOT", "").strip(),
         )
     enrichment_ticker = str(enrichment.get("__atlas_ticker__") or ticker).strip().upper()
     if enrichment and enrichment_ticker != ticker:

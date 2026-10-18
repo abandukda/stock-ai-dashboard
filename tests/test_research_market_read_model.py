@@ -58,12 +58,21 @@ def test_loads_source_bound_display_authorized_context_without_provider(tmp_path
         "nvda", tmp_path, now=datetime(2026, 10, 17, tzinfo=timezone.utc)
     )
     assert result["__atlas_ticker__"] == "NVDA"
-    assert result["__read_model__"] == {
-        "schema": "ATLAS_RESEARCH_MARKET_READ_MODEL_V1",
-        "source_sha": "source-sha", "bundle_id": "bundle-1",
-        "record_sha256": document["record_sha256"],
-        "classification": CLASSIFICATION, "provider_calls": 0,
-        "rating_authority": "UNCHANGED", "publication_authority": "UNCHANGED",
+    metadata = result["__read_model__"]
+    assert metadata["schema"] == "ATLAS_RESEARCH_MARKET_READ_MODEL_V1"
+    assert metadata["source_sha"] == "source-sha"
+    assert metadata["record_sha256"] == document["record_sha256"]
+    assert metadata["classification"] == CLASSIFICATION
+    assert metadata["provider_calls"] == metadata["serving_request_budget"] == 0
+    assert metadata["refresh_authority"] == "NOT_AUTHORIZED_BY_READ_MODEL"
+    assert metadata["cache_source"] == "PRIMARY"
+    assert metadata["rating_authority"] == metadata["publication_authority"] == "UNCHANGED"
+    assert metadata["market_identity"] == {
+        "latest_verified_close": 192.0,
+        "latest_completed_session": "2026-10-16",
+        "price_basis": "END_OF_DAY_COMPLETED_SESSION",
+        "is_real_time": False,
+        "is_delayed_intraday": False,
     }
     assert result["historical_ohlcv"]["cache_status"] == "FRESH_CACHE"
     assert result["basic_financials"]["classification"] == CLASSIFICATION
@@ -99,3 +108,25 @@ def test_rejects_corrupt_top_level_self_hash(tmp_path):
     document = _document(); document["source_sha"] = "tampered"
     (tmp_path / "NVDA.json").write_text(json.dumps(document))
     assert load_research_market_context("NVDA", tmp_path) == {}
+
+
+def test_uses_independently_verified_backup_when_primary_is_corrupt(tmp_path):
+    primary, backup = tmp_path / "primary", tmp_path / "backup"
+    primary.mkdir(); backup.mkdir()
+    document = _document()
+    (primary / "NVDA.json").write_text("{corrupt")
+    (backup / "NVDA.json").write_text(json.dumps(document))
+    result = load_research_market_context("NVDA", primary, backup_root=backup)
+    assert result["__read_model__"]["cache_source"] == "BACKUP"
+    assert result["__read_model__"]["record_sha256"] == document["record_sha256"]
+
+
+def test_rejects_incomplete_ohlcv_arrays_even_when_envelope_hashes_match(tmp_path):
+    document = _document()
+    family = document["families"]["historical_ohlcv"]
+    family["payload"]["volume"] = []
+    family["payload_sha256"] = hashlib.sha256(_canonical(family["payload"])).hexdigest()
+    document = seal_research_market_bundle(document)
+    (tmp_path / "NVDA.json").write_text(json.dumps(document))
+    result = load_research_market_context("NVDA", tmp_path)
+    assert "historical_ohlcv" not in result
