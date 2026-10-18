@@ -24,7 +24,7 @@ def test_visual_review_bundle_labels_fixture_evidence_and_requires_all_viewports
                for item in manifest["screenshots"])
     for required in (
         "README.md", "SCREENSHOT_INDEX.md", "IMPLEMENTATION_SUMMARY.md", "DATA_TRUTH.md",
-        "KNOWN_LIMITATIONS.md", "QA_RESULTS.md", "CLAUDE_REVIEW_PROMPT.md",
+        "KNOWN_LIMITATIONS.md", "PRIORITIZED_REMAINING_GAPS.md", "QA_RESULTS.md", "CLAUDE_REVIEW_PROMPT.md",
     ):
         assert (output / required).is_file()
 

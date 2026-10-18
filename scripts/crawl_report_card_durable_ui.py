@@ -66,8 +66,9 @@ async def wait_for_report_card_overview_settled(page: Page, mode: str) -> None:
 
 async def wait_for_report_card_signal_entry_settled(page: Page, mode: str) -> None:
     async def settled() -> bool:
-        expander = page.locator('[data-testid="stExpander"]').first
-        return await expander.count() > 0 and await expander.is_visible()
+        expanders = page.locator('[data-testid="stExpander"]')
+        expander = expanders.nth(1)
+        return await expanders.count() > 1 and await expander.is_visible()
 
     await _wait_for_stable_condition(
         settled,
@@ -76,7 +77,9 @@ async def wait_for_report_card_signal_entry_settled(page: Page, mode: str) -> No
 
 
 async def open_report_card_signal_expander(page: Page, mode: str) -> Any:
-    expander = page.locator('[data-testid="stExpander"]').first
+    # The page-level explainer is the first expander; the first governed
+    # signal is the next one. Its action is rendered after expansion.
+    expander = page.locator('[data-testid="stExpander"]').nth(1)
     await expander.click()
 
     async def settled() -> bool:

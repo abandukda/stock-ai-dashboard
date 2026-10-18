@@ -1109,3 +1109,36 @@ any other item.
   zero-provider contract: it creates an honest retained-evidence-only sidecar
   instead of making 22 licensed QA calls. Missing enrichment remains visibly
   unavailable rather than being replaced with synthetic market facts.
+
+### Page-wide ATLAS Explains cohesion — 2026-10-17
+
+- PR #71 adds one shared `ATLAS_EXPLAINS_V1` contract across Home, BUY NOW,
+  Research, Charts, Report Card, Recovery Radar, ETF Analysis, and Watchlist.
+  Every supported surface answers six beginner questions through a 30-second
+  takeaway, two-minute Simple View, and evidence-bound Detailed View.
+- Explanations label source facts, calculations, interpretations, limitations,
+  and monitoring scenarios separately. They are non-scoring and cannot change
+  certified recommendations, Report Card observations, customer publication,
+  or production state.
+- The synthesis interface fails closed when external-model execution is
+  requested. Current copy is explicitly labeled
+  `DETERMINISTIC_GROUNDED_FALLBACK`; it is never presented as externally
+  AI-generated.
+- Hosted preview activation remains owner-controlled. The exact safe setup and
+  browser-acceptance gates are recorded in
+  `docs/operations/ATLAS_PREVIEW_ACTIVATION_CHECKLIST.md`. No hosted preview URL
+  exists yet, and production remains unchanged.
+- Independent application QA exercised Home, BUY NOW, Research, Recovery,
+  ETFs, Watchlist, and internal Report Card at 1440, 1024, 390, and 360 px.
+  Research reached its terminal NVDA surface at every width after detaching the
+  immutable canonical decision only at the Streamlit cache boundary. The
+  canonical decision values and authority remain unchanged.
+- The compact 360-px Home view now keeps the 30-second takeaway above the fold
+  and exposes Simple/Detailed reading levels through one accessible expander.
+  Report Card 360/390 chart QA verified all 1M/3M/6M/1Y controls, unified
+  hover, zero horizontal overflow, and no toolbar overlap. Final chart-evidence
+  checksum-manifest SHA-256:
+  `5085d00a44cb807894b2883fce0efcadf8cf58886b073b102e17781ebbf57cab`.
+- These were provider-free preview checks: provider calls, publication writes,
+  and ledger mutations were all zero. They do not establish a hosted preview
+  or production deployment.

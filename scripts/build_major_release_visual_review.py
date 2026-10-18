@@ -39,6 +39,20 @@ def _classification(path: Path) -> str:
     return "RETAINED_CERTIFIED_RUNTIME_EVIDENCE"
 
 
+def _page(name: str) -> str:
+    lowered = name.lower()
+    for needle, page in (
+        ("buy-now", "BUY NOW"), ("opportunit", "BUY NOW"),
+        ("report-card-chart", "Charts"), ("report-card", "Report Card"),
+        ("research", "Research"), ("recovery", "Recovery Radar"),
+        ("watchlist", "Watchlist"), ("etf", "ETF Analysis"),
+        ("home", "Home"),
+    ):
+        if needle in lowered:
+            return page
+    return "Other"
+
+
 def _copy_screenshots(roots: Iterable[Path], output: Path, source_sha: str) -> list[dict[str, Any]]:
     screenshots = output / "screenshots"
     screenshots.mkdir(parents=True, exist_ok=True)
@@ -59,6 +73,7 @@ def _copy_screenshots(roots: Iterable[Path], output: Path, source_sha: str) -> l
                 "file": f"screenshots/{target.name}",
                 "source_sha": source_sha,
                 "role": "customer_viewer" if "customer" in stem else "internal_admin",
+                "page": _page(stem),
                 "viewport": _viewport(stem),
                 "evidence_classification": _classification(source),
                 "sha256": _sha256(target),
@@ -75,6 +90,7 @@ def build(output: Path, roots: list[Path], source_sha: str) -> None:
     output.mkdir(parents=True, exist_ok=True)
     manifest = _copy_screenshots(roots, output, source_sha)
     observed = {item["viewport"] for item in manifest}
+    observed_pages = {item["page"] for item in manifest}
     status = "PASS" if REQUIRED_VIEWPORTS <= observed and manifest else "INCOMPLETE"
     payload = {
         "status": status,
@@ -86,16 +102,17 @@ def build(output: Path, roots: list[Path], source_sha: str) -> None:
         "screenshots": manifest,
         "required_viewports": sorted(REQUIRED_VIEWPORTS),
         "observed_viewports": sorted(observed),
+        "observed_pages": sorted(observed_pages),
     }
     _write(output / "screenshot_manifest.json", json.dumps(payload, indent=2, sort_keys=True))
     rows = "\n".join(
-        f'| `{item["file"]}` | {item["viewport"]} | {item["role"]} | {item["evidence_classification"]} | `{item["sha256"]}` |'
+        f'| `{item["file"]}` | {item["page"]} | {item["viewport"]} | {item["role"]} | {item["evidence_classification"]} | `{item["sha256"]}` |'
         for item in manifest
-    ) or "| _No screenshots_ | — | — | — | — |"
+    ) or "| _No screenshots_ | — | — | — | — | — |"
     _write(output / "SCREENSHOT_INDEX.md", """# Screenshot index
 
-| File | Viewport | Role | Evidence classification | SHA-256 |
-|---|---|---|---|---|
+| File | Page | Viewport | Role | Evidence classification | SHA-256 |
+|---|---|---|---|---|---|
 """ + rows)
     _write(output / "README.md", f"""# ATLAS Major Release visual review
 
@@ -126,6 +143,13 @@ Safety boundaries: no licensed provider calls, production publication, Report Ca
 - External model synthesis remains inactive; deterministic grounded summaries are labeled as such.
 - Public Report Card, protected G2/G3/G4 operations, licensed Research refresh, customer publication, and unattended daily operation require their separate approvals and evidence.
 """)
+    _write(output / "PRIORITIZED_REMAINING_GAPS.md", """# Prioritized remaining gaps
+
+1. **Hosted preview identity:** create a separate access-controlled Streamlit preview, then verify its exact running SHA and all responsive routes.
+2. **Owner visual acceptance:** review the hosted screenshots and resolve any material trust, navigation, contrast, overflow, or comprehension defect.
+3. **External synthesis:** remains disabled pending separate provider, privacy, latency, and budget authorization; deterministic fallback stays visibly labeled.
+4. **Protected operations:** public Report Card, licensed acquisition, customer publication, and unattended scheduling retain their separate gates.
+""")
     _write(output / "QA_RESULTS.md", f"""# QA results
 
 - Bundle status: **{status}**
@@ -133,6 +157,7 @@ Safety boundaries: no licensed provider calls, production publication, Report Ca
 - Captures: {len(manifest)}
 - Required viewports: {', '.join(sorted(REQUIRED_VIEWPORTS))}
 - Observed viewports: {', '.join(sorted(observed)) or 'none'}
+- Observed pages: {', '.join(sorted(observed_pages)) or 'none'}
 - Provider calls: 0
 - Production writes: 0
 - Report Card ledger mutations: 0

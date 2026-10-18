@@ -123,6 +123,11 @@ def _render_signal_detail(detail: Mapping[str, Any]) -> None:
 
     chart = detail.get("price_chart") or {}
     st.subheader("Verified price history")
+    from services.atlas_explains import build_page_explanation
+    from ui.atlas_explains import render_atlas_explains
+    render_atlas_explains(build_page_explanation(
+        "Charts", source_date=str(chart.get("as_of") or "Source date unavailable"),
+    ))
     if chart.get("status") != "AVAILABLE":
         st.markdown('<span data-atlas-qa="report-card-chart-unavailable" '
                     f'data-atlas-chart-status="{html.escape(str(chart.get("status") or "UNAVAILABLE"))}" '
@@ -194,7 +199,19 @@ def _render_signal_detail(detail: Mapping[str, Any]) -> None:
                 "font": {"color": "#e2e8f0", "size": 12},
             }],
         )
-        st.plotly_chart(fig, width="stretch", key=f"report-card-chart-{detail.get('signal_id')}")
+        st.plotly_chart(
+            fig,
+            width="stretch",
+            key=f"report-card-chart-{detail.get('signal_id')}",
+            config={
+                "displaylogo": False,
+                "responsive": True,
+                # Plotly's floating toolbar obscures the 1Y range selector at
+                # 360px even after removing export. Native touch/mouse zoom,
+                # hover and all governed timeframe buttons remain available.
+                "displayModeBar": False,
+            },
+        )
         st.caption(f'Latest verified close {_money(chart["latest_price"])} · as of {chart["as_of"]}. '
                    f'{chart["methodology"]} Educational, non-scoring context.')
         with st.expander("Accessible chart data", expanded=False):
