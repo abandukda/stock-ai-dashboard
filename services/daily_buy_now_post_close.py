@@ -14,7 +14,7 @@ from services.report_card_exchange_calendar import build_xnys_calendar, verify_x
 SCHEMA_VERSION = "ATLAS_DAILY_BUY_NOW_POST_CLOSE_V1"
 EASTERN = ZoneInfo("America/New_York")
 POST_CLOSE = time(18, 0)
-WAKE_WINDOW_END = time(18, 59, 59)
+WAKE_WINDOW_END = time(23, 59, 59)
 
 
 def _canonical(value: Any) -> bytes:
@@ -42,7 +42,8 @@ def schedule_decision(*, now: datetime, last_published_session: str = "") -> dic
         "ELIGIBLE" if eligible else
         "ALREADY_PUBLISHED" if duplicate else
         "NON_TRADING_DAY" if not is_session_day else
-        "BEFORE_POST_CLOSE_WINDOW"
+        "BEFORE_POST_CLOSE_WINDOW" if local.timetz().replace(tzinfo=None) < POST_CLOSE else
+        "POST_CLOSE_WINDOW_EXPIRED"
     )
     result = {
         "schema_version": SCHEMA_VERSION,

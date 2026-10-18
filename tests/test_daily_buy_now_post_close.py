@@ -20,7 +20,8 @@ def test_dual_utc_wakeups_select_six_pm_across_dst():
     assert winter["eligible"] and winter["observed_at_eastern"].startswith("2026-11-04T18:05")
     wrong_summer_wakeup = schedule_decision(now=datetime(2026, 10, 14, 23, 5, tzinfo=UTC))
     wrong_winter_wakeup = schedule_decision(now=datetime(2026, 11, 4, 22, 5, tzinfo=UTC))
-    assert wrong_summer_wakeup["eligible"] is False
+    # The inactive UTC wake can be a legitimate delayed execution after 18:00 ET.
+    assert wrong_summer_wakeup["eligible"] is True
     assert wrong_winter_wakeup["eligible"] is False
 
 
@@ -37,6 +38,14 @@ def test_early_close_is_finalized_by_six_pm():
     decision = schedule_decision(now=datetime(2026, 11, 27, 23, 5, tzinfo=UTC))
     assert decision["eligible"] is True
     assert decision["calendar"]["early_close"] is True
+
+
+def test_delayed_github_start_remains_eligible_but_never_crosses_session_day():
+    delayed = schedule_decision(now=datetime(2026, 10, 15, 2, 5, tzinfo=UTC))
+    assert delayed["eligible"] is True
+    assert delayed["observed_at_eastern"].startswith("2026-10-14T22:05")
+    before = schedule_decision(now=datetime(2026, 10, 14, 21, 55, tzinfo=UTC))
+    assert before["eligible"] is False and before["reason"] == "BEFORE_POST_CLOSE_WINDOW"
 
 
 def test_continuity_uses_ordered_xnys_sessions_not_calendar_days():

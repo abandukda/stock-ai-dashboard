@@ -1029,3 +1029,29 @@ any other item.
   same provider-free certification authority against the new source. Customer
   publication remains separately gated and is not ready unless that run emits
   a terminal candidate and publication digest under the sub-5-GiB contract.
+
+### Weekend Report Card and automation engineering — 2026-10-17
+
+- Branch `codex/weekend-report-card-automation` is based on registered main
+  `71362fb4a0fe4bf79478600ba0d7a1b2697b9c30`. It adds a read-only,
+  source-bound Report Card chart projection and responsive internal detail
+  renderer. It accepts only persisted verified OHLCV with evidence identity
+  and corporate-action adjustment provenance; duplicate sessions, incomplete
+  histories, and unhandled split discontinuities fail visibly closed.
+- Support/resistance zones and OLS trendlines are deterministic and marked
+  `EDUCATIONAL_NON_SCORING`. Supported 1M/3M/6M/1Y/5Y controls, the original
+  signal marker, latest verified close/as-of, labeled encodings, and an
+  accessible table fallback are present. No provider fallback was added.
+- Daily scheduling permits a delayed GitHub start through 23:59:59 ET on the
+  same finalized XNYS session, while retaining holiday and duplicate-session
+  rejection. Focused Report Card, G2/G3, navigation, and daily tests pass
+  `92/92`; changed-module compilation passes with an isolated bytecode cache.
+- G2/G3 provider-free primitives remain ready, but G4 and unattended BUY NOW
+  are **NOT OPERATIONAL**: the registered daily graph remains plan-only, has no
+  live acquire→certify→promote jobs, and emits no coordinator Cronitor events.
+  Public Report Card remains OFF.
+- Full certification run `39043009760`, job `117426122707`, completed authority
+  and retained-evidence downloads, but scoring was cancelled and emitted no
+  artifact. It is not certification evidence and produced no candidate. The
+  pending 16-GB runner resize remains the production-scale blocker; this
+  iteration did not restart or modify the worker.

@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Mapping, MutableMapping, Sequence
 
 import streamlit as st
+import plotly.graph_objects as go
 
 from services.report_card_dashboard import build_internal_report_card
 
@@ -118,6 +119,57 @@ def _render_signal_detail(detail: Mapping[str, Any]) -> None:
         f'<article><small>Observations</small><b>{sum(x["status"] == "AVAILABLE" for x in detail["performance"])}</b></article>'
         '</section></div>', unsafe_allow_html=True,
     )
+
+    chart = detail.get("price_chart") or {}
+    st.subheader("Verified price history")
+    if chart.get("status") != "AVAILABLE":
+        st.markdown('<span data-atlas-qa="report-card-chart-unavailable" '
+                    f'data-atlas-chart-status="{html.escape(str(chart.get("status") or "UNAVAILABLE"))}" '
+                    'aria-hidden="true" style="display:none">chart unavailable</span>', unsafe_allow_html=True)
+        st.info(chart.get("message") or "Verified historical chart evidence is unavailable.")
+    else:
+        bars = chart["bars"]
+        evidence_ids = chart.get("provenance", {}).get("evidence_ids") or ()
+        st.markdown('<span data-atlas-qa="report-card-price-chart" data-atlas-chart-status="AVAILABLE" '
+                    f'data-atlas-chart-as-of="{html.escape(str(chart["as_of"]))}" '
+                    f'data-atlas-chart-evidence-count="{len(evidence_ids)}" '
+                    'data-atlas-chart-classification="EDUCATIONAL_NON_SCORING" '
+                    'aria-hidden="true" style="display:none">verified chart</span>', unsafe_allow_html=True)
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=[x["date"] for x in bars], y=[x["close"] for x in bars],
+                                 name=ticker, mode="lines", line={"color": "#5eead4", "width": 2}))
+        support, resistance = chart["support_zone"], chart["resistance_zone"]
+        fig.add_hrect(y0=support[0], y1=support[1], fillcolor="rgba(34,197,94,.14)", line_width=0,
+                      annotation_text="Support zone")
+        fig.add_hrect(y0=resistance[0], y1=resistance[1], fillcolor="rgba(59,130,246,.14)", line_width=0,
+                      annotation_text="Resistance zone")
+        trend = chart.get("trendline")
+        if trend:
+            fig.add_trace(go.Scatter(x=[bars[0]["date"], bars[-1]["date"]], y=[trend["start"], trend["end"]],
+                                     name="OLS trend", mode="lines", line={"color": "#fbbf24", "dash": "dash"}))
+        marker = chart.get("signal_marker")
+        if marker:
+            fig.add_trace(go.Scatter(x=[marker["date"]], y=[marker["price"]], name="Original ATLAS signal",
+                                     mode="markers", marker={"size": 10, "symbol": "diamond", "color": "#ffffff"}))
+        range_specs = {
+            "1M": {"count": 1, "label": "1M", "step": "month", "stepmode": "backward"},
+            "3M": {"count": 3, "label": "3M", "step": "month", "stepmode": "backward"},
+            "6M": {"count": 6, "label": "6M", "step": "month", "stepmode": "backward"},
+            "1Y": {"count": 1, "label": "1Y", "step": "year", "stepmode": "backward"},
+            "5Y": {"count": 5, "label": "5Y", "step": "year", "stepmode": "backward"},
+        }
+        fig.update_layout(template="plotly_dark", height=430, margin={"l": 12, "r": 12, "t": 24, "b": 12},
+                          hovermode="x unified", legend={"orientation": "h"},
+                          xaxis={"rangeselector": {"buttons": [range_specs[label] for label in chart["ranges"]]}})
+        st.plotly_chart(fig, width="stretch", key=f"report-card-chart-{detail.get('signal_id')}")
+        st.caption(f'Latest verified close {_money(chart["latest_price"])} · as of {chart["as_of"]}. '
+                   f'{chart["methodology"]} Educational, non-scoring context.')
+        with st.expander("Accessible chart data", expanded=False):
+            st.write(f'{len(bars)} verified completed-session observations. Latest close '
+                     f'{_money(chart["latest_price"])} as of {chart["as_of"]}. '
+                     'Support and resistance are labeled zones; the dashed line is a descriptive OLS trend, not a forecast.')
+            st.dataframe([{"Session": row["date"], "Close": row["close"], "High": row["high"], "Low": row["low"]}
+                          for row in bars], width="stretch", hide_index=True)
 
     st.subheader("Performance by registered horizon")
     st.dataframe([{
