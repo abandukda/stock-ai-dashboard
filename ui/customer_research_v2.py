@@ -761,6 +761,11 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
                 st.write(item.get("answer") or "Verified evidence is unavailable.")
         if simple_view.get("data_notice"):
             st.warning(str(simple_view["data_notice"]))
+        evidence_ids = tuple(str(item) for item in reading_views.get("evidence_ids") or () if str(item).strip())
+        if evidence_ids:
+            with st.expander("Sources for this plain-English guide", expanded=False):
+                for evidence_id in evidence_ids:
+                    st.code(evidence_id)
     with detailed_tab:
         st.markdown(f'### {detailed_view.get("title") or "Detailed evidence"}')
         st.write(detailed_view.get("message") or "Detailed evidence follows below.")

@@ -1,7 +1,7 @@
 # ATLAS Live Operations Status
 
-**Authoritative as of:** 2026-10-16
-**Repository main:** `c038e31d0e055a0569e8fa05e0ae2f11203c5c9a`
+**Authoritative as of:** 2026-10-18
+**Repository main:** `0c99148b177f9891550a90ae3b8dd934bff67d66`
 
 **Verified deployed runtime:** `e838d05b3c92563c514d4d185365b4c8e97bfdba`
 **Production:** [stock-ai-dashboard.streamlit.app](https://stock-ai-dashboard.streamlit.app/)  
@@ -1142,3 +1142,70 @@ any other item.
 - These were provider-free preview checks: provider calls, publication writes,
   and ledger mutations were all zero. They do not establish a hosted preview
   or production deployment.
+
+### Consolidated customer-intelligence candidate — 2026-10-18
+
+- Authoritative `main` is `0c99148b177f9891550a90ae3b8dd934bff67d66`,
+  the merge commit for PR #71. Development continues on the isolated
+  `codex/consolidated-release` branch; this candidate is **NOT DEPLOYED**.
+- ATLAS Explains now accepts only provenance-bearing page evidence for
+  company-specific claims, includes Ask ATLAS, and exposes source identities
+  without exposing raw licensed payloads. Deterministic fallback remains
+  explicitly labeled and external-model execution remains disabled.
+- Home's brief is bound to the actual lead company, governed thesis, primary
+  risk, market interpretation, and certified timestamp when those fields are
+  present. Unsupported current news or macro context remains unavailable.
+- The internal Report Card chart adds retained-evidence candlesticks, volume,
+  SMA20/50, RSI14, MACD(12/26/9), SPY comparison, original-signal and measured
+  outcome markers. All indicators are educational/non-scoring and fail closed
+  when required bars are incomplete. Public Report Card remains OFF.
+- A bounded Research refresh planner is built with transport disabled. Its
+  immutable maximum is 25 tickers / 225 request intents, concurrency one,
+  zero retries, signed entitlement checks, cache-first family TTLs, and a
+  zero-call/no-authority preflight. This is readiness evidence, not acquisition.
+- The daily 6:05 PM ET coordinator remains disabled/plan-only and is not an
+  unattended acquisition→certification→publication operation. Production
+  BUY NOW data and Report Card ledgers were not changed.
+- Combined provider-free regression at this stage passes `329/329`; changed
+  modules compile, workflow YAML parses, and diff integrity passes. Independent
+  exact-candidate browser QA and GitHub exact-head CI remain required before a
+  merge decision.
+
+### Consolidated release acceptance — 2026-10-18
+
+- PR #72 (`codex/consolidated-release`) is the integrated review candidate.
+  Exact application head `8c15eb281a215d2c40e8aed9ff996734fd13e990`
+  passed both exact-head GitHub checks: Customer Experience Autonomous QA run
+  `39099596357` and Report Card Registration CI run `39099596366`.
+- Independent provider-free QA on that exact head passed `125/125` focused
+  tests and rendered 68 screenshots covering 1440, 1024, 390, and 360 px.
+  It exercised 32 admin route renders plus four viewer-isolation cases with
+  zero browser-console errors and zero horizontal-overflow findings. The
+  Claude-ready visual ZIP is `visual-review.zip`, SHA-256
+  `469c3c3258d6a8d76b63fb47eb0d963dda5367a4b8a3e0ce554b36b53b6b63ca`;
+  its checksum manifest digest is
+  `4456d1e73fd5a992b72999c85506e8a9a8c30a82ad6830438cf7ff8eb175a2f8`.
+- The exact-head acceptance covers Home, BUY NOW, Research, Charts, Recovery
+  Radar, ETF Analysis, Watchlist, Ask ATLAS, and gated Report Card. NVDA and
+  MSFT identities were reconciled against coherent retained evidence; BLFS
+  remained explicitly withheld/incomplete. Simple and Detailed views,
+  financial/valuation/technical content, mobile navigation, and customer/admin
+  isolation passed. Provider calls, publication writes, and ledger mutations
+  were all zero.
+- One governed workflow dispatch against the earlier `dd3a288...` candidate
+  (run `39099253550`) passed protected source/runtime materialization and route
+  execution but failed its legacy screenshot-name/coverage contract. Its
+  visual artifact is `12126465309` (digest
+  `10e38f414220e179812021dcb3ad1c53aca376f814e1fdc3a053051b67f66626`)
+  and QA artifact is `12126216456` (digest
+  `bb2467ffa97c81dcc98c87b58494afe58613bf05692aeccb5507dd2cd10dfd68`).
+  This run is retained as workflow-diagnostic evidence, not a passing governed
+  certification and not evidence for the final head.
+- The hosted preview is still **NOT DEPLOYED** and no URL is claimed. A
+  dedicated access-controlled Streamlit preview must be separately authorized
+  and bound to the exact reviewed SHA; production must remain unchanged.
+- Customer market truth is unchanged: certified session `2026-10-02`,
+  publication `2026-10-04T12:21:38-04:00`, governed BUY NOW inventory `11`,
+  publication digest
+  `72b37697b2f4fc5dabd5438c1a3bb7c068cd12e86253b64e37b8a642c310bf17`.
+  No candidate UI test is represented as a data refresh or deployment.

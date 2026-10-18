@@ -1,4 +1,5 @@
 from datetime import date, timedelta
+from pathlib import Path
 
 from services.report_card_chart import build_chart_projection, normalize_price_history, slice_timeframe
 
@@ -8,7 +9,7 @@ def bars(count=80, *, flat=False):
     result = []
     for i in range(count):
         close = 100 if flat else 100 + i * .2
-        result.append({"date": (start + timedelta(days=i)).isoformat(), "close": close,
+        result.append({"date": (start + timedelta(days=i)).isoformat(), "open": close - .1, "close": close,
                        "high": close + 1, "low": close - 1, "volume": 1000,
                        "completed": True})
     return result
@@ -28,6 +29,13 @@ def test_chart_is_source_bound_and_non_scoring():
     assert model["trendline"]["method"] == "OLS_CLOSE_BY_SESSION"
     assert model["spy_status"] == "AVAILABLE"
     assert model["spy_comparison"][0]["indexed_close"] == 100.0
+    assert model["candlestick_status"] == "AVAILABLE"
+    assert model["indicators"]["sma20"][18] is None
+    assert model["indicators"]["sma20"][19] is not None
+    assert model["indicators"]["sma50"][49] is not None
+    assert model["indicators"]["rsi14"][13] is None
+    assert model["indicators"]["rsi14"][14] == 100.0
+    assert len(model["indicators"]["macd"]) == model["bar_count"]
 
 
 def test_missing_identity_and_short_history_fail_explicitly():
@@ -76,10 +84,48 @@ def test_invalid_volume_is_disclosed_without_corrupting_valid_price_history():
         assert model["volume_status"] == "INCOMPLETE_NON_SCORING"
 
 
+def test_missing_or_invalid_open_disables_candlesticks_without_inventing_open():
+    for invalid in (None, -1, float("inf"), 500):
+        values = bars()
+        values[-1]["open"] = invalid
+        model = build_chart_projection(values, PROVENANCE)
+        assert model["status"] == "AVAILABLE"
+        assert model["bars"][-1]["open"] is None
+        assert model["candlestick_status"] == "INCOMPLETE"
+
+
+def test_flat_history_has_neutral_rsi_and_zero_macd():
+    model = build_chart_projection(bars(flat=True), PROVENANCE)
+    assert model["indicators"]["rsi14"][-1] == 50.0
+    assert model["indicators"]["macd"][-1] == 0.0
+    assert model["indicators"]["macd_signal"][-1] == 0.0
+
+
+def test_invalid_signal_marker_is_omitted_instead_of_breaking_chart():
+    for signal_date, signal_price in (("not-a-date", 100), ("2026-01-02", float("nan")),
+                                      ("2026-01-02", -1), (None, 100)):
+        model = build_chart_projection(bars(), PROVENANCE, signal_date=signal_date, signal_price=signal_price)
+        assert model["status"] == "AVAILABLE"
+        assert model["signal_marker"] is None
+
+
 def test_timeframe_slice_and_invalid_rows():
     values = bars(100)
     values.append({"date": "bad", "close": 0, "high": 0, "low": 0})
     normalized = normalize_price_history(values)
     assert len(normalized) == 100
     assert len(slice_timeframe(normalized, "1M")) < 100
+
+
+def test_internal_chart_wires_governed_price_volume_indicators_and_outcomes():
+    source = Path("ui/internal_report_card.py").read_text(encoding="utf-8")
+    for contract in (
+        "go.Candlestick(", 'name="Volume"', 'name="RSI (14)"', 'name="MACD"',
+        'name="MACD signal"', 'name="Original ATLAS signal"', 'name="Measured outcomes"',
+        'name="SPY · indexed to 100"', 'annotation_text="Support zone"',
+        'annotation_text="Resistance zone"',
+    ):
+        assert contract in source
+    assert "EDUCATIONAL_NON_SCORING" in source
+    assert "not predictions, recommendations or inputs to ATLAS scoring" in source
 

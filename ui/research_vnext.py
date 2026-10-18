@@ -96,11 +96,23 @@ def _certified_field(report: Mapping[str, Any], name: str) -> Any:
 
 
 def _certified_decision_authority(report: Mapping[str, Any]) -> Mapping[str, Any]:
-    """Return the customer-publishable certified decision, or no authority."""
-    authority = customer_authority(report)
-    if authority.get("status") != "AVAILABLE":
+    """Return an explicitly publishable certified decision without recomputing it.
+
+    Decision precedence does not depend on every display field being present.
+    A dated Research shell may temporarily lack a certified fair-value envelope,
+    but its immutable action/opportunity/confidence still outrank an incomplete
+    contextual evaluation.  The full customer authority remains fail-closed for
+    rendering fields that require the complete envelope.
+    """
+    certified = safe_mapping(report.get("certified_customer_evaluation"))
+    if not certified:
+        canonical = safe_mapping(report.get("canonical_investment_evaluation"))
+        certified = safe_mapping(canonical.get("certified_customer_evaluation"))
+    if certified.get("customer_publication_allowed") is not True:
         return {}
-    return safe_mapping(safe_mapping(authority.get("certified_customer_evaluation")).get("decision"))
+    decision = safe_mapping(certified.get("decision"))
+    required = (decision.get("action"), decision.get("opportunity"), decision.get("decision_confidence"))
+    return decision if all(value is not None and value != "" for value in required) else {}
 
 
 def _score_display(value: Any) -> str:

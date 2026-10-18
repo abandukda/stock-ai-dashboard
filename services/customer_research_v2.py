@@ -238,6 +238,7 @@ def _plain_english_views(
     *, ticker: str, company: str, sector: str | None, action: str,
     gap: float | None, summary: Mapping[str, Any], profile: Mapping[str, Any],
     future_events: Iterable[Mapping[str, Any]], market_context: Mapping[str, Any],
+    evidence_ids: Iterable[str] = (),
 ) -> dict[str, Any]:
     """Project two reading levels from governed facts without external calls."""
     industry = str(profile.get("industry") or sector or "").strip()
@@ -298,6 +299,7 @@ def _plain_english_views(
     return {
         "status": "AVAILABLE", "mode": "DETERMINISTIC_GROUNDED_FALLBACK",
         "external_model_active": False, "classification": CONTEXTUAL,
+        "evidence_ids": tuple(sorted({str(item) for item in evidence_ids if str(item).strip()})),
         "simple_view": {
             "title": f"AI Investment Brief · {ticker} in plain English",
             "intro": (
@@ -1019,6 +1021,7 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
         sector=str(report.get("sector") or profile_payload.get("sector") or "").strip() or None,
         action=action_text, gap=gap, summary=summary, profile=profile_payload,
         future_events=future_events, market_context=market_context,
+        evidence_ids=identity.get("evidence_ids") or (),
     )
     return {
         "version": VERSION, "status": "AVAILABLE", "ticker": ticker, "company": company,

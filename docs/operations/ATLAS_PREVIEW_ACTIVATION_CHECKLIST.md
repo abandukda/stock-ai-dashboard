@@ -8,18 +8,24 @@ replace or reconfigure the customer production application.
 1. Sign in to Streamlit Community Cloud with the authorized GitHub account.
 2. Create a **new private preview app** from repository
    `abandukda/stock-ai-dashboard`, branch
-   `codex/weekend-report-card-automation`, entrypoint `app.py`.
+   `codex/consolidated-release`, entrypoint `app.py`.
 3. Record the generated preview URL; do not reuse the production URL.
 4. Configure distinct preview-only `APP_PASSWORD`, `ATLAS_AUDIT_PASSWORD`,
    `ATLAS_INTERNAL_QA_PASSWORD`, and `ATLAS_VIEWER_QA_PASSWORD` values.
 5. Bind `ATLAS_SOURCE_SHA` and `ATLAS_BUILD_SHA` to the exact reviewed PR head,
-   and set `ATLAS_DEPLOY_BRANCH=codex/weekend-report-card-automation`.
+   and set `ATLAS_DEPLOY_BRANCH=codex/consolidated-release`.
 6. Keep `ATLAS_CUSTOMER_REPORT_CARD_ENABLED=false`,
    `ATLAS_REPORT_CARD_CUSTOMER_VISIBLE=false`, live acquisition/publication
    flags false, and all unattended-operation flags false.
 7. Do not install Finnhub or external-model credentials in the preview. Use
    retained evidence already permitted for display; unavailable context must
    stay visibly unavailable.
+8. Set `ATLAS_RESEARCH_MARKET_CACHE_DIR` only to the preview's read-only,
+   permitted retained-data location. If no permitted cache is installed, omit
+   it and accept the explicit unavailable state. Never mount production raw or
+   checkpoint storage into the preview.
+9. Pin Python to the repository-supported runtime and deploy from the immutable
+   candidate commit, not a moving branch after acceptance begins.
 
 ## Required verification before acceptance
 
@@ -38,5 +44,6 @@ replace or reconfigure the customer production application.
 
 ## Promotion boundary
 
-A successful preview is review evidence only. Merging PR #71 and promoting its
-exact resulting source to production each require their own owner authorization.
+A successful preview is review evidence only. Merging the consolidated release
+candidate and promoting its exact resulting source to production each require
+their own owner authorization.

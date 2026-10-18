@@ -47,10 +47,21 @@ def normalize_price_history(rows: Iterable[Mapping[str, Any]]) -> list[dict[str,
                 volume = None
         else:
             volume = None
+        open_value = row.get("open", row.get("o"))
+        if open_value not in (None, ""):
+            try:
+                open_value = float(open_value)
+            except (TypeError, ValueError):
+                open_value = None
+            if (open_value is not None and
+                    (not math.isfinite(open_value) or open_value <= 0 or not low <= open_value <= high)):
+                open_value = None
+        else:
+            open_value = None
         day = ts.astimezone(timezone.utc).date().isoformat()
         if day in by_day:
             raise ValueError(f"DUPLICATE_CHART_SESSION:{day}")
-        by_day[day] = {"date": day, "close": close, "high": high, "low": low,
+        by_day[day] = {"date": day, "open": open_value, "close": close, "high": high, "low": low,
                        "volume": volume}
     return [by_day[key] for key in sorted(by_day)]
 
@@ -90,6 +101,84 @@ def _normalized_spy(stock: list[dict[str, Any]], spy: list[dict[str, Any]]) -> l
     return [{"date": row["date"], "indexed_close": row["close"] / base * 100.0} for row in aligned]
 
 
+def _sma(values: list[float], window: int) -> list[float | None]:
+    result: list[float | None] = []
+    running = 0.0
+    for index, value in enumerate(values):
+        running += value
+        if index >= window:
+            running -= values[index - window]
+        result.append(running / window if index + 1 >= window else None)
+    return result
+
+
+def _ema(values: list[float], window: int) -> list[float]:
+    if not values:
+        return []
+    alpha = 2.0 / (window + 1.0)
+    result = [values[0]]
+    for value in values[1:]:
+        result.append(alpha * value + (1.0 - alpha) * result[-1])
+    return result
+
+
+def _rsi(values: list[float], window: int = 14) -> list[float | None]:
+    """Wilder RSI, emitted only after a complete lookback window."""
+    result: list[float | None] = [None] * len(values)
+    if len(values) <= window:
+        return result
+    gains = [max(values[index] - values[index - 1], 0.0) for index in range(1, len(values))]
+    losses = [max(values[index - 1] - values[index], 0.0) for index in range(1, len(values))]
+    average_gain = sum(gains[:window]) / window
+    average_loss = sum(losses[:window]) / window
+
+    def value() -> float:
+        if average_gain == 0 and average_loss == 0:
+            return 50.0
+        if average_loss == 0:
+            return 100.0
+        return 100.0 - 100.0 / (1.0 + average_gain / average_loss)
+
+    result[window] = value()
+    for index in range(window + 1, len(values)):
+        average_gain = (average_gain * (window - 1) + gains[index - 1]) / window
+        average_loss = (average_loss * (window - 1) + losses[index - 1]) / window
+        result[index] = value()
+    return result
+
+
+def _technical_indicators(history: list[dict[str, Any]]) -> dict[str, Any]:
+    closes = [float(row["close"]) for row in history]
+    ema12 = _ema(closes, 12)
+    ema26 = _ema(closes, 26)
+    macd = [fast - slow for fast, slow in zip(ema12, ema26)]
+    signal = _ema(macd, 9)
+    return {
+        "sma20": _sma(closes, 20),
+        "sma50": _sma(closes, 50),
+        "rsi14": _rsi(closes, 14),
+        "macd": macd,
+        "macd_signal": signal,
+        "macd_histogram": [line - reference for line, reference in zip(macd, signal)],
+        "methodology": {
+            "sma": "Arithmetic mean of the prior 20 or 50 verified completed-session closes.",
+            "rsi": "14-session Wilder RSI; unavailable until the full lookback exists.",
+            "macd": "12/26-session EMA difference with a 9-session EMA signal; EMAs begin at the first verified close.",
+        },
+    }
+
+
+def _signal_marker(signal_date: Any, signal_price: Any) -> dict[str, Any] | None:
+    timestamp = _timestamp(signal_date)
+    try:
+        price = float(signal_price)
+    except (TypeError, ValueError):
+        return None
+    if timestamp is None or not math.isfinite(price) or price <= 0:
+        return None
+    return {"date": timestamp.date().isoformat(), "price": price}
+
+
 def build_chart_projection(rows: Iterable[Mapping[str, Any]], provenance: Mapping[str, Any], *,
                            signal_date: Any = None, signal_price: Any = None,
                            spy_rows: Iterable[Mapping[str, Any]] = ()) -> dict[str, Any]:
@@ -119,12 +208,14 @@ def build_chart_projection(rows: Iterable[Mapping[str, Any]], provenance: Mappin
         "ranges": [label for label, sessions in {"1M": 23, "3M": 66, "6M": 132, "1Y": 260, "5Y": 1260}.items()
                    if len(history) >= sessions],
         "latest_price": history[-1]["close"], "as_of": history[-1]["date"],
-        "support_zone": [supports[max(0, len(supports)//10-1)] - band, supports[len(supports)//10] + band],
+        "support_zone": [max(0.0, supports[max(0, len(supports)//10-1)] - band), supports[len(supports)//10] + band],
         "resistance_zone": [resistances[-len(resistances)//10-1] - band, resistances[-len(resistances)//10] + band],
         "trendline": _linear_trend(history), "provenance": dict(provenance),
-        "signal_marker": {"date": str(signal_date), "price": float(signal_price)} if signal_date and signal_price else None,
+        "signal_marker": _signal_marker(signal_date, signal_price),
         "spy_comparison": spy_comparison,
         "spy_status": "AVAILABLE" if spy_comparison else "UNAVAILABLE",
+        "candlestick_status": "AVAILABLE" if all(row.get("open") is not None for row in history) else "INCOMPLETE",
+        "indicators": _technical_indicators(history),
         "classification": "EDUCATIONAL_NON_SCORING",
         "volume_status": "AVAILABLE" if all(row.get("volume") is not None for row in history) else "INCOMPLETE_NON_SCORING",
         "methodology": "Zones use the 10th/90th percentiles of verified 60-session lows/highs; trend is OLS close by session.",

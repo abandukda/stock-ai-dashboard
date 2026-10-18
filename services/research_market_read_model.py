@@ -29,6 +29,7 @@ FAMILY_MAX_AGE_SECONDS = {
     "company_profile": 7 * 86400,
     "recommendations": 4 * 3600,
     "price_targets": 4 * 3600,
+    "analyst_actions": 4 * 3600,
     "company_news": 3600,
 }
 
