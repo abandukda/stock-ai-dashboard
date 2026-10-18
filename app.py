@@ -188,13 +188,14 @@ MIN_UPSIDE_PCT = float(os.getenv("MIN_UPSIDE_PCT", "0"))
 VIEWER_PASSWORD = (os.getenv("VIEWER_PASSWORD") or os.getenv("VIEW_PASSWORD") or os.getenv("GUEST_PASSWORD") or "").strip()
 VIEWER_USERNAME = (os.getenv("VIEWER_USERNAME") or os.getenv("GUEST_USERNAME") or "guest").strip()
 ADMIN_PASSWORD = (os.getenv("APP_PASSWORD") or os.getenv("ADMIN_PASSWORD") or "").strip()
+ATLAS_REQUIRE_AUTH = (os.getenv("ATLAS_REQUIRE_AUTH") or "").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def get_user_role():
     if "user_role" not in st.session_state or st.session_state.get("user_role") is None:
         authenticated_role = st.session_state.get("role") if st.session_state.get("authenticated") else None
         st.session_state["user_role"] = authenticated_role or (
-            "admin" if not VIEWER_PASSWORD and not ADMIN_PASSWORD else None
+            "admin" if not ATLAS_REQUIRE_AUTH and not VIEWER_PASSWORD and not ADMIN_PASSWORD else None
         )
     return st.session_state.get("user_role")
 
@@ -4982,6 +4983,10 @@ def dashboard_login_gate():
     viewer_passwords = get_configured_viewer_passwords()
 
     if not ADMIN_PASSWORD and not viewer_passwords:
+        if ATLAS_REQUIRE_AUTH:
+            st.error("Authentication is required, but no admin or viewer password is configured.")
+            st.caption("Set APP_PASSWORD and GUEST_PASSWORD or VIEWER_PASSWORD in the protected deployment secrets.")
+            return False
         st.session_state["authenticated"] = True
         st.session_state["role"] = "admin"
         st.session_state["user_role"] = "admin"

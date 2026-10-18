@@ -6,8 +6,12 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def test_preview_checklist_is_separate_exact_branch_and_provider_free():
     text = (ROOT / "docs/operations/ATLAS_PREVIEW_ACTIVATION_CHECKLIST.md").read_text()
-    assert "codex/consolidated-release" in text
+    assert "codex/preview-milestone3-0758fac" in text
+    assert "0758fac72209ab0642e9f1a431db092d1a699119" in text
     assert "new private preview app" in text
+    assert "GUEST_PASSWORD` or `VIEWER_PASSWORD" in text
+    assert "auto-authenticates as admin" in text
+    assert "ATLAS_REQUIRE_AUTH=true" in text
     assert "Do not install Finnhub or external-model credentials" in text
     assert "Never mount production raw or" in text
     assert "ATLAS_CUSTOMER_REPORT_CARD_ENABLED=false" in text
@@ -31,6 +35,32 @@ def test_customer_qa_uploads_shareable_visual_zip_and_required_review_files():
     assert "artifacts/atlas-major-release-visual-review-${{ steps.context.outputs.candidate_sha }}.zip" in workflow
     for name in (
         "README.md", "QA_RESULTS.md", "FEATURE_COMPLETION.md", "DATA_TRUTH.md",
-        "KNOWN_LIMITATIONS.md", "CLAUDE_REVIEW_PROMPT.md",
+        "KNOWN_LIMITATIONS.md", "SOURCE_IDENTITY.md", "CLAUDE_REVIEW_PROMPT.md",
     ):
         assert name in builder
+
+
+def test_milestone3_contabo_runbook_preserves_source_and_requires_transfer_approval():
+    text = (ROOT / "docs/operations/ATLAS_CONTABO_MIGRATION_READINESS.md").read_text()
+    assert "Never delete or alter the DigitalOcean source" in text
+    assert "explicit owner approval" in text
+    assert "fresh GitHub runner registration token" in text
+    assert "sha256sum" in text
+    assert "licensed evidence transfer is not authorized" in text
+
+
+def test_48gb_certification_runbook_is_bounded_and_provider_free():
+    text = (ROOT / "docs/operations/ATLAS_48GB_CERTIFICATION_READINESS.md").read_text()
+    assert "No Finnhub calls" in text
+    assert "5 GiB" in text
+    assert "8 GiB" in text
+    assert "64-security" in text
+    assert "separate owner authorization" in text
+    assert "production publication" in text
+
+
+def test_hosted_preview_authentication_can_fail_closed():
+    source = (ROOT / "app.py").read_text()
+    assert 'ATLAS_REQUIRE_AUTH = ' in source
+    assert 'if ATLAS_REQUIRE_AUTH:' in source
+    assert 'Authentication is required, but no admin or viewer password is configured.' in source

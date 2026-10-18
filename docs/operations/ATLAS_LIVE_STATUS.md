@@ -1209,3 +1209,50 @@ any other item.
   publication digest
   `72b37697b2f4fc5dabd5438c1a3bb7c068cd12e86253b64e37b8a642c310bf17`.
   No candidate UI test is represented as a data refresh or deployment.
+
+### Milestone 3 infrastructure and preview readiness — 2026-10-18
+
+- PRs #71 and #72 are integrated on authoritative `main` at
+  `0758fac72209ab0642e9f1a431db092d1a699119`. Its application tree is identical
+  to reviewed PR #72 head `391d0f1b377e1fa0681498f412f4f6782d8c76f6`.
+- No hosted preview URL exists and no preview deployment approval is recorded.
+  Streamlit Community Cloud cannot pin a commit directly, so acceptance requires
+  a dedicated immutable preview branch pointing to `0758fac...`, a separate
+  private app, preview-only passwords, and observation of that exact runtime
+  source marker. Customer production is unchanged.
+- Local provider-free acceptance evidence remains 68 screenshots at 1440,
+  1024, 390, and 360 px with zero browser errors, overflow findings, provider
+  calls, production writes, or ledger mutations. This is exact-tree local QA,
+  not hosted-preview evidence.
+- Contabo VPS specifications (Ubuntu 24.04, 12 vCPU, 48 GB RAM, 400 GB SSD) are
+  owner-supplied and **UNVERIFIED**. SSH access remains blocked by rejected root
+  password authentication. No host key, OS, CPU, RAM, disk, firewall, update,
+  service, or encryption state has been independently inspected.
+- No protected evidence was transferred. The DigitalOcean roots
+  `/mnt/atlas_incremental_raw` and `/mnt/atlas_incremental_checkpoints` remain
+  authoritative. Actual file/byte counts and a current SHA-256 manifest require
+  a protected source inventory. Finnhub licensing evidence in the repository
+  does not establish permission to move raw licensed payloads to Contabo or an
+  independent backup; provider/owner confirmation is required first.
+- The existing protected certification workflow remains routed to
+  `atlas-worker-1`, uses 64-security batches and a 5-GiB RSS ceiling, and has no
+  Contabo runner registration. Registering another runner with the same labels
+  while DigitalOcean remains online would make protected routing ambiguous.
+  Contabo validation, a unique staging label, exact manifest migration,
+  controlled cutover, and full certification each remain separately gated.
+- The Milestone 3 review change adds the missing `SOURCE_IDENTITY.md` to visual
+  bundles plus fail-closed Contabo migration and 48-GB certification runbooks.
+  It does not deploy, migrate, certify, publish, acquire, or activate anything.
+- PR #73 (`codex/milestone3-readiness`) head
+  `4f5e87a746685cb7adbf8117130fd9c447294de8` passed its pull-request policy CI
+  runs `39137695005`, `39137890823`, and the exact-head policy/self-test job in
+  manual run `39138060207`. The governed browser job produced QA artifact
+  `12140463847` and visual-review artifact `12140314381`, but its final green
+  certification and visual-package build steps failed. These artifacts are
+  retained as diagnostic evidence; they are not a hosted-preview pass or a
+  production acceptance result. A malformed-candidate probe (`39137894185`)
+  was correctly rejected before governed browser execution.
+- The 48-GB readiness contract was tightened: certification retains its 5-GiB
+  operating target and must checkpoint/fail closed at an 8-GiB job-scoped hard
+  stop. Additional host RAM is recovery headroom, not permission for unbounded
+  scoring memory.
