@@ -1625,18 +1625,34 @@ def _governed_buy_now_inventory(story: Mapping[str, Any]) -> int:
 def _render_daily_brief(story: Mapping[str, Any]) -> None:
     actionable = _actionable_cards(story)
     lead = actionable[0] if actionable else None
-    lead_copy = (
-        f'{html.escape(str(lead.get("ticker") or "UNKNOWN"))} leads the certified BUY NOW set with '
-        f'an Opportunity score of {html.escape(_score(lead.get("opportunity")))}.'
-        if lead else "No customer-publishable BUY NOW record is available in this certified snapshot."
+    if lead:
+        ticker = str(lead.get("ticker") or "UNKNOWN")
+        company = str(lead.get("company") or "").strip()
+        identity = f"{ticker} · {company}" if company and company.casefold() != ticker.casefold() else ticker
+        thesis = _compact_reason(lead)
+        risk = _compact_primary_risk(lead)
+        lead_copy = (
+            f'{html.escape(identity)} leads the certified BUY NOW set with an Opportunity score of '
+            f'{html.escape(_score(lead.get("opportunity")))}. '
+            f'<strong>Why it stands out:</strong> {html.escape(thesis)} '
+            f'<strong>Main concern:</strong> {html.escape(risk)}'
+        )
+    else:
+        lead_copy = "No customer-publishable BUY NOW record is available in this certified snapshot."
+    market = story.get("market_today") if isinstance(story.get("market_today"), Mapping) else {}
+    market_read = str(market.get("interpretation") or "").strip()
+    context_copy = (
+        f'<strong>Market context:</strong> {html.escape(market_read)}'
+        if market_read else
+        "<strong>Market context:</strong> Current governed context is unavailable, so ATLAS is not inferring a backdrop."
     )
     st.markdown(
         '<section class="atlas-daily-brief atlas-ai-insight-panel" data-atlas-qa="daily-intelligence-brief" '
         'data-atlas-explanation-source="DETERMINISTIC_CERTIFIED_PROJECTION" '
         'data-atlas-model-status="NOT_INVOKED">'
         '<div><small>ATLAS Morning View · CERTIFIED SNAPSHOT</small><h1>Daily Intelligence Brief</h1>'
-        f'<p>Actionable opportunities from the latest certified evaluation. {lead_copy} '
-        'Decisions and values below are reproduced from the certified customer projection.</p>'
+        f'<p>Actionable opportunities from the latest certified evaluation. {lead_copy}</p>'
+        f'<p>{context_copy} Decisions and values below are reproduced from the certified customer projection.</p>'
         f'<footer>As of {html.escape(_timestamp(story.get("scan_timestamp")))} · No live reranking</footer></div>'
         '<aside><small>TODAY’S MANDATE</small><b>Find signal.<br>Know the risk.</b>'
         '<span>DETERMINISTIC CERTIFIED SUMMARY · Presentation-only and cannot change ATLAS guidance.</span></aside></section>',

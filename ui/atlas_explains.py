@@ -13,7 +13,12 @@ def _rows(sections) -> str:
         '<article class="atlas-explains-row" '
         f'data-atlas-classification="{html.escape(section.classification)}">'
         f'<small>{html.escape(section.classification.replace("_", " "))}</small>'
-        f'<h4>{html.escape(section.label)}</h4><p>{html.escape(section.text)}</p></article>'
+        f'<h4>{html.escape(section.label)}</h4><p>{html.escape(section.text)}</p>'
+        + (
+            '<footer>Evidence: ' + html.escape(" · ".join(section.evidence_ids)) + '</footer>'
+            if section.evidence_ids else ""
+        )
+        + '</article>'
         for section in sections
     )
 
@@ -21,7 +26,7 @@ def _rows(sections) -> str:
 def render_atlas_explains(explanation: PageExplanation) -> None:
     st.markdown(
         """<style>
-        .atlas-explains{border:1px solid rgba(94,234,212,.24);border-radius:18px;padding:1rem 1.05rem;margin:.35rem 0 1rem;background:linear-gradient(145deg,rgba(8,17,31,.97),rgba(15,31,48,.9))}.atlas-explains>small{color:#5eead4;font-weight:850;letter-spacing:.12em}.atlas-explains h2{font-size:1.35rem;margin:.18rem 0}.atlas-explains-lead{font-size:1rem;line-height:1.5;color:#dbe7f4;margin:.2rem 0}.atlas-explains-meta{font-size:.72rem;color:#94a3b8}.atlas-explains-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.5rem}.atlas-explains-row{padding:.65rem .72rem;border:1px solid rgba(148,163,184,.17);border-radius:12px;background:rgba(15,23,42,.5)}.atlas-explains-row small{color:#7dd3fc;font-size:.6rem;letter-spacing:.09em}.atlas-explains-row h4{font-size:.88rem;margin:.15rem 0}.atlas-explains-row p{font-size:.8rem;line-height:1.45;color:#cbd5e1;margin:0}@media(max-width:600px){.atlas-explains{padding:.78rem}.atlas-explains-grid{grid-template-columns:1fr}.atlas-explains h2{font-size:1.12rem}.atlas-explains-lead{font-size:.9rem}}
+        .atlas-explains{border:1px solid rgba(94,234,212,.24);border-radius:18px;padding:1rem 1.05rem;margin:.35rem 0 1rem;background:linear-gradient(145deg,rgba(8,17,31,.97),rgba(15,31,48,.9))}.atlas-explains>small{color:#5eead4;font-weight:850;letter-spacing:.12em}.atlas-explains h2{font-size:1.35rem;margin:.18rem 0}.atlas-explains-lead{font-size:1rem;line-height:1.5;color:#dbe7f4;margin:.2rem 0}.atlas-explains-meta{font-size:.72rem;color:#94a3b8}.atlas-explains-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.5rem}.atlas-explains-row{padding:.65rem .72rem;border:1px solid rgba(148,163,184,.17);border-radius:12px;background:rgba(15,23,42,.5)}.atlas-explains-row small{color:#7dd3fc;font-size:.6rem;letter-spacing:.09em}.atlas-explains-row h4{font-size:.88rem;margin:.15rem 0}.atlas-explains-row p{font-size:.8rem;line-height:1.45;color:#cbd5e1;margin:0}.atlas-explains-row footer{margin-top:.45rem;color:#8493a7;font-size:.65rem;line-height:1.35;overflow-wrap:anywhere}@media(max-width:600px){.atlas-explains{padding:.78rem}.atlas-explains-grid{grid-template-columns:1fr}.atlas-explains h2{font-size:1.12rem}.atlas-explains-lead{font-size:.9rem}}
         </style>""", unsafe_allow_html=True,
     )
     st.markdown(

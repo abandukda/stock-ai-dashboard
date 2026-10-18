@@ -28575,6 +28575,7 @@ def _render_page_explanation(page_name):
     supported = {
         "Home", "Today's Opportunities", "Research Any Ticker",
         "Watchlist Intelligence", "Recovery", "ETFs", "Internal Report Card",
+        "Ask AI",
     }
     if page_name not in supported:
         return

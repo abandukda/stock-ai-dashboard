@@ -130,6 +130,17 @@ Safety boundaries: no licensed provider calls, production publication, Report Ca
 - Report Card price charts are educational and non-scoring, with verified bars, support/resistance, trend, signal marker, and optional SPY comparison.
 - Daily scheduling and Report Card activation remain disabled by default and keep protected live-operation gates.
 """)
+    _write(output / "FEATURE_COMPLETION.md", """# Feature completion
+
+| Capability | Review state | Evidence boundary |
+|---|---|---|
+| ATLAS Explains | Implemented for major pages | Deterministic grounded fallback; external synthesis disabled |
+| Research V2 | Implemented and cache-first | Retained source-bound evidence; missing/stale states remain visible |
+| Report Card charts | Implemented behind existing gates | Educational/non-scoring; public Report Card remains off |
+| Responsive customer UI | Browser-QA candidate | Acceptance requires every required viewport in the manifest |
+| Hosted preview | Not yet verified | Requires exact-SHA source marker and hosted browser QA |
+| Licensed refresh/publication | Not activated | Separate protected authorization required |
+""")
     _write(output / "DATA_TRUTH.md", """# Data truth
 
 - `RETAINED_CERTIFIED_RUNTIME_EVIDENCE`: retained, source-bound application evidence; not necessarily freshly acquired today.
@@ -175,8 +186,17 @@ def main() -> int:
     parser.add_argument("--source-sha", required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--screenshot-root", action="append", type=Path, default=[])
+    parser.add_argument("--zip-output", type=Path)
     args = parser.parse_args()
     build(args.output, args.screenshot_root, args.source_sha)
+    if args.zip_output:
+        args.zip_output.parent.mkdir(parents=True, exist_ok=True)
+        archive = shutil.make_archive(
+            str(args.zip_output.with_suffix("")), "zip",
+            root_dir=args.output.parent, base_dir=args.output.name,
+        )
+        if Path(archive) != args.zip_output:
+            raise RuntimeError("VISUAL_REVIEW_ZIP_PATH_MISMATCH")
     return 0
 
 

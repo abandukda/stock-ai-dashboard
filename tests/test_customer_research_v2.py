@@ -139,6 +139,7 @@ def test_plain_english_views_answer_eight_questions_without_external_model_or_ne
     assert views["mode"] == "DETERMINISTIC_GROUNDED_FALLBACK"
     assert views["external_model_active"] is False
     assert views["classification"] == "CONTEXTUAL_NON_SCORING"
+    assert views["evidence_ids"] == ("evidence:decision",)
     assert len(views["simple_view"]["questions"]) == 8
     assert views["simple_view"]["questions"][0] == {
         "question": "What does this company do?",
@@ -983,6 +984,14 @@ def test_real_renderer_binds_certified_fair_value_to_each_ticker_chart(monkeypat
         @staticmethod
         def tabs(labels):
             return [Tab() for _ in labels]
+
+        @staticmethod
+        def expander(*_args, **_kwargs):
+            return Tab()
+
+        @staticmethod
+        def code(*_args, **_kwargs):
+            return None
 
         @staticmethod
         def selectbox(*_args, **_kwargs):

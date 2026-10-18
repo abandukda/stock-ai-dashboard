@@ -1198,3 +1198,31 @@ def test_customer_runtime_failure_copy_hides_internal_codes():
     assert "verified. ATLAS is keeping" in source
     assert 'with st.expander("Administrator diagnostic"' in source
     assert "runtime validation failed: {reasons}" not in source
+
+
+def test_daily_brief_uses_company_specific_thesis_risk_and_governed_market_context(monkeypatch):
+    import ui.home_guidance_vnext as renderer
+
+    rendered = []
+    monkeypatch.setattr(renderer.st, "markdown", lambda value, **_kwargs: rendered.append(value))
+    story = {
+        "scan_timestamp": "2026-10-15T20:30:00Z",
+        "home_featured_cards": [{
+            "ticker": "NVDA", "company": "NVIDIA Corporation", "guidance": "BUY_NOW",
+            "production_rank": 1, "opportunity": 91.2,
+            "certified_summary_facts": {
+                "business_driver": "Data-center demand supports the retained investment case",
+                "primary_risk": "Valuation compression",
+            },
+        }],
+        "market_today": {"interpretation": "Treasury yields rose while the broad market finished mixed."},
+    }
+
+    renderer._render_daily_brief(story)
+
+    body = "\n".join(rendered)
+    assert "NVDA · NVIDIA Corporation" in body
+    assert "Data-center demand supports the retained investment case." in body
+    assert "Valuation compression." in body
+    assert "Treasury yields rose while the broad market finished mixed." in body
+    assert 'data-atlas-model-status="NOT_INVOKED"' in body

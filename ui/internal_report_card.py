@@ -8,6 +8,7 @@ from typing import Any, Mapping, MutableMapping, Sequence
 
 import streamlit as st
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 from services.report_card_dashboard import build_internal_report_card
 
@@ -141,27 +142,72 @@ def _render_signal_detail(detail: Mapping[str, Any]) -> None:
                     f'data-atlas-chart-evidence-count="{len(evidence_ids)}" '
                     'data-atlas-chart-classification="EDUCATIONAL_NON_SCORING" '
                     'aria-hidden="true" style="display:none">verified chart</span>', unsafe_allow_html=True)
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(x=[x["date"] for x in bars], y=[x["close"] for x in bars],
-                                 name=ticker, mode="lines", line={"color": "#5eead4", "width": 2}))
+        fig = make_subplots(
+            rows=4, cols=1, shared_xaxes=True, vertical_spacing=.035,
+            row_heights=[.56, .14, .15, .15],
+            specs=[[{"secondary_y": True}], [{}], [{}], [{}]],
+        )
+        dates = [x["date"] for x in bars]
+        indicators = chart["indicators"]
+        if chart.get("candlestick_status") == "AVAILABLE":
+            fig.add_trace(go.Candlestick(
+                x=dates, open=[x["open"] for x in bars], high=[x["high"] for x in bars],
+                low=[x["low"] for x in bars], close=[x["close"] for x in bars],
+                name=f"{ticker} OHLC", increasing_line_color="#34d399", decreasing_line_color="#fb7185",
+            ), row=1, col=1, secondary_y=False)
+        else:
+            fig.add_trace(go.Scatter(x=dates, y=[x["close"] for x in bars],
+                                     name=f"{ticker} close", mode="lines",
+                                     line={"color": "#5eead4", "width": 2}),
+                          row=1, col=1, secondary_y=False)
+        for key, label, color in (("sma20", "20-session average", "#38bdf8"),
+                                  ("sma50", "50-session average", "#f59e0b")):
+            fig.add_trace(go.Scatter(x=dates, y=indicators[key], name=label, mode="lines",
+                                     line={"color": color, "width": 1.25}),
+                          row=1, col=1, secondary_y=False)
         if chart.get("spy_comparison"):
             fig.add_trace(go.Scatter(x=[x["date"] for x in chart["spy_comparison"]],
                                      y=[x["indexed_close"] for x in chart["spy_comparison"]],
-                                     name="SPY · indexed to 100", mode="lines", yaxis="y2",
-                                     line={"color": "#a78bfa", "width": 1.5, "dash": "dot"}))
+                                     name="SPY · indexed to 100", mode="lines",
+                                     line={"color": "#a78bfa", "width": 1.5, "dash": "dot"}),
+                          row=1, col=1, secondary_y=True)
         support, resistance = chart["support_zone"], chart["resistance_zone"]
         fig.add_hrect(y0=support[0], y1=support[1], fillcolor="rgba(34,197,94,.14)", line_width=0,
-                      annotation_text="Support zone")
+                      annotation_text="Support zone", row=1, col=1)
         fig.add_hrect(y0=resistance[0], y1=resistance[1], fillcolor="rgba(59,130,246,.14)", line_width=0,
-                      annotation_text="Resistance zone")
+                      annotation_text="Resistance zone", row=1, col=1)
         trend = chart.get("trendline")
         if trend:
             fig.add_trace(go.Scatter(x=[bars[0]["date"], bars[-1]["date"]], y=[trend["start"], trend["end"]],
-                                     name="OLS trend", mode="lines", line={"color": "#fbbf24", "dash": "dash"}))
+                                     name="Descriptive trend", mode="lines",
+                                     line={"color": "#fbbf24", "dash": "dash"}),
+                          row=1, col=1, secondary_y=False)
         marker = chart.get("signal_marker")
         if marker:
             fig.add_trace(go.Scatter(x=[marker["date"]], y=[marker["price"]], name="Original ATLAS signal",
-                                     mode="markers", marker={"size": 10, "symbol": "diamond", "color": "#ffffff"}))
+                                     mode="markers", marker={"size": 10, "symbol": "diamond", "color": "#ffffff"}),
+                          row=1, col=1, secondary_y=False)
+        observed = [item for item in detail.get("performance") or ()
+                    if item.get("status") == "AVAILABLE" and item.get("observed_price") is not None]
+        if observed:
+            fig.add_trace(go.Scatter(
+                x=[item["observed_at"] for item in observed], y=[item["observed_price"] for item in observed],
+                text=[f'{item["horizon_sessions"]}-session measured outcome' for item in observed],
+                name="Measured outcomes", mode="markers+text", textposition="top center",
+                marker={"size": 9, "symbol": "circle", "color": "#c4b5fd"},
+            ), row=1, col=1, secondary_y=False)
+        fig.add_trace(go.Bar(x=dates, y=[x["volume"] for x in bars], name="Volume",
+                             marker_color="rgba(94,234,212,.42)"), row=2, col=1)
+        fig.add_trace(go.Scatter(x=dates, y=indicators["rsi14"], name="RSI (14)", mode="lines",
+                                 line={"color": "#22d3ee", "width": 1.4}), row=3, col=1)
+        fig.add_hline(y=70, line_dash="dot", line_color="rgba(251,113,133,.7)", row=3, col=1)
+        fig.add_hline(y=30, line_dash="dot", line_color="rgba(52,211,153,.7)", row=3, col=1)
+        fig.add_trace(go.Bar(x=dates, y=indicators["macd_histogram"], name="MACD difference",
+                             marker_color="rgba(167,139,250,.42)"), row=4, col=1)
+        fig.add_trace(go.Scatter(x=dates, y=indicators["macd"], name="MACD", mode="lines",
+                                 line={"color": "#a78bfa", "width": 1.3}), row=4, col=1)
+        fig.add_trace(go.Scatter(x=dates, y=indicators["macd_signal"], name="MACD signal", mode="lines",
+                                 line={"color": "#f59e0b", "width": 1.1}), row=4, col=1)
         range_specs = {
             "1M": {"count": 1, "label": "1M", "step": "month", "stepmode": "backward"},
             "3M": {"count": 3, "label": "3M", "step": "month", "stepmode": "backward"},
@@ -169,7 +215,7 @@ def _render_signal_detail(detail: Mapping[str, Any]) -> None:
             "1Y": {"count": 1, "label": "1Y", "step": "year", "stepmode": "backward"},
             "5Y": {"count": 5, "label": "5Y", "step": "year", "stepmode": "backward"},
         }
-        visible_series = [ticker]
+        visible_series = [ticker, "20/50-session averages", "Volume", "RSI (14)", "MACD"]
         if chart.get("spy_comparison"):
             visible_series.append("SPY indexed to 100")
         if trend:
@@ -177,7 +223,7 @@ def _render_signal_detail(detail: Mapping[str, Any]) -> None:
         if marker:
             visible_series.append("Original ATLAS signal")
         fig.update_layout(
-            template="plotly_dark", height=430,
+            template="plotly_dark", height=720,
             margin={"l": 12, "r": 12, "t": 24, "b": 12},
             paper_bgcolor="#08111f", plot_bgcolor="#08111f",
             font={"color": "#e2e8f0", "family": "Inter, system-ui, sans-serif"},
@@ -190,8 +236,7 @@ def _render_signal_detail(detail: Mapping[str, Any]) -> None:
                 },
                 "gridcolor": "rgba(71,85,105,.35)", "zerolinecolor": "rgba(71,85,105,.45)",
             },
-            yaxis={"gridcolor": "rgba(71,85,105,.35)", "zerolinecolor": "rgba(71,85,105,.45)"},
-            yaxis2={"title": "SPY indexed", "overlaying": "y", "side": "right", "showgrid": False},
+            yaxis={"title": "Price", "gridcolor": "rgba(71,85,105,.35)", "zerolinecolor": "rgba(71,85,105,.45)"},
             annotations=[{
                 "xref": "paper", "yref": "paper", "x": 0, "y": -0.17,
                 "xanchor": "left", "yanchor": "top", "showarrow": False,
@@ -199,6 +244,11 @@ def _render_signal_detail(detail: Mapping[str, Any]) -> None:
                 "font": {"color": "#e2e8f0", "size": 12},
             }],
         )
+        fig.update_yaxes(title_text="SPY indexed", showgrid=False, row=1, col=1, secondary_y=True)
+        fig.update_yaxes(title_text="Volume", row=2, col=1)
+        fig.update_yaxes(title_text="RSI", range=[0, 100], row=3, col=1)
+        fig.update_yaxes(title_text="MACD", row=4, col=1)
+        fig.update_xaxes(rangeslider_visible=False)
         st.plotly_chart(
             fig,
             width="stretch",
@@ -214,11 +264,26 @@ def _render_signal_detail(detail: Mapping[str, Any]) -> None:
         )
         st.caption(f'Latest verified close {_money(chart["latest_price"])} · as of {chart["as_of"]}. '
                    f'{chart["methodology"]} Educational, non-scoring context.')
+        st.info(
+            "How to read this: candles show each completed session's open, high, low and close when all four values "
+            "are verified. The 20- and 50-session averages smooth daily moves. RSI describes recent momentum on a "
+            "0–100 scale, while MACD compares faster and slower price trends. These are historical descriptions, "
+            "not predictions, recommendations or inputs to ATLAS scoring."
+        )
+        with st.expander("Indicator calculations and evidence limits", expanded=False):
+            st.markdown("\n".join(f"- **{name.upper()}**: {text}" for name, text in indicators["methodology"].items()))
+            if chart.get("candlestick_status") != "AVAILABLE":
+                st.warning("Verified opening prices are incomplete, so the chart uses closing prices instead of inventing candles.")
+            if chart.get("volume_status") != "AVAILABLE":
+                st.warning("Some verified volume values are unavailable; gaps remain blank.")
+            if chart.get("spy_status") != "AVAILABLE":
+                st.warning("SPY comparison is unavailable because at least 20 aligned completed sessions are required.")
         with st.expander("Accessible chart data", expanded=False):
             st.write(f'{len(bars)} verified completed-session observations. Latest close '
                      f'{_money(chart["latest_price"])} as of {chart["as_of"]}. '
                      'Support and resistance are labeled zones; the dashed line is a descriptive OLS trend, not a forecast.')
-            st.dataframe([{"Session": row["date"], "Close": row["close"], "High": row["high"], "Low": row["low"]}
+            st.dataframe([{"Session": row["date"], "Open": row["open"], "Close": row["close"],
+                           "High": row["high"], "Low": row["low"], "Volume": row["volume"]}
                           for row in bars], width="stretch", hide_index=True)
 
     st.subheader("Performance by registered horizon")

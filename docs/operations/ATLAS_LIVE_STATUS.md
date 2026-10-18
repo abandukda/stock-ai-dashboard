@@ -1142,3 +1142,31 @@ any other item.
 - These were provider-free preview checks: provider calls, publication writes,
   and ledger mutations were all zero. They do not establish a hosted preview
   or production deployment.
+
+### Consolidated customer-intelligence candidate — 2026-10-18
+
+- Authoritative `main` is `0c99148b177f9891550a90ae3b8dd934bff67d66`,
+  the merge commit for PR #71. Development continues on the isolated
+  `codex/consolidated-release` branch; this candidate is **NOT DEPLOYED**.
+- ATLAS Explains now accepts only provenance-bearing page evidence for
+  company-specific claims, includes Ask ATLAS, and exposes source identities
+  without exposing raw licensed payloads. Deterministic fallback remains
+  explicitly labeled and external-model execution remains disabled.
+- Home's brief is bound to the actual lead company, governed thesis, primary
+  risk, market interpretation, and certified timestamp when those fields are
+  present. Unsupported current news or macro context remains unavailable.
+- The internal Report Card chart adds retained-evidence candlesticks, volume,
+  SMA20/50, RSI14, MACD(12/26/9), SPY comparison, original-signal and measured
+  outcome markers. All indicators are educational/non-scoring and fail closed
+  when required bars are incomplete. Public Report Card remains OFF.
+- A bounded Research refresh planner is built with transport disabled. Its
+  immutable maximum is 25 tickers / 225 request intents, concurrency one,
+  zero retries, signed entitlement checks, cache-first family TTLs, and a
+  zero-call/no-authority preflight. This is readiness evidence, not acquisition.
+- The daily 6:05 PM ET coordinator remains disabled/plan-only and is not an
+  unattended acquisition→certification→publication operation. Production
+  BUY NOW data and Report Card ledgers were not changed.
+- Combined provider-free regression at this stage passes `329/329`; changed
+  modules compile, workflow YAML parses, and diff integrity passes. Independent
+  exact-candidate browser QA and GitHub exact-head CI remain required before a
+  merge decision.

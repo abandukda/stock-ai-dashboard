@@ -6,7 +6,7 @@ certified decisions, publication state, or Report Card observations.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from typing import Final, Mapping
+from typing import Any, Final, Mapping, Sequence
 
 
 ATLAS_EXPLAINS_VERSION: Final = "ATLAS_EXPLAINS_V1"
@@ -17,6 +17,7 @@ class ExplanationSection:
     label: str
     text: str
     classification: str
+    evidence_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -35,12 +36,56 @@ class PageExplanation:
         return asdict(self)
 
 
-def _section(label: str, text: str, classification: str) -> ExplanationSection:
+def _section(
+    label: str, text: str, classification: str,
+    evidence_ids: Sequence[str] = (),
+) -> ExplanationSection:
     if classification not in {"SOURCE_FACT", "CALCULATION", "INTERPRETATION", "SCENARIO", "LIMITATION"}:
         raise ValueError("ATLAS_EXPLAINS_CLASSIFICATION_INVALID")
     if not str(text).strip():
         raise ValueError("ATLAS_EXPLAINS_EMPTY_TEXT")
-    return ExplanationSection(label=label, text=str(text).strip(), classification=classification)
+    ids = tuple(dict.fromkeys(str(item).strip() for item in evidence_ids if str(item).strip()))
+    return ExplanationSection(
+        label=label, text=str(text).strip(), classification=classification,
+        evidence_ids=ids,
+    )
+
+
+def _mapping(value: Any) -> Mapping[str, Any]:
+    return value if isinstance(value, Mapping) else {}
+
+
+def _records(value: Any) -> tuple[Mapping[str, Any], ...]:
+    if not isinstance(value, (list, tuple)):
+        return ()
+    return tuple(item for item in value if isinstance(item, Mapping))
+
+
+def _evidence_sections(evidence: Mapping[str, Any]) -> tuple[ExplanationSection, ...]:
+    """Return only caller-provided, provenance-bearing facts.
+
+    Records without a value or evidence identity fail closed. The explainer is
+    presentation-only and never derives a replacement investment value.
+    """
+    sections: list[ExplanationSection] = []
+    for record in _records(evidence.get("facts")):
+        label = str(record.get("label") or "").strip()
+        value = str(record.get("display_value") or "").strip()
+        evidence_ids = tuple(str(item) for item in record.get("evidence_ids") or () if str(item).strip())
+        if not label or not value or not evidence_ids:
+            continue
+        period = str(record.get("period") or record.get("as_of") or "").strip()
+        text = f"{value}{f' · {period}' if period else ''}"
+        sections.append(_section(label, text, "SOURCE_FACT", evidence_ids))
+    return tuple(sections)
+
+
+def _bounded_text(value: Any, *, limit: int = 3) -> tuple[str, ...]:
+    if isinstance(value, str):
+        value = (value,)
+    if not isinstance(value, (list, tuple)):
+        return ()
+    return tuple(dict.fromkeys(str(item).strip() for item in value if str(item).strip()))[:limit]
 
 
 _PAGE_COPY: Final[Mapping[str, Mapping[str, str]]] = {
@@ -116,6 +161,15 @@ _PAGE_COPY: Final[Mapping[str, Mapping[str, str]]] = {
         "risks": "Saved tickers can have unavailable research or stale context, which is disclosed rather than hidden.",
         "next": "Monitor earnings, material changes, evidence freshness, and whether the certified action changes.",
     },
+    "Ask ATLAS": {
+        "title": "How to use Ask ATLAS",
+        "takeaway": "Ask about the company, valuation, risks, or evidence—and treat unavailable information as a real limitation, not an invitation to guess.",
+        "meaning": "Ask ATLAS explains the same source-bound facts and certified decision shown in Research. It does not create a new recommendation.",
+        "care": "A useful answer should show what evidence supports it, why the fact matters, and where the evidence is stale, incomplete, or uncertain.",
+        "encouraging": "Follow-up questions can make a complex filing, valuation comparison, or risk easier to understand in plain English.",
+        "risks": "An explanation can be incomplete when the underlying evidence is incomplete. ATLAS must not fill those gaps with invented facts.",
+        "next": "Ask what supports the current view, what could weaken it, which source dates apply, and what verified event comes next.",
+    },
 }
 
 
@@ -124,16 +178,20 @@ _ALIASES: Final = {
     "Research Any Ticker": "Research", "Internal Report Card": "Report Card",
     "Recovery": "Recovery Radar", "ETFs": "ETF Analysis",
     "Watchlist Intelligence": "Watchlist",
+    "Ask AI": "Ask ATLAS",
 }
 
 
-def build_page_explanation(page: str, *, source_date: str | None = None) -> PageExplanation:
+def build_page_explanation(
+    page: str, *, source_date: str | None = None,
+    evidence: Mapping[str, Any] | None = None,
+) -> PageExplanation:
     canonical = _ALIASES.get(str(page), str(page))
     copy = _PAGE_COPY.get(canonical)
     if copy is None:
         raise KeyError(f"ATLAS_EXPLAINS_PAGE_UNSUPPORTED:{canonical}")
     date = str(source_date or "Source date unavailable")
-    simple = (
+    simple: tuple[ExplanationSection, ...] = (
         _section("What am I looking at?", f"This is the {copy['title']} view in ATLAS.", "SOURCE_FACT"),
         _section("What does it mean in simple language?", copy["meaning"], "INTERPRETATION"),
         _section("Why should an investor care?", copy["care"], "INTERPRETATION"),
@@ -147,14 +205,49 @@ def build_page_explanation(page: str, *, source_date: str | None = None) -> Page
         _section("Interpretation boundary", "Plain-English interpretation explains the displayed evidence and remains separate from certified recommendations.", "INTERPRETATION"),
         _section("Scenario boundary", "Things to monitor are scenarios, not forecasts or promises of future performance.", "SCENARIO"),
     )
+    governed = _mapping(evidence)
+    evidence_facts = _evidence_sections(governed)
+    if governed and evidence_facts:
+        subject = str(governed.get("subject") or canonical).strip()
+        strengths = _bounded_text(governed.get("strengths"))
+        risks = _bounded_text(governed.get("risks"))
+        watch = _bounded_text(governed.get("watch_next"))
+        simple = (
+            _section("What am I looking at?", f"Verified evidence for {subject}, dated {date}.", "SOURCE_FACT"),
+            _section(
+                "What does the evidence say?",
+                " ".join(strengths) if strengths else "No supported company-specific strength is available in this evidence bundle.",
+                "INTERPRETATION",
+            ),
+            _section(
+                "What are the main concerns?",
+                " ".join(risks) if risks else "No company-specific measured risk is available; limited evidence does not mean no risk.",
+                "LIMITATION",
+            ),
+            _section(
+                "What should I monitor next?",
+                " ".join(watch) if watch else "No verified next event or change condition is available.",
+                "SCENARIO",
+            ),
+        )
+        detailed = (
+            *evidence_facts,
+            _section("Calculation boundary", "Displayed calculations remain the output of existing registered code; this explanation cannot change them.", "CALCULATION"),
+            _section("Interpretation boundary", "Plain-English interpretation explains the displayed evidence and remains separate from certified recommendations.", "INTERPRETATION"),
+            _section("Scenario boundary", "Things to monitor are scenarios, not forecasts or promises of future performance.", "SCENARIO"),
+        )
     return PageExplanation(page=canonical, title=copy["title"], takeaway=copy["takeaway"], simple=simple, detailed=detailed, source_date=date)
 
 
-def synthesize_page_explanation(page: str, *, source_date: str | None = None, external_model_enabled: bool = False) -> PageExplanation:
+def synthesize_page_explanation(
+    page: str, *, source_date: str | None = None,
+    external_model_enabled: bool = False,
+    evidence: Mapping[str, Any] | None = None,
+) -> PageExplanation:
     """Structured synthesis interface; external execution is fail-closed."""
     if external_model_enabled:
         raise PermissionError("ATLAS_EXTERNAL_SYNTHESIS_NOT_AUTHORIZED")
-    return build_page_explanation(page, source_date=source_date)
+    return build_page_explanation(page, source_date=source_date, evidence=evidence)
 
 
 __all__ = ["ATLAS_EXPLAINS_VERSION", "PageExplanation", "build_page_explanation", "synthesize_page_explanation"]
