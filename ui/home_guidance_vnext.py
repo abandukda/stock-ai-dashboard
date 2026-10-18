@@ -1860,7 +1860,13 @@ def render_home_guidance_vnext(story: Mapping[str, Any], *, emit_interactive=Non
     )
     if not runtime.get("runtime_ready"):
         reasons = ", ".join(runtime.get("failure_reasons") or ("UNKNOWN_RUNTIME_CONTRACT_FAILURE",))
-        st.error(f"Certified ATLAS inventory is unavailable because runtime validation failed: {reasons}")
+        st.warning(
+            "The certified opportunity inventory is temporarily unavailable because its saved evidence could not be "
+            "verified. ATLAS is keeping the last trustworthy information separate instead of showing uncertain data."
+        )
+        if authorized_internal:
+            with st.expander("Administrator diagnostic", expanded=False):
+                st.code(reasons)
     from services.runtime_build_identity import runtime_build_identity
     build = runtime_build_identity()
     st.markdown(

@@ -234,6 +234,89 @@ def _research_brief(
     }
 
 
+def _plain_english_views(
+    *, ticker: str, company: str, sector: str | None, action: str,
+    gap: float | None, summary: Mapping[str, Any], profile: Mapping[str, Any],
+    future_events: Iterable[Mapping[str, Any]], market_context: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Project two reading levels from governed facts without external calls."""
+    industry = str(profile.get("industry") or sector or "").strip()
+    description = str(profile.get("description") or profile.get("business_summary") or profile.get("company_description") or "").strip()
+    if description:
+        what_company_does = description
+    elif industry:
+        what_company_does = (
+            f"{company} is classified in {industry}. A verified plain-English business description "
+            "is not available in this evidence bundle."
+        )
+    else:
+        what_company_does = f"A verified plain-English description of {company}'s business is not available in this evidence bundle."
+    reasons = [str(item) for item in _seq(summary.get("why_rating")) if str(item).strip()]
+    risks = [str(item) for item in _seq(summary.get("risks")) if str(item).strip()]
+    conditions = _map(summary.get("watch_conditions"))
+    strengthen = [str(item) for item in _seq(conditions.get("strengthen")) if str(item).strip()]
+    weaken = [str(item) for item in _seq(conditions.get("weaken")) if str(item).strip()]
+    invalidate = [str(item) for item in _seq(conditions.get("invalidate")) if str(item).strip()]
+    events = [dict(item) for item in future_events if isinstance(item, Mapping)]
+    valuation = (
+        f"ATLAS Fair Value is {abs(float(gap)):.1f}% {'above' if gap >= 0 else 'below'} the last certified close. "
+        "That comparison is an estimate, not a promise about the future."
+        if gap is not None else "The retained evidence does not support a current Fair Value comparison."
+    )
+    next_event = (
+        f"The next verified event in this bundle is scheduled for {events[0].get('date')}."
+        if events and events[0].get("date") else "No verified upcoming company event is available in this evidence bundle."
+    )
+    market_identity = _map(market_context.get("market_identity"))
+    freshness = str(market_context.get("freshness_status") or "").strip().upper()
+    completed_session = market_identity.get("latest_completed_session")
+    if freshness == "STALE_RETAINED":
+        data_notice = (
+            f"Market context is retained verified evidence through {completed_session or 'an unavailable session date'}; "
+            "it is not presented as freshly acquired data."
+        )
+    elif completed_session:
+        data_notice = f"Read-only market context is verified through the completed session {completed_session}."
+    else:
+        data_notice = "Independent read-only market context is unavailable; certified snapshot dates remain authoritative."
+    questions = (
+        ("What does this company do?", what_company_does),
+        ("Why are people interested in this stock?", " ".join(reasons[:2]) if reasons else
+         f"ATLAS has a certified {action.replace('_', ' ')} action, but a plain-English supporting reason is unavailable."),
+        ("What is going well?", " ".join(reasons[:3]) if reasons else "The retained evidence does not support a specific company strength."),
+        ("What are the biggest concerns?", " ".join(risks[:3]) if risks else
+         "No company-specific measured risk is retained here. That means evidence is limited, not that the investment is risk-free."),
+        ("Does the valuation look demanding or reasonable?", valuation),
+        ("What could cause the stock to rise or fall?", " ".join([
+            *(f"A more supportive development would be: {item}" for item in strengthen[:1]),
+            *(f"A concern would be: {item}" for item in weaken[:1]),
+        ]) or "Verified upside and downside conditions are unavailable; ATLAS does not invent catalysts."),
+        ("What important event should I watch next?", next_event),
+        ("What would change the current assessment?", " ".join(invalidate[:2] or weaken[:2]) or
+         "No verified change condition is available in this snapshot."),
+    )
+    return {
+        "status": "AVAILABLE", "mode": "DETERMINISTIC_GROUNDED_FALLBACK",
+        "external_model_active": False, "classification": CONTEXTUAL,
+        "simple_view": {
+            "title": f"AI Investment Brief · {ticker} in plain English",
+            "intro": (
+                f"Here is a two-minute guide to {company}. It explains the retained ATLAS evidence in everyday language "
+                "and does not change the certified recommendation."
+            ),
+            "questions": tuple({"question": question, "answer": answer} for question, answer in questions),
+            "data_notice": data_notice,
+        },
+        "detailed_view": {
+            "title": "Detailed evidence",
+            "message": (
+                "The sections below preserve the source periods, calculations, assumptions, provenance, and unavailable fields. "
+                "They are the evidence authority for this plain-English guide."
+            ),
+        },
+    }
+
+
 def _human_date(value: Any) -> str:
     instant = _instant(value)
     return instant.strftime("%b %-d, %Y") if instant else "Date unavailable"
@@ -927,6 +1010,16 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
         "as_of": wall_street.get("as_of") or price_env.get("as_of"),
         "message": None if len(valuation_values) >= 2 else "Comparable certified valuation points are unavailable.",
     }
+    market_context = {
+        "status": "AVAILABLE" if enrichment.get("__read_model__") else ("QA_ONLY" if enrichment else "UNAVAILABLE"),
+        **dict(_map(enrichment.get("__read_model__"))),
+    }
+    reading_views = _plain_english_views(
+        ticker=ticker, company=company,
+        sector=str(report.get("sector") or profile_payload.get("sector") or "").strip() or None,
+        action=action_text, gap=gap, summary=summary, profile=profile_payload,
+        future_events=future_events, market_context=market_context,
+    )
     return {
         "version": VERSION, "status": "AVAILABLE", "ticker": ticker, "company": company,
         "sector": report.get("sector") or profile_payload.get("sector"),
@@ -941,12 +1034,7 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
             "confidence_band": _confidence_band(authority["confidence"]),
         },
         "signal": signal,
-        "market_context": {
-            "status": "AVAILABLE" if enrichment.get("__read_model__") else (
-                "QA_ONLY" if enrichment else "UNAVAILABLE"
-            ),
-            **dict(_map(enrichment.get("__read_model__"))),
-        },
+        "market_context": market_context,
         "chart": {
             **_chart_projection(report, signal, enrichment),
             "ownership": {
@@ -958,6 +1046,7 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
             },
         },
         "summary": summary,
+        "reading_views": reading_views,
         "six_pillars": pillar_projection,
         "wall_street": wall_street,
         "valuation_chart": valuation_chart,

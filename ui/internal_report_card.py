@@ -164,10 +164,36 @@ def _render_signal_detail(detail: Mapping[str, Any]) -> None:
             "1Y": {"count": 1, "label": "1Y", "step": "year", "stepmode": "backward"},
             "5Y": {"count": 5, "label": "5Y", "step": "year", "stepmode": "backward"},
         }
-        fig.update_layout(template="plotly_dark", height=430, margin={"l": 12, "r": 12, "t": 24, "b": 12},
-                          hovermode="x unified", legend={"orientation": "h"},
-                          xaxis={"rangeselector": {"buttons": [range_specs[label] for label in chart["ranges"]]}},
-                          yaxis2={"title": "SPY indexed", "overlaying": "y", "side": "right", "showgrid": False})
+        visible_series = [ticker]
+        if chart.get("spy_comparison"):
+            visible_series.append("SPY indexed to 100")
+        if trend:
+            visible_series.append("OLS trend")
+        if marker:
+            visible_series.append("Original ATLAS signal")
+        fig.update_layout(
+            template="plotly_dark", height=430,
+            margin={"l": 12, "r": 12, "t": 24, "b": 12},
+            paper_bgcolor="#08111f", plot_bgcolor="#08111f",
+            font={"color": "#e2e8f0", "family": "Inter, system-ui, sans-serif"},
+            hovermode="x unified", showlegend=False,
+            xaxis={
+                "rangeselector": {
+                    "buttons": [range_specs[label] for label in chart["ranges"]],
+                    "bgcolor": "#1e3a5f", "activecolor": "#2563eb", "bordercolor": "#6a9eff",
+                    "borderwidth": 1, "font": {"color": "#ffffff", "size": 11},
+                },
+                "gridcolor": "rgba(71,85,105,.35)", "zerolinecolor": "rgba(71,85,105,.45)",
+            },
+            yaxis={"gridcolor": "rgba(71,85,105,.35)", "zerolinecolor": "rgba(71,85,105,.45)"},
+            yaxis2={"title": "SPY indexed", "overlaying": "y", "side": "right", "showgrid": False},
+            annotations=[{
+                "xref": "paper", "yref": "paper", "x": 0, "y": -0.17,
+                "xanchor": "left", "yanchor": "top", "showarrow": False,
+                "text": "  •  ".join(visible_series),
+                "font": {"color": "#e2e8f0", "size": 12},
+            }],
+        )
         st.plotly_chart(fig, width="stretch", key=f"report-card-chart-{detail.get('signal_id')}")
         st.caption(f'Latest verified close {_money(chart["latest_price"])} · as of {chart["as_of"]}. '
                    f'{chart["methodology"]} Educational, non-scoring context.')
@@ -179,6 +205,7 @@ def _render_signal_detail(detail: Mapping[str, Any]) -> None:
                           for row in bars], width="stretch", hide_index=True)
 
     st.subheader("Performance by registered horizon")
+    st.caption("On a small screen, swipe the table sideways to see price and return columns.")
     st.dataframe([{
         "Horizon": f'{item["horizon_sessions"]} sessions',
         "Status": "Pending" if item["status"] == "PENDING" else item["status"],

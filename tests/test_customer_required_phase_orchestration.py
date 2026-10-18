@@ -47,8 +47,10 @@ def test_customer_role_visual_evidence_adds_governed_360_without_weakening_390_g
 def test_customer_navigation_keeps_all_four_routes_visible_at_390_and_360() -> None:
     app = Path("app.py").read_text(encoding="utf-8")
     assert "@media(max-width:420px)" in app
-    assert 'justify-content:space-between;gap:.08rem!important' in app
-    assert 'font-size:.64rem!important' in app
+    assert 'justify-content:flex-start' in app
+    assert 'overflow-x:auto!important' in app
+    assert 'visibility:visible!important' in app
+    assert 'font-size:.7rem!important' in app
 
 
 def test_required_phase_budget_is_explicit_and_below_ceiling() -> None:

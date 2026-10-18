@@ -739,7 +739,39 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
     summary = page["summary"]
     _marker("section", ticker, section_name="Decision")
     st.markdown("## ATLAS Investment Summary")
-    st.write(summary["verdict"])
+    reading_views = page.get("reading_views") if isinstance(page.get("reading_views"), Mapping) else {}
+    simple_view = reading_views.get("simple_view") if isinstance(reading_views.get("simple_view"), Mapping) else {}
+    detailed_view = reading_views.get("detailed_view") if isinstance(reading_views.get("detailed_view"), Mapping) else {}
+    simple_tab, detailed_tab = st.tabs(["Simple View · 2 min", "Detailed View"])
+    with simple_tab:
+        _marker(
+            "plain-english-summary", ticker, status=reading_views.get("status") or "UNAVAILABLE",
+            mode=reading_views.get("mode") or "UNAVAILABLE",
+            external_model_active=str(bool(reading_views.get("external_model_active"))).lower(),
+        )
+        st.markdown(f'### {simple_view.get("title") or f"{ticker} in plain English"}')
+        st.write(simple_view.get("intro") or "A plain-English guide is unavailable for this evidence bundle.")
+        st.caption(
+            "Verified-evidence fallback · External AI synthesis is not active. "
+            "Source facts and the certified ATLAS Action remain separate from this explanation."
+        )
+        for item in simple_view.get("questions") or ():
+            if isinstance(item, Mapping):
+                st.markdown(f'**{item.get("question") or "Research question"}**')
+                st.write(item.get("answer") or "Verified evidence is unavailable.")
+        if simple_view.get("data_notice"):
+            st.warning(str(simple_view["data_notice"]))
+    with detailed_tab:
+        st.markdown(f'### {detailed_view.get("title") or "Detailed evidence"}')
+        st.write(detailed_view.get("message") or "Detailed evidence follows below.")
+        st.markdown("**Certified ATLAS view**")
+        st.write(summary["verdict"])
+        if summary["why_rating"]:
+            st.markdown("**Why the stock may be attractive**")
+            _list(summary["why_rating"])
+        if summary["risks"]:
+            st.markdown("**Biggest verified risks**")
+            _list(summary["risks"])
     st.markdown(
         '<style>.atlas-research-101{margin:.55rem 0 1rem;padding:.7rem .8rem;border:1px solid #243244;'
         'border-radius:12px;background:#0b1525;color:#cbd5e1}.atlas-research-101 summary{cursor:pointer;'
@@ -757,12 +789,7 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
         '</ul></details></div>',
         unsafe_allow_html=True,
     )
-    if summary["why_rating"]:
-        st.markdown("**Why the stock may be attractive**")
-        _list(summary["why_rating"])
-    if summary["risks"]:
-        st.markdown("**Biggest verified risks**")
-        _list(summary["risks"])
+    st.caption("Continue below for the full evidence, calculations, charts, assumptions, and provenance.")
     _marker("since-signal", ticker, status=page["signal"]["status"])
     signal = page["signal"]
     if signal["status"] == "AVAILABLE":

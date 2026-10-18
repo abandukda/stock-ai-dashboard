@@ -24,7 +24,10 @@ def normalize_price_history(rows: Iterable[Mapping[str, Any]]) -> list[dict[str,
     by_day: dict[str, dict[str, Any]] = {}
     for row in rows:
         ts = _timestamp(row.get("timestamp") or row.get("date") or row.get("t"))
-        if ts is None or row.get("completed", True) is not True:
+        # A missing completion flag is not proof of a finalized exchange
+        # session.  The chart is permitted to omit an unverifiable bar, but it
+        # must never display it as completed market history.
+        if ts is None or row.get("completed") is not True:
             continue
         try:
             close = float(row.get("adjusted_close", row.get("close", row.get("c"))))
@@ -34,11 +37,21 @@ def normalize_price_history(rows: Iterable[Mapping[str, Any]]) -> list[dict[str,
             continue
         if not all(math.isfinite(x) for x in (close, high, low)) or min(close, high, low) <= 0 or low > high or not (low <= close <= high):
             continue
+        volume = row.get("volume", row.get("v"))
+        if volume not in (None, ""):
+            try:
+                volume = float(volume)
+            except (TypeError, ValueError):
+                volume = None
+            if volume is not None and (not math.isfinite(volume) or volume < 0):
+                volume = None
+        else:
+            volume = None
         day = ts.astimezone(timezone.utc).date().isoformat()
         if day in by_day:
             raise ValueError(f"DUPLICATE_CHART_SESSION:{day}")
         by_day[day] = {"date": day, "close": close, "high": high, "low": low,
-                       "volume": row.get("volume", row.get("v"))}
+                       "volume": volume}
     return [by_day[key] for key in sorted(by_day)]
 
 

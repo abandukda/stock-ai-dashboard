@@ -14,7 +14,8 @@ from typing import Any
 from playwright.async_api import Page, async_playwright
 
 
-VIEWPORTS = {"desktop": {"width": 1440, "height": 1000}, "mobile": {"width": 390, "height": 844},
+VIEWPORTS = {"desktop": {"width": 1440, "height": 1000}, "tablet": {"width": 1024, "height": 900},
+             "mobile": {"width": 390, "height": 844},
              "mobile-360": {"width": 360, "height": 800}}
 SETTLEMENT_TIMEOUT_SECONDS = 30.0
 SETTLEMENT_INTERVAL_SECONDS = 0.2
@@ -349,6 +350,22 @@ async def run(output: Path) -> None:
             viewer_context = await browser.new_context(viewport=viewport)
             viewer_page = await viewer_context.new_page()
             await login(viewer_page, viewer)
+            await viewer_page.locator('[data-atlas-qa="page-route"][data-atlas-page="home"]').wait_for(
+                state="attached", timeout=30000,
+            )
+            await viewer_page.locator('[data-atlas-qa="customer-navigation-contract"]').wait_for(
+                state="attached", timeout=30000,
+            )
+            async def viewer_surface_settled() -> bool:
+                text = (await viewer_page.locator("body").inner_text()).strip()
+                return bool(text and "ATLAS" in text)
+
+            await _wait_for_stable_condition(
+                viewer_surface_settled,
+                f"CUSTOMER_REPORT_CARD_OFF_SURFACE_NOT_RENDERED:{mode}",
+                timeout_seconds=30.0,
+                interval_seconds=0.2,
+            )
             viewer_text = await viewer_page.locator("body").inner_text()
             forbidden = ("Internal Report Card", "Ledger integrity", "Backup status", "Signal ID", "SPY comparisons")
             leaked = [value for value in forbidden if value in viewer_text]

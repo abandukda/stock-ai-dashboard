@@ -9,7 +9,8 @@ def bars(count=80, *, flat=False):
     for i in range(count):
         close = 100 if flat else 100 + i * .2
         result.append({"date": (start + timedelta(days=i)).isoformat(), "close": close,
-                       "high": close + 1, "low": close - 1, "volume": 1000})
+                       "high": close + 1, "low": close - 1, "volume": 1000,
+                       "completed": True})
     return result
 
 
@@ -53,6 +54,26 @@ def test_missing_volume_is_disclosed_but_does_not_invent_price():
     values = bars()
     values[0].pop("volume")
     assert build_chart_projection(values, PROVENANCE)["volume_status"] == "INCOMPLETE_NON_SCORING"
+
+
+def test_unverified_session_is_never_presented_as_completed_history():
+    values = bars()
+    values[-1].pop("completed")
+    model = build_chart_projection(values, PROVENANCE)
+    assert model["status"] == "AVAILABLE"
+    assert model["bar_count"] == len(values) - 1
+    assert model["as_of"] == values[-2]["date"]
+
+
+def test_invalid_volume_is_disclosed_without_corrupting_valid_price_history():
+    for invalid in (-1, float("inf"), "not-a-number"):
+        values = bars()
+        values[-1]["volume"] = invalid
+        model = build_chart_projection(values, PROVENANCE)
+        assert model["status"] == "AVAILABLE"
+        assert model["latest_price"] == values[-1]["close"]
+        assert model["bars"][-1]["volume"] is None
+        assert model["volume_status"] == "INCOMPLETE_NON_SCORING"
 
 
 def test_timeframe_slice_and_invalid_rows():

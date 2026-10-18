@@ -26423,9 +26423,9 @@ def v784_top_nav(pages):
       [data-testid="stRadio"] label p{font-size:.76rem;white-space:nowrap!important;line-height:1.2}
     }
     @media(max-width:420px){
-      [data-testid="stRadio"] [role="radiogroup"]{justify-content:space-between;gap:.08rem!important;padding:.2rem!important;overflow-x:hidden!important}
-      [data-testid="stRadio"] label{flex:0 1 auto!important;padding:.3rem .28rem!important;min-height:38px!important}
-      [data-testid="stRadio"] label p{font-size:.64rem!important;letter-spacing:0!important}
+      [data-testid="stRadio"] [role="radiogroup"]{justify-content:flex-start;gap:.2rem!important;padding:.2rem!important;overflow-x:auto!important;scrollbar-width:thin}
+      [data-testid="stRadio"] label{flex:0 0 auto!important;max-width:none!important;padding:.35rem .5rem!important;min-height:40px!important;overflow:visible!important}
+      [data-testid="stRadio"] label p{display:block!important;visibility:visible!important;font-size:.7rem!important;letter-spacing:0!important;white-space:nowrap!important}
     }
     </style>""", unsafe_allow_html=True)
     selected = st.radio(

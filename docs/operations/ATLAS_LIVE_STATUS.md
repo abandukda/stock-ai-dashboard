@@ -1082,3 +1082,30 @@ any other item.
   artifact. It is not certification evidence and produced no candidate. The
   pending 16-GB runner resize remains the production-scale blocker; this
   iteration did not restart or modify the worker.
+
+### Major-release preview candidate — 2026-10-17
+
+- PR #71 now includes an evidence-grounded beginner **Simple View** and an
+  evidence-dense **Detailed View** for Research. The simple projection answers
+  the eight owner-required investment questions from the same governed facts,
+  labels stale or unavailable context, identifies itself as a deterministic
+  grounded fallback, and explicitly states that no external model is active.
+- Report Card completed-session selection now additionally requires explicit
+  finalization, finite OHLCV values, nonnegative finite volume, strict ordering,
+  unique sessions, and durable source identity. Backup evidence keeps its
+  backup provenance and freshness status; it cannot be labeled newly acquired.
+- Provider-free responsive QA covered 1440, 1024, 390, and 360 widths with 20
+  screenshots, zero browser errors, zero provider calls, zero ledger mutations,
+  and passing customer/admin isolation. The checksum-manifest digest is
+  `e65478976ff673537c76e939be26fcf9e4d8eff9b5f5c12c99a16c0f93f00ac4`.
+  Production remains independently unchanged at
+  `71362fb4a0fe4bf79478600ba0d7a1b2697b9c30`.
+- A separate access-controlled hosted preview is **NOT DEPLOYED**. Streamlit
+  Community Cloud is signed out and no GitHub preview deployment exposes an
+  environment URL. Owner sign-in and creation of a second branch-bound app are
+  required; the existing production app must not be reused. Until then, hosted
+  exact-SHA browser certification and owner visual acceptance remain blocked.
+- The autonomous browser workflow is now internally consistent with its
+  zero-provider contract: it creates an honest retained-evidence-only sidecar
+  instead of making 22 licensed QA calls. Missing enrichment remains visibly
+  unavailable rather than being replaced with synthetic market facts.
