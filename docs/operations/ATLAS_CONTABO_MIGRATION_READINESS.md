@@ -6,15 +6,19 @@ licensed-evidence transfer, secret transfer, runner cutover, or shutdown.
 
 ## Current boundary
 
-- Expected target: Contabo Cloud VPS 12, Ubuntu 24.04, 12 vCPU, 48 GB RAM,
-  400 GB SSD, US East.
-- Target access is **BLOCKED** because root password authentication is rejected.
+- Owner-supplied terminal evidence verifies the Contabo Cloud VPS 12 hardware
+  profile, Ubuntu 24.04, and successful root SSH access. This is evidence of
+  initial host reachability only; Codex has not independently verified the SSH
+  host identity or inspected the machine.
+- Non-root key-only administration, independent SSH host-key verification,
+  baseline hardening, protected-data migration, runner registration, and a
+  provider-free certification on this host are still **PENDING**.
 - The DigitalOcean runner and its protected mounts remain authoritative.
 - licensed evidence transfer is not authorized until target security, licensing,
   exact scope, and explicit owner approval are all established.
 
-The owner should reset the root password in the official Contabo control panel,
-then use the provider console to record the server's SSH host-key fingerprint.
+The owner should use the provider console to record the server's SSH host-key
+fingerprint before the next administrative session.
 Passwords, recovery codes, and private keys must never be pasted into GitHub,
 Codex, commands captured in logs, or this repository.
 
@@ -80,8 +84,8 @@ One physical Contabo disk cannot serve as both primary and independent backup.
 
 ## Exact approvals still required
 
-1. Owner completes official credential reset and confirms trusted SSH host key.
-2. Owner authorizes baseline hardening after the new key-based login is proven.
+1. Owner confirms the trusted SSH host key and proves non-root key-only login.
+2. Owner authorizes baseline hardening after that key-based login is proven.
 3. Owner confirms Finnhub retention/hosting terms permit the named evidence
    classes on Contabo.
 4. Owner approves an exact path/file-count/byte-count migration manifest.

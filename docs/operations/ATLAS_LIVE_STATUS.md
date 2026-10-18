@@ -1,13 +1,49 @@
 # ATLAS Live Operations Status
 
 **Authoritative as of:** 2026-10-18
-**Repository main:** `0c99148b177f9891550a90ae3b8dd934bff67d66`
+**Repository main:** `0758fac72209ab0642e9f1a431db092d1a699119`
 
 **Verified deployed runtime:** `e838d05b3c92563c514d4d185365b4c8e97bfdba`
 **Production:** [stock-ai-dashboard.streamlit.app](https://stock-ai-dashboard.streamlit.app/)  
 **Production-truth correction merged:** [PR #35](https://github.com/abandukda/stock-ai-dashboard/pull/35)
 
 Evidence policy: a merge is not deployment; a provider-free run is not acquisition; a monitor ping is not publication; and repository data is not customer-visible until authenticated production evidence proves it.
+
+## Milestone 4 integrated candidate — 2026-10-18
+
+- Branch `codex/milestone4-integrated` is stacked on the unmerged PR #73 head
+  `d8cfeda5ad9592a51c0c18211de645c44148f051`. It is a review candidate only:
+  not merged, deployed, operational, or customer verified.
+- Research V2 now builds an evidence-bound five-minute dossier covering the
+  business, financial direction and meaning, valuation, licensed Wall Street
+  context, catalysts, risks, conditional bull/base/bear scenarios, thesis-change
+  conditions, and explicit limitations. Missing inputs remain unavailable;
+  deterministic synthesis is labelled non-scoring and external AI stays off.
+- Home now has a source-bound market-intelligence contract for verified index,
+  sector, event, reproducible-analogue, and conditional-watchpoint evidence.
+  It discloses unavailable evidence instead of inventing current conditions.
+- The independent Research refresh implementation is cache-first and fully
+  separated from BUY NOW, publication, and Report Card authority. Its maximum
+  cold-cache plan is 25 tickers x nine evidence families = 225 intents,
+  concurrency one, zero retries. PLAN/REHEARSAL are provider-free and durable;
+  LIVE is implemented but fail-closed and disabled pending endpoint entitlement,
+  display-rights, quota, credentials, and exact owner authorization.
+- Provider-free rehearsal completed all 225 simulated receipts and resumed all
+  225 without duplication. Package SHA-256 is
+  `ced7df0b3eea75e0f4a29f59f6abfed3f8bfb29cf186bd06ca0142d67233cbd9`;
+  scope SHA-256 is
+  `a5bbe20e9818f0dd71ba3fb262383ed3c0225bb3f17cc228a49515d108d19d39`.
+- Governed run `39138060207` failed first because the Streamlit script could not
+  import `exchange_calendars`; its Playwright timeout and missing screenshot
+  coverage were downstream. The integrated correction pins the dependency,
+  requires the real authentication boundary, checks the exact source marker in
+  a browser before crawling, and compares resolved archive paths. Mandatory
+  coverage is unchanged. A fresh exact-head governed run is still required.
+- Hosted preview remains **NOT DEPLOYED**. Customer production remains unchanged.
+  Preview creation and production promotion require separate owner approval.
+- Contabo hardware and root SSH access are verified only through owner-supplied
+  terminal evidence. Non-root key-only access, independent host identity,
+  migration, runner registration, and certification remain pending.
 
 ## 2026-10-17 weekend UI and read-only Research engineering
 
@@ -1224,10 +1260,10 @@ any other item.
   1024, 390, and 360 px with zero browser errors, overflow findings, provider
   calls, production writes, or ledger mutations. This is exact-tree local QA,
   not hosted-preview evidence.
-- Contabo VPS specifications (Ubuntu 24.04, 12 vCPU, 48 GB RAM, 400 GB SSD) are
-  owner-supplied and **UNVERIFIED**. SSH access remains blocked by rejected root
-  password authentication. No host key, OS, CPU, RAM, disk, firewall, update,
-  service, or encryption state has been independently inspected.
+- Contabo VPS specifications (Ubuntu 24.04, 12 vCPU, 48 GB RAM, 400 GB SSD) and
+  root SSH reachability are verified through owner-supplied terminal evidence.
+  Non-root key-only access, independent host-key identity, firewall, update,
+  service, encryption, and runner state have not been independently verified.
 - No protected evidence was transferred. The DigitalOcean roots
   `/mnt/atlas_incremental_raw` and `/mnt/atlas_incremental_checkpoints` remain
   authoritative. Actual file/byte counts and a current SHA-256 manifest require
@@ -1243,14 +1279,14 @@ any other item.
 - The Milestone 3 review change adds the missing `SOURCE_IDENTITY.md` to visual
   bundles plus fail-closed Contabo migration and 48-GB certification runbooks.
   It does not deploy, migrate, certify, publish, acquire, or activate anything.
-- PR #73 (`codex/milestone3-readiness`) head
-  `4f5e87a746685cb7adbf8117130fd9c447294de8` passed its pull-request policy CI
-  runs `39137695005`, `39137890823`, and the exact-head policy/self-test job in
-  manual run `39138060207`. The governed browser job produced QA artifact
+- PR #73 (`codex/milestone3-readiness`) latest reviewed head
+  `d8cfeda5ad9592a51c0c18211de645c44148f051` passed exact-head CI run
+  `39138711019`. Earlier manual run `39138060207` produced QA artifact
   `12140463847` and visual-review artifact `12140314381`, but its final green
-  certification and visual-package build steps failed. These artifacts are
-  retained as diagnostic evidence; they are not a hosted-preview pass or a
-  production acceptance result. A malformed-candidate probe (`39137894185`)
+  certification and visual-package build steps failed because the app lacked a
+  runtime calendar dependency; browser and screenshot failures cascaded from
+  that crash. These artifacts remain diagnostic evidence, not a hosted-preview
+  pass or production acceptance. A malformed-candidate probe (`39137894185`)
   was correctly rejected before governed browser execution.
 - The 48-GB readiness contract was tightened: certification retains its 5-GiB
   operating target and must checkpoint/fail closed at an 8-GiB job-scoped hard

@@ -8,6 +8,7 @@ matplotlib==3.11.0
 alpaca-py==0.43.5
 requests==2.33.1
 ijson==3.5.1
+exchange_calendars==4.13.2
 websocket-client==1.8.0
 openai==2.45.0
 pytest==9.1.1
