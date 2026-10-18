@@ -846,7 +846,9 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
         s[2].metric("Return since signal", _pct(signal["stock_return"], signed=True))
         s[3].metric("SPY same period", _pct(signal["spy_return"], signed=True))
         s[4].metric("Excess vs SPY", _pct(signal["excess_return"], signed=True))
-        st.caption(f'Signal date: {signal.get("signal_date") or "Unavailable"}')
+        # Preserve the canonical timestamp in the projection while rendering
+        # customer-facing copy in a readable form.
+        st.caption(f'Signal date: {_friendly_time(signal.get("signal_date"))}')
 
     _marker("section", ticker, section_name="Technical & Trade State")
     st.markdown("## Technical & Trade State")

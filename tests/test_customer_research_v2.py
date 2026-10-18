@@ -1050,6 +1050,8 @@ def test_customer_trust_content_contracts_are_not_presence_only():
     assert "not certified invalidation triggers" in source
     assert 'if summary["risks"] or conditions_present:' in source
     assert "_friendly_time(wall.get(\"as_of\"))" in source
+    assert 'Signal date: {_friendly_time(signal.get("signal_date"))}' in source
+    assert 'Signal date: {signal.get("signal_date")' not in source
     assert 'st.markdown("### Price history")' in source
     assert 'st.markdown("### Stock performance compared with SPY")' in source
     assert 'price_frame["ATLAS Fair Value"]' not in source
