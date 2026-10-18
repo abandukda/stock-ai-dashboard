@@ -122,6 +122,17 @@ This bundle contains original-resolution browser evidence for the consolidated A
 
 Safety boundaries: no licensed provider calls, production publication, Report Card ledger mutation, public Report Card activation, or unattended operation occurred while building this bundle.
 """)
+    _write(output / "SOURCE_IDENTITY.md", f"""# Source identity
+
+- Exact tested source SHA: `{source_sha}`
+- Hosted preview identity: **UNVERIFIED** until the running application exposes this exact SHA and independent browser QA observes it.
+- Production identity: not inferred from this bundle and not changed by its creation.
+- Screenshot identity: each image is individually hashed and bound to `{source_sha}` in `screenshot_manifest.json`.
+
+This file is an evidence binding, not proof of deployment. A branch name, merge,
+CI result, or locally rendered screenshot cannot substitute for the source marker
+observed from the hosted runtime.
+""")
     _write(output / "IMPLEMENTATION_SUMMARY.md", """# Implementation summary
 
 - Premium dark customer and internal surfaces share the ATLAS design system.
