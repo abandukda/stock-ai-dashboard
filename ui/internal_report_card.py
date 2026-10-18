@@ -2,10 +2,12 @@
 from __future__ import annotations
 
 import html
+import os
 from pathlib import Path
 from typing import Any, Mapping, MutableMapping, Sequence
 
 import streamlit as st
+import plotly.graph_objects as go
 
 from services.report_card_dashboard import build_internal_report_card
 
@@ -119,7 +121,108 @@ def _render_signal_detail(detail: Mapping[str, Any]) -> None:
         '</section></div>', unsafe_allow_html=True,
     )
 
+    chart = detail.get("price_chart") or {}
+    st.subheader("Verified price history")
+    from services.atlas_explains import build_page_explanation
+    from ui.atlas_explains import render_atlas_explains
+    render_atlas_explains(build_page_explanation(
+        "Charts", source_date=str(chart.get("as_of") or "Source date unavailable"),
+    ))
+    if chart.get("status") != "AVAILABLE":
+        st.markdown('<span data-atlas-qa="report-card-chart-unavailable" '
+                    f'data-atlas-chart-status="{html.escape(str(chart.get("status") or "UNAVAILABLE"))}" '
+                    'aria-hidden="true" style="display:none">chart unavailable</span>', unsafe_allow_html=True)
+        st.info(chart.get("message") or "Verified historical chart evidence is unavailable.")
+    else:
+        bars = chart["bars"]
+        evidence_ids = chart.get("provenance", {}).get("evidence_ids") or ()
+        st.markdown('<span data-atlas-qa="report-card-price-chart" data-atlas-chart-status="AVAILABLE" '
+                    f'data-atlas-chart-as-of="{html.escape(str(chart["as_of"]))}" '
+                    f'data-atlas-chart-evidence-count="{len(evidence_ids)}" '
+                    'data-atlas-chart-classification="EDUCATIONAL_NON_SCORING" '
+                    'aria-hidden="true" style="display:none">verified chart</span>', unsafe_allow_html=True)
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=[x["date"] for x in bars], y=[x["close"] for x in bars],
+                                 name=ticker, mode="lines", line={"color": "#5eead4", "width": 2}))
+        if chart.get("spy_comparison"):
+            fig.add_trace(go.Scatter(x=[x["date"] for x in chart["spy_comparison"]],
+                                     y=[x["indexed_close"] for x in chart["spy_comparison"]],
+                                     name="SPY · indexed to 100", mode="lines", yaxis="y2",
+                                     line={"color": "#a78bfa", "width": 1.5, "dash": "dot"}))
+        support, resistance = chart["support_zone"], chart["resistance_zone"]
+        fig.add_hrect(y0=support[0], y1=support[1], fillcolor="rgba(34,197,94,.14)", line_width=0,
+                      annotation_text="Support zone")
+        fig.add_hrect(y0=resistance[0], y1=resistance[1], fillcolor="rgba(59,130,246,.14)", line_width=0,
+                      annotation_text="Resistance zone")
+        trend = chart.get("trendline")
+        if trend:
+            fig.add_trace(go.Scatter(x=[bars[0]["date"], bars[-1]["date"]], y=[trend["start"], trend["end"]],
+                                     name="OLS trend", mode="lines", line={"color": "#fbbf24", "dash": "dash"}))
+        marker = chart.get("signal_marker")
+        if marker:
+            fig.add_trace(go.Scatter(x=[marker["date"]], y=[marker["price"]], name="Original ATLAS signal",
+                                     mode="markers", marker={"size": 10, "symbol": "diamond", "color": "#ffffff"}))
+        range_specs = {
+            "1M": {"count": 1, "label": "1M", "step": "month", "stepmode": "backward"},
+            "3M": {"count": 3, "label": "3M", "step": "month", "stepmode": "backward"},
+            "6M": {"count": 6, "label": "6M", "step": "month", "stepmode": "backward"},
+            "1Y": {"count": 1, "label": "1Y", "step": "year", "stepmode": "backward"},
+            "5Y": {"count": 5, "label": "5Y", "step": "year", "stepmode": "backward"},
+        }
+        visible_series = [ticker]
+        if chart.get("spy_comparison"):
+            visible_series.append("SPY indexed to 100")
+        if trend:
+            visible_series.append("OLS trend")
+        if marker:
+            visible_series.append("Original ATLAS signal")
+        fig.update_layout(
+            template="plotly_dark", height=430,
+            margin={"l": 12, "r": 12, "t": 24, "b": 12},
+            paper_bgcolor="#08111f", plot_bgcolor="#08111f",
+            font={"color": "#e2e8f0", "family": "Inter, system-ui, sans-serif"},
+            hovermode="x unified", showlegend=False,
+            xaxis={
+                "rangeselector": {
+                    "buttons": [range_specs[label] for label in chart["ranges"]],
+                    "bgcolor": "#1e3a5f", "activecolor": "#2563eb", "bordercolor": "#6a9eff",
+                    "borderwidth": 1, "font": {"color": "#ffffff", "size": 11},
+                },
+                "gridcolor": "rgba(71,85,105,.35)", "zerolinecolor": "rgba(71,85,105,.45)",
+            },
+            yaxis={"gridcolor": "rgba(71,85,105,.35)", "zerolinecolor": "rgba(71,85,105,.45)"},
+            yaxis2={"title": "SPY indexed", "overlaying": "y", "side": "right", "showgrid": False},
+            annotations=[{
+                "xref": "paper", "yref": "paper", "x": 0, "y": -0.17,
+                "xanchor": "left", "yanchor": "top", "showarrow": False,
+                "text": "  •  ".join(visible_series),
+                "font": {"color": "#e2e8f0", "size": 12},
+            }],
+        )
+        st.plotly_chart(
+            fig,
+            width="stretch",
+            key=f"report-card-chart-{detail.get('signal_id')}",
+            config={
+                "displaylogo": False,
+                "responsive": True,
+                # Plotly's floating toolbar obscures the 1Y range selector at
+                # 360px even after removing export. Native touch/mouse zoom,
+                # hover and all governed timeframe buttons remain available.
+                "displayModeBar": False,
+            },
+        )
+        st.caption(f'Latest verified close {_money(chart["latest_price"])} · as of {chart["as_of"]}. '
+                   f'{chart["methodology"]} Educational, non-scoring context.')
+        with st.expander("Accessible chart data", expanded=False):
+            st.write(f'{len(bars)} verified completed-session observations. Latest close '
+                     f'{_money(chart["latest_price"])} as of {chart["as_of"]}. '
+                     'Support and resistance are labeled zones; the dashed line is a descriptive OLS trend, not a forecast.')
+            st.dataframe([{"Session": row["date"], "Close": row["close"], "High": row["high"], "Low": row["low"]}
+                          for row in bars], width="stretch", hide_index=True)
+
     st.subheader("Performance by registered horizon")
+    st.caption("On a small screen, swipe the table sideways to see price and return columns.")
     st.dataframe([{
         "Horizon": f'{item["horizon_sessions"]} sessions',
         "Status": "Pending" if item["status"] == "PENDING" else item["status"],
@@ -177,7 +280,8 @@ def _render_signal_detail(detail: Mapping[str, Any]) -> None:
 
 
 def render_internal_report_card(ledger_path: Path, *, authorized: bool) -> Mapping[str, Any]:
-    report = build_internal_report_card(ledger_path, authorized=authorized, authority_root=Path("."))
+    authority_root = Path(os.getenv("ATLAS_REPORT_CARD_CHART_EVIDENCE_ROOT", "."))
+    report = build_internal_report_card(ledger_path, authorized=authorized, authority_root=authority_root)
     st.markdown('<span data-atlas-qa="internal-report-card" data-atlas-customer-visible="false" '
                 'aria-hidden="true" style="display:none">internal-report-card</span>', unsafe_allow_html=True)
     st.markdown(

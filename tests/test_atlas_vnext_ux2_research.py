@@ -242,7 +242,7 @@ def test_certified_fair_value_and_upside_remain_distinct_from_opportunity():
     assert "ATLAS Fair Value" in rendered and "$338.82" in rendered
     assert "Fair Value Gap" in rendered and "+49.10%" in rendered
     assert "Opportunity" in rendered and "86.68" in rendered
-    assert "Evidence Confidence" in rendered and "High · 89/100" in rendered
+    assert "Evidence Confidence" in rendered and "High · 88.54/100" in rendered
 
 
 def test_absent_certified_customer_evaluation_preserves_current_fallback(monkeypatch):
@@ -354,10 +354,12 @@ def test_representative_structural_views_do_not_mutate_or_invent(ticker):
 def test_real_streamlit_high_evidence_renderer_has_consolidated_research_v2_and_ask_cta():
     app = _render_app("NVDA", "BUY_NOW", 92.0)
     assert not app.exception
-    assert not app.tabs
+    labels = [tab.label for tab in app.tabs]
+    assert "Simple View · 2 min" in labels
+    assert "Detailed View" in labels
     assert any(button.label == "Ask ATLAS about this research" for button in app.button)
     rendered = "\n".join(markdown.value for markdown in app.markdown)
-    assert "Evidence Confidence" in rendered and "Moderate · 78/100" in rendered
+    assert "Evidence Confidence" in rendered and "Moderate · 78.00/100" in rendered
     assert not any(metric.label == "Research Completeness" for metric in app.metric)
 
 

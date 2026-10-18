@@ -14,7 +14,9 @@ from typing import Any
 from playwright.async_api import Page, async_playwright
 
 
-VIEWPORTS = {"desktop": {"width": 1440, "height": 1000}, "mobile": {"width": 390, "height": 844}}
+VIEWPORTS = {"desktop": {"width": 1440, "height": 1000}, "tablet": {"width": 1024, "height": 900},
+             "mobile": {"width": 390, "height": 844},
+             "mobile-360": {"width": 360, "height": 800}}
 SETTLEMENT_TIMEOUT_SECONDS = 30.0
 SETTLEMENT_INTERVAL_SECONDS = 0.2
 
@@ -64,8 +66,9 @@ async def wait_for_report_card_overview_settled(page: Page, mode: str) -> None:
 
 async def wait_for_report_card_signal_entry_settled(page: Page, mode: str) -> None:
     async def settled() -> bool:
-        expander = page.locator('[data-testid="stExpander"]').first
-        return await expander.count() > 0 and await expander.is_visible()
+        expanders = page.locator('[data-testid="stExpander"]')
+        expander = expanders.nth(1)
+        return await expanders.count() > 1 and await expander.is_visible()
 
     await _wait_for_stable_condition(
         settled,
@@ -74,7 +77,9 @@ async def wait_for_report_card_signal_entry_settled(page: Page, mode: str) -> No
 
 
 async def open_report_card_signal_expander(page: Page, mode: str) -> Any:
-    expander = page.locator('[data-testid="stExpander"]').first
+    # The page-level explainer is the first expander; the first governed
+    # signal is the next one. Its action is rendered after expansion.
+    expander = page.locator('[data-testid="stExpander"]').nth(1)
     await expander.click()
 
     async def settled() -> bool:
@@ -104,7 +109,7 @@ async def open_report_card_signal_expander(page: Page, mode: str) -> Any:
 
 
 DETAIL_SECTIONS = (
-    "ORIGINAL CERTIFIED SIGNAL", "CURRENT MARKET STATE", "Performance by registered horizon",
+    "ORIGINAL CERTIFIED SIGNAL", "CURRENT MARKET STATE", "Verified price history", "Performance by registered horizon",
     "ATLAS Signal Digest", "Original thesis and view-change conditions", "About ",
     "Event timeline", "Evidence and audit identity", "Performance Context",
 )
@@ -283,6 +288,16 @@ async def run(output: Path) -> None:
                     raise AssertionError(f"REPORT_CARD_SIGNAL_IDENTITY_MISSING:{mode}:{key}")
             if detail_facts["context-classification"] != "CONTEXTUAL_NON_SCORING":
                 raise AssertionError(f"REPORT_CARD_SIGNAL_CONTEXT_CLASSIFICATION_MISSING:{mode}")
+            chart = page.locator('[data-atlas-qa="report-card-price-chart"]')
+            await chart.wait_for(state="attached", timeout=30000)
+            if await chart.get_attribute("data-atlas-chart-status") != "AVAILABLE":
+                raise AssertionError(f"REPORT_CARD_CHART_NOT_AVAILABLE:{mode}")
+            if await chart.get_attribute("data-atlas-chart-classification") != "EDUCATIONAL_NON_SCORING":
+                raise AssertionError(f"REPORT_CARD_CHART_SCORING_ISOLATION_MISSING:{mode}")
+            if not await chart.get_attribute("data-atlas-chart-as-of"):
+                raise AssertionError(f"REPORT_CARD_CHART_FRESHNESS_MISSING:{mode}")
+            if int(await chart.get_attribute("data-atlas-chart-evidence-count") or "0") < 1:
+                raise AssertionError(f"REPORT_CARD_CHART_PROVENANCE_MISSING:{mode}")
             for key in ("contextual-evidence", "earnings-evidence", "company-profile", "performance-evidence"):
                 if detail_facts[key] not in {"AVAILABLE", "UNAVAILABLE", "PENDING"}:
                     raise AssertionError(f"REPORT_CARD_EVIDENCE_STATE_INVALID:{mode}:{key}")
@@ -299,6 +314,11 @@ async def run(output: Path) -> None:
             }""")
             await page.wait_for_timeout(250)
             await shot(page, output, f"signal-detail-{mode}", manifest)
+            chart_panel = page.locator('[data-atlas-qa="report-card-price-chart"]').locator("xpath=following::div[@data-testid='stPlotlyChart'][1]")
+            if await chart_panel.count():
+                chart_target = output / f"report-card-chart-{mode}.png"
+                await chart_panel.screenshot(path=str(chart_target))
+                manifest.append({"name": f"report-card-chart-{mode}", "path": chart_target.name, "url": page.url})
             about = page.locator('[data-testid="stExpander"]').filter(has_text=re.compile(r"^About ")).first
             if await about.count():
                 await about.click()
@@ -333,6 +353,22 @@ async def run(output: Path) -> None:
             viewer_context = await browser.new_context(viewport=viewport)
             viewer_page = await viewer_context.new_page()
             await login(viewer_page, viewer)
+            await viewer_page.locator('[data-atlas-qa="page-route"][data-atlas-page="home"]').wait_for(
+                state="attached", timeout=30000,
+            )
+            await viewer_page.locator('[data-atlas-qa="customer-navigation-contract"]').wait_for(
+                state="attached", timeout=30000,
+            )
+            async def viewer_surface_settled() -> bool:
+                text = (await viewer_page.locator("body").inner_text()).strip()
+                return bool(text and "ATLAS" in text)
+
+            await _wait_for_stable_condition(
+                viewer_surface_settled,
+                f"CUSTOMER_REPORT_CARD_OFF_SURFACE_NOT_RENDERED:{mode}",
+                timeout_seconds=30.0,
+                interval_seconds=0.2,
+            )
             viewer_text = await viewer_page.locator("body").inner_text()
             forbidden = ("Internal Report Card", "Ledger integrity", "Backup status", "Signal ID", "SPY comparisons")
             leaked = [value for value in forbidden if value in viewer_text]

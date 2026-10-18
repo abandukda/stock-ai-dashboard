@@ -9,6 +9,33 @@
 
 Evidence policy: a merge is not deployment; a provider-free run is not acquisition; a monitor ping is not publication; and repository data is not customer-visible until authenticated production evidence proves it.
 
+## 2026-10-17 weekend UI and read-only Research engineering
+
+- PR #71 head `29dcb294ec644fee6f5eb20d4bb5f1e3f193b2b3` implements the
+  internal, gated Report Card evidence chart. It is deterministic,
+  educational/non-scoring, and uses only source-bound retained OHLCV evidence.
+  Local authenticated QA passed at 1440px, 390px and 360px with zero provider
+  calls, no ledger mutation, public Report Card OFF and role isolation intact.
+- The same branch adds `ATLAS_RESEARCH_MARKET_READ_MODEL_V1`, an independent
+  cache-first, read-only Research context. It accepts only self-hashed,
+  ticker-bound retained families with signed Finnhub display authority,
+  payload digests, capture timestamps and explicit no-raw-redistribution
+  provenance. It has no provider adapter and cannot alter certified price,
+  Action, Fair Value, ranking, publication or Report Card observations.
+- The read path has a hard provider-request budget of zero, identifies pricing
+  as completed-session end-of-day rather than real-time/delayed intraday, and
+  exposes the verified close plus market-session identity. A separately
+  self-hashed backup bundle may be used only when the primary bundle cannot be
+  verified; no cache read mutates or refreshes either copy.
+- Retained Research histories disclose `FRESH_CACHE` or `STALE_RETAINED`; a
+  stale retained history is never presented as a newly refreshed customer
+  snapshot. OHLCV, volume, corporate-action provenance, fundamentals and
+  earnings-family timestamps can be projected when their individual evidence
+  envelopes pass validation. Missing or corrupted families fail closed.
+- This is **BUILT/TESTED, NOT DEPLOYED OR LIVE**. No production retained bundle
+  has been registered under `ATLAS_RESEARCH_MARKET_DATA_ROOT`, and no licensed
+  provider acquisition was performed.
+
 ## 2026-10-16 protected backfill plan
 
 - PR #58 merged as `2b95d4fdc03d56a22b341ef5cdc1648333eab04b`;
@@ -1029,3 +1056,89 @@ any other item.
   same provider-free certification authority against the new source. Customer
   publication remains separately gated and is not ready unless that run emits
   a terminal candidate and publication digest under the sub-5-GiB contract.
+
+### Weekend Report Card and automation engineering — 2026-10-17
+
+- Branch `codex/weekend-report-card-automation` is based on registered main
+  `71362fb4a0fe4bf79478600ba0d7a1b2697b9c30`. It adds a read-only,
+  source-bound Report Card chart projection and responsive internal detail
+  renderer. It accepts only persisted verified OHLCV with evidence identity
+  and corporate-action adjustment provenance; duplicate sessions, incomplete
+  histories, and unhandled split discontinuities fail visibly closed.
+- Support/resistance zones and OLS trendlines are deterministic and marked
+  `EDUCATIONAL_NON_SCORING`. Supported 1M/3M/6M/1Y/5Y controls, the original
+  signal marker, latest verified close/as-of, labeled encodings, and an
+  accessible table fallback are present. No provider fallback was added.
+- Daily scheduling permits a delayed GitHub start through 23:59:59 ET on the
+  same finalized XNYS session, while retaining holiday and duplicate-session
+  rejection. Focused Report Card, G2/G3, navigation, and daily tests pass
+  `92/92`; changed-module compilation passes with an isolated bytecode cache.
+- G2/G3 provider-free primitives remain ready, but G4 and unattended BUY NOW
+  are **NOT OPERATIONAL**: the registered daily graph remains plan-only, has no
+  live acquire→certify→promote jobs, and emits no coordinator Cronitor events.
+  Public Report Card remains OFF.
+- Full certification run `39043009760`, job `117426122707`, completed authority
+  and retained-evidence downloads, but scoring was cancelled and emitted no
+  artifact. It is not certification evidence and produced no candidate. The
+  pending 16-GB runner resize remains the production-scale blocker; this
+  iteration did not restart or modify the worker.
+
+### Major-release preview candidate — 2026-10-17
+
+- PR #71 now includes an evidence-grounded beginner **Simple View** and an
+  evidence-dense **Detailed View** for Research. The simple projection answers
+  the eight owner-required investment questions from the same governed facts,
+  labels stale or unavailable context, identifies itself as a deterministic
+  grounded fallback, and explicitly states that no external model is active.
+- Report Card completed-session selection now additionally requires explicit
+  finalization, finite OHLCV values, nonnegative finite volume, strict ordering,
+  unique sessions, and durable source identity. Backup evidence keeps its
+  backup provenance and freshness status; it cannot be labeled newly acquired.
+- Provider-free responsive QA covered 1440, 1024, 390, and 360 widths with 20
+  screenshots, zero browser errors, zero provider calls, zero ledger mutations,
+  and passing customer/admin isolation. The checksum-manifest digest is
+  `e65478976ff673537c76e939be26fcf9e4d8eff9b5f5c12c99a16c0f93f00ac4`.
+  Production remains independently unchanged at
+  `71362fb4a0fe4bf79478600ba0d7a1b2697b9c30`.
+- A separate access-controlled hosted preview is **NOT DEPLOYED**. Streamlit
+  Community Cloud is signed out and no GitHub preview deployment exposes an
+  environment URL. Owner sign-in and creation of a second branch-bound app are
+  required; the existing production app must not be reused. Until then, hosted
+  exact-SHA browser certification and owner visual acceptance remain blocked.
+- The autonomous browser workflow is now internally consistent with its
+  zero-provider contract: it creates an honest retained-evidence-only sidecar
+  instead of making 22 licensed QA calls. Missing enrichment remains visibly
+  unavailable rather than being replaced with synthetic market facts.
+
+### Page-wide ATLAS Explains cohesion — 2026-10-17
+
+- PR #71 adds one shared `ATLAS_EXPLAINS_V1` contract across Home, BUY NOW,
+  Research, Charts, Report Card, Recovery Radar, ETF Analysis, and Watchlist.
+  Every supported surface answers six beginner questions through a 30-second
+  takeaway, two-minute Simple View, and evidence-bound Detailed View.
+- Explanations label source facts, calculations, interpretations, limitations,
+  and monitoring scenarios separately. They are non-scoring and cannot change
+  certified recommendations, Report Card observations, customer publication,
+  or production state.
+- The synthesis interface fails closed when external-model execution is
+  requested. Current copy is explicitly labeled
+  `DETERMINISTIC_GROUNDED_FALLBACK`; it is never presented as externally
+  AI-generated.
+- Hosted preview activation remains owner-controlled. The exact safe setup and
+  browser-acceptance gates are recorded in
+  `docs/operations/ATLAS_PREVIEW_ACTIVATION_CHECKLIST.md`. No hosted preview URL
+  exists yet, and production remains unchanged.
+- Independent application QA exercised Home, BUY NOW, Research, Recovery,
+  ETFs, Watchlist, and internal Report Card at 1440, 1024, 390, and 360 px.
+  Research reached its terminal NVDA surface at every width after detaching the
+  immutable canonical decision only at the Streamlit cache boundary. The
+  canonical decision values and authority remain unchanged.
+- The compact 360-px Home view now keeps the 30-second takeaway above the fold
+  and exposes Simple/Detailed reading levels through one accessible expander.
+  Report Card 360/390 chart QA verified all 1M/3M/6M/1Y controls, unified
+  hover, zero horizontal overflow, and no toolbar overlap. Final chart-evidence
+  checksum-manifest SHA-256:
+  `5085d00a44cb807894b2883fce0efcadf8cf58886b073b102e17781ebbf57cab`.
+- These were provider-free preview checks: provider calls, publication writes,
+  and ledger mutations were all zero. They do not establish a hosted preview
+  or production deployment.

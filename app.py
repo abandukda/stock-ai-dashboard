@@ -4081,7 +4081,7 @@ def build_live_research_row(
 ):
     """V80.5 live research adapter for any paid-customer ticker request."""
     from engines.live_research_engine import build_live_research
-    return build_live_research(
+    result = build_live_research(
         ticker,
         force_refresh=bool(force_refresh),
         cache_ttl_seconds=900,
@@ -4090,6 +4090,21 @@ def build_live_research_row(
         progress_callback=_progress_callback,
         security_type_hint=security_type_hint,
     )
+    # ``production_decision`` is deliberately a FrozenDict inside the
+    # canonical engine. Streamlit's cache reconstructs mappings by assigning
+    # their members, which correctly fails for that authority object. Detach a
+    # value-equivalent presentation snapshot at the cache boundary; the
+    # engine's immutable object and digest remain untouched.
+    def _cache_snapshot(value):
+        from collections.abc import Mapping
+        if isinstance(value, Mapping):
+            return {str(key): _cache_snapshot(item) for key, item in value.items()}
+        if isinstance(value, tuple):
+            return tuple(_cache_snapshot(item) for item in value)
+        if isinstance(value, list):
+            return [_cache_snapshot(item) for item in value]
+        return value
+    return _cache_snapshot(result)
 
 def build_legacy_live_research_row(ticker):
     """Legacy governed provider-only adapter retained for fallback/debugging; not used by V80.5 live research."""
@@ -26423,9 +26438,9 @@ def v784_top_nav(pages):
       [data-testid="stRadio"] label p{font-size:.76rem;white-space:nowrap!important;line-height:1.2}
     }
     @media(max-width:420px){
-      [data-testid="stRadio"] [role="radiogroup"]{justify-content:space-between;gap:.08rem!important;padding:.2rem!important;overflow-x:hidden!important}
-      [data-testid="stRadio"] label{flex:0 1 auto!important;padding:.3rem .28rem!important;min-height:38px!important}
-      [data-testid="stRadio"] label p{font-size:.64rem!important;letter-spacing:0!important}
+      [data-testid="stRadio"] [role="radiogroup"]{justify-content:flex-start;gap:.2rem!important;padding:.2rem!important;overflow-x:auto!important;scrollbar-width:thin}
+      [data-testid="stRadio"] label{flex:0 0 auto!important;max-width:none!important;padding:.35rem .5rem!important;min-height:40px!important;overflow:visible!important}
+      [data-testid="stRadio"] label p{display:block!important;visibility:visible!important;font-size:.7rem!important;letter-spacing:0!important;white-space:nowrap!important}
     }
     </style>""", unsafe_allow_html=True)
     selected = st.radio(
@@ -28555,6 +28570,23 @@ def _emit_page_identity_marker(page_name):
         return
 
 
+def _render_page_explanation(page_name):
+    """Render one shared, non-scoring explanation for supported major pages."""
+    supported = {
+        "Home", "Today's Opportunities", "Research Any Ticker",
+        "Watchlist Intelligence", "Recovery", "ETFs", "Internal Report Card",
+    }
+    if page_name not in supported:
+        return
+    try:
+        source_date = str(read_state().get("generated_at") or "Source date unavailable")
+    except Exception:
+        source_date = "Source date unavailable"
+    from services.atlas_explains import synthesize_page_explanation
+    from ui.atlas_explains import render_atlas_explains
+    render_atlas_explains(synthesize_page_explanation(page_name, source_date=source_date))
+
+
 def main():
     if not dashboard_login_gate(): return
     if os.getenv("ATLAS_RESEARCH_WIDGET_TRACE", "").strip().lower() in {"1", "true", "yes", "on"}:
@@ -28629,6 +28661,7 @@ def main():
         _home_runtime_trace("etf_load_completed", rows=len(etf_df))
     source_df=top_df if top_df is not None and not top_df.empty else full_df.head(25)
     _emit_page_identity_marker(selected_route)
+    _render_page_explanation(selected_route)
     # Reserve the tape's established visual position, but do not let its
     # optional live-provider refresh block the selected route's primary
     # controls and PAGE_INTERACTIVE lifecycle marker.  Filling a Streamlit

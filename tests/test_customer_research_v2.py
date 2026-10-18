@@ -128,6 +128,49 @@ def test_signal_performance_pending_is_never_rendered_as_zero():
     assert signal["excess_return"] is None
 
 
+def test_plain_english_views_answer_eight_questions_without_external_model_or_new_authority():
+    source = report()
+    source["guidance_summary"]["thesis_change_conditions"] = {
+        "strengthen": ["Revenue growth remains supported."],
+        "weaken": ["Margins contract materially."],
+        "invalidate": ["Certified evidence deteriorates."],
+    }
+    views = build_customer_research_v2(source)["reading_views"]
+    assert views["mode"] == "DETERMINISTIC_GROUNDED_FALLBACK"
+    assert views["external_model_active"] is False
+    assert views["classification"] == "CONTEXTUAL_NON_SCORING"
+    assert len(views["simple_view"]["questions"]) == 8
+    assert views["simple_view"]["questions"][0] == {
+        "question": "What does this company do?",
+        "answer": "NVIDIA Corporation is classified in Technology. A verified plain-English business description is not available in this evidence bundle.",
+    }
+    assert "not a promise" in views["simple_view"]["questions"][4]["answer"]
+    assert "does not change the certified recommendation" in views["simple_view"]["intro"]
+
+
+def test_plain_english_views_label_stale_context_and_missing_events_honestly(monkeypatch):
+    source = report()
+    context = {
+        "__atlas_ticker__": "NVDA",
+        "__read_model__": {
+            "freshness_status": "STALE_RETAINED",
+            "market_identity": {"latest_completed_session": "2026-10-02"},
+        },
+    }
+    monkeypatch.setattr("services.customer_research_v2.load_research_market_context", lambda *_args, **_kwargs: context)
+    simple = build_customer_research_v2(source)["reading_views"]["simple_view"]
+    assert "2026-10-02" in simple["data_notice"]
+    assert "not presented as freshly acquired" in simple["data_notice"]
+    assert simple["questions"][6]["answer"] == "No verified upcoming company event is available in this evidence bundle."
+
+
+def test_research_renderer_exposes_simple_and_detailed_reading_levels():
+    source = Path("ui/customer_research_v2.py").read_text(encoding="utf-8")
+    assert '["Simple View · 2 min", "Detailed View"]' in source
+    assert "External AI synthesis is not active" in source
+    assert '"plain-english-summary"' in source
+
+
 def test_chart_fails_closed_without_governed_provenance():
     assert build_customer_research_v2(report())["chart"]["status"] == "UNAVAILABLE"
 
@@ -479,6 +522,42 @@ def test_qa_enrichment_renders_partial_modules_without_changing_authority(monkey
     assert result["financial_trend"]["status"] == "UNAVAILABLE"
     assert result["about"]["status"] == "AVAILABLE"
     assert result["recent_changes"]["status"] == "AVAILABLE"
+    assert source == before
+
+
+def test_read_only_market_context_enriches_chart_without_changing_certified_close(monkeypatch):
+    source = report(); before = deepcopy(source)
+    context = {
+        "__atlas_ticker__": "NVDA",
+        "__read_model__": {"provider_calls": 0, "serving_request_budget": 0,
+                           "rating_authority": "UNCHANGED"},
+        "historical_ohlcv": {
+            "payload": {
+                "timestamps": list(range(1, 24)),
+                "open": [190.0] * 23, "high": [195.0] * 23, "low": [185.0] * 23,
+                "close": [191.0 + index / 10 for index in range(23)],
+                "volume": [1000 + index for index in range(23)],
+                "completed_session_flags": [True] * 23,
+            },
+            "provenance": {
+                "provider": "FINNHUB", "raw_evidence_id": "history:evidence",
+                "capture_timestamp": "2026-10-16T21:00:00Z",
+                "corporate_action_adjustment_provenance": "SPLIT_ADJUSTED",
+            },
+            "cache_status": "STALE_RETAINED",
+        },
+    }
+    monkeypatch.delenv("ATLAS_QA_MODE", raising=False)
+    monkeypatch.setenv("ATLAS_RESEARCH_MARKET_DATA_ROOT", "/unused")
+    monkeypatch.setattr("services.customer_research_v2.load_research_market_context", lambda *_args, **_kwargs: context)
+    result = build_customer_research_v2(source)
+    assert result["header"]["price"] == 186.09
+    assert result["chart"]["status"] == "AVAILABLE"
+    assert result["chart"]["freshness_status"] == "STALE_RETAINED"
+    assert result["chart"]["context_classification"] == "CONTEXTUAL_NON_SCORING"
+    assert result["chart"]["series"][-1]["volume"] == 1022
+    assert result["market_context"]["provider_calls"] == 0
+    assert result["market_context"]["rating_authority"] == "UNCHANGED"
     assert source == before
 
 
@@ -875,6 +954,13 @@ def test_real_renderer_binds_certified_fair_value_to_each_ticker_chart(monkeypat
         def metric(self, *_args, **_kwargs):
             return None
 
+    class Tab:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
     class StreamlitStub:
         session_state = {}
 
@@ -893,6 +979,10 @@ def test_real_renderer_binds_certified_fair_value_to_each_ticker_chart(monkeypat
         @staticmethod
         def columns(count):
             return [Column() for _ in range(count)]
+
+        @staticmethod
+        def tabs(labels):
+            return [Tab() for _ in labels]
 
         @staticmethod
         def selectbox(*_args, **_kwargs):

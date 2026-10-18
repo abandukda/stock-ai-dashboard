@@ -1190,3 +1190,11 @@ def test_home_withholds_rows_that_fail_published_certification_contract():
     }
     story = build_home_guidance_story([allowed, blocked], [])
     assert [card["ticker"] for card in story["cards"]] == ["GOOD"]
+
+
+def test_customer_runtime_failure_copy_hides_internal_codes():
+    source = (ROOT / "ui" / "home_guidance_vnext.py").read_text(encoding="utf-8")
+    assert "saved evidence could not be " in source
+    assert "verified. ATLAS is keeping" in source
+    assert 'with st.expander("Administrator diagnostic"' in source
+    assert "runtime validation failed: {reasons}" not in source

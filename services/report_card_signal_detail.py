@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Iterable, Mapping
 
 from services.report_card import HORIZONS
+from services.report_card_chart import build_chart_projection
 
 
 CONTEXT_CLASSIFICATION = "CONTEXTUAL_NON_SCORING"
@@ -197,6 +198,15 @@ def build_signal_detail(
         "freshness": "CERTIFIED_AT_ISSUANCE" if authority else "UNAVAILABLE",
         "evidence_ids": profile_evidence,
     }
+    technical_section = (canonical.get("technical") or canonical.get("technical_confirmation") or {})
+    chart_rows = technical_section.get("history") or (authority or {}).get("bars") or []
+    chart_provenance = technical_section.get("history_provenance") or (authority or {}).get("history_provenance") or {}
+    spy_rows = ((authority or {}).get("spy_history") or [])
+    chart = build_chart_projection(
+        chart_rows, chart_provenance,
+        signal_date=signal.get("first_seen_at"), signal_price=signal.get("reference_price"),
+        spy_rows=spy_rows,
+    )
 
     return {
         "signal_id": signal.get("signal_id"),
@@ -245,6 +255,7 @@ def build_signal_detail(
         "original_thesis": original_thesis,
         "view_change_conditions": view_change,
         "company_profile": profile,
+        "price_chart": chart,
         "event_timeline": [],
         "event_timeline_status": "No approved post-signal event evidence is available.",
         "move_attribution": {
