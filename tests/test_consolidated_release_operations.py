@@ -52,7 +52,8 @@ def test_milestone3_contabo_runbook_preserves_source_and_requires_transfer_appro
 def test_48gb_certification_runbook_is_bounded_and_provider_free():
     text = (ROOT / "docs/operations/ATLAS_48GB_CERTIFICATION_READINESS.md").read_text()
     assert "No Finnhub calls" in text
-    assert "40 GiB" in text
+    assert "5 GiB" in text
+    assert "8 GiB" in text
     assert "64-security" in text
     assert "separate owner authorization" in text
     assert "production publication" in text

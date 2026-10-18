@@ -21,8 +21,10 @@ unchanged.
 ## Resource contract
 
 - Start with the existing deterministic 64-security batches.
-- Set a **40 GiB RSS stop ceiling**, leaving at least 8 GiB for Ubuntu, runner,
-  filesystem cache, telemetry, and controlled shutdown on the 48 GB host.
+- Preserve the existing **5 GiB RSS operating target** and add a job-scoped
+  **8 GiB hard stop** (for example, a systemd/cgroup limit or an equivalent
+  watchdog). The additional host memory is recovery headroom, not permission
+  for the scoring graph to grow without bound.
 - Sample process and cgroup RSS at every load, forward, release, reverse,
   checkpoint reload, aggregation, candidate, and simulation boundary.
 - Persist and fsync a valid checkpoint before beginning the next batch.
@@ -31,9 +33,10 @@ unchanged.
 - Record wall time, CPU time, peak RSS, free disk, checkpoint bytes, batch
   throughput, and exit condition even on failure.
 
-The 40 GiB value is an initial safety ceiling, not a target. A provider-free
-representative check should establish a materially lower expected peak before
-the protected full-population run is approved.
+The 5 GiB target remains the production acceptance contract. Crossing 8 GiB
+must checkpoint and fail closed before host-wide pressure develops. A
+provider-free representative check must establish the actual peak before
+either limit can be revised.
 
 ## Preflight on the secured target
 
@@ -51,7 +54,8 @@ the protected full-population run is approved.
 
 The full 1,298-security certification requires separate owner authorization
 bound to the secured runner identity, exact source SHA, evidence manifests,
-checkpoint namespace, 40 GiB ceiling, batch size, and provider-free operation.
+checkpoint namespace, 5 GiB target, 8 GiB hard stop, batch size, and
+provider-free operation.
 Terminal certification does not authorize production publication. Publication,
 unattended scheduling, further acquisition, and Report Card mutation each retain
 their own gates.
