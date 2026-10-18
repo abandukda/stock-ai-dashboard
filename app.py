@@ -28634,7 +28634,17 @@ def main():
         unsafe_allow_html=True,
     )
     _research_widget_trace("route_selected", selected_page=selected_page)
-    if selected_route in {"Research Any Ticker", "Internal Report Card"}:
+    if selected_page == "Research Any Ticker":
+        # Resolve Research before loading any cross-surface scan. This keeps
+        # the ticker form and exact-candidate authority independent from Home.
+        full_df=pd.DataFrame(); top_df=pd.DataFrame(); recovery_df=pd.DataFrame()
+        watch_df=pd.DataFrame(); prescreen_df=pd.DataFrame(); etf_df=pd.DataFrame()
+    elif selected_route == "Research Any Ticker":
+        # Customer navigation labels this route "Research"; normalize it to
+        # the same isolated loading contract without touching route identity.
+        full_df=pd.DataFrame(); top_df=pd.DataFrame(); recovery_df=pd.DataFrame()
+        watch_df=pd.DataFrame(); prescreen_df=pd.DataFrame(); etf_df=pd.DataFrame()
+    elif selected_route == "Internal Report Card":
         # Research owns its form lifecycle before any cross-surface bootstrap.
         # Its saved-record resolver loads only the submitted ticker after the
         # form trigger has been consumed; exact-candidate mode uses the bounded
