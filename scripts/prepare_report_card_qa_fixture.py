@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import argparse
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+import json
 from pathlib import Path
 
 from services.prospective_report_card import ProspectiveLedger
@@ -39,6 +40,24 @@ def prepare(primary_root: Path, backup_root: Path) -> Path:
     )
     ledger.verify()
     ledger.backup(backup_root, now=now)
+    bars = []
+    for index in range(320):
+        session = (now - timedelta(days=319-index)).date().isoformat()
+        close = 150.0 + index * 0.1
+        bars.append({"date": session, "close": close, "high": close + 1.2,
+                     "low": close - 1.1, "volume": 1_000_000 + index, "completed": True})
+    authority = [{
+        "ticker": "NVDA", "company": "NVIDIA Corporation", "candidate_digest": "qa-fixture-candidate",
+        "bars": bars,
+        "spy_history": [{**row, "close": 400.0 + index * 0.15,
+                          "high": 401.0 + index * 0.15, "low": 399.0 + index * 0.15}
+                         for index, row in enumerate(bars)],
+        "history_provenance": {"source": "QA_RETAINED_FIXTURE", "evidence_ids": ["qa-fixture-chart-evidence"],
+                               "adjustment": "SPLIT_ADJUSTED", "scope": "QA_ONLY"},
+        "certified_customer_evaluation": {"digests": {"evaluation_snapshot_id": "qa-fixture-snapshot"}},
+        "canonical_investment_evaluation": {},
+    }]
+    (primary_root / "full_evaluation_pool.json").write_text(json.dumps(authority), encoding="utf-8")
     return ledger.path
 
 

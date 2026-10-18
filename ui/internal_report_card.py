@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import html
+import os
 from pathlib import Path
 from typing import Any, Mapping, MutableMapping, Sequence
 
@@ -138,6 +139,11 @@ def _render_signal_detail(detail: Mapping[str, Any]) -> None:
         fig = go.Figure()
         fig.add_trace(go.Scatter(x=[x["date"] for x in bars], y=[x["close"] for x in bars],
                                  name=ticker, mode="lines", line={"color": "#5eead4", "width": 2}))
+        if chart.get("spy_comparison"):
+            fig.add_trace(go.Scatter(x=[x["date"] for x in chart["spy_comparison"]],
+                                     y=[x["indexed_close"] for x in chart["spy_comparison"]],
+                                     name="SPY · indexed to 100", mode="lines", yaxis="y2",
+                                     line={"color": "#a78bfa", "width": 1.5, "dash": "dot"}))
         support, resistance = chart["support_zone"], chart["resistance_zone"]
         fig.add_hrect(y0=support[0], y1=support[1], fillcolor="rgba(34,197,94,.14)", line_width=0,
                       annotation_text="Support zone")
@@ -160,7 +166,8 @@ def _render_signal_detail(detail: Mapping[str, Any]) -> None:
         }
         fig.update_layout(template="plotly_dark", height=430, margin={"l": 12, "r": 12, "t": 24, "b": 12},
                           hovermode="x unified", legend={"orientation": "h"},
-                          xaxis={"rangeselector": {"buttons": [range_specs[label] for label in chart["ranges"]]}})
+                          xaxis={"rangeselector": {"buttons": [range_specs[label] for label in chart["ranges"]]}},
+                          yaxis2={"title": "SPY indexed", "overlaying": "y", "side": "right", "showgrid": False})
         st.plotly_chart(fig, width="stretch", key=f"report-card-chart-{detail.get('signal_id')}")
         st.caption(f'Latest verified close {_money(chart["latest_price"])} · as of {chart["as_of"]}. '
                    f'{chart["methodology"]} Educational, non-scoring context.')
@@ -229,7 +236,8 @@ def _render_signal_detail(detail: Mapping[str, Any]) -> None:
 
 
 def render_internal_report_card(ledger_path: Path, *, authorized: bool) -> Mapping[str, Any]:
-    report = build_internal_report_card(ledger_path, authorized=authorized, authority_root=Path("."))
+    authority_root = Path(os.getenv("ATLAS_REPORT_CARD_CHART_EVIDENCE_ROOT", "."))
+    report = build_internal_report_card(ledger_path, authorized=authorized, authority_root=authority_root)
     st.markdown('<span data-atlas-qa="internal-report-card" data-atlas-customer-visible="false" '
                 'aria-hidden="true" style="display:none">internal-report-card</span>', unsafe_allow_html=True)
     st.markdown(

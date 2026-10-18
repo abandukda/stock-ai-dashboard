@@ -68,6 +68,15 @@ def _linear_trend(rows: list[dict[str, Any]]) -> dict[str, Any] | None:
             "r_squared": r2, "method": "OLS_CLOSE_BY_SESSION"}
 
 
+def _normalized_spy(stock: list[dict[str, Any]], spy: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    stock_days = {row["date"] for row in stock}
+    aligned = [row for row in spy if row["date"] in stock_days]
+    if len(aligned) < MIN_LEVEL_BARS:
+        return []
+    base = aligned[0]["close"]
+    return [{"date": row["date"], "indexed_close": row["close"] / base * 100.0} for row in aligned]
+
+
 def build_chart_projection(rows: Iterable[Mapping[str, Any]], provenance: Mapping[str, Any], *,
                            signal_date: Any = None, signal_price: Any = None,
                            spy_rows: Iterable[Mapping[str, Any]] = ()) -> dict[str, Any]:
@@ -90,6 +99,8 @@ def build_chart_projection(rows: Iterable[Mapping[str, Any]], provenance: Mappin
     supports = sorted(row["low"] for row in recent)
     resistances = sorted(row["high"] for row in recent)
     band = max(history[-1]["close"] * .0025, .01)
+    normalized_spy = normalize_price_history(spy_rows)
+    spy_comparison = _normalized_spy(history, normalized_spy)
     projection = {
         "status": "AVAILABLE", "bars": history, "bar_count": len(history),
         "ranges": [label for label, sessions in {"1M": 23, "3M": 66, "6M": 132, "1Y": 260, "5Y": 1260}.items()
@@ -99,7 +110,9 @@ def build_chart_projection(rows: Iterable[Mapping[str, Any]], provenance: Mappin
         "resistance_zone": [resistances[-len(resistances)//10-1] - band, resistances[-len(resistances)//10] + band],
         "trendline": _linear_trend(history), "provenance": dict(provenance),
         "signal_marker": {"date": str(signal_date), "price": float(signal_price)} if signal_date and signal_price else None,
-        "spy_bars": normalize_price_history(spy_rows), "classification": "EDUCATIONAL_NON_SCORING",
+        "spy_comparison": spy_comparison,
+        "spy_status": "AVAILABLE" if spy_comparison else "UNAVAILABLE",
+        "classification": "EDUCATIONAL_NON_SCORING",
         "volume_status": "AVAILABLE" if all(row.get("volume") is not None for row in history) else "INCOMPLETE_NON_SCORING",
         "methodology": "Zones use the 10th/90th percentiles of verified 60-session lows/highs; trend is OLS close by session.",
     }

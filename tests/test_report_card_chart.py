@@ -17,13 +17,16 @@ PROVENANCE = {"source": "FINNHUB_RETAINED", "evidence_ids": ["raw-1"], "adjustme
 
 
 def test_chart_is_source_bound_and_non_scoring():
-    model = build_chart_projection(reversed(bars()), PROVENANCE, signal_date="2026-01-10", signal_price=102)
+    model = build_chart_projection(reversed(bars()), PROVENANCE, signal_date="2026-01-10", signal_price=102,
+                                   spy_rows=bars())
     assert model["status"] == "AVAILABLE"
     assert model["classification"] == "EDUCATIONAL_NON_SCORING"
     assert model["bars"][0]["date"] < model["bars"][-1]["date"]
     assert model["support_zone"][0] <= model["support_zone"][1]
     assert model["resistance_zone"][0] <= model["resistance_zone"][1]
     assert model["trendline"]["method"] == "OLS_CLOSE_BY_SESSION"
+    assert model["spy_status"] == "AVAILABLE"
+    assert model["spy_comparison"][0]["indexed_close"] == 100.0
 
 
 def test_missing_identity_and_short_history_fail_explicitly():
