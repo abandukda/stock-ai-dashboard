@@ -1892,7 +1892,6 @@ def render_home_guidance_vnext(story: Mapping[str, Any], *, emit_interactive=Non
         from services.session_stability import emit_page_interactive as emit
         emit_interactive = lambda: emit(st, "Home")
     _inject_css()
-    _render_internal_performance_tracking(authorized_internal=authorized_internal)
     runtime = dict(story.get("home_runtime_contract") or {})
     authority = dict(runtime.get("production_authority") or {})
     inventory = dict(runtime.get("inventory_authority") or {})
@@ -1948,6 +1947,9 @@ def render_home_guidance_vnext(story: Mapping[str, Any], *, emit_interactive=Non
     st.markdown(_action_counts(story), unsafe_allow_html=True)
     _render_groups(story, emit_interactive=emit_interactive)
     _render_intelligence_modules(story)
+    # Operational tracking remains available to authorized users, but it must
+    # not precede the customer intelligence brief or certified opportunities.
+    _render_internal_performance_tracking(authorized_internal=authorized_internal)
     # Market context is secondary to the customer's certified opportunity
     # inventory. Keep it below the actionable ideas on both desktop and mobile.
     _render_market_strip(story)
