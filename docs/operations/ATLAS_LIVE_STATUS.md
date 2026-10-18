@@ -9,6 +9,28 @@
 
 Evidence policy: a merge is not deployment; a provider-free run is not acquisition; a monitor ping is not publication; and repository data is not customer-visible until authenticated production evidence proves it.
 
+## 2026-10-17 weekend UI and read-only Research engineering
+
+- PR #71 head `29dcb294ec644fee6f5eb20d4bb5f1e3f193b2b3` implements the
+  internal, gated Report Card evidence chart. It is deterministic,
+  educational/non-scoring, and uses only source-bound retained OHLCV evidence.
+  Local authenticated QA passed at 1440px, 390px and 360px with zero provider
+  calls, no ledger mutation, public Report Card OFF and role isolation intact.
+- The same branch adds `ATLAS_RESEARCH_MARKET_READ_MODEL_V1`, an independent
+  cache-first, read-only Research context. It accepts only self-hashed,
+  ticker-bound retained families with signed Finnhub display authority,
+  payload digests, capture timestamps and explicit no-raw-redistribution
+  provenance. It has no provider adapter and cannot alter certified price,
+  Action, Fair Value, ranking, publication or Report Card observations.
+- Retained Research histories disclose `FRESH_CACHE` or `STALE_RETAINED`; a
+  stale retained history is never presented as a newly refreshed customer
+  snapshot. OHLCV, volume, corporate-action provenance, fundamentals and
+  earnings-family timestamps can be projected when their individual evidence
+  envelopes pass validation. Missing or corrupted families fail closed.
+- This is **BUILT/TESTED, NOT DEPLOYED OR LIVE**. No production retained bundle
+  has been registered under `ATLAS_RESEARCH_MARKET_DATA_ROOT`, and no licensed
+  provider acquisition was performed.
+
 ## 2026-10-16 protected backfill plan
 
 - PR #58 merged as `2b95d4fdc03d56a22b341ef5cdc1648333eab04b`;

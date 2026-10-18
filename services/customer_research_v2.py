@@ -13,6 +13,7 @@ from typing import Any, Iterable, Mapping
 from services.customer_authority import customer_authority, customer_authority_identity
 from services.annual_financial_statements import annual_financial_statements
 from services.customer_statement_history_bundle import customer_statement_history
+from services.research_market_read_model import load_research_market_context
 
 
 VERSION = "ATLAS_CUSTOMER_RESEARCH_V2_P0"
@@ -342,9 +343,18 @@ def _chart_projection(report: Mapping[str, Any], signal: Mapping[str, Any], enri
     if not rows and stock:
         payload = _map(stock.get("payload"))
         timestamps, closes = _seq(payload.get("timestamps")), _seq(payload.get("close"))
+        opens, highs = _seq(payload.get("open")), _seq(payload.get("high"))
+        lows, volumes = _seq(payload.get("low")), _seq(payload.get("volume"))
         complete = _seq(payload.get("completed_session_flags"))
         rows = [
-            {"timestamp": timestamp, "adjusted_close": close}
+            {
+                "timestamp": timestamp, "adjusted_close": close,
+                "open": opens[index] if index < len(opens) else None,
+                "high": highs[index] if index < len(highs) else close,
+                "low": lows[index] if index < len(lows) else close,
+                "volume": volumes[index] if index < len(volumes) else None,
+                "completed": True,
+            }
             for index, (timestamp, close) in enumerate(zip(timestamps, closes))
             if index >= len(complete) or complete[index]
         ]
@@ -367,6 +377,8 @@ def _chart_projection(report: Mapping[str, Any], signal: Mapping[str, Any], enri
     )
     return {
         "status": "AVAILABLE", "series": rows, "provenance": dict(provenance),
+        "freshness_status": stock.get("cache_status") or "CERTIFIED_SNAPSHOT",
+        "context_classification": CONTEXTUAL,
         "ranges": ("1M", "3M", "6M", "1Y", "Since Signal"),
         "default_range": "Since Signal" if signal.get("completed_sessions", 0) >= 5 else "6M",
         "signal_marker": {
@@ -815,6 +827,10 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
         if not valid_statement_history:
             statement_history = {"status": "UNAVAILABLE", "reason": "STATEMENT_HISTORY_AUTHORITY_MISMATCH"}
     enrichment = _qa_enrichment(ticker)
+    if not enrichment:
+        enrichment = load_research_market_context(
+            ticker, os.getenv("ATLAS_RESEARCH_MARKET_DATA_ROOT", "").strip()
+        )
     enrichment_ticker = str(enrichment.get("__atlas_ticker__") or ticker).strip().upper()
     if enrichment and enrichment_ticker != ticker:
         return {
@@ -922,6 +938,12 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
             "confidence_band": _confidence_band(authority["confidence"]),
         },
         "signal": signal,
+        "market_context": {
+            "status": "AVAILABLE" if enrichment.get("__read_model__") else (
+                "QA_ONLY" if enrichment else "UNAVAILABLE"
+            ),
+            **dict(_map(enrichment.get("__read_model__"))),
+        },
         "chart": {
             **_chart_projection(report, signal, enrichment),
             "ownership": {

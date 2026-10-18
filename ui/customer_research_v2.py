@@ -841,6 +841,12 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
                 _marker("spy-comparison-chart", ticker, status=spy.get("status") or "UNAVAILABLE")
                 st.caption("SPY comparison unavailable for this evidence bundle.")
             st.caption(_provenance_caption(chart.get("provenance") or {}))
+            if chart.get("freshness_status") == "STALE_RETAINED":
+                st.warning(
+                    "This chart uses retained verified history. It is not presented as a newly refreshed market snapshot."
+                )
+            elif chart.get("freshness_status") == "FRESH_CACHE":
+                st.caption("Read-only verified market cache · contextual and non-scoring")
             if chart.get("corporate_action_status") == "UNADJUSTED_CLOSE_NO_RETURN_CLAIM":
                 st.caption("Historical closes are shown without an adjusted-return claim because corporate-action adjustment provenance is unavailable.")
 

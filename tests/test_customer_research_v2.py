@@ -482,6 +482,41 @@ def test_qa_enrichment_renders_partial_modules_without_changing_authority(monkey
     assert source == before
 
 
+def test_read_only_market_context_enriches_chart_without_changing_certified_close(monkeypatch):
+    source = report(); before = deepcopy(source)
+    context = {
+        "__atlas_ticker__": "NVDA",
+        "__read_model__": {"provider_calls": 0, "rating_authority": "UNCHANGED"},
+        "historical_ohlcv": {
+            "payload": {
+                "timestamps": list(range(1, 24)),
+                "open": [190.0] * 23, "high": [195.0] * 23, "low": [185.0] * 23,
+                "close": [191.0 + index / 10 for index in range(23)],
+                "volume": [1000 + index for index in range(23)],
+                "completed_session_flags": [True] * 23,
+            },
+            "provenance": {
+                "provider": "FINNHUB", "raw_evidence_id": "history:evidence",
+                "capture_timestamp": "2026-10-16T21:00:00Z",
+                "corporate_action_adjustment_provenance": "SPLIT_ADJUSTED",
+            },
+            "cache_status": "STALE_RETAINED",
+        },
+    }
+    monkeypatch.delenv("ATLAS_QA_MODE", raising=False)
+    monkeypatch.setenv("ATLAS_RESEARCH_MARKET_DATA_ROOT", "/unused")
+    monkeypatch.setattr("services.customer_research_v2.load_research_market_context", lambda *_args, **_kwargs: context)
+    result = build_customer_research_v2(source)
+    assert result["header"]["price"] == 186.09
+    assert result["chart"]["status"] == "AVAILABLE"
+    assert result["chart"]["freshness_status"] == "STALE_RETAINED"
+    assert result["chart"]["context_classification"] == "CONTEXTUAL_NON_SCORING"
+    assert result["chart"]["series"][-1]["volume"] == 1022
+    assert result["market_context"]["provider_calls"] == 0
+    assert result["market_context"]["rating_authority"] == "UNCHANGED"
+    assert source == before
+
+
 def test_research_and_ask_share_customer_wall_street_and_valuation_contract(monkeypatch, tmp_path):
     source = report()
     # These legacy fields intentionally disagree. A published customer report
