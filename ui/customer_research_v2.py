@@ -119,6 +119,46 @@ def _list(items: list[str]) -> None:
     st.markdown("\n".join(f"- {_escape_markdown_currency(item)}" for item in items))
 
 
+def _render_institutional_overview(report: Mapping[str, Any], *, ticker: str) -> None:
+    """Render the evidence-only five-minute dossier without new authority."""
+    if report.get("status") != "AVAILABLE":
+        st.info("The five-minute investment dossier is unavailable because its publication identity is incomplete.")
+        return
+    _marker("institutional-report", ticker, contract=report.get("contract"), status="AVAILABLE",
+            external_model_active="false", non_scoring="true")
+    business = report.get("business") if isinstance(report.get("business"), Mapping) else {}
+    investment = report.get("investment_case") if isinstance(report.get("investment_case"), Mapping) else {}
+    scenarios = report.get("scenarios") if isinstance(report.get("scenarios"), Mapping) else {}
+    valuation = report.get("valuation") if isinstance(report.get("valuation"), Mapping) else {}
+    st.markdown("### Five-minute investment dossier")
+    st.markdown(f'**What the company does**  \n{business.get("description") or "Verified business detail is unavailable."}')
+    strengths = list(investment.get("strengths") or ())
+    risks = list(investment.get("risks") or ())
+    st.markdown("**What supports the case**")
+    _list(strengths) if strengths else st.caption("No supported company-specific strength is retained.")
+    st.markdown("**Important risks**")
+    _list(risks) if risks else st.caption("Limited evidence does not mean no risk.")
+    st.markdown("**Valuation in context**")
+    st.write(
+        f'ATLAS Fair Value: {_money(valuation.get("atlas_fair_value"))} · '
+        f'last certified close: {_money(valuation.get("last_certified_close"))} · '
+        f'gap: {_pct(valuation.get("fair_value_gap_pct"), signed=True)}.'
+    )
+    if valuation.get("wall_street_status") == "AVAILABLE":
+        st.caption(
+            f'Wall Street consensus: {valuation.get("wall_street_consensus") or "Unavailable"} · '
+            f'average target {_money(valuation.get("wall_street_target_average"))} · '
+            f'as of {_friendly_time(valuation.get("wall_street_as_of"))}. Contextual and non-scoring.'
+        )
+    else:
+        st.caption("Wall Street context is unavailable or display-disabled; ATLAS does not substitute an estimate.")
+    for label, key in zip(("Bull watch", "Base evidence", "Bear watch"), ("bull", "base", "bear")):
+        st.markdown(f"**{label}**")
+        values = list(scenarios.get(key) or ())
+        st.caption(" · ".join(values) if values else "No verified condition is retained.")
+    st.caption(str(scenarios.get("limitation") or "Scenarios are conditional watchpoints, not forecasts."))
+
+
 def _dates(values: pd.Series) -> pd.Series:
     numeric = pd.to_numeric(values, errors="coerce")
     if numeric.notna().all():
@@ -777,6 +817,7 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
         if summary["risks"]:
             st.markdown("**Biggest verified risks**")
             _list(summary["risks"])
+        _render_institutional_overview(page.get("institutional_report") or {}, ticker=ticker)
     st.markdown(
         '<style>.atlas-research-101{margin:.55rem 0 1rem;padding:.7rem .8rem;border:1px solid #243244;'
         'border-radius:12px;background:#0b1525;color:#cbd5e1}.atlas-research-101 summary{cursor:pointer;'
