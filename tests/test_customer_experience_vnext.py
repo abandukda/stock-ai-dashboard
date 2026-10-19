@@ -31,6 +31,25 @@ def test_research_summary_uses_certified_action_and_canonical_evidence():
     assert summary["explanation"] == "AI_GENERATED_EXPLANATION"
 
 
+def test_research_summary_never_calls_populated_statements_unavailable():
+    report = _research_report()
+    report["sections"]["financials"].pop("interpretation")
+    report["financial_availability"] = {
+        "status": "PARTIAL",
+        "families": {
+            "income_statement": {"status": "AVAILABLE"},
+            "balance_sheet": {"status": "AVAILABLE"},
+            "cash_flow": {"status": "AVAILABLE"},
+            "estimates": {"status": "UNAVAILABLE"},
+            "valuation_metrics": {"status": "PARTIAL"},
+        },
+    }
+    text = build_research_summary(report)["sections"]["Fundamental context"]
+    assert "income statements" in text
+    assert "cash-flow statements" in text
+    assert "financial statements, estimates, and valuation metrics are unavailable" not in text
+
+
 def test_research_summary_fails_closed_for_withheld_rating():
     report = _research_report()
     report["certified_customer_evaluation"]["customer_publication_allowed"] = False
