@@ -202,11 +202,12 @@ def main() -> int:
     build(args.output, args.screenshot_root, args.source_sha)
     if args.zip_output:
         args.zip_output.parent.mkdir(parents=True, exist_ok=True)
+        expected_archive = args.zip_output.resolve()
         archive = shutil.make_archive(
-            str(args.zip_output.with_suffix("")), "zip",
+            str(expected_archive.with_suffix("")), "zip",
             root_dir=args.output.parent, base_dir=args.output.name,
         )
-        if Path(archive) != args.zip_output:
+        if Path(archive).resolve() != expected_archive:
             raise RuntimeError("VISUAL_REVIEW_ZIP_PATH_MISMATCH")
     return 0
 

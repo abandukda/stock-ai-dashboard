@@ -14,6 +14,7 @@ from services.customer_authority import customer_authority, customer_authority_i
 from services.annual_financial_statements import annual_financial_statements
 from services.customer_statement_history_bundle import customer_statement_history
 from services.research_market_read_model import load_research_market_context
+from services.institutional_research_report import build_institutional_research_report
 
 
 VERSION = "ATLAS_CUSTOMER_RESEARCH_V2_P0"
@@ -1023,7 +1024,7 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
         future_events=future_events, market_context=market_context,
         evidence_ids=identity.get("evidence_ids") or (),
     )
-    return {
+    result = {
         "version": VERSION, "status": "AVAILABLE", "ticker": ticker, "company": company,
         "sector": report.get("sector") or profile_payload.get("sector"),
         "authority": dict(authority), "identity": identity,
@@ -1076,6 +1077,8 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
         "feature_flags": {"wall_street": wall_street_enabled, "customer_report_card": False,
                           "customer_position_management": False, "trim_exit": False},
     }
+    result["institutional_report"] = build_institutional_research_report(result)
+    return result
 
 
 __all__ = ["CONTEXTUAL", "FactCard", "VERSION", "build_customer_research_v2", "validate_grounded_text"]

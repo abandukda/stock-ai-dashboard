@@ -16676,7 +16676,16 @@ def render_v78_safe_top_nav(pages):
     current = st.session_state.get("v73_page", pages[0])
     if current not in pages:
         current = pages[0]
-    st.markdown("<div class='v74-topbar'><span class='v74-brand'>🧠 ATLAS</span><span style='color:#cbd5e1;font-weight:800'>Professional Research Terminal</span></div>", unsafe_allow_html=True)
+    st.markdown("""
+    <header class="atlas-premium-nav" data-atlas-qa="premium-navigation">
+      <div class="atlas-premium-brand">
+        <span class="atlas-premium-monogram" aria-hidden="true">A</span>
+        <div><strong>ATLAS</strong><small>Investment Intelligence</small></div>
+      </div>
+      <p>Evidence first. Decisions explained.</p>
+      <span class="atlas-premium-state"><i></i> Certified workspace</span>
+    </header>
+    """, unsafe_allow_html=True)
     current = st.radio("Navigate", pages, index=pages.index(current), horizontal=True, key="v78_nav_radio", label_visibility="collapsed")
     st.session_state["v73_page"] = current
     return current
@@ -28677,13 +28686,19 @@ def main():
         _home_runtime_trace("etf_load_completed", rows=len(etf_df))
     source_df=top_df if top_df is not None and not top_df.empty else full_df.head(25)
     _emit_page_identity_marker(selected_route)
-    _render_page_explanation(selected_route)
+    # Home, Research, and Report Card own purpose-built above-the-fold
+    # explanations. A second generic explainer displaced the customer's actual
+    # decision surface and weakened the visual hierarchy.
+    if selected_route not in {"Home", "Research Any Ticker"}:
+        _render_page_explanation(selected_route)
     # Reserve the tape's established visual position, but do not let its
     # optional live-provider refresh block the selected route's primary
     # controls and PAGE_INTERACTIVE lifecycle marker.  Filling a Streamlit
     # container after the route renderer preserves the layout while allowing
     # navigation and customer interaction to settle first.
-    _market_tape_slot = st.container() if selected_route not in {"Home", "Research Any Ticker"} else None
+    _market_tape_slot = st.container() if selected_route not in {
+        "Home", "Research Any Ticker", "Internal Report Card"
+    } else None
     if selected_route=="Home":
         _home_runtime_trace("home_route_dispatch_started")
         v810_render_dynamic_home(full_df,source_df,recovery_df)

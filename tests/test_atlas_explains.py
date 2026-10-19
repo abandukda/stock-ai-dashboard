@@ -3,6 +3,13 @@ from pathlib import Path
 from streamlit.testing.v1 import AppTest
 
 from services.atlas_explains import ATLAS_EXPLAINS_VERSION, build_page_explanation, synthesize_page_explanation
+from ui.atlas_explains import _display_source_date
+
+
+def test_customer_evidence_date_never_exposes_raw_iso_timestamp():
+    assert _display_source_date("2026-10-04T12:21:38-04:00") == "Oct 4, 12:21 PM ET"
+    assert _display_source_date("2026-10-15") == "Oct 15, 2026"
+    assert _display_source_date("not-a-date") == "Date unavailable"
 
 
 PAGES = ("Home", "BUY NOW", "Research", "Charts", "Report Card", "Recovery Radar", "ETF Analysis", "Watchlist", "Ask ATLAS")

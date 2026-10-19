@@ -2,10 +2,26 @@
 from __future__ import annotations
 
 import html
+from datetime import datetime
 
 import streamlit as st
 
 from services.atlas_explains import ATLAS_EXPLAINS_VERSION, PageExplanation
+from ui.market_timestamp import format_market_timestamp_et
+
+
+def _display_source_date(value: str) -> str:
+    """Format customer evidence dates while retaining the canonical value upstream."""
+    text = str(value or "").strip()
+    if not text:
+        return "Date unavailable"
+    if "T" in text or " " in text:
+        return format_market_timestamp_et(text, unavailable="Date unavailable")
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return "Date unavailable"
+    return f"{parsed.strftime('%b')} {parsed.day}, {parsed.year}"
 
 
 def _rows(sections) -> str:
@@ -39,7 +55,7 @@ def render_atlas_explains(explanation: PageExplanation) -> None:
         '<small>ATLAS EXPLAINS · 30-SECOND TAKEAWAY</small>'
         f'<h2>{html.escape(explanation.title)}</h2>'
         f'<p class="atlas-explains-lead">{html.escape(explanation.takeaway)}</p>'
-        f'<div class="atlas-explains-meta">Evidence date: {html.escape(explanation.source_date)} · '
+        f'<div class="atlas-explains-meta">Evidence date: {html.escape(_display_source_date(explanation.source_date))} · '
         'Grounded deterministic fallback · external model inactive</div></section>',
         unsafe_allow_html=True,
     )

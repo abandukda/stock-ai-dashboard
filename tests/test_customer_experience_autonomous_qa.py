@@ -65,6 +65,10 @@ def test_workflow_binds_local_app_identity_to_exact_checked_out_candidate() -> N
     )[0]
     assert 'ATLAS_SOURCE_SHA: ${{ steps.context.outputs.candidate_sha }}' in launch
     assert "python3 -m streamlit run app.py" in launch
+    assert "exchange_calendars==4.13.2" in WORKFLOW.read_text()
+    assert 'ATLAS_REQUIRE_AUTH: "true"' in WORKFLOW.read_text()
+    assert 'data-atlas-qa="deployment-readiness"' in launch
+    assert 'input[type="password"]' in launch
 
 
 def _semantic_fixture(sha: str, *, fair_value: str = "$346.05", ticker: str = "NVDA") -> dict:

@@ -14,6 +14,7 @@ from zoneinfo import ZoneInfo
 import streamlit as st
 
 from engines.research_engine import begin_research_entry, research_interaction_contract
+from services.home_market_intelligence import build_home_market_intelligence
 from ui.market_timestamp import format_market_timestamp_et
 from ui.vnext_presentation import CanonicalNumberFormatter
 
@@ -1586,10 +1587,8 @@ def _render_market_strip(story: Mapping[str, Any]) -> None:
 
 def _render_market_read(story: Mapping[str, Any]) -> None:
     """Render the existing governed interpretation without restoring legacy bulk."""
-    context = story.get("market_today") if isinstance(story.get("market_today"), Mapping) else {}
-    interpretation = str(context.get("interpretation") or "").strip()
-    if not interpretation:
-        interpretation = "ATLAS is not inferring a market backdrop without current governed evidence."
+    briefing = build_home_market_intelligence(story)
+    interpretation = str(briefing.get("interpretation") or "").strip()
     sentences = [part.strip() for part in re.split(r"(?<=[.!?])\s+", interpretation) if part.strip()]
     concise = " ".join(sentences[:4])
     st.markdown(
@@ -1598,6 +1597,54 @@ def _render_market_read(story: Mapping[str, Any]) -> None:
         f'<p>{html.escape(concise)}</p></section>',
         unsafe_allow_html=True,
     )
+    st.caption(
+        f'{_display(briefing.get("market_session"))} · {_timestamp(briefing.get("as_of"))} · '
+        'Educational context only; it does not change certified recommendations.'
+    )
+    with st.expander("Explore market drivers, events and evidence", expanded=False):
+        indices = list(briefing.get("indices") or ())
+        if indices:
+            st.markdown("**Verified index context**")
+            rows = []
+            for item in indices:
+                change = item.get("change_pct")
+                rows.append({
+                    "Market": item.get("label") or item.get("symbol"),
+                    "Verified close": _money(item.get("price")),
+                    "Session change": f'{float(change):+.2f}%' if change is not None else "Unavailable",
+                })
+            st.dataframe(rows, hide_index=True, use_container_width=True)
+        sectors = list(briefing.get("sectors") or ())
+        if sectors:
+            st.markdown("**Sector performance**")
+            st.dataframe([
+                {"Sector": item.get("sector"), "Change": f'{float(item["change_pct"]):+.2f}%', "As of": item.get("as_of")}
+                for item in sectors
+            ], hide_index=True, use_container_width=True)
+        events = list(briefing.get("events") or ())
+        if events:
+            st.markdown("**Upcoming verified events**")
+            for item in events:
+                st.write(f'**{item.get("label")}** · {item.get("scheduled_at")} · {item.get("source")}')
+        analogues = list(briefing.get("historical_analogues") or ())
+        st.markdown("**Historical context**")
+        if analogues:
+            for item in analogues:
+                st.write(
+                    f'{item.get("label") or "Reproducible analogue"} · sample {item.get("sample_size")} · '
+                    f'{item.get("observation_window")} · dispersion {item.get("outcome_dispersion")}'
+                )
+        else:
+            st.info(str(briefing.get("analogue_limitation")))
+        watchpoints = list(briefing.get("watchpoints") or ())
+        st.markdown("**What to watch next**")
+        if watchpoints:
+            for item in watchpoints:
+                st.write(f"- {item}")
+        else:
+            st.caption("No source-bound conditional watchpoint is available; ATLAS does not invent a forecast.")
+        for limitation in briefing.get("limitations") or ():
+            st.caption(str(limitation))
 
 
 def _actionable_cards(story: Mapping[str, Any]) -> list[Mapping[str, Any]]:
@@ -1845,7 +1892,6 @@ def render_home_guidance_vnext(story: Mapping[str, Any], *, emit_interactive=Non
         from services.session_stability import emit_page_interactive as emit
         emit_interactive = lambda: emit(st, "Home")
     _inject_css()
-    _render_internal_performance_tracking(authorized_internal=authorized_internal)
     runtime = dict(story.get("home_runtime_contract") or {})
     authority = dict(runtime.get("production_authority") or {})
     inventory = dict(runtime.get("inventory_authority") or {})
@@ -1901,6 +1947,9 @@ def render_home_guidance_vnext(story: Mapping[str, Any], *, emit_interactive=Non
     st.markdown(_action_counts(story), unsafe_allow_html=True)
     _render_groups(story, emit_interactive=emit_interactive)
     _render_intelligence_modules(story)
+    # Operational tracking remains available to authorized users, but it must
+    # not precede the customer intelligence brief or certified opportunities.
+    _render_internal_performance_tracking(authorized_internal=authorized_internal)
     # Market context is secondary to the customer's certified opportunity
     # inventory. Keep it below the actionable ideas on both desktop and mobile.
     _render_market_strip(story)
