@@ -892,10 +892,13 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
         </style>""", unsafe_allow_html=True)
         brief_sentences = tuple(str(item).strip() for item in simple_view.get("brief_sentences") or () if str(item).strip())
         brief_html = "".join(f"<p>{escape(sentence)}</p>" for sentence in brief_sentences)
+        fallback_intro = escape(
+            str(simple_view.get("intro") or "A plain-English guide is unavailable.")
+        )
         st.markdown(
             f'<section class="atlas-research-brief" data-atlas-qa="research-simple-brief">'
             f'<h3>{escape(str(simple_view.get("title") or f"{ticker} in plain English"))}</h3>'
-            f'{brief_html or f"<p>{escape(str(simple_view.get("intro") or "A plain-English guide is unavailable."))}</p>"}'
+            f'{brief_html or f"<p>{fallback_intro}</p>"}'
             '</section>',
             unsafe_allow_html=True,
         )

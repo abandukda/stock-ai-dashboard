@@ -1460,6 +1460,13 @@ def _render_groups(story: Mapping[str, Any], *, emit_interactive) -> None:
             tickers = [str(card.get("ticker") or "UNKNOWN") for card in remaining]
             selected = st.selectbox("Open complete Research", tickers, key="home_remaining_buy_now_ticker")
             _open_research(selected, f"home_all_certified_{selected}", compact=True)
+            governed_quick_links = [ticker for ticker in ("NVDA", "MSFT", "CODA") if ticker in tickers]
+            if governed_quick_links:
+                st.caption("Quick Research links")
+                quick_link_columns = st.columns(len(governed_quick_links))
+                for column, ticker in zip(quick_link_columns, governed_quick_links):
+                    with column:
+                        _open_research(ticker, f"home_governed_quick_{ticker}", compact=True)
     if not actionable:
         emit_interactive()
     _section_marker("worth_watching")
