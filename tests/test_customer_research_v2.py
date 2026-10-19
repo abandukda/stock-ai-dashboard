@@ -149,6 +149,31 @@ def test_plain_english_views_answer_eight_questions_without_external_model_or_ne
     assert "does not change the certified recommendation" in views["simple_view"]["intro"]
 
 
+def test_plain_english_brief_uses_retained_business_evidence_and_stays_concise():
+    source = report()
+    source["company_evidence"] = {
+        "business_summary": "NVIDIA designs accelerated computing platforms used in data centers, gaming, and professional visualization."
+    }
+
+    simple = build_customer_research_v2(source)["reading_views"]["simple_view"]
+
+    assert simple["title"] == "ATLAS Investment Brief · NVDA"
+    assert 3 <= len(simple["brief_sentences"]) <= 5
+    assert simple["brief_sentences"][0].startswith("NVIDIA designs accelerated computing platforms")
+    assert "classified in Technology" not in " ".join(simple["brief_sentences"])
+    assert set(simple["highlights"]) == {"encouraging", "risk", "watch_next"}
+
+
+def test_simple_surface_is_compact_while_detailed_view_retains_eight_questions():
+    source = Path("ui/customer_research_v2.py").read_text(encoding="utf-8")
+    simple_block = source[source.index("with simple_tab:"):source.index("with detailed_tab:")]
+    detailed_block = source[source.index("with detailed_tab:"):source.index("st.markdown(\n        '<style>.atlas-research-101")]
+    assert 'data-atlas-qa="research-simple-brief"' in simple_block
+    assert "atlas-research-highlights" in simple_block
+    assert 'for item in simple_view.get("questions")' not in simple_block
+    assert 'for item in simple_view.get("questions")' in detailed_block
+
+
 def test_plain_english_views_label_stale_context_and_missing_events_honestly(monkeypatch):
     source = report()
     context = {

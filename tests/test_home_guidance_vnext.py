@@ -101,6 +101,31 @@ def test_home_inventory_uses_governed_count_not_ten_card_feature_limit():
     assert _governed_buy_now_inventory(story) == 11
 
 
+def test_home_uses_three_feature_cards_and_compact_remainder_without_reranking():
+    source = Path("ui/home_guidance_vnext.py").read_text(encoding="utf-8")
+    groups = source[source.index("def _render_groups"):source.index("def _action_counts")]
+    assert "actionable[:3]" in groups
+    assert "remaining = all_actionable[3:]" in groups
+    assert '"Rank": int(card.get("production_rank")' in groups
+    assert 'st.dataframe(' in groups
+    assert 'st.selectbox("Open complete Research"' in groups
+    assert "for card in watching[:5]" in groups
+
+
+def test_home_action_summary_uses_plain_customer_labels_not_star_jargon():
+    from ui.home_guidance_vnext import _action_counts
+
+    rendered = _action_counts({
+        "home_featured_cards": [
+            {"guidance": "BUY_NOW"},
+            {"guidance": "ACCUMULATE"},
+        ],
+    })
+    assert "Buy Now" in rendered
+    assert "Build a Position" in rendered
+    assert "★" not in rendered
+
+
 def test_pre_policy_persisted_evaluation_cannot_override_current_home_contract():
     stale = canonical_evaluation(guidance="ACCUMULATE")
     stale["guidance"].pop("policy_version", None)

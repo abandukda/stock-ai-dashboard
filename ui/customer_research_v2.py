@@ -881,16 +881,42 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
             mode=reading_views.get("mode") or "UNAVAILABLE",
             external_model_active=str(bool(reading_views.get("external_model_active"))).lower(),
         )
-        st.markdown(f'### {simple_view.get("title") or f"{ticker} in plain English"}')
-        st.write(simple_view.get("intro") or "A plain-English guide is unavailable for this evidence bundle.")
+        st.markdown("""<style>
+        .atlas-research-brief{border:1px solid rgba(45,212,191,.24);border-radius:16px;padding:1rem 1.1rem;background:linear-gradient(145deg,rgba(15,23,42,.9),rgba(11,29,39,.76));margin:.35rem 0 .7rem}
+        .atlas-research-brief h3{margin:0 0 .35rem;font-size:1.16rem}.atlas-research-brief p{margin:.35rem 0;color:#dbe5f1;line-height:1.55}
+        .atlas-research-highlights{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.65rem;margin:.7rem 0}
+        .atlas-research-highlight{border:1px solid rgba(148,163,184,.18);border-radius:13px;padding:.78rem;background:rgba(15,23,42,.58)}
+        .atlas-research-highlight small{display:block;color:#8fa4bd;font-size:.65rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;margin-bottom:.3rem}
+        .atlas-research-highlight p{margin:0;color:#e5edf6;font-size:.9rem;line-height:1.45}
+        @media(max-width:700px){.atlas-research-brief{padding:.8rem}.atlas-research-highlights{grid-template-columns:1fr}.atlas-research-highlight{padding:.7rem}}
+        </style>""", unsafe_allow_html=True)
+        brief_sentences = tuple(str(item).strip() for item in simple_view.get("brief_sentences") or () if str(item).strip())
+        brief_html = "".join(f"<p>{escape(sentence)}</p>" for sentence in brief_sentences)
+        st.markdown(
+            f'<section class="atlas-research-brief" data-atlas-qa="research-simple-brief">'
+            f'<h3>{escape(str(simple_view.get("title") or f"{ticker} in plain English"))}</h3>'
+            f'{brief_html or f"<p>{escape(str(simple_view.get("intro") or "A plain-English guide is unavailable."))}</p>"}'
+            '</section>',
+            unsafe_allow_html=True,
+        )
         st.caption(
             "Verified-evidence fallback · External AI synthesis is not active. "
             "Source facts and the certified ATLAS Action remain separate from this explanation."
         )
-        for item in simple_view.get("questions") or ():
-            if isinstance(item, Mapping):
-                st.markdown(f'**{item.get("question") or "Research question"}**')
-                st.write(item.get("answer") or "Verified evidence is unavailable.")
+        highlights = simple_view.get("highlights") if isinstance(simple_view.get("highlights"), Mapping) else {}
+        highlight_cards = (
+            ("What is encouraging", highlights.get("encouraging")),
+            ("Main risk", highlights.get("risk")),
+            ("What to watch next", highlights.get("watch_next")),
+        )
+        st.markdown(
+            '<div class="atlas-research-highlights">' + "".join(
+                f'<article class="atlas-research-highlight"><small>{escape(label)}</small>'
+                f'<p>{escape(str(value or "Verified evidence is unavailable."))}</p></article>'
+                for label, value in highlight_cards
+            ) + '</div>',
+            unsafe_allow_html=True,
+        )
         if simple_view.get("data_notice"):
             st.warning(str(simple_view["data_notice"]))
         evidence_ids = tuple(str(item) for item in reading_views.get("evidence_ids") or () if str(item).strip())
@@ -909,6 +935,11 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
         if summary["risks"]:
             st.markdown("**Biggest verified risks**")
             _list(summary["risks"])
+        with st.expander("Eight questions this research answers", expanded=False):
+            for item in simple_view.get("questions") or ():
+                if isinstance(item, Mapping):
+                    st.markdown(f'**{item.get("question") or "Research question"}**')
+                    st.write(item.get("answer") or "Verified evidence is unavailable.")
         _render_institutional_overview(page.get("institutional_report") or {}, ticker=ticker)
     st.markdown(
         '<style>.atlas-research-101{margin:.55rem 0 1rem;padding:.7rem .8rem;border:1px solid #243244;'
