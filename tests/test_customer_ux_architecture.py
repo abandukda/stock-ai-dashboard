@@ -64,7 +64,8 @@ def test_research_trust_tiers_and_collapsed_context_are_explicit():
 def test_mobile_keeps_actionable_cards_before_watching():
     source = (ROOT / "ui" / "home_guidance_vnext.py").read_text(encoding="utf-8")
     group = source[source.index("def _render_groups"):source.index("def _action_counts")]
-    assert group.index("for index, card in enumerate(actionable)") < group.index('with st.expander(f"Worth Watching')
+    assert group.index("for index, card in enumerate(actionable[:3])") < group.index('with st.expander(f"Worth Watching')
+    assert group.index("remaining = all_actionable[3:]") < group.index('with st.expander(f"Worth Watching')
     assert "@media(max-width:700px)" in source
 
 

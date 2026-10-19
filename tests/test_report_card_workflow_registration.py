@@ -48,13 +48,14 @@ def test_registration_ci_is_provider_free_and_does_not_dispatch_operations():
     assert "exchange_calendars==4.13.2 PyYAML==6.0.3" in source
 
 
-def test_g1_does_not_change_production_dependency_or_smoke_contracts():
+def test_registered_workflows_and_production_share_the_pinned_calendar_runtime():
     calendar, _ = _workflow(CALENDAR)
     acquisition, _ = _workflow(ACQUISITION)
     assert "exchange_calendars==4.13.2" in calendar
     assert "exchange_calendars==4.13.2" in acquisition
-    assert "requirements.txt" not in {
+    pinned_runtime_manifests = {
         str(path.relative_to(ROOT))
         for path in ROOT.glob("requirements*.txt")
         if "exchange_calendars==4.13.2" in path.read_text(encoding="utf-8")
     }
+    assert "requirements.txt" in pinned_runtime_manifests

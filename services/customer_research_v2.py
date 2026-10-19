@@ -243,10 +243,20 @@ def _plain_english_views(
     gap: float | None, summary: Mapping[str, Any], profile: Mapping[str, Any],
     future_events: Iterable[Mapping[str, Any]], market_context: Mapping[str, Any],
     evidence_ids: Iterable[str] = (), financial_availability: Mapping[str, Any] | None = None,
+    company_evidence: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Project two reading levels from governed facts without external calls."""
     industry = str(profile.get("industry") or sector or "").strip()
-    description = str(profile.get("description") or profile.get("business_summary") or profile.get("company_description") or "").strip()
+    retained_company = _map(company_evidence)
+    description = str(
+        profile.get("description")
+        or profile.get("business_summary")
+        or profile.get("company_description")
+        or retained_company.get("business_summary")
+        or retained_company.get("company_description")
+        or retained_company.get("description")
+        or ""
+    ).strip()
     if description:
         what_company_does = description
     elif industry:
@@ -301,17 +311,44 @@ def _plain_english_views(
         ("What would change the current assessment?", " ".join(invalidate[:2] or weaken[:2]) or
          "No verified change condition is available in this snapshot."),
     )
+    thesis = " ".join(reasons[:2]) if reasons else (
+        f"ATLAS has a certified {action.replace('_', ' ')} action, but the retained bundle does not include a "
+        "plain-English supporting reason."
+    )
+    risk = " ".join(risks[:2]) if risks else (
+        "Company-specific measured risk is unavailable in this bundle. Limited evidence is not evidence of low risk."
+    )
+    watch_next = next_event if events else (
+        f"Watch for evidence that could weaken the view: {weaken[0]}" if weaken else
+        "No verified near-term event is retained, so ATLAS does not invent a catalyst."
+    )
+    # A short, deliberately non-repetitive customer brief.  The eight answers
+    # remain available as structured evidence for Detailed View and API users,
+    # but the primary surface should read like research rather than a form.
+    brief_sentences = tuple(dict.fromkeys((
+        what_company_does,
+        thesis,
+        valuation,
+        risk,
+        watch_next,
+    )))
     return {
         "status": "AVAILABLE", "mode": "DETERMINISTIC_GROUNDED_FALLBACK",
         "external_model_active": False, "classification": CONTEXTUAL,
         "evidence_ids": tuple(sorted({str(item) for item in evidence_ids if str(item).strip()})),
         "simple_view": {
-            "title": f"AI Investment Brief · {ticker} in plain English",
+            "title": f"ATLAS Investment Brief · {ticker}",
             "intro": (
                 f"Here is a two-minute guide to {company}. It explains the retained ATLAS evidence in everyday language "
                 "and does not change the certified recommendation."
             ),
             "questions": tuple({"question": question, "answer": answer} for question, answer in questions),
+            "brief_sentences": brief_sentences[:5],
+            "highlights": {
+                "encouraging": thesis,
+                "risk": risk,
+                "watch_next": watch_next,
+            },
             "data_notice": f"{data_notice} {financial_notice}",
         },
         "detailed_view": {
@@ -1034,6 +1071,7 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
         future_events=future_events, market_context=market_context,
         evidence_ids=identity.get("evidence_ids") or (),
         financial_availability=financial_availability,
+        company_evidence=_map(report.get("company_evidence")),
     )
     result = {
         "version": VERSION, "status": "AVAILABLE", "ticker": ticker, "company": company,

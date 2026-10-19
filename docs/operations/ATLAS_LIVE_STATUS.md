@@ -1349,3 +1349,34 @@ any other item.
   `cb30343a94dfeb9add39805f804d59d33585658d424de92eced7de17299ba879`).
   A new exact-head governed run is required after the corrective commit; until
   that passes, PR #76 remains **BUILT / NOT CERTIFIED / NOT DEPLOYED**.
+
+### Product recovery candidate — 2026-10-19
+
+- **BASELINE VERIFIED:** authoritative `main` is
+  `daae4f0e1033c1456694d1e20dfd2575d9305738`, the merge of PR #76. Its tree is
+  identical to governed-certified head
+  `8b60c7546291d5268466d5ff101657146af9e826`; run `39203347098` passed the
+  provider-free customer journey and role-isolation suite. This is source-tree
+  certification, not proof of a new production deployment.
+- **BUILT, NOT YET EXACT-HEAD CERTIFIED:** branch
+  `codex/product-recovery-nvda-vslice` makes Research's primary brief concise,
+  non-repetitive and accurately labeled as deterministic ATLAS explanation.
+  Verified retained business evidence is now preferred over a sector-only
+  fallback. Home shows three lead cards and a compact published-rank table for
+  the remaining certified BUY NOW inventory, bounds Worth Watching, and removes
+  star jargon from the summary. Scoring, ranks and certified values are unchanged.
+- **DATA TRUTH:** the current customer snapshot remains market session
+  `2026-10-02`, publication `2026-10-04T12:21:38-04:00`, 11 BUY NOW, digest
+  `72b37697b2f4fc5dabd5438c1a3bb7c068cd12e86253b64e37b8a642c310bf17`.
+  It must not be described as current market data.
+- **NVIDIA COVERAGE:** certified valuation and five annual/eight quarterly
+  statement periods are available. A customer-renderable verified business
+  profile, licensed analyst consensus/targets, retained news/catalysts and a
+  complete governed OHLCV chart series are not present. The exact acquisition
+  boundary is documented in `ATLAS_PRODUCT_RECOVERY_SOURCE_COVERAGE.md`.
+- **REPORT CARD:** the full route remains internal-role-only and read-only;
+  customers see the honest pending preview. Public activation and ledger
+  mutation remain OFF.
+- **VISUAL ACCEPTANCE BLOCKER:** the exact owner-approved mockup image assets are
+  not present in the repository/workspace. Responsive QA can proceed, but visual
+  parity cannot be claimed until the references are supplied.

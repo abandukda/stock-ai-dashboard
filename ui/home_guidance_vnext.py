@@ -1417,7 +1417,7 @@ def _render_groups(story: Mapping[str, Any], *, emit_interactive) -> None:
         'style="display:none">Strongest Opportunities</span>', unsafe_allow_html=True,
     )
     total = _governed_buy_now_inventory(story)
-    visible = min(len(actionable), 10)
+    visible = min(len(actionable), 3)
     st.markdown("## Strongest Opportunities")
     st.caption(
         f"Showing {visible} featured idea{'s' if visible != 1 else ''} from {total} total certified BUY NOW "
@@ -1426,22 +1426,47 @@ def _render_groups(story: Mapping[str, Any], *, emit_interactive) -> None:
     if not actionable:
         empty = story.get("home_opportunity_empty_state") if isinstance(story.get("home_opportunity_empty_state"), Mapping) else {}
         st.info(str(empty.get("message") or "ATLAS found no stocks meeting the strongest certified opportunity threshold for this snapshot."))
-    for index, card in enumerate(actionable[:5]):
+    for index, card in enumerate(actionable[:3]):
         with st.container(key=f"home_top_idea_position_{index + 1}"):
             _compact_opportunity_card(card, key=f"actionable_{index}", first=index == 0)
         if index == 0:
             emit_interactive()
-    if len(all_actionable) > 5:
-        with st.expander(f"View all certified opportunities ({len(all_actionable)})", expanded=False):
-            for index, card in enumerate(all_actionable):
-                ticker = str(card.get("ticker") or "UNKNOWN")
-                st.markdown(
-                    f'**{html.escape(ticker)}** · '
-                    f'{html.escape(str(card.get("company") or ""))} · '
-                    f'Opportunity {_score(card.get("opportunity"))} · '
-                    f'Confidence {_score(card.get("decision_confidence"), suffix="%")}'
-                )
-                _open_research(ticker, f"home_all_certified_{index}_{ticker}", compact=True)
+    if len(all_actionable) > 3:
+        remaining = all_actionable[3:]
+        with st.expander(f"View all {len(all_actionable)} BUY NOW opportunities", expanded=False):
+            st.caption("The table preserves the published ranking. Select a ticker below to open its complete Research page.")
+            st.dataframe(
+                [
+                    {
+                        "Rank": int(card.get("production_rank") or index + 4),
+                        "Ticker": str(card.get("ticker") or "UNKNOWN"),
+                        "Company": str(card.get("company") or "Unavailable"),
+                        "Last certified close": _money(card.get("display_price")),
+                        "ATLAS Fair Value": _money(card.get("atlas_fair_value")),
+                        "Potential": _score(
+                            card.get("live_implied_upside_pct")
+                            if card.get("live_implied_upside_pct") is not None
+                            else card.get("atlas_expected_return"),
+                            suffix="%",
+                        ),
+                        "Confidence": _score(card.get("decision_confidence"), suffix="%"),
+                        "Evidence date": _timestamp(card.get("decision_as_of")),
+                    }
+                    for index, card in enumerate(remaining)
+                ],
+                hide_index=True,
+                use_container_width=True,
+            )
+            tickers = [str(card.get("ticker") or "UNKNOWN") for card in remaining]
+            selected = st.selectbox("Open complete Research", tickers, key="home_remaining_buy_now_ticker")
+            _open_research(selected, f"home_all_certified_{selected}", compact=True)
+            governed_quick_links = [ticker for ticker in ("NVDA", "MSFT", "CODA") if ticker in tickers]
+            if governed_quick_links:
+                st.caption("Quick Research links")
+                quick_link_columns = st.columns(len(governed_quick_links))
+                for column, ticker in zip(quick_link_columns, governed_quick_links):
+                    with column:
+                        _open_research(ticker, f"home_governed_quick_{ticker}", compact=True)
     if not actionable:
         emit_interactive()
     _section_marker("worth_watching")
@@ -1452,13 +1477,15 @@ def _render_groups(story: Mapping[str, Any], *, emit_interactive) -> None:
             "WAIT_FOR_CONFIRMATION": "Waiting on confirmation",
             "DATA_LIMITED": "Not ready yet",
         }
-        for card in watching:
+        for card in watching[:5]:
             state = _customer_state(card)
             st.markdown(
                 f'**{html.escape(str(card.get("ticker") or "UNKNOWN"))}** — {labels[state]}  '
                 f'· Decision Confidence: {_score(card.get("decision_confidence"), suffix="%")}  '
                 f'· {_customer_evidence_state(card)}'
             )
+        if len(watching) > 5:
+            st.caption(f"{len(watching) - 5} additional monitored securities are available in Research.")
 
 
 def _action_counts(story: Mapping[str, Any]) -> str:
@@ -1466,8 +1493,8 @@ def _action_counts(story: Mapping[str, Any]) -> str:
     governed = dict(contract.get("home_featured_action_counts") or {})
     states = [_customer_state(card) for card in story.get("home_featured_cards") or _home_candidate_surface(story.get("cards") or ())]
     values = (
-        ("5★ Buy Now", governed.get("BUY_NOW", states.count("BUY_NOW")), "buy"),
-        ("4.5★ Build", governed.get("ACCUMULATE", states.count("ACCUMULATE")), "build"),
+        ("Buy Now", governed.get("BUY_NOW", states.count("BUY_NOW")), "buy"),
+        ("Build a Position", governed.get("ACCUMULATE", states.count("ACCUMULATE")), "build"),
     )
     return '<div class="atlas-home-action-counts">' + "".join(
         f'<span class="atlas-home-count-{tone}"><small>{html.escape(label)}</small><b>{count}</b></span>'
