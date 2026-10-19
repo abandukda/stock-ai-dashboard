@@ -400,6 +400,7 @@ jobs:
           BASELINE_SHA: ${{ steps.context.outputs.baseline_sha }}
           CANDIDATE_SHA: ${{ steps.context.outputs.candidate_sha }}
         run: |
+          git fetch --no-tags --depth=1 origin "$BASELINE_SHA"
           git cat-file -e "$BASELINE_SHA^{commit}"
           artifact_name="atlas-customer-experience-qa-$BASELINE_SHA"
           gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=$artifact_name&per_page=100" > "$RUNNER_TEMP/baseline-artifacts.json"
