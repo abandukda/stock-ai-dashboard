@@ -70,3 +70,16 @@ def test_hosted_preview_authentication_can_fail_closed():
     assert 'ATLAS_REQUIRE_AUTH = ' in source
     assert 'if ATLAS_REQUIRE_AUTH:' in source
     assert 'Authentication is required, but no admin or viewer password is configured.' in source
+
+
+def test_ask_suggestions_use_callback_safe_widget_state_updates():
+    source = (ROOT / "app.py").read_text()
+    assert 'def _apply_ask_suggestion(value):' in source
+    assert 'on_click=_apply_ask_suggestion' in source
+    assert 'args=(_suggestion,)' in source
+    assert 'if _suggestion_cols[_index % 2].button' not in source
+
+
+def test_home_preserves_required_strongest_opportunities_contract():
+    source = (ROOT / "app.py").read_text()
+    assert "Strongest Opportunities · Today's Highest-Conviction" in source

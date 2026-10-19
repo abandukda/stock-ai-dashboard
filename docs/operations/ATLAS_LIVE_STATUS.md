@@ -1319,3 +1319,33 @@ any other item.
   deployment remains a separate owner-authorized operation. Customer data,
   production deployment, external AI, provider acquisition, certification,
   publication, Report Card ledgers, and unattended operations are unchanged.
+
+### Milestone 5 governed acceptance recovery — 2026-10-19
+
+- PR #76 baseline separation was committed as
+  `6a9cf9e9277c76bcbe3dfe96a910f6a4fe282484`. Push CI run `39200042916`
+  passed policy/self-test. The registered governed run `39200270273` proved
+  exact-source checkout, backend authority handoff, zero-provider runtime,
+  app startup, all required customer routes, customer/admin isolation, and the
+  customer-OFF Report Card boundary before failing the final gate on two real
+  UI defects: Home had renamed away the required Strongest Opportunities
+  contract, and Ask ATLAS suggestion buttons mutated a widget-owned session
+  key after instantiation. This failed run is diagnostic evidence, not release
+  acceptance.
+- The two defects are corrected without changing financial authority: Home
+  restores the Strongest Opportunities semantic label, and Ask suggestions now
+  use a Streamlit callback that updates widget state before the rerun. Focused
+  regression coverage is **180 passed**.
+- Full local suite result on Python 3.14 is **3,168 passed, 95 failed, 1
+  skipped**. All 11 failures initially suspected as candidate regressions also
+  fail as the same exact nodes on base `b72fb12...`; the complete exact-test
+  disposition is retained in
+  `docs/qa/ATLAS_MILESTONE5_FULL_SUITE_DISPOSITION.md`. The remaining failures
+  are not represented as waived or passing.
+- Run `39200270273` retained complete diagnostic packages: customer QA artifact
+  `12163762906` (SHA-256
+  `d100c20e1cb8971af6fd59cbc64a6fa86da8267ce24cbaa397b983a9e0d2c74d`)
+  and visual-review artifact `12163539443` (SHA-256
+  `cb30343a94dfeb9add39805f804d59d33585658d424de92eced7de17299ba879`).
+  A new exact-head governed run is required after the corrective commit; until
+  that passes, PR #76 remains **BUILT / NOT CERTIFIED / NOT DEPLOYED**.
