@@ -1267,6 +1267,19 @@ def test_customer_listener_attaches_before_customer_authentication():
     assert viewer.index("_attach_streamlit_transport") < viewer.index("_open_and_authenticate(")
 
 
+def test_customer_visual_evidence_covers_both_tablet_breakpoints():
+    source = SOURCE.read_text(encoding="utf-8")
+    block = source.split("async def _customer_role_visual_evidence", 1)[1].split(
+        "async def _supplementary_mobile", 1
+    )[0]
+    assert 'TABLET = {"width": 1024' in source
+    assert 'NARROW_TABLET = {"width": 768' in source
+    assert '("tablet_1024", TABLET)' in block
+    assert '("tablet_768", NARROW_TABLET)' in block
+    for page_name in ("Home", "Research Any Ticker", "Watchlist Intelligence", "Ask AI"):
+        assert page_name in block
+
+
 def test_customer_copy_contract_rejects_space_separated_timestamps_and_empty_core_sections():
     source = inspect.getsource(AtlasVisualCrawler._submit_research)
     assert r'\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}' in source

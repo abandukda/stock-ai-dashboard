@@ -15,7 +15,7 @@ from playwright.async_api import Page, async_playwright
 
 
 VIEWPORTS = {"desktop": {"width": 1440, "height": 1000}, "tablet": {"width": 1024, "height": 900},
-             "mobile": {"width": 390, "height": 844},
+             "tablet-768": {"width": 768, "height": 1024}, "mobile": {"width": 390, "height": 844},
              "mobile-360": {"width": 360, "height": 800}}
 SETTLEMENT_TIMEOUT_SECONDS = 30.0
 SETTLEMENT_INTERVAL_SECONDS = 0.2

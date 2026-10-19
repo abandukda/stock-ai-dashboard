@@ -44,6 +44,31 @@ def test_pending_preview_never_contains_performance_numbers():
     assert "success rate" not in joined.lower()
 
 
+def test_customer_report_card_projection_exposes_only_public_outcome_counts():
+    preview = customer_report_card_preview({
+        "customer_visible": True, "public_performance_claims_allowed": True,
+        "published_observation_count": 4, "published_signal_count": 3,
+        "measured_signal_count": 2, "successful_signal_count": 1,
+        "unsuccessful_signal_count": 1, "pending_signal_count": 1,
+        "ledger_tip_digest": "must-not-leak", "backup_path": "/protected/report-card.sqlite3",
+    })
+    assert preview["state"] == "AVAILABLE"
+    assert (preview["tracked"], preview["measured"], preview["successful"],
+            preview["unsuccessful"], preview["pending"]) == ("3", "2", "1", "1", "1")
+    rendered = " ".join(preview.values())
+    assert "must-not-leak" not in rendered and "/protected" not in rendered
+
+
+def test_invalid_or_unapproved_report_card_counts_fail_to_pending():
+    for count in (-1, True, "not-a-count"):
+        preview = customer_report_card_preview({
+            "customer_visible": True, "public_performance_claims_allowed": True,
+            "published_observation_count": count,
+        })
+        assert preview["state"] == "PENDING"
+        assert preview["tracked"] == "Not public"
+
+
 def test_integrated_visual_gate_uses_approved_tokens_and_components():
     design = (ROOT / "ui" / "atlas_design_system.py").read_text(encoding="utf-8")
     for token in ("#080F1D", "#0C1627", "#111E32", "#17263D", "#26364D",
@@ -63,8 +88,9 @@ def test_home_command_center_is_responsive_at_required_mobile_widths():
     assert "MARKET PULSE" in home
     assert "@media(max-width:700px)" in home
     assert "@media(max-width:420px)" in home
-    assert "COMPANY SPOTLIGHT" in home
-    assert 'data-atlas-state="PENDING"' in home
+    assert "COMPANY SPOTLIGHT" not in home
+    assert "up to 10 featured below" in home
+    assert "render_customer_report_card_preview" in home
 
 
 def test_visual_gate_has_keyboard_and_high_contrast_fallbacks():

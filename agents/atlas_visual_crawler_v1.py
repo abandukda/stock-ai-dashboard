@@ -250,6 +250,8 @@ def recovery_candidate_archetypes(candidates: list[dict[str, Any]]) -> list[tupl
             output.append((role, candidate))
     return output
 DESKTOP = {"width": 1440, "height": 900}
+TABLET = {"width": 1024, "height": 900}
+NARROW_TABLET = {"width": 768, "height": 1024}
 MOBILE = {"width": 390, "height": 844}
 NARROW_MOBILE = {"width": 360, "height": 800}
 GLOBAL_FATALS = {"APP_UNREACHABLE", "AUTHENTICATION_FAILED", "BROWSER_DIED"}
@@ -3706,6 +3708,25 @@ class AtlasVisualCrawler:
             state="visible", viewport="mobile_360", complete_surface=True,
         )
         await asyncio.wait_for(self._ask(page, viewport="mobile_360"), timeout=35)
+
+        # Tablet captures are a focused visual-acceptance pass. The complete
+        # interaction contract is already exercised at desktop and mobile;
+        # here we verify that every primary customer route remains readable at
+        # both supported tablet breakpoints without multiplying provider-free
+        # journey time or changing application state.
+        for viewport_name, viewport in (("tablet_1024", TABLET), ("tablet_768", NARROW_TABLET)):
+            await page.set_viewport_size(viewport)
+            for page_name in ("Home", "Research Any Ticker", "Watchlist Intelligence", "Ask AI"):
+                if not await asyncio.wait_for(
+                    self._page_visit(page, page_name, viewport=viewport_name), timeout=20,
+                ):
+                    raise GlobalCrawlFailure(
+                        f"CUSTOMER_ROLE_{page_name.upper().replace(' ', '_')}_FAILED_{viewport_name.upper()}"
+                    )
+                await self._shot(
+                    page, page_name=page_name, interaction="customer-role-evidence",
+                    state="visible", viewport=viewport_name, complete_surface=True,
+                )
 
     async def _supplementary_mobile(self, page: Page) -> None:
         await page.set_viewport_size(MOBILE)

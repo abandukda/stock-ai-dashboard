@@ -593,8 +593,10 @@ def test_premium_home_modules_are_truthful_and_preserve_certified_authority():
     assert "Daily Intelligence Brief" in source
     assert 'data-atlas-qa="home-opportunity-spotlight"' in source
     assert 'data-atlas-qa="home-risk-radar"' in source
-    assert "Prior certified comparison unavailable" in source
-    assert "No dated catalyst or earnings event is published here" in source
+    assert "Not shown because verified evidence is unavailable" in source
+    assert 'st.markdown("## What Changed")' not in source
+    assert "dated catalysts and earnings events" in source
+    assert 'st.markdown("## Catalysts & Earnings")' not in source
     assert "render_customer_report_card_preview()" in source
     preview_source = Path("ui/report_card_preview.py").read_text(encoding="utf-8")
     assert "does not present certified decisions as realized returns" in preview_source
@@ -741,7 +743,7 @@ def test_compact_top_idea_does_not_guess_units_in_analyst_copy():
     }
     rendered = _compact_reason(card)
     assert "83" not in rendered
-    assert rendered == "Business quality, valuation, risk, entry conditions and price structure support initiating a position."
+    assert rendered == "A concise certified investment reason is unavailable for this snapshot."
 
 
 def test_compact_top_idea_primary_risk_fails_closed():

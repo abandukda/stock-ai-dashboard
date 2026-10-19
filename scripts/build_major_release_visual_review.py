@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 
-REQUIRED_VIEWPORTS = {"desktop_1440", "tablet_1024", "mobile_390", "mobile_360"}
+REQUIRED_VIEWPORTS = {"desktop_1440", "tablet_1024", "tablet_768", "mobile_390", "mobile_360"}
 
 
 def _sha256(path: Path) -> str:
@@ -23,6 +23,8 @@ def _sha256(path: Path) -> str:
 
 def _viewport(name: str) -> str:
     lowered = name.lower()
+    if "tablet-768" in lowered or "tablet_768" in lowered or "_768" in lowered:
+        return "tablet_768"
     if "tablet" in lowered:
         return "tablet_1024"
     if "mobile-360" in lowered or "mobile_360" in lowered:
@@ -53,8 +55,10 @@ def _page(name: str) -> str:
     return "Other"
 
 
-def _copy_screenshots(roots: Iterable[Path], output: Path, source_sha: str) -> list[dict[str, Any]]:
-    screenshots = output / "screenshots"
+def _copy_screenshots(
+    roots: Iterable[Path], output: Path, source_sha: str, *, phase: str = "after"
+) -> list[dict[str, Any]]:
+    screenshots = output / "screenshots" / phase
     screenshots.mkdir(parents=True, exist_ok=True)
     manifest: list[dict[str, Any]] = []
     seen: set[str] = set()
@@ -70,7 +74,8 @@ def _copy_screenshots(roots: Iterable[Path], output: Path, source_sha: str) -> l
             shutil.copy2(source, target)
             manifest.append({
                 "id": f"atlas-major-release-{len(manifest):03d}",
-                "file": f"screenshots/{target.name}",
+                "file": f"screenshots/{phase}/{target.name}",
+                "review_phase": phase,
                 "source_sha": source_sha,
                 "role": "customer_viewer" if "customer" in stem else "internal_admin",
                 "page": _page(stem),
@@ -86,9 +91,16 @@ def _write(path: Path, text: str) -> None:
     path.write_text(text.rstrip() + "\n", encoding="utf-8")
 
 
-def build(output: Path, roots: list[Path], source_sha: str) -> None:
+def build(
+    output: Path, roots: list[Path], source_sha: str,
+    before_roots: list[Path] | None = None,
+    before_source_sha: str | None = None,
+) -> None:
     output.mkdir(parents=True, exist_ok=True)
-    manifest = _copy_screenshots(roots, output, source_sha)
+    manifest = _copy_screenshots(roots, output, source_sha, phase="after")
+    before = _copy_screenshots(
+        before_roots or [], output, before_source_sha or "UNVERIFIED_BASELINE_SOURCE", phase="before"
+    )
     observed = {item["viewport"] for item in manifest}
     observed_pages = {item["page"] for item in manifest}
     status = "PASS" if REQUIRED_VIEWPORTS <= observed and manifest else "INCOMPLETE"
@@ -100,6 +112,9 @@ def build(output: Path, roots: list[Path], source_sha: str) -> None:
         "licensed_provider_calls": 0,
         "report_card_ledger_mutations": 0,
         "screenshots": manifest,
+        "before_screenshots": before,
+        "before_evidence_status": "INCLUDED" if before else "NOT_SUPPLIED",
+        "before_source_sha": before_source_sha or ("UNVERIFIED" if before else "NOT_SUPPLIED"),
         "required_viewports": sorted(REQUIRED_VIEWPORTS),
         "observed_viewports": sorted(observed),
         "observed_pages": sorted(observed_pages),
@@ -107,7 +122,7 @@ def build(output: Path, roots: list[Path], source_sha: str) -> None:
     _write(output / "screenshot_manifest.json", json.dumps(payload, indent=2, sort_keys=True))
     rows = "\n".join(
         f'| `{item["file"]}` | {item["page"]} | {item["viewport"]} | {item["role"]} | {item["evidence_classification"]} | `{item["sha256"]}` |'
-        for item in manifest
+        for item in before + manifest
     ) or "| _No screenshots_ | — | — | — | — | — |"
     _write(output / "SCREENSHOT_INDEX.md", """# Screenshot index
 
@@ -118,7 +133,7 @@ def build(output: Path, roots: list[Path], source_sha: str) -> None:
 
 Exact tested source: `{source_sha}`
 
-This bundle contains original-resolution browser evidence for the consolidated ATLAS release candidate. It is a review artifact, not deployment evidence. A hosted preview is accepted only after the running application exposes this exact SHA and independent browser QA passes.
+This bundle contains original-resolution browser evidence for the consolidated ATLAS release candidate. Images are separated into `screenshots/before` and `screenshots/after`; missing baseline evidence is stated in the manifest rather than inferred. It is a review artifact, not deployment evidence. A hosted preview is accepted only after the running application exposes this exact SHA and independent browser QA passes.
 
 Safety boundaries: no licensed provider calls, production publication, Report Card ledger mutation, public Report Card activation, or unattended operation occurred while building this bundle.
 """)
@@ -172,6 +187,19 @@ observed from the hosted runtime.
 3. **External synthesis:** remains disabled pending separate provider, privacy, latency, and budget authorization; deterministic fallback stays visibly labeled.
 4. **Protected operations:** public Report Card, licensed acquisition, customer publication, and unattended scheduling retain their separate gates.
 """)
+    _write(output / "CLAUDE_ISSUE_INVENTORY.md", """# Claude issue inventory
+
+Use this table to close findings against observable screenshots. A finding is not closed by code or CI alone.
+
+| Finding | Before evidence | After evidence | State | Reviewer note |
+|---|---|---|---|---|
+| Visual hierarchy and first-screen comprehension | `screenshots/before` when supplied | `screenshots/after` | REVIEW_REQUIRED | — |
+| Mobile navigation, overflow and touch targets | `screenshots/before` when supplied | `screenshots/after` | REVIEW_REQUIRED | — |
+| Research financial-table readability | `screenshots/before` when supplied | `screenshots/after` | REVIEW_REQUIRED | — |
+| Report Card pending-state honesty | `screenshots/before` when supplied | `screenshots/after` | REVIEW_REQUIRED | Public gate must remain OFF |
+
+Owner-approved visual mockups were not supplied to this build. Pixel-level parity is therefore **NOT VERIFIED**.
+""")
     _write(output / "QA_RESULTS.md", f"""# QA results
 
 - Bundle status: **{status}**
@@ -197,9 +225,14 @@ def main() -> int:
     parser.add_argument("--source-sha", required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--screenshot-root", action="append", type=Path, default=[])
+    parser.add_argument("--before-screenshot-root", action="append", type=Path, default=[])
+    parser.add_argument("--before-source-sha")
     parser.add_argument("--zip-output", type=Path)
     args = parser.parse_args()
-    build(args.output, args.screenshot_root, args.source_sha)
+    build(
+        args.output, args.screenshot_root, args.source_sha,
+        args.before_screenshot_root, args.before_source_sha,
+    )
     if args.zip_output:
         args.zip_output.parent.mkdir(parents=True, exist_ok=True)
         expected_archive = args.zip_output.resolve()

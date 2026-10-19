@@ -25,10 +25,17 @@ def _display_source_date(value: str) -> str:
 
 
 def _rows(sections) -> str:
+    customer_labels = {
+        "SOURCE_FACT": "Verified fact",
+        "CALCULATION": "ATLAS calculation",
+        "INTERPRETATION": "What it means",
+        "SCENARIO": "What to watch",
+        "LIMITATION": "Important limitation",
+    }
     return "".join(
         '<article class="atlas-explains-row" '
         f'data-atlas-classification="{html.escape(section.classification)}">'
-        f'<small>{html.escape(section.classification.replace("_", " "))}</small>'
+        f'<small>{html.escape(customer_labels[section.classification])}</small>'
         f'<h4>{html.escape(section.label)}</h4><p>{html.escape(section.text)}</p>'
         + (
             '<footer>Evidence: ' + html.escape(" · ".join(section.evidence_ids)) + '</footer>'

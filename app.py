@@ -4716,6 +4716,14 @@ def render_chat_helper(full_df):
             # The question flow remains available if a hot-reloaded worker has
             # not yet loaded the UX-3B presentation helper.
             pass
+    with st.form("ask_ai_form", clear_on_submit=False):
+        question = st.text_input(
+            "Ask about a ticker or ranking",
+            placeholder="Why did NVDA score high? Should I buy now or wait?",
+            key="ask_ai_question",
+        )
+        submitted = st.form_submit_button("Ask Atlas", type="primary")
+    st.caption("Start with your own question, or choose a prompt below.")
     _suggestions = (
         "What changed?", "What would make this actionable?",
         "What evidence is missing?", "What would invalidate the thesis?",
@@ -4727,13 +4735,6 @@ def render_chat_helper(full_df):
         if _suggestion_cols[_index % 2].button(_suggestion, key=f"ask_suggestion_{_index}", use_container_width=True):
             st.session_state["ask_ai_question"] = _suggestion
             st.rerun()
-    with st.form("ask_ai_form", clear_on_submit=False):
-        question = st.text_input(
-            "Ask about a ticker or ranking",
-            placeholder="Why did NVDA score high? Should I buy now or wait?",
-            key="ask_ai_question",
-        )
-        submitted = st.form_submit_button("Ask Atlas", type="primary")
     from services.session_stability import emit_page_interactive
     emit_page_interactive(st, "Ask AI")
 

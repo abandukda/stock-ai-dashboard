@@ -528,11 +528,22 @@ jobs:
         run: cp "$RUNNER_TEMP/atlas-streamlit.log" "$ATLAS_QA_OUTPUT/streamlit.log" || true
       - name: Build major-release visual review package
         if: always()
+        env:
+          BASELINE_SHA: ${{ steps.context.outputs.baseline_sha }}
         run: |
+          before_args=()
+          if [[ -n "$BASELINE_SHA" ]]; then
+            before_args+=(
+              --before-screenshot-root "$ATLAS_QA_OUTPUT/baseline/browser/required"
+              --before-screenshot-root "$ATLAS_QA_OUTPUT/baseline/browser/report-card"
+              --before-source-sha "$BASELINE_SHA"
+            )
+          fi
           python3 scripts/build_major_release_visual_review.py \
             --source-sha "${{ steps.context.outputs.candidate_sha }}" \
             --screenshot-root "$ATLAS_QA_OUTPUT/browser/required" \
             --screenshot-root "$ATLAS_QA_OUTPUT/browser/report-card" \
+            "${before_args[@]}" \
             --output artifacts/atlas_major_release_visual_review \
             --zip-output artifacts/atlas-major-release-visual-review-${{ steps.context.outputs.candidate_sha }}.zip
       - uses: actions/upload-artifact@v4

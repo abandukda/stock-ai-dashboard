@@ -4,7 +4,7 @@ import pytest
 
 from engines.home_guidance_story_v1 import customer_action_presentation
 from services.vnext_presentation_contract import CUSTOMER_ACTION_LABELS, PRESENTATION_TRUST_TIERS
-from ui.home_guidance_vnext import _compact_reason, _display
+from ui.home_guidance_vnext import _compact_card_narrative, _compact_primary_risk, _compact_reason, _display
 from ui.research_vnext import _customer_fair_value, _customer_potential
 
 
@@ -77,6 +77,33 @@ def test_home_reason_does_not_present_company_name_as_investment_reason():
         "customer_plain_english_summary": {"text": "Teekay Corporation Ltd. Additional evidence follows."},
     }
     assert _compact_reason(card) == "A concise certified investment reason is unavailable for this snapshot."
+
+
+def test_home_suppresses_duplicate_thesis_and_risk_copy():
+    card = {
+        "certified_summary_facts": {
+            "business_driver": "Execution remains the central consideration",
+            "primary_risk": "Execution remains the central consideration",
+        },
+    }
+    thesis, risk = _compact_card_narrative(card)
+    assert thesis == "Execution remains the central consideration."
+    assert risk is None
+
+
+def test_home_does_not_render_classifier_fragments_as_customer_risk_prose():
+    card = {"evaluation": {"risk": {"evidence": {"drawdown_label": "shallow drawdown"}}}}
+    assert _compact_primary_risk(card) == "Not published for this certified snapshot."
+
+
+def test_home_hides_empty_modules_and_explains_featured_vs_total_inventory():
+    source = (ROOT / "ui" / "home_guidance_vnext.py").read_text(encoding="utf-8")
+    assert "Showing {visible} featured idea" in source
+    assert "from {total} total certified BUY NOW" in source
+    assert 'st.markdown("## What Changed")' not in source
+    assert 'st.markdown("## Opportunity Spotlight")' not in source
+    assert 'st.markdown("## Catalysts & Earnings")' not in source
+    assert "Not shown because verified evidence is unavailable" in source
 
 
 def test_trust_tiers_have_distinct_customer_copy_and_visual_classes():

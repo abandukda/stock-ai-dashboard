@@ -1292,3 +1292,30 @@ any other item.
   operating target and must checkpoint/fail closed at an 8-GiB job-scoped hard
   stop. Additional host RAM is recovery headroom, not permission for unbounded
   scoring memory.
+
+### Milestone 5 premium closeout candidate — 2026-10-18
+
+- **BUILT, NOT DEPLOYED:** branch `codex/milestone5-premium-closeout` starts
+  from production-main source `b72fb12a5806d71087ece7837d5e7a6422dfe7e6`
+  and preserves PR #75's unified Research financial-availability contract.
+- Home now distinguishes the governed inventory from the maximum ten featured
+  cards, removes duplicated story/metric treatment, suppresses fragmentary
+  classifier prose, and omits empty narrative modules rather than filling them
+  with generic copy.
+- Research keeps verified facts separate from interpretation, presents newest
+  periods first, deduplicates accession-bound concepts, fixes negative-currency
+  and share units, moves raw fact IDs into provenance detail, and adds beginner
+  explanations for price history, SPY comparison, reported trends, moving
+  averages, and RSI. Ask ATLAS now presents its primary input before examples.
+- The gated Report Card now distinguishes pending, measured-successful,
+  measured-unsuccessful, and still-pending observations without inventing
+  returns or exposing internal ledger identifiers. Public access remains OFF.
+- Governed evidence packaging requires 1440, 1024, 768, 390, and 360 px after
+  captures and includes exact-source before captures whenever the registered
+  semantic baseline is supplied. Missing baseline evidence is labeled rather
+  than synthesized.
+- Current test and screenshot evidence for this branch is recorded only after
+  exact-head CI/governed QA completes. No hosted preview URL exists; preview
+  deployment remains a separate owner-authorized operation. Customer data,
+  production deployment, external AI, provider acquisition, certification,
+  publication, Report Card ledgers, and unattended operations are unchanged.
