@@ -28689,7 +28689,7 @@ def main():
     # Home, Research, and Report Card own purpose-built above-the-fold
     # explanations. A second generic explainer displaced the customer's actual
     # decision surface and weakened the visual hierarchy.
-    if selected_route not in {"Home", "Research Any Ticker", "Internal Report Card"}:
+    if selected_route not in {"Home", "Research Any Ticker"}:
         _render_page_explanation(selected_route)
     # Reserve the tape's established visual position, but do not let its
     # optional live-provider refresh block the selected route's primary
