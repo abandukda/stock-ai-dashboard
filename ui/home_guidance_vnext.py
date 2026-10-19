@@ -1394,6 +1394,10 @@ def _compact_opportunity_card(card: Mapping[str, Any], *, key: str, first: bool 
 def _render_groups(story: Mapping[str, Any], *, emit_interactive) -> None:
     all_cards = list(story.get("cards") or ())
     featured = list(story.get("home_featured_cards") or _home_candidate_surface(all_cards))
+    all_actionable = sorted(
+        (card for card in all_cards if _customer_state(card) == "BUY_NOW"),
+        key=lambda card: int(card.get("production_rank") or 999999),
+    )
     actionable = sorted(
         (card for card in featured if _customer_state(card) == "BUY_NOW"),
         key=lambda card: int(card.get("production_rank") or 999999),
@@ -1427,9 +1431,9 @@ def _render_groups(story: Mapping[str, Any], *, emit_interactive) -> None:
             _compact_opportunity_card(card, key=f"actionable_{index}", first=index == 0)
         if index == 0:
             emit_interactive()
-    if len(actionable) > 5:
-        with st.expander(f"Review the {len(actionable)} featured opportunities", expanded=False):
-            for index, card in enumerate(actionable):
+    if len(all_actionable) > 5:
+        with st.expander(f"View all certified opportunities ({len(all_actionable)})", expanded=False):
+            for index, card in enumerate(all_actionable):
                 ticker = str(card.get("ticker") or "UNKNOWN")
                 st.markdown(
                     f'**{html.escape(ticker)}** · '
