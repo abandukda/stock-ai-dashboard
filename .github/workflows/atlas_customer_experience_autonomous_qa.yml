@@ -25,6 +25,10 @@ on:
         description: Optional accepted semantic baseline SHA
         required: false
         type: string
+      visual_baseline_sha:
+        description: Optional exact screenshot baseline SHA (review evidence only)
+        required: false
+        type: string
       runtime_source_run:
         description: Optional governed runtime artifact source run
         required: false
@@ -130,6 +134,7 @@ jobs:
           DISPATCH_MODE: ${{ inputs.mode }}
           DISPATCH_MAX_REPAIRS: ${{ inputs.max_repair_attempts }}
           DISPATCH_BASELINE_SHA: ${{ inputs.baseline_sha }}
+          DISPATCH_VISUAL_BASELINE_SHA: ${{ inputs.visual_baseline_sha }}
           DISPATCH_SOURCE_RUN: ${{ inputs.runtime_source_run }}
           DISPATCH_ARTIFACT: ${{ inputs.runtime_artifact_identity }}
           GOVERNED_BASELINE_SHA: ${{ vars.ATLAS_ACCEPTED_CUSTOMER_QA_BASELINE_SHA }}
@@ -147,12 +152,14 @@ jobs:
             source_run=37216506983
             artifact=atlas-finnhub-full-universe-final-37216506983
             baseline_sha="$GOVERNED_BASELINE_SHA"
+            visual_baseline_sha=""
           else
             mode="$DISPATCH_MODE"
             requested_repairs="$DISPATCH_MAX_REPAIRS"
             source_run="$DISPATCH_SOURCE_RUN"
             artifact="$DISPATCH_ARTIFACT"
-            baseline_sha="${DISPATCH_BASELINE_SHA:-$GOVERNED_BASELINE_SHA}"
+            baseline_sha="$DISPATCH_BASELINE_SHA"
+            visual_baseline_sha="$DISPATCH_VISUAL_BASELINE_SHA"
           fi
           remaining=$((2 - generation))
           if [ "$requested_repairs" -gt "$remaining" ]; then requested_repairs="$remaining"; fi
@@ -164,6 +171,7 @@ jobs:
             echo "mode=$mode"
             echo "max_repair_attempts=$requested_repairs"
             echo "baseline_sha=$baseline_sha"
+            echo "visual_baseline_sha=$visual_baseline_sha"
             echo "source_run=$source_run"
             echo "artifact=$artifact"
             echo "repair_generation=$generation"
@@ -429,6 +437,29 @@ jobs:
             --baseline-artifact "$RUNNER_TEMP/baseline-artifact.zip" \
             --expected-artifact-digest "$baseline_artifact_digest" \
             --output "$ATLAS_QA_OUTPUT/semantic_baseline_comparison.json"
+      - name: Resolve exact visual-review baseline
+        if: steps.context.outputs.visual_baseline_sha != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VISUAL_BASELINE_SHA: ${{ steps.context.outputs.visual_baseline_sha }}
+        run: |
+          git fetch --no-tags --depth=1 origin "$VISUAL_BASELINE_SHA"
+          git cat-file -e "$VISUAL_BASELINE_SHA^{commit}"
+          artifact_name="atlas-customer-experience-qa-$VISUAL_BASELINE_SHA"
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=$artifact_name&per_page=100" > "$RUNNER_TEMP/visual-baseline-artifacts.json"
+          export VISUAL_BASELINE_ARTIFACT_NAME="$artifact_name"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          data=json.loads((Path(os.environ["RUNNER_TEMP"])/"visual-baseline-artifacts.json").read_text())
+          matches=[a for a in data.get("artifacts", []) if not a.get("expired") and a.get("name")==os.environ["VISUAL_BASELINE_ARTIFACT_NAME"]]
+          if len(matches) != 1: raise SystemExit(f"VISUAL_BASELINE_ARTIFACT_NOT_EXACTLY_ONE:{len(matches)}")
+          (Path(os.environ["RUNNER_TEMP"])/"visual-baseline-artifact-id").write_text(str(matches[0]["id"]))
+          PY
+          visual_baseline_artifact_id=$(<"$RUNNER_TEMP/visual-baseline-artifact-id")
+          gh api -H "Accept: application/vnd.github+json" "repos/$GITHUB_REPOSITORY/actions/artifacts/$visual_baseline_artifact_id/zip" > "$RUNNER_TEMP/visual-baseline-artifact.zip"
+          mkdir -p "$ATLAS_QA_OUTPUT/visual-baseline"
+          unzip -q "$RUNNER_TEMP/visual-baseline-artifact.zip" -d "$ATLAS_QA_OUTPUT/visual-baseline"
       - name: Consolidate exact-authority certification
         id: certify
         continue-on-error: true
@@ -530,14 +561,14 @@ jobs:
       - name: Build major-release visual review package
         if: always()
         env:
-          BASELINE_SHA: ${{ steps.context.outputs.baseline_sha }}
+          VISUAL_BASELINE_SHA: ${{ steps.context.outputs.visual_baseline_sha }}
         run: |
           before_args=()
-          if [[ -n "$BASELINE_SHA" ]]; then
+          if [[ -n "$VISUAL_BASELINE_SHA" ]]; then
             before_args+=(
-              --before-screenshot-root "$ATLAS_QA_OUTPUT/baseline/browser/required"
-              --before-screenshot-root "$ATLAS_QA_OUTPUT/baseline/browser/report-card"
-              --before-source-sha "$BASELINE_SHA"
+              --before-screenshot-root "$ATLAS_QA_OUTPUT/visual-baseline/browser/required"
+              --before-screenshot-root "$ATLAS_QA_OUTPUT/visual-baseline/browser/report-card"
+              --before-source-sha "$VISUAL_BASELINE_SHA"
             )
           fi
           python3 scripts/build_major_release_visual_review.py \

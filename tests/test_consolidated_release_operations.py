@@ -33,9 +33,11 @@ def test_customer_qa_uploads_shareable_visual_zip_and_required_review_files():
     builder = (ROOT / "scripts/build_major_release_visual_review.py").read_text()
     assert "--zip-output artifacts/atlas-major-release-visual-review-" in workflow
     assert "artifacts/atlas-major-release-visual-review-${{ steps.context.outputs.candidate_sha }}.zip" in workflow
-    assert '--before-screenshot-root "$ATLAS_QA_OUTPUT/baseline/browser/required"' in workflow
-    assert '--before-screenshot-root "$ATLAS_QA_OUTPUT/baseline/browser/report-card"' in workflow
-    assert '--before-source-sha "$BASELINE_SHA"' in workflow
+    assert "visual_baseline_sha:" in workflow
+    assert "VISUAL_BASELINE_ARTIFACT_NOT_EXACTLY_ONE" in workflow
+    assert '--before-screenshot-root "$ATLAS_QA_OUTPUT/visual-baseline/browser/required"' in workflow
+    assert '--before-screenshot-root "$ATLAS_QA_OUTPUT/visual-baseline/browser/report-card"' in workflow
+    assert '--before-source-sha "$VISUAL_BASELINE_SHA"' in workflow
     assert 'git fetch --no-tags --depth=1 origin "$BASELINE_SHA"' in workflow
     for name in (
         "README.md", "QA_RESULTS.md", "FEATURE_COMPLETION.md", "DATA_TRUTH.md",
