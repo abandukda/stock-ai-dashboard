@@ -1433,7 +1433,7 @@ def _render_groups(story: Mapping[str, Any], *, emit_interactive) -> None:
             emit_interactive()
     if len(all_actionable) > 3:
         remaining = all_actionable[3:]
-        with st.expander(f"View all certified opportunities ({len(all_actionable)})", expanded=False):
+        with st.expander(f"View all {len(all_actionable)} BUY NOW opportunities", expanded=False):
             st.caption("The table preserves the published ranking. Select a ticker below to open its complete Research page.")
             st.dataframe(
                 [

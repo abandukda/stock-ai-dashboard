@@ -80,7 +80,7 @@ def test_required_home_drilldowns_cover_exact_regression_tickers() -> None:
 
 def test_full_certified_inventory_retains_research_drilldowns() -> None:
     home = (ROOT / "ui/home_guidance_vnext.py").read_text(encoding="utf-8")
-    assert 'with st.expander(f"View all certified opportunities ({len(all_actionable)})"' in home
+    assert 'with st.expander(f"View all {len(all_actionable)} BUY NOW opportunities"' in home
     assert 'st.selectbox("Open complete Research", tickers' in home
     assert '_open_research(selected, f"home_all_certified_{selected}", compact=True)' in home
 
