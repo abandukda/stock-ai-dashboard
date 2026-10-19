@@ -259,8 +259,11 @@ def _technical_chart_frames(rows: pd.DataFrame, *, date_key: str, ticker: str,
     return price_frame, oscillator_frame
 
 
-def _financial_depth_status_rows(depth: Mapping[str, Any]) -> list[dict[str, str]]:
+def _financial_depth_status_rows(
+    depth: Mapping[str, Any], availability: Mapping[str, Any] | None = None,
+) -> list[dict[str, str]]:
     statements = depth.get("statements") if isinstance(depth.get("statements"), Mapping) else {}
+    families = availability.get("families") if isinstance(availability, Mapping) and isinstance(availability.get("families"), Mapping) else {}
     labels = {
         "income_statement": "Income statement",
         "cash_flow": "Cash flow",
@@ -269,12 +272,18 @@ def _financial_depth_status_rows(depth: Mapping[str, Any]) -> list[dict[str, str
     rows: list[dict[str, str]] = []
     for lane, label in labels.items():
         facts = list(statements.get(lane) or ())
+        family = families.get(lane) if isinstance(families.get(lane), Mapping) else {}
         periods = {
             str(item.get("period") or item.get("as_of") or "").strip()
             for item in facts if isinstance(item, Mapping)
             and str(item.get("period") or item.get("as_of") or "").strip()
         }
-        if not facts:
+        family_periods = tuple(family.get("periods") or ())
+        family_count = int(family.get("fact_count") or 0)
+        family_status = str(family.get("status") or "")
+        if family_periods:
+            depth_label = f"{len(family_periods)} retained period{'s' if len(family_periods) != 1 else ''} · latest {family.get('latest_period')}"
+        elif not facts:
             depth_label = "No retained periods"
         elif periods:
             depth_label = f"{len(periods)} retained period{'s' if len(periods) != 1 else ''}"
@@ -282,8 +291,8 @@ def _financial_depth_status_rows(depth: Mapping[str, Any]) -> list[dict[str, str
             depth_label = "Period unavailable"
         rows.append({
             "Statement": label,
-            "Coverage": "Available" if facts else "Unavailable",
-            "Certified line items": str(len(facts)),
+            "Coverage": family_status.title() if family_status else ("Available" if facts else "Unavailable"),
+            "Certified line items": str(family_count or len(facts)),
             "Period depth": depth_label,
         })
     return rows
@@ -292,7 +301,7 @@ def _financial_depth_status_rows(depth: Mapping[str, Any]) -> list[dict[str, str
 def _financial_depth_status_markup(rows: list[dict[str, str]], *, ticker: str) -> str:
     cards = []
     for row in rows:
-        available = row["Coverage"] == "Available"
+        available = row["Coverage"] in {"Available", "Partial", "Stale"}
         state = "available" if available else "unavailable"
         cards.append(
             f'<article class="atlas-financial-coverage-card atlas-financial-coverage-{state}" '
@@ -317,7 +326,9 @@ def _financial_depth_status_markup(rows: list[dict[str, str]], *, ticker: str) -
     )
 
 
-def _render_financial_depth(depth: Mapping[str, Any], *, ticker: str) -> None:
+def _render_financial_depth(
+    depth: Mapping[str, Any], *, ticker: str, availability: Mapping[str, Any] | None = None,
+) -> None:
     """Render premium financial depth with explicit evidence limitations."""
     status = str(depth.get("status") or "NOT_AVAILABLE")
     period_depth = str(depth.get("statement_depth") or "LATEST_PERIOD_ONLY")
@@ -327,15 +338,16 @@ def _render_financial_depth(depth: Mapping[str, Any], *, ticker: str) -> None:
         "These tables show retained certified line items, not a reconstructed filing. "
         "Unavailable statements and periods remain explicitly unavailable."
     )
-    coverage_rows = _financial_depth_status_rows(depth)
+    availability = availability or (depth.get("availability") if isinstance(depth.get("availability"), Mapping) else {})
+    coverage_rows = _financial_depth_status_rows(depth, availability)
     st.markdown(_financial_depth_status_markup(coverage_rows, ticker=ticker), unsafe_allow_html=True)
     with st.expander("Statement coverage details", expanded=False):
         st.dataframe(
             pd.DataFrame(coverage_rows), hide_index=True,
             use_container_width=True, key=f"research-statement-coverage-{ticker}",
         )
-    if status == "NOT_AVAILABLE":
-        st.info("Certified income statement, cash-flow, and balance-sheet line items are unavailable for this snapshot.")
+    if status == "NOT_AVAILABLE" and not any(row["Coverage"] != "Unavailable" for row in coverage_rows):
+        st.info("Verified income statement, cash-flow, and balance-sheet evidence is unavailable for this snapshot.")
     else:
         labels = {
             "income_statement": "Income statement",
@@ -351,7 +363,14 @@ def _render_financial_depth(depth: Mapping[str, Any], *, ticker: str) -> None:
                     st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True,
                                  key=f"research-{lane}-{ticker}")
                 else:
-                    st.info(f"Certified {title.lower()} line items are unavailable for this snapshot.")
+                    family = next((row for row in coverage_rows if row["Statement"] == title), {})
+                    if family.get("Coverage") != "Unavailable":
+                        st.caption(
+                            f"Latest-period {title.lower()} cards are unavailable here; "
+                            "validated historical statement evidence is shown below."
+                        )
+                    else:
+                        st.info(f"Verified {title.lower()} evidence is unavailable for this snapshot.")
         if depth.get("limitation"):
             st.caption(str(depth["limitation"]))
 
@@ -1172,9 +1191,19 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
             "snapshot but does not prove that the business is improving or weakening."
         )
     else:
-        st.info(financial_snapshot.get("message") or "Certified financial evidence is unavailable for this snapshot.")
+        availability = page.get("financial_availability") if isinstance(page.get("financial_availability"), Mapping) else {}
+        if availability.get("status") in {"AVAILABLE", "PARTIAL", "STALE"}:
+            st.caption(
+                "The latest field-level financial snapshot is unavailable. "
+                "Verified source-dated statement evidence remains available below; coverage may be partial."
+            )
+        else:
+            st.info(financial_snapshot.get("message") or "Verified financial evidence is unavailable for this snapshot.")
 
-    _render_financial_depth(page.get("financial_depth") or {}, ticker=ticker)
+    _render_financial_depth(
+        page.get("financial_depth") or {}, ticker=ticker,
+        availability=page.get("financial_availability") or {},
+    )
     if not _render_combined_statement_history(page.get("statement_history") or {}, ticker=ticker):
         _render_annual_financial_statements(page.get("annual_financial_statements") or {}, ticker=ticker)
 

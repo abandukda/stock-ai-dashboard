@@ -7,6 +7,12 @@ from __future__ import annotations
 
 from typing import Any, Mapping, Sequence
 
+from services.annual_financial_statements import annual_financial_statements
+from services.customer_statement_history_bundle import customer_statement_history
+from services.research_financial_availability import (
+    build_financial_availability, financial_context_sentence,
+)
+
 
 VERSION = "ATLAS_GROUNDED_CUSTOMER_SUMMARY_V1"
 
@@ -43,12 +49,29 @@ def build_research_summary(report: Mapping[str, Any]) -> dict[str, Any]:
     guidance = _mapping(report.get("guidance_summary"))
     conditions = _mapping(guidance.get("thesis_change_conditions"))
     evidence_ids = sorted({str(item) for item in report.get("evidence_ids") or () if item})
+    ticker = str(report.get("ticker") or report.get("Ticker") or "").strip().upper()
+    availability = _mapping(report.get("financial_availability"))
+    if not availability and ticker:
+        availability = build_financial_availability(
+            ticker=ticker,
+            snapshot=_mapping(report.get("financial_snapshot")),
+            depth=_mapping(report.get("financial_depth")),
+            statement_history=_mapping(report.get("certified_statement_history")) or customer_statement_history(ticker),
+            annual_statements=annual_financial_statements(ticker),
+            freshness=_mapping(report.get("market_context")),
+        )
+    financial_interpretation = str(
+        _mapping(_mapping(report.get("sections")).get("financials")).get("interpretation") or ""
+    ).strip()
+    financial_context = financial_context_sentence(availability)
+    if financial_interpretation:
+        financial_context = f"{financial_context} {financial_interpretation}"
     sections = {
         "Investment view": f"The certified ATLAS Action is {str(action).replace('_', ' ')}.",
         "Why it is attractive": _items(intelligence.get("why_atlas_supports_it"), 3),
         "Valuation": "Use the certified ATLAS Fair Value and Potential shown above; this explanation does not recalculate them.",
         "Technical setup": str(_mapping(report.get("technical_summary")).get("summary") or "Technical evidence is unavailable."),
-        "Fundamental context": str(_mapping(_mapping(report.get("sections")).get("financials")).get("interpretation") or "Fundamental context is unavailable."),
+        "Fundamental context": financial_context,
         "Key risk": _items(intelligence.get("key_risks"), 3),
         "Entry consideration": str(_mapping(guidance.get("action_now")).get("current_action") or "Use the certified entry range when published."),
         "What to monitor": _items([*(_items(conditions.get("strengthen"))), *(_items(conditions.get("invalidate")))], 4),

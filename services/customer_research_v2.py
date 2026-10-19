@@ -15,6 +15,9 @@ from services.annual_financial_statements import annual_financial_statements
 from services.customer_statement_history_bundle import customer_statement_history
 from services.research_market_read_model import load_research_market_context
 from services.institutional_research_report import build_institutional_research_report
+from services.research_financial_availability import (
+    build_financial_availability, financial_context_sentence,
+)
 
 
 VERSION = "ATLAS_CUSTOMER_RESEARCH_V2_P0"
@@ -239,7 +242,7 @@ def _plain_english_views(
     *, ticker: str, company: str, sector: str | None, action: str,
     gap: float | None, summary: Mapping[str, Any], profile: Mapping[str, Any],
     future_events: Iterable[Mapping[str, Any]], market_context: Mapping[str, Any],
-    evidence_ids: Iterable[str] = (),
+    evidence_ids: Iterable[str] = (), financial_availability: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Project two reading levels from governed facts without external calls."""
     industry = str(profile.get("industry") or sector or "").strip()
@@ -281,6 +284,7 @@ def _plain_english_views(
         data_notice = f"Read-only market context is verified through the completed session {completed_session}."
     else:
         data_notice = "Independent read-only market context is unavailable; certified snapshot dates remain authoritative."
+    financial_notice = financial_context_sentence(financial_availability or {})
     questions = (
         ("What does this company do?", what_company_does),
         ("Why are people interested in this stock?", " ".join(reasons[:2]) if reasons else
@@ -308,7 +312,7 @@ def _plain_english_views(
                 "and does not change the certified recommendation."
             ),
             "questions": tuple({"question": question, "answer": answer} for question, answer in questions),
-            "data_notice": data_notice,
+            "data_notice": f"{data_notice} {financial_notice}",
         },
         "detailed_view": {
             "title": "Detailed evidence",
@@ -988,6 +992,7 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
     financial_depth = _premium_financial_depth(
         report, financial_snapshot, financial_trend, summary, conditions,
     )
+    annual_statements = annual_financial_statements(ticker)
     wall_street = ({
         "status": wall_status, "classification": CONTEXTUAL,
         "consensus": consensus, "recommendation_period": latest_rec.get("period"), "buy_count": buy_count if latest_rec else None,
@@ -1017,12 +1022,18 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
         "status": "AVAILABLE" if enrichment.get("__read_model__") else ("QA_ONLY" if enrichment else "UNAVAILABLE"),
         **dict(_map(enrichment.get("__read_model__"))),
     }
+    financial_availability = build_financial_availability(
+        ticker=ticker, snapshot=financial_snapshot, depth=financial_depth,
+        statement_history=statement_history, annual_statements=annual_statements,
+        freshness=market_context,
+    )
     reading_views = _plain_english_views(
         ticker=ticker, company=company,
         sector=str(report.get("sector") or profile_payload.get("sector") or "").strip() or None,
         action=action_text, gap=gap, summary=summary, profile=profile_payload,
         future_events=future_events, market_context=market_context,
         evidence_ids=identity.get("evidence_ids") or (),
+        financial_availability=financial_availability,
     )
     result = {
         "version": VERSION, "status": "AVAILABLE", "ticker": ticker, "company": company,
@@ -1056,8 +1067,9 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
         "valuation_chart": valuation_chart,
         "financial_trend": financial_trend,
         "financial_snapshot": financial_snapshot,
-        "financial_depth": financial_depth,
-        "annual_financial_statements": annual_financial_statements(ticker),
+        "financial_depth": {**financial_depth, "availability": financial_availability},
+        "financial_availability": financial_availability,
+        "annual_financial_statements": annual_statements,
         "statement_history": dict(statement_history) if statement_history else {
             "status": "UNAVAILABLE", "reason": "SOURCE_BOUND_STATEMENT_HISTORY_NOT_ATTACHED",
         },
