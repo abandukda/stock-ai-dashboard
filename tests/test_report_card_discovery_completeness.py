@@ -88,7 +88,7 @@ def test_home_and_navigation_report_card_boundaries_are_fail_closed():
 def test_home_uses_compact_top_three_and_preserves_complete_inventory_access():
     source = Path("ui/home_guidance_vnext.py").read_text(encoding="utf-8")
     assert "enumerate(actionable[:3])" in source
-    assert "View all certified opportunities" in source
+    assert "View all {len(all_actionable)} BUY NOW opportunities" in source
     assert "remaining = all_actionable[3:]" in source
     assert 'st.selectbox("Open complete Research"' in source
 
