@@ -83,3 +83,14 @@ def test_ask_suggestions_use_callback_safe_widget_state_updates():
 def test_home_preserves_required_strongest_opportunities_contract():
     source = (ROOT / "app.py").read_text()
     assert "Strongest Opportunities · Today's Highest-Conviction" in source
+
+
+def test_vnext_home_renders_required_strongest_opportunities_label():
+    source = (ROOT / "ui/home_guidance_vnext.py").read_text()
+    assert 'st.markdown("## Strongest Opportunities")' in source
+
+
+def test_visual_crawler_targets_named_ask_submit_instead_of_suggestion_button():
+    source = (ROOT / "agents/atlas_visual_crawler_v1.py").read_text()
+    assert 'name=re.compile(r"^Ask Atlas$", re.I)' in source
+    assert "control, button = inputs.last, submit_buttons.first" in source

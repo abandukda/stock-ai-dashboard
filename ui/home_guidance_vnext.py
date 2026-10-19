@@ -1418,7 +1418,7 @@ def _render_groups(story: Mapping[str, Any], *, emit_interactive) -> None:
     )
     total = _governed_buy_now_inventory(story)
     visible = min(len(actionable), 10)
-    st.markdown("## Certified opportunities")
+    st.markdown("## Strongest Opportunities")
     st.caption(
         f"Showing {visible} featured idea{'s' if visible != 1 else ''} from {total} total certified BUY NOW "
         "opportunities. Featured order follows the published ranking; these are decisions, not performance results."

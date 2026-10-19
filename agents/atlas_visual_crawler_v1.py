@@ -3247,9 +3247,9 @@ class AtlasVisualCrawler:
             control = None; button = None
             for scope in _scopes(page):
                 inputs = scope.locator('textarea:visible, input[type="text"]:visible')
-                buttons = scope.get_by_role("button")
-                if await inputs.count() and await buttons.count():
-                    control, button = inputs.last, buttons.last
+                submit_buttons = scope.get_by_role("button", name=re.compile(r"^Ask Atlas$", re.I))
+                if await inputs.count() and await submit_buttons.count():
+                    control, button = inputs.last, submit_buttons.first
                     break
             if control is None or button is None:
                 raise RuntimeError("ASK_CONTROLS_MISSING")
