@@ -47,7 +47,7 @@ def test_annual_statement_frame_never_imputes_missing_cells():
     frame = _annual_statement_frame(history["statements"]["BALANCE_SHEET"], history["periods"])
 
     assert not frame.empty
-    assert list(frame.columns) == ["Line item", "2024", "2025"]
+    assert list(frame.columns) == ["Line item", "2025", "2024"]
     assert "Unavailable" in frame.values
 
 

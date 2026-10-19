@@ -4716,17 +4716,6 @@ def render_chat_helper(full_df):
             # The question flow remains available if a hot-reloaded worker has
             # not yet loaded the UX-3B presentation helper.
             pass
-    _suggestions = (
-        "What changed?", "What would make this actionable?",
-        "What evidence is missing?", "What would invalidate the thesis?",
-        "What are analysts saying?", "What happened in the latest earnings?",
-        "Are politicians or insiders active?", "What should I watch next?",
-    )
-    _suggestion_cols = st.columns(2)
-    for _index, _suggestion in enumerate(_suggestions):
-        if _suggestion_cols[_index % 2].button(_suggestion, key=f"ask_suggestion_{_index}", use_container_width=True):
-            st.session_state["ask_ai_question"] = _suggestion
-            st.rerun()
     with st.form("ask_ai_form", clear_on_submit=False):
         question = st.text_input(
             "Ask about a ticker or ranking",
@@ -4734,6 +4723,27 @@ def render_chat_helper(full_df):
             key="ask_ai_question",
         )
         submitted = st.form_submit_button("Ask Atlas", type="primary")
+    st.caption("Start with your own question, or choose a prompt below.")
+    _suggestions = (
+        "What changed?", "What would make this actionable?",
+        "What evidence is missing?", "What would invalidate the thesis?",
+        "What are analysts saying?", "What happened in the latest earnings?",
+        "Are politicians or insiders active?", "What should I watch next?",
+    )
+    _suggestion_cols = st.columns(2)
+    def _apply_ask_suggestion(value):
+        # Streamlit callbacks run before the next script pass, which is the
+        # only supported point for updating a key already owned by a widget.
+        st.session_state["ask_ai_question"] = value
+
+    for _index, _suggestion in enumerate(_suggestions):
+        _suggestion_cols[_index % 2].button(
+            _suggestion,
+            key=f"ask_suggestion_{_index}",
+            use_container_width=True,
+            on_click=_apply_ask_suggestion,
+            args=(_suggestion,),
+        )
     from services.session_stability import emit_page_interactive
     emit_page_interactive(st, "Ask AI")
 
@@ -28492,7 +28502,7 @@ def v810_render_dynamic_home(full_df=None, top_df=None, recovery_df=None):
 </div>
 """, unsafe_allow_html=True)
 
-    st.markdown("## 🔥 Today's Highest-Conviction Opportunities" if display_mode == "actionable" else "## 🟡 Closest Opportunities to Action")
+    st.markdown("## 🔥 Strongest Opportunities · Today's Highest-Conviction" if display_mode == "actionable" else "## 🟡 Closest Opportunities to Action")
     st.caption("Ranked for today—these are verified actionable ideas." if display_mode == "actionable" else "No stock cleared Buy Now or Build a Position today. Atlas is showing only the three closest Monitor candidates and the exact confirmation each still needs.")
     if today:
         render_v73_idea_table(pd.DataFrame(today[:8]), title="Why Atlas surfaced these today")

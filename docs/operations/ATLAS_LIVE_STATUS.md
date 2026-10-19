@@ -1292,3 +1292,60 @@ any other item.
   operating target and must checkpoint/fail closed at an 8-GiB job-scoped hard
   stop. Additional host RAM is recovery headroom, not permission for unbounded
   scoring memory.
+
+### Milestone 5 premium closeout candidate — 2026-10-18
+
+- **BUILT, NOT DEPLOYED:** branch `codex/milestone5-premium-closeout` starts
+  from production-main source `b72fb12a5806d71087ece7837d5e7a6422dfe7e6`
+  and preserves PR #75's unified Research financial-availability contract.
+- Home now distinguishes the governed inventory from the maximum ten featured
+  cards, removes duplicated story/metric treatment, suppresses fragmentary
+  classifier prose, and omits empty narrative modules rather than filling them
+  with generic copy.
+- Research keeps verified facts separate from interpretation, presents newest
+  periods first, deduplicates accession-bound concepts, fixes negative-currency
+  and share units, moves raw fact IDs into provenance detail, and adds beginner
+  explanations for price history, SPY comparison, reported trends, moving
+  averages, and RSI. Ask ATLAS now presents its primary input before examples.
+- The gated Report Card now distinguishes pending, measured-successful,
+  measured-unsuccessful, and still-pending observations without inventing
+  returns or exposing internal ledger identifiers. Public access remains OFF.
+- Governed evidence packaging requires 1440, 1024, 768, 390, and 360 px after
+  captures and includes exact-source before captures whenever the registered
+  semantic baseline is supplied. Missing baseline evidence is labeled rather
+  than synthesized.
+- Current test and screenshot evidence for this branch is recorded only after
+  exact-head CI/governed QA completes. No hosted preview URL exists; preview
+  deployment remains a separate owner-authorized operation. Customer data,
+  production deployment, external AI, provider acquisition, certification,
+  publication, Report Card ledgers, and unattended operations are unchanged.
+
+### Milestone 5 governed acceptance recovery — 2026-10-19
+
+- PR #76 baseline separation was committed as
+  `6a9cf9e9277c76bcbe3dfe96a910f6a4fe282484`. Push CI run `39200042916`
+  passed policy/self-test. The registered governed run `39200270273` proved
+  exact-source checkout, backend authority handoff, zero-provider runtime,
+  app startup, all required customer routes, customer/admin isolation, and the
+  customer-OFF Report Card boundary before failing the final gate on two real
+  UI defects: Home had renamed away the required Strongest Opportunities
+  contract, and Ask ATLAS suggestion buttons mutated a widget-owned session
+  key after instantiation. This failed run is diagnostic evidence, not release
+  acceptance.
+- The two defects are corrected without changing financial authority: Home
+  restores the Strongest Opportunities semantic label, and Ask suggestions now
+  use a Streamlit callback that updates widget state before the rerun. Focused
+  regression coverage is **180 passed**.
+- Full local suite result on Python 3.14 is **3,168 passed, 95 failed, 1
+  skipped**. All 11 failures initially suspected as candidate regressions also
+  fail as the same exact nodes on base `b72fb12...`; the complete exact-test
+  disposition is retained in
+  `docs/qa/ATLAS_MILESTONE5_FULL_SUITE_DISPOSITION.md`. The remaining failures
+  are not represented as waived or passing.
+- Run `39200270273` retained complete diagnostic packages: customer QA artifact
+  `12163762906` (SHA-256
+  `d100c20e1cb8971af6fd59cbc64a6fa86da8267ce24cbaa397b983a9e0d2c74d`)
+  and visual-review artifact `12163539443` (SHA-256
+  `cb30343a94dfeb9add39805f804d59d33585658d424de92eced7de17299ba879`).
+  A new exact-head governed run is required after the corrective commit; until
+  that passes, PR #76 remains **BUILT / NOT CERTIFIED / NOT DEPLOYED**.

@@ -92,6 +92,10 @@ render_atlas_explains(build_page_explanation("ETF Analysis", source_date="2026-1
     assert 'data-atlas-non-scoring="true"' in rendered
     for classification in ("SOURCE_FACT", "CALCULATION", "INTERPRETATION", "SCENARIO", "LIMITATION"):
         assert classification in rendered
+    for friendly_label in (
+        "Verified fact", "ATLAS calculation", "What it means", "What to watch", "Important limitation",
+    ):
+        assert friendly_label in rendered
 
 
 def test_renderer_exposes_evidence_ids_without_raw_payloads():

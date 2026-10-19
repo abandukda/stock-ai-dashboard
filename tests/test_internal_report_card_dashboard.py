@@ -111,7 +111,8 @@ def test_app_exposes_report_card_only_behind_admin_env_gate():
 def test_home_vnext_contract_is_distinct_from_performance_report_card():
     source = Path("ui/home_guidance_vnext.py").read_text()
     assert "ATLAS Morning View" in source
-    assert "Top Ideas · Strongest Opportunities" in source
+    assert "Strongest Opportunities" in source
+    assert "Showing {visible} featured idea" in source
     assert 'data-atlas-report-card="false"' in source
     for destination in ("Recovery", "Earnings Intelligence", "ETFs", "Watchlist Intelligence",
                         "Political Intelligence", "Research Any Ticker"):

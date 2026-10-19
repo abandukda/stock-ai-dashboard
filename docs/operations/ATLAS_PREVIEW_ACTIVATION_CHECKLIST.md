@@ -3,6 +3,10 @@
 This checklist creates a second Streamlit app for owner review. It must never
 replace or reconfigure the customer production application.
 
+Before use, replace `<REVIEWED_SHA>` and `<IMMUTABLE_PREVIEW_BRANCH>` with the
+exact reviewed candidate identities. Record both values in the visual-review
+manifest. Never infer them from `main`, a PR number, or a successful CI run.
+
 ## Owner-controlled setup
 
 1. Sign in to Streamlit Community Cloud with the authorized GitHub account.
@@ -40,6 +44,13 @@ replace or reconfigure the customer production application.
    checkpoint storage into the preview.
 10. Pin Python 3.11 and deploy from the immutable
    candidate commit, not a moving branch after acceptance begins.
+11. Confirm the preview secrets inventory contains no Finnhub key, external-AI
+   key, publication credential, Report Card mutation authority, runner SSH key,
+   or production storage path. Record secret *names and presence only*; never
+   export values into logs or artifacts.
+12. Before browser QA, observe the hosted `ATLAS_SOURCE_SHA` marker and require
+   exact equality with `<REVIEWED_SHA>`. A branch configuration page is not
+   runtime identity evidence.
 
 ## Required verification before acceptance
 
@@ -50,7 +61,15 @@ replace or reconfigure the customer production application.
   and Watchlist show their `ATLAS_EXPLAINS_V1` contract.
 - Each explanation exposes a 30-second takeaway, Simple View, Detailed View,
   evidence date, non-scoring marker, and external-model-inactive disclosure.
-- Original-resolution screenshots pass at 1440, 1024, 390, and 360 pixels.
+- Original-resolution screenshots pass at 1440, 1024, 768, 390, and 360 pixels.
+- Customer login cannot open admin-only operations, evidence identities, raw
+  paths, or Report Card ledger controls; admin login retains read-only QA access.
+- Report Card public state remains OFF. The pending customer design contains no
+  invented returns, win rate, SPY comparison, or recommendation history.
+- Screenshot evidence is packaged into separate `before` and `after` folders,
+  individually hashed, and bound to their respective source SHAs. Pass the
+  baseline SHA separately; never bind old screenshots to the new candidate. If no trustworthy
+  baseline exists, the package says `NOT_SUPPLIED` instead of inventing parity.
 - Browser console errors, provider calls, publication writes, and Report Card
   ledger mutations are all zero.
 - Material navigation, contrast, overflow, keyboard, and source-date defects

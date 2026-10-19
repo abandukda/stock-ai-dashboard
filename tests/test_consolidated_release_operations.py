@@ -33,6 +33,12 @@ def test_customer_qa_uploads_shareable_visual_zip_and_required_review_files():
     builder = (ROOT / "scripts/build_major_release_visual_review.py").read_text()
     assert "--zip-output artifacts/atlas-major-release-visual-review-" in workflow
     assert "artifacts/atlas-major-release-visual-review-${{ steps.context.outputs.candidate_sha }}.zip" in workflow
+    assert "visual_baseline_sha:" in workflow
+    assert "VISUAL_BASELINE_ARTIFACT_NOT_EXACTLY_ONE" in workflow
+    assert '--before-screenshot-root "$ATLAS_QA_OUTPUT/visual-baseline/browser/required"' in workflow
+    assert '--before-screenshot-root "$ATLAS_QA_OUTPUT/visual-baseline/browser/report-card"' in workflow
+    assert '--before-source-sha "$VISUAL_BASELINE_SHA"' in workflow
+    assert 'git fetch --no-tags --depth=1 origin "$BASELINE_SHA"' in workflow
     for name in (
         "README.md", "QA_RESULTS.md", "FEATURE_COMPLETION.md", "DATA_TRUTH.md",
         "KNOWN_LIMITATIONS.md", "SOURCE_IDENTITY.md", "CLAUDE_REVIEW_PROMPT.md",
@@ -64,3 +70,27 @@ def test_hosted_preview_authentication_can_fail_closed():
     assert 'ATLAS_REQUIRE_AUTH = ' in source
     assert 'if ATLAS_REQUIRE_AUTH:' in source
     assert 'Authentication is required, but no admin or viewer password is configured.' in source
+
+
+def test_ask_suggestions_use_callback_safe_widget_state_updates():
+    source = (ROOT / "app.py").read_text()
+    assert 'def _apply_ask_suggestion(value):' in source
+    assert 'on_click=_apply_ask_suggestion' in source
+    assert 'args=(_suggestion,)' in source
+    assert 'if _suggestion_cols[_index % 2].button' not in source
+
+
+def test_home_preserves_required_strongest_opportunities_contract():
+    source = (ROOT / "app.py").read_text()
+    assert "Strongest Opportunities · Today's Highest-Conviction" in source
+
+
+def test_vnext_home_renders_required_strongest_opportunities_label():
+    source = (ROOT / "ui/home_guidance_vnext.py").read_text()
+    assert 'st.markdown("## Strongest Opportunities")' in source
+
+
+def test_visual_crawler_targets_named_ask_submit_instead_of_suggestion_button():
+    source = (ROOT / "agents/atlas_visual_crawler_v1.py").read_text()
+    assert 'name=re.compile(r"^Ask Atlas$", re.I)' in source
+    assert "control, button = inputs.last, submit_buttons.first" in source

@@ -204,15 +204,24 @@ def _financial_value(value: Any, unit: str) -> str:
     if unit == "PERCENT":
         return f"{number:,.1f}%"
     if unit == "USD_PER_SHARE":
-        return f"${number:,.2f}"
+        return f"-${abs(number):,.2f}" if number < 0 else f"${number:,.2f}"
     if unit == "USD":
-        if abs(number) >= 1_000_000_000_000:
-            return f"${number / 1_000_000_000_000:,.2f}T"
-        if abs(number) >= 1_000_000_000:
-            return f"${number / 1_000_000_000:,.2f}B"
-        if abs(number) >= 1_000_000:
-            return f"${number / 1_000_000:,.2f}M"
-        return f"${number:,.2f}"
+        sign = "-" if number < 0 else ""
+        magnitude = abs(number)
+        if magnitude >= 1_000_000_000_000:
+            return f"{sign}${magnitude / 1_000_000_000_000:,.2f}T"
+        if magnitude >= 1_000_000_000:
+            return f"{sign}${magnitude / 1_000_000_000:,.2f}B"
+        if magnitude >= 1_000_000:
+            return f"{sign}${magnitude / 1_000_000:,.2f}M"
+        return f"{sign}${magnitude:,.2f}"
+    if unit in {"NUMBER", "SHARES"}:
+        sign = "-" if number < 0 else ""
+        magnitude = abs(number)
+        if magnitude >= 1_000_000_000:
+            return f"{sign}{magnitude / 1_000_000_000:,.2f}B"
+        if magnitude >= 1_000_000:
+            return f"{sign}{magnitude / 1_000_000:,.2f}M"
     return f"{number:,.2f}"
 
 
@@ -241,6 +250,39 @@ def _financial_statement_rows(items: Any) -> list[dict[str, str]]:
             "Evidence ID": str(item.get("evidence_id") or "Unavailable"),
         })
     return rows
+
+
+def _dedupe_statement_items(statement: Any) -> list[dict[str, Any]]:
+    """Merge duplicate provider concepts without calculating or replacing facts.
+
+    Provider projections can retain the same canonical concept more than once
+    under different observed labels. The customer table needs one row, while
+    preserving every accession-bound cell. Conflicting cells remain resolved
+    conservatively: the first retained available fact wins.
+    """
+    merged: dict[str, dict[str, Any]] = {}
+    anonymous = 0
+    for source in statement or ():
+        if not isinstance(source, Mapping):
+            continue
+        identity = str(source.get("field_id") or source.get("concept") or "").strip().casefold()
+        if not identity:
+            anonymous += 1
+            identity = f"__anonymous_{anonymous}"
+        target = merged.setdefault(identity, dict(source))
+        cells_by_accession = {
+            str(cell.get("accession")): dict(cell)
+            for cell in target.get("cells") or () if isinstance(cell, Mapping)
+        }
+        for cell in source.get("cells") or ():
+            if not isinstance(cell, Mapping):
+                continue
+            accession = str(cell.get("accession") or "")
+            current = cells_by_accession.get(accession)
+            if current is None or (current.get("status") != "AVAILABLE" and cell.get("status") == "AVAILABLE"):
+                cells_by_accession[accession] = dict(cell)
+        target["cells"] = list(cells_by_accession.values())
+    return list(merged.values())
 
 
 def _technical_chart_frames(rows: pd.DataFrame, *, date_key: str, ticker: str,
@@ -410,16 +452,22 @@ def _render_financial_depth(
 
 def _annual_statement_frame(statement: Any, periods: Any) -> pd.DataFrame:
     """Pivot retained cells for display; never calculate or fill a value."""
-    period_rows = [item for item in periods or () if isinstance(item, Mapping)]
+    period_rows = sorted(
+        (item for item in periods or () if isinstance(item, Mapping)),
+        key=lambda item: (
+            str(item.get("fiscal_period_end") or ""),
+            str(item.get("fiscal_year") or ""),
+            str(item.get("accession") or ""),
+        ),
+        reverse=True,
+    )
     accession_period = {
         str(item.get("accession")): str(item.get("fiscal_year") or item.get("fiscal_period_end") or "Unavailable")
         for item in period_rows
     }
     columns = list(accession_period.values())
     rows: list[dict[str, str]] = []
-    for item in statement or ():
-        if not isinstance(item, Mapping):
-            continue
+    for item in _dedupe_statement_items(statement):
         labels = item.get("observed_labels") or ()
         label = str(next(iter(labels), None) or item.get("concept") or item.get("field_id") or "Unlabeled fact")
         row = {"Line item": label}
@@ -448,7 +496,16 @@ def _statement_history_period_label(period: Mapping[str, Any], *, frequency: str
 
 def _statement_history_frame(statement: Any, periods: Any, *, frequency: str) -> pd.DataFrame:
     """Pivot exact retained history cells without filling, scaling, or calculating."""
-    period_rows = [item for item in periods or () if isinstance(item, Mapping)]
+    period_rows = sorted(
+        (item for item in periods or () if isinstance(item, Mapping)),
+        key=lambda item: (
+            str(item.get("fiscal_period_end") or ""),
+            str(item.get("fiscal_year") or ""),
+            int(item.get("fiscal_quarter") or 0),
+            str(item.get("accession") or ""),
+        ),
+        reverse=True,
+    )
     accession_period = {
         str(item.get("accession")): _statement_history_period_label(item, frequency=frequency)
         for item in period_rows
@@ -467,7 +524,7 @@ def _statement_history_frame(statement: Any, periods: Any, *, frequency: str) ->
         lowered = label.casefold()
         return (next((index for index, token in enumerate(order) if token in lowered), len(order)), lowered)
 
-    for item in sorted((entry for entry in statement or () if isinstance(entry, Mapping)), key=row_rank):
+    for item in sorted(_dedupe_statement_items(statement), key=row_rank):
         labels = item.get("labels") or item.get("observed_labels") or ()
         label = str(next(iter(labels), None) or item.get("concept") or item.get("field_id") or "Unlabeled fact")
         row = {"Line item": label}
@@ -542,7 +599,7 @@ def _per_share_credibility_rows(credibility: Mapping[str, Any]) -> list[dict[str
             "Fiscal year": str(record.get("fiscal_year") or "Unavailable"),
             "Period end": str(record.get("period_end") or "Unavailable"),
             "Diluted EPS (reported)": _financial_value(eps_value, "USD_PER_SHARE") if eps_value is not None else "Unavailable",
-            "Diluted weighted-average shares": f"{float(share_value):,.0f}" if share_value is not None else "Unavailable",
+            "Diluted weighted-average shares": _financial_value(share_value, "SHARES") if share_value is not None else "Unavailable",
             "Share-basis comparability": str(basis.get("comparability_to_prior_period") or "NOT_CERTIFIED").replace("_", " ").title(),
             "Filing accession": str(record.get("accession") or "Unavailable"),
             "EPS fact ID": str(eps.get("fact_id") or "Unavailable"),
@@ -565,14 +622,23 @@ def _render_per_share_credibility(credibility: Mapping[str, Any], *, ticker: str
         "certify a common corporate-action-adjusted share basis, so periods flagged with a share-count "
         "discontinuity are not plotted or presented as directly comparable. No split adjustment was inferred."
     )
+    customer_rows = [
+        {key: value for key, value in row.items() if key not in {"Filing accession", "EPS fact ID"}}
+        for row in rows[-8:]
+    ]
     st.dataframe(
-        pd.DataFrame(rows[-8:]), hide_index=True, use_container_width=True,
+        pd.DataFrame(customer_rows), hide_index=True, use_container_width=True,
         key=f"research-history-eps-credibility-{ticker}",
     )
     st.caption(
         f"{len(rows)} filing periods retained · {discontinuities} unverified share-basis discontinuities · "
         "reported zero remains zero; missing remains Unavailable. See accession and fact ID for lineage."
     )
+    with st.expander("EPS lineage and audit identities", expanded=False):
+        st.dataframe(
+            pd.DataFrame(rows[-8:]), hide_index=True, use_container_width=True,
+            key=f"research-history-eps-lineage-{ticker}",
+        )
 
 
 def _render_combined_statement_history(history: Mapping[str, Any], *, ticker: str) -> bool:
@@ -645,7 +711,10 @@ def _render_combined_statement_history(history: Mapping[str, Any], *, ticker: st
             if not trend.empty:
                 st.markdown(f"**{frequency.title()} reported trend**")
                 st.line_chart(trend.set_index("Period")[["Value"]], use_container_width=True)
-                st.caption(f"Exact reported {trend.iloc[0]['Series']} values; no interpolation or forecast.")
+                st.caption(
+                    f"Exact reported {trend.iloc[0]['Series']} values; no interpolation or forecast. "
+                    "Use the direction to understand how this reported line item changed—not to predict the next period."
+                )
     disclosure = quarterly.get("disclosure") if isinstance(quarterly.get("disclosure"), Mapping) else {}
     _render_per_share_credibility(
         history.get("per_share_credibility") if isinstance(history.get("per_share_credibility"), Mapping) else {},
@@ -695,7 +764,11 @@ def _render_annual_financial_statements(history: Mapping[str, Any], *, ticker: s
             else:
                 st.dataframe(frame, hide_index=True, use_container_width=True,
                              key=f"research-annual-{lane.lower()}-{ticker}")
-    latest = periods[-1] if periods else {}
+    latest = max(
+        (item for item in periods if isinstance(item, Mapping)),
+        key=lambda item: (str(item.get("fiscal_period_end") or ""), str(item.get("fiscal_year") or "")),
+        default={},
+    )
     st.caption(
         f"Latest retained fiscal year: {latest.get('fiscal_year') or 'Unavailable'} · "
         f"Filing accession: {latest.get('accession') or 'Unavailable'} · "
@@ -911,6 +984,10 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
             # Use the already-certified projection carried by this page.
             price_frame = stock_rows.copy()
             _dark_line_chart(price_frame, height=300, y_title="Price (USD/share)", key=f"research-price-chart-{ticker}")
+            st.caption(
+                "Each point is a verified completed-session close. Use the range control to inspect direction and "
+                "volatility; the line is historical context, not a forecast."
+            )
             fair_value = header.get("fair_value")
             if fair_value is not None:
                 st.caption(
@@ -932,6 +1009,10 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
                         _marker("spy-comparison-chart", ticker, status="AVAILABLE", unit="NORMALIZED_INDEX_100")
                         st.markdown("### Stock performance compared with SPY")
                         _dark_line_chart(normalized, height=320, y_title="Normalized performance (start = 100)", key=f"research-spy-chart-{ticker}")
+                        st.caption(
+                            "Both lines start at 100 so their relative change is easy to compare. A higher ending "
+                            "line means stronger performance over this selected period, not lower future risk."
+                        )
                         st.caption(_provenance_caption(spy.get("provenance") or {}))
                     else:
                         _marker("spy-comparison-chart", ticker, status="UNAVAILABLE")
@@ -972,7 +1053,9 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
                         key=f"research-technical-rsi-chart-{ticker}",
                     )
                 st.caption(
-                    "Technical indicators describe the retained historical series; they do not independently change the certified Action."
+                    "Moving averages smooth past prices to make direction easier to see. RSI summarizes recent "
+                    "price momentum on a 0–100 scale; high or low readings are context, not automatic buy or sell "
+                    "signals. These indicators do not independently change the certified Action."
                 )
             else:
                 _marker("technical-indicators-chart", ticker, status="UNAVAILABLE")

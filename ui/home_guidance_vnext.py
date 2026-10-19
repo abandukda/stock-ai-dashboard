@@ -1299,8 +1299,10 @@ def _compact_reason(card: Mapping[str, Any]) -> str:
         if (len(first_sentence.split()) >= 6 and first_sentence.casefold() != company.casefold()
                 and not re.search(r"\d", first_sentence)):
             return first_sentence + "."
-    explanation = _guidance_explanation(card).strip()
-    return explanation if not re.search(r"\d", explanation) else "Certified thesis detail is available in Research."
+    # Guidance-state boilerplate is not a company-specific investment thesis.
+    # If no governed narrative fact survives the checks above, disclose the
+    # gap instead of filling the card with a generic sentence.
+    return "A concise certified investment reason is unavailable for this snapshot."
 
 
 def _compact_entry_status(card: Mapping[str, Any]) -> str:
@@ -1327,7 +1329,26 @@ def _compact_primary_risk(card: Mapping[str, Any]) -> str:
         risk = next((evidence.get(key) for key in ("primary_risk", "volatility_risk", "drawdown_label") if evidence.get(key)), None)
     if not risk:
         return "Not published for this certified snapshot."
-    return str(risk).replace("_", " ").strip().rstrip(".") + "."
+    customer_risk = str(risk).replace("_", " ").strip().rstrip(".")
+    # A classifier fragment is not a customer explanation. Keep the evidence
+    # unavailable rather than presenting internal shorthand as prose.
+    if customer_risk.casefold() in {"shallow drawdown", "low risk", "medium risk", "high risk"}:
+        return "Not published for this certified snapshot."
+    return customer_risk + "."
+
+
+def _compact_card_narrative(card: Mapping[str, Any]) -> tuple[str, str | None]:
+    """Return one thesis and, only when distinct, one governed risk.
+
+    This is presentation-only: it suppresses duplicated copy but never derives
+    or substitutes investment evidence.
+    """
+    thesis = _compact_reason(card)
+    risk = _compact_primary_risk(card)
+    normalize = lambda value: re.sub(r"[^a-z0-9]+", " ", value.casefold()).strip()
+    if risk == "Not published for this certified snapshot." or normalize(risk) == normalize(thesis):
+        return thesis, None
+    return thesis, risk
 
 
 def _compact_opportunity_card(card: Mapping[str, Any], *, key: str, first: bool = False) -> None:
@@ -1340,12 +1361,21 @@ def _compact_opportunity_card(card: Mapping[str, Any], *, key: str, first: bool 
     company = str(card.get("company") or card.get("company_name") or "").strip()
     identity = f"{ticker} · {company}" if company and company.casefold() != ticker.casefold() else ticker
     entry_status = _compact_entry_status(card)
+    thesis, risk = _compact_card_narrative(card)
+    rank = card.get("production_rank")
+    featured_label = f"Featured #{int(rank)}" if isinstance(rank, (int, float)) else "Featured idea"
+    # The lead thesis and risk already appear in the Daily Intelligence Brief.
+    # Do not repeat the same paragraphs immediately in the first card.
+    narrative = "" if first else (
+        f'<p class="atlas-home-compact-thesis"><b>Why it stands out</b> {html.escape(thesis)}</p>'
+        + (f'<p class="atlas-home-compact-risk"><b>Main concern</b> {html.escape(risk)}</p>' if risk else '')
+    )
     st.markdown(
         f'<article class="atlas-home-compact-card" data-atlas-qa="home-actionable-card" '
         f'data-atlas-first="{str(first).lower()}" data-atlas-ticker="{html.escape(ticker)}" '
         f'data-atlas-guidance="{html.escape(state)}" data-atlas-evidence-status="{html.escape(evidence)}">'
         f'<header><div><small>{html.escape(_display(state))}</small><h3>{html.escape(identity)}</h3></div>'
-        f'<aside><small>Opportunity</small><strong>{html.escape(_score(card.get("opportunity")))}</strong></aside></header>'
+        f'<aside><small>{html.escape(featured_label)}</small><strong>{html.escape(_display(state))}</strong></aside></header>'
         '<div class="atlas-home-compact-values">'
         f'<span><small>Current Price</small><b>{html.escape(_money(card.get("display_price")))}</b></span>'
         f'<span><small>ATLAS Fair Value</small><b>{html.escape(_money(card.get("atlas_fair_value")))}</b></span>'
@@ -1353,8 +1383,7 @@ def _compact_opportunity_card(card: Mapping[str, Any], *, key: str, first: bool 
         f'<span><small>Opportunity</small><b>{html.escape(_score(card.get("opportunity")))}</b></span>'
         f'<span><small>Confidence</small><b>{html.escape(_score(card.get("decision_confidence"), suffix="%"))}</b></span>'
         f'<span><small>Entry Status</small><b>{html.escape(entry_status)}</b></span></div>'
-        f'<p class="atlas-home-compact-thesis"><b>Investment View</b> {html.escape(_compact_reason(card))}</p>'
-        f'<p class="atlas-home-compact-risk"><b>Primary Risk</b> {html.escape(_compact_primary_risk(card))}</p>'
+        f'{narrative}'
         '<footer>'
         f'<span>{html.escape(evidence)}</span><span>Certified {_timestamp(card.get("decision_as_of"))}</span></footer></article>',
         unsafe_allow_html=True,
@@ -1365,6 +1394,10 @@ def _compact_opportunity_card(card: Mapping[str, Any], *, key: str, first: bool 
 def _render_groups(story: Mapping[str, Any], *, emit_interactive) -> None:
     all_cards = list(story.get("cards") or ())
     featured = list(story.get("home_featured_cards") or _home_candidate_surface(all_cards))
+    all_actionable = sorted(
+        (card for card in all_cards if _customer_state(card) == "BUY_NOW"),
+        key=lambda card: int(card.get("production_rank") or 999999),
+    )
     actionable = sorted(
         (card for card in featured if _customer_state(card) == "BUY_NOW"),
         key=lambda card: int(card.get("production_rank") or 999999),
@@ -1379,9 +1412,17 @@ def _render_groups(story: Mapping[str, Any], *, emit_interactive) -> None:
         'data-atlas-report-card="false" aria-hidden="true" style="display:none">top-ideas</span>',
         unsafe_allow_html=True,
     )
-    st.markdown("## Active BUY Ideas · Top Ideas · Strongest Opportunities")
-    st.caption("CERTIFIED ATLAS FACTS · Only customer-publishable certified BUY NOW records are eligible")
-    st.caption("Current certified decisions—not historical or verified performance results.")
+    st.markdown(
+        '<span data-atlas-qa="home-opportunity-spotlight" aria-hidden="true" '
+        'style="display:none">Strongest Opportunities</span>', unsafe_allow_html=True,
+    )
+    total = _governed_buy_now_inventory(story)
+    visible = min(len(actionable), 10)
+    st.markdown("## Strongest Opportunities")
+    st.caption(
+        f"Showing {visible} featured idea{'s' if visible != 1 else ''} from {total} total certified BUY NOW "
+        "opportunities. Featured order follows the published ranking; these are decisions, not performance results."
+    )
     if not actionable:
         empty = story.get("home_opportunity_empty_state") if isinstance(story.get("home_opportunity_empty_state"), Mapping) else {}
         st.info(str(empty.get("message") or "ATLAS found no stocks meeting the strongest certified opportunity threshold for this snapshot."))
@@ -1390,9 +1431,9 @@ def _render_groups(story: Mapping[str, Any], *, emit_interactive) -> None:
             _compact_opportunity_card(card, key=f"actionable_{index}", first=index == 0)
         if index == 0:
             emit_interactive()
-    if len(actionable) > 5:
-        with st.expander(f"View all certified opportunities ({len(actionable)})", expanded=False):
-            for index, card in enumerate(actionable):
+    if len(all_actionable) > 5:
+        with st.expander(f"View all certified opportunities ({len(all_actionable)})", expanded=False):
+            for index, card in enumerate(all_actionable):
                 ticker = str(card.get("ticker") or "UNKNOWN")
                 st.markdown(
                     f'**{html.escape(ticker)}** · '
@@ -1676,13 +1717,12 @@ def _render_daily_brief(story: Mapping[str, Any]) -> None:
         ticker = str(lead.get("ticker") or "UNKNOWN")
         company = str(lead.get("company") or "").strip()
         identity = f"{ticker} · {company}" if company and company.casefold() != ticker.casefold() else ticker
-        thesis = _compact_reason(lead)
-        risk = _compact_primary_risk(lead)
+        thesis, risk = _compact_card_narrative(lead)
         lead_copy = (
             f'{html.escape(identity)} leads the certified BUY NOW set with an Opportunity score of '
             f'{html.escape(_score(lead.get("opportunity")))}. '
-            f'<strong>Why it stands out:</strong> {html.escape(thesis)} '
-            f'<strong>Main concern:</strong> {html.escape(risk)}'
+            f'<strong>Why it stands out:</strong> {html.escape(thesis)}'
+            + (f' <strong>Main concern:</strong> {html.escape(risk)}' if risk else '')
         )
     else:
         lead_copy = "No customer-publishable BUY NOW record is available in this certified snapshot."
@@ -1727,53 +1767,35 @@ def _render_command_deck(story: Mapping[str, Any]) -> None:
 
 def _render_intelligence_modules(story: Mapping[str, Any]) -> None:
     actionable = _actionable_cards(story)
-    lead = actionable[0] if actionable else None
+    unavailable: list[str] = []
     st.markdown('<span data-atlas-qa="home-what-changed" aria-hidden="true" style="display:none">what-changed</span>', unsafe_allow_html=True)
-    st.markdown("## What Changed")
-    st.markdown(
-        '<section class="atlas-home-module atlas-home-change-module"><small>SNAPSHOT COMPARISON</small>'
-        '<h3>Prior certified comparison unavailable</h3><p>ATLAS is showing the current certified decision drivers. '
-        'It will not describe a change without a retained prior snapshot.</p></section>', unsafe_allow_html=True,
-    )
-    st.markdown("## Opportunity Spotlight")
-    if lead:
-        ticker = str(lead.get("ticker") or "UNKNOWN")
-        company = str(lead.get("company") or "").strip()
-        identity = f"{ticker} · {company}" if company and company.casefold() != ticker.casefold() else ticker
-        potential = lead.get("live_implied_upside_pct")
-        if potential is None:
-            potential = lead.get("atlas_expected_return")
-        st.markdown(
-            '<section class="atlas-home-spotlight atlas-opportunity-card" data-atlas-qa="home-opportunity-spotlight">'
-            f'<header><small>COMPANY SPOTLIGHT · HIGHEST-RANKED PUBLISHABLE BUY NOW</small><h2>{html.escape(identity)}</h2></header><div>'
-            f'<span><small>Current Price</small><b>{html.escape(_money(lead.get("display_price")))}</b></span>'
-            f'<span><small>ATLAS Fair Value</small><b>{html.escape(_money(lead.get("atlas_fair_value")))}</b></span>'
-            f'<span><small>Potential</small><b>{html.escape(_score(potential, suffix="%"))}</b></span></div>'
-            f'<p><b>Thesis</b> {html.escape(_compact_reason(lead))}</p>'
-            f'<p><b>Risk</b> {html.escape(_compact_primary_risk(lead))}</p></section>', unsafe_allow_html=True,
-        )
-        _open_research(ticker, f"home_spotlight_{ticker}", compact=True)
-    else:
-        st.info("Opportunity Spotlight is unavailable because no publishable BUY NOW record passed the certified customer gate.")
+    # Empty comparison and event modules are intentionally omitted. The lead
+    # company already appears in the brief and opportunity list, so a third
+    # spotlight card would add repetition rather than information.
+    unavailable.append("prior-snapshot comparison")
     st.markdown('<span data-atlas-qa="home-catalysts-earnings" aria-hidden="true" style="display:none">catalysts-earnings</span>', unsafe_allow_html=True)
-    st.markdown("## Catalysts & Earnings")
-    st.markdown(
-        '<section class="atlas-home-module atlas-home-pending-panel" data-atlas-state="PENDING"><small>CATALYST WATCH · PENDING</small>'
-        '<h3>No dated catalyst or earnings event is published here</h3>'
-        '<p>Event timing remains unavailable until it is present in the certified customer projection. '
-        'Research retains the company evidence that is currently licensed and certified.</p></section>', unsafe_allow_html=True,
-    )
-    st.markdown("## Risk Radar")
-    if actionable:
+    unavailable.append("dated catalysts and earnings events")
+    risk_cards = []
+    for card in actionable[:3]:
+        risk = _compact_primary_risk(card)
+        if risk != "Not published for this certified snapshot.":
+            risk_cards.append((card, risk))
+    if risk_cards:
+        st.markdown("## Risk Radar")
         body = "".join(
             '<article><small>' + html.escape(str(card.get("ticker") or "UNKNOWN")) + '</small><p>'
-            + html.escape(_compact_primary_risk(card)) + '</p><footer>Invalidation detail: '
+            + html.escape(risk) + '</p><footer>What could change the view: '
             + html.escape(str((card.get("what_changes_guidance") or ("Not published for this certified snapshot.",))[0]))
-            + '</footer></article>' for card in actionable[:3]
+            + '</footer></article>' for card, risk in risk_cards
         )
         st.markdown('<div class="atlas-home-risk-radar" data-atlas-qa="home-risk-radar">' + body + '</div>', unsafe_allow_html=True)
     else:
-        st.info("Risk Radar is unavailable because there are no publishable BUY NOW records in this snapshot.")
+        unavailable.append("company-specific risk radar")
+    if unavailable:
+        st.caption(
+            "Not shown because verified evidence is unavailable: " + ", ".join(unavailable) + ". "
+            "ATLAS does not fill these gaps with generic commentary."
+        )
     from ui.report_card_preview import render_customer_report_card_preview
     render_customer_report_card_preview()
 
