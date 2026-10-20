@@ -1,0 +1,126 @@
+name: ATLAS Codex Autopilot (manual pilot)
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish_draft_pr:
+        description: "Publish a draft PR after reviewable patch validation (false for first test)"
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: atlas-codex-autopilot
+  cancel-in-progress: false
+
+jobs:
+  develop:
+    if: github.actor == 'abandukda'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout current main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Record starting commit
+        run: git rev-parse HEAD | tee /tmp/atlas-autopilot-base-sha
+      - name: Run Codex with workspace-only access
+        id: codex
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          permission-profile: ":workspace"
+          prompt: |
+            You are an ATLAS coding agent working only on the isolated GitHub Actions checkout.
+            Read GitHub Issue #78 expectations represented here: make the LIVE customer experience
+            more useful without changing certified investments or protected data operations.
+            This first pilot is narrowly scoped: identify and implement ONE safe, meaningful,
+            provider-free Home or Research UI usability correction on the current source.
+            Do not modify GitHub Actions, any workflow, auth, Secrets, provider adapters,
+            licensing controls, publication, production ledgers, Report Card state,
+            runners, deployment configuration, or cloud infrastructure.
+            Do not make network calls or require outside information.
+            Never substitute invented finance data. Preserve source-dated truth.
+            Run only focused local tests if dependencies are already installed.
+            Leave modifications in the checkout. Do NOT commit, push, or create a PR.
+            Explain what changed, tests, and any unresolved limitations.
+      - name: Reject forbidden modifications and assemble patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -N -- . ':!.github' ':!data' ':!output' ':!certification'
+          git diff --binary > /tmp/atlas-autopilot.patch
+          if [[ ! -s /tmp/atlas-autopilot.patch ]]; then
+            echo "No changes produced; nothing to publish."
+            exit 0
+          fi
+          git diff --name-only > /tmp/atlas-changed-paths.txt
+          if grep -E '^(\.github/|data/|output/|certification/|services/(.*provider|.*publication|.*report_card)|app\.py$|requirements|\.streamlit/)' /tmp/atlas-changed-paths.txt; then
+            echo "::error::Protected path modified"; exit 1
+          fi
+          git diff --check
+          sha256sum /tmp/atlas-autopilot.patch > /tmp/atlas-autopilot.patch.sha256
+      - name: Upload candidate patch
+        uses: actions/upload-artifact@v4
+        with:
+          name: atlas-autopilot-candidate-${{ github.run_id }}
+          path: |
+            /tmp/atlas-autopilot.patch
+            /tmp/atlas-autopilot.patch.sha256
+            /tmp/atlas-autopilot-base-sha
+            /tmp/atlas-changed-paths.txt
+          if-no-files-found: warn
+          retention-days: 14
+
+  draft_pr:
+    needs: develop
+    if: inputs.publish_draft_pr && github.actor == 'abandukda'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: atlas-autopilot-candidate-${{ github.run_id }}
+          path: /tmp/atlas-candidate
+      - name: Validate candidate and publish isolated draft PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/atlas-candidate
+          sha256sum -c atlas-autopilot.patch.sha256
+          expected=$(cat atlas-autopilot-base-sha)
+          cd "$GITHUB_WORKSPACE"
+          test "$(git rev-parse HEAD)" = "$expected" || { echo "main advanced; refusing stale patch"; exit 1; }
+          test -s /tmp/atlas-candidate/atlas-autopilot.patch
+          if grep -E '^(\.github/|data/|output/|certification/|services/(.*provider|.*publication|.*report_card)|app\.py$|requirements|\.streamlit/)' /tmp/atlas-candidate/atlas-changed-paths.txt; then
+            echo "Protected path modified"; exit 1
+          fi
+          git apply --check /tmp/atlas-candidate/atlas-autopilot.patch
+          git apply /tmp/atlas-candidate/atlas-autopilot.patch
+          git diff --check
+          git switch -c "codex/autopilot-$RUN_ID"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "ATLAS: autonomous provider-free UI pilot ($RUN_ID)"
+          git -c http.extraheader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)" push "https://github.com/$GITHUB_REPOSITORY.git" HEAD
+          gh pr create --draft --head "codex/autopilot-$RUN_ID" --base main \
+            --title "ATLAS Autopilot: provider-free UI pilot ($RUN_ID)" \
+            --body "Autonomous development proposal for Issue #78. Manual review required. No production merge, provider calls, or deployment authorized. Runner: $RUN_ID; base SHA: $expected."
