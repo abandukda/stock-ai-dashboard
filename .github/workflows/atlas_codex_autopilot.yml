@@ -19,8 +19,26 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  overnight_window:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions: {}
+    outputs:
+      proceed: ${{ steps.window.outputs.proceed }}
+    steps:
+      - id: window
+        shell: bash
+        run: |
+          if [[ '${{ github.event_name }}' == 'workflow_dispatch' || "$(date -u +%F)" == '2026-10-20' ]]; then
+            echo 'proceed=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'proceed=false' >> "$GITHUB_OUTPUT"
+          fi
+
   develop:
-    if: github.event_name == 'schedule' || github.actor == 'abandukda'
+    needs: overnight_window
+
+    if: needs.overnight_window.outputs.proceed == 'true' && (github.event_name == 'schedule' || github.actor == 'abandukda')
     runs-on: ubuntu-latest
     timeout-minutes: 18
     permissions:
