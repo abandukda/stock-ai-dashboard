@@ -1,0 +1,25 @@
+name: ATLAS Autopilot checksum offline CI
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/atlas_codex_autopilot.yml
+      - .github/workflows/atlas_autopilot_checksum_ci.yml
+      - tests/test_autopilot_checksum.py
+
+permissions:
+  contents: read
+
+jobs:
+  checksum-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify relocated and tampered candidates without external calls
+        run: python -m unittest discover -s tests -p test_autopilot_checksum.py -v

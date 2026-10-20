@@ -1,0 +1,247 @@
+name: ATLAS Codex Autopilot (bounded self-repair)
+
+on:
+  schedule:
+    - cron: '15 5-11 * * 1-5'
+    # Daytime product iteration window, GitHub cron uses UTC.
+    - cron: '15 13-21 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      publish_draft_pr:
+        description: "Publish a draft PR after reviewable patch validation (false for first test)"
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: atlas-codex-autopilot
+  cancel-in-progress: false
+
+jobs:
+  overnight_window:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions: {}
+    outputs:
+      proceed: ${{ steps.window.outputs.proceed }}
+    steps:
+      - id: window
+        shell: bash
+        run: |
+          if [[ '${{ github.event_name }}' == 'workflow_dispatch' || '${{ github.event_name }}' == 'schedule' ]]; then
+            echo 'proceed=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'proceed=false' >> "$GITHUB_OUTPUT"
+          fi
+
+  develop:
+    needs: overnight_window
+
+    if: needs.overnight_window.outputs.proceed == 'true' && (github.event_name == 'schedule' || github.actor == 'abandukda')
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout current main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Record starting commit
+        run: git rev-parse HEAD | tee /tmp/atlas-autopilot-base-sha
+      - name: Run Codex with workspace-only access
+        id: codex
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          permission-profile: ":workspace"
+          prompt: |
+            You are an ATLAS coding agent working only on the isolated GitHub Actions checkout. Allowed files: ui/ and services/customer_research_v2.py; do not touch other services.
+            Read GitHub Issue #78 expectations represented here: make the LIVE customer experience
+            more useful without changing certified investments or protected data operations.
+            Implement a coherent, substantial, testable customer Research improvement aligned with Issue #78;
+            Prioritize beginner-first stock education: explain the business model, investment thesis, valuation, bull and bear arguments, earnings interpretation, what changed, and important risks using clear everyday language. Include advanced detail without replacing beginner guidance. Cite existing evidence dates/sources and say unavailable when absent. Avoid repetitive generic filler, invented transcript quotations, unsupported AI synthesis, fabricated current data, or fabricated Report Card performance. Respect the established UI architecture and tests. A meaningful complete slice is preferred over cosmetic changes.
+            Do not modify GitHub Actions, any workflow, auth, Secrets, provider adapters,
+            licensing controls, publication, production ledgers, Report Card state,
+            runners, deployment configuration, or cloud infrastructure.
+            Do not make network calls or require outside information.
+            Never substitute invented finance data. Preserve source-dated truth.
+            Run only focused local tests if dependencies are already installed.
+            Leave modifications in the checkout. Do NOT commit, push, or create a PR.
+            Explain what changed, tests, and any unresolved limitations.
+      - name: Prepare dependency-backed test environment
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install test requirements
+        run: python -m pip install --disable-pip-version-check -r requirements.txt pytest
+      - name: Initial offline Research regression suite
+        id: initial_test
+        continue-on-error: true
+        shell: bash
+        env:
+          ATLAS_QA_MODE: '1'
+          CI: 'true'
+        run: |
+          set -o pipefail
+          python -m pytest -q tests/test_customer_research_v2.py 2>&1 | tee "$GITHUB_WORKSPACE/.atlas-autopilot-test.log"
+      - name: Repair first failed test (one bounded Codex attempt)
+        if: steps.initial_test.outcome == 'failure'
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          permission-profile: ":workspace"
+          prompt: |
+            The prior UI-only Research change failed local tests. Read .atlas-autopilot-test.log.
+            Diagnose and repair the actual failure in the repository checkout. You may only edit
+            ui/ Python source and services/customer_research_v2.py. Keep data, financial computations, publication, auth, providers,
+            workflows, and infrastructure untouched. Do not access network or invent data.
+            Do not commit or push. Prefer reverting the original unsafe change to passing
+            a broken patch. This is the ONE permitted automatic repair attempt.
+      - name: Remove local test diagnostics before patch packaging
+        if: always()
+        run: rm -f .atlas-autopilot-test.log
+      - name: Final required offline Research regression suite
+        shell: bash
+        env:
+          ATLAS_QA_MODE: '1'
+          CI: 'true'
+        run: |
+          set -euo pipefail
+          python -m pytest -q tests/test_customer_research_v2.py
+      - name: Reject forbidden modifications and assemble patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import subprocess
+          data = subprocess.check_output(['git','status','--porcelain','-z','--untracked-files=all'])
+          records = [r for r in data.decode().split('\0') if r]
+          if not records:
+              raise SystemExit('Codex did not produce source changes')
+          for record in records:
+              path = record[3:]
+              if not (path.startswith('ui/') or path == 'services/customer_research_v2.py') or path.endswith(('.pyc','.pyo')):
+                  raise SystemExit(f'Forbidden changed path: {path}')
+          print('Changed paths:', ', '.join(r[3:] for r in records))
+          PY
+          python -m compileall -q ui services/customer_research_v2.py
+          git add -N -- ui services/customer_research_v2.py
+          git diff --binary > /tmp/atlas-autopilot.patch
+          test -s /tmp/atlas-autopilot.patch
+          git diff --name-only > /tmp/atlas-changed-paths.txt
+          if grep -Ev '^(ui/|services/customer_research_v2\.py$)' /tmp/atlas-changed-paths.txt; then
+            echo "::error::Only ui/ and services/customer_research_v2.py changes are allowed"; exit 1
+          fi
+          git diff --check
+          sha256sum /tmp/atlas-autopilot.patch > /tmp/atlas-autopilot.patch.sha256
+      - name: Upload candidate patch
+        uses: actions/upload-artifact@v4
+        with:
+          name: atlas-autopilot-candidate-${{ github.run_id }}
+          path: |
+            /tmp/atlas-autopilot.patch
+            /tmp/atlas-autopilot.patch.sha256
+            /tmp/atlas-autopilot-base-sha
+            /tmp/atlas-changed-paths.txt
+          if-no-files-found: warn
+          retention-days: 14
+
+  validate:
+    needs: develop
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Retrieve candidate
+        uses: actions/download-artifact@v4
+        with:
+          name: atlas-autopilot-candidate-${{ github.run_id }}
+          path: /tmp/atlas-candidate
+      - name: Verify base and apply patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/atlas-candidate
+          expected_digest=$(awk 'NR == 1 { print $1 }' atlas-autopilot.patch.sha256)
+          test "${#expected_digest}" -eq 64
+          printf '%s  %s\n' "$expected_digest" atlas-autopilot.patch | sha256sum -c -
+          expected=$(cat atlas-autopilot-base-sha)
+          cd "$GITHUB_WORKSPACE"
+          test "$(git rev-parse HEAD)" = "$expected"
+          test -s /tmp/atlas-candidate/atlas-autopilot.patch
+          if grep -Ev '^(ui/|services/customer_research_v2\.py$)' /tmp/atlas-candidate/atlas-changed-paths.txt; then exit 1; fi
+          git apply --check /tmp/atlas-candidate/atlas-autopilot.patch
+          git apply /tmp/atlas-candidate/atlas-autopilot.patch
+          git diff --check
+          python -m compileall -q ui services/customer_research_v2.py
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install locked application test dependencies
+        run: |
+          python -m pip install --disable-pip-version-check -r requirements.txt pytest
+      - name: Focused Research regression tests
+        env:
+          ATLAS_QA_MODE: '1'
+          CI: 'true'
+        run: python -m pytest -q tests/test_customer_research_v2.py
+
+  draft_pr:
+    needs: validate
+    if: github.event_name == 'schedule' || (inputs.publish_draft_pr && github.actor == 'abandukda')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: atlas-autopilot-candidate-${{ github.run_id }}
+          path: /tmp/atlas-candidate
+      - name: Validate candidate and publish isolated draft PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/atlas-candidate
+          expected_digest=$(awk 'NR == 1 { print $1 }' atlas-autopilot.patch.sha256)
+          test "${#expected_digest}" -eq 64
+          printf '%s  %s\n' "$expected_digest" atlas-autopilot.patch | sha256sum -c -
+          expected=$(cat atlas-autopilot-base-sha)
+          cd "$GITHUB_WORKSPACE"
+          test "$(git rev-parse HEAD)" = "$expected" || { echo "main advanced; refusing stale patch"; exit 1; }
+          test -s /tmp/atlas-candidate/atlas-autopilot.patch
+          if grep -Ev '^(ui/|services/customer_research_v2\.py$)' /tmp/atlas-candidate/atlas-changed-paths.txt; then
+            echo "Only ui/ and services/customer_research_v2.py changes are allowed"; exit 1
+          fi
+          git apply --check /tmp/atlas-candidate/atlas-autopilot.patch
+          git apply /tmp/atlas-candidate/atlas-autopilot.patch
+          git diff --check
+          git switch -c "codex/autopilot-$RUN_ID"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "ATLAS: autonomous provider-free UI pilot ($RUN_ID)"
+          git -c http.extraheader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)" push "https://github.com/$GITHUB_REPOSITORY.git" HEAD
+          gh pr create --draft --head "codex/autopilot-$RUN_ID" --base main \
+            --title "ATLAS Autopilot: provider-free UI pilot ($RUN_ID)" \
+            --body "Autonomous development proposal for Issue #78. Manual review required. Draft proposal; production merge only after passing governed checks. No licensed provider calls, production data writes or publication authorized. Runner: $RUN_ID; base SHA: $expected."
