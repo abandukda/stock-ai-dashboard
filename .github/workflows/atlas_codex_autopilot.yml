@@ -61,8 +61,8 @@ jobs:
             You are an ATLAS coding agent working only on the isolated GitHub Actions checkout.
             Read GitHub Issue #78 expectations represented here: make the LIVE customer experience
             more useful without changing certified investments or protected data operations.
-            Address the highest-impact outstanding customer UI need in Issue #78; implement ONE safe, meaningful,
-            provider-free Home or Research UI improvement on the current source. Prioritize premium layout parity, readable investment explanations, source-date clarity, and honest Report Card placeholders. Do not imply live performance without measured prospective data.
+            Implement a coherent, substantial, testable customer Research improvement aligned with Issue #78;
+            Prioritize beginner-first stock education: explain the business model, investment thesis, valuation, bull and bear arguments, earnings interpretation, what changed, and important risks using clear everyday language. Include advanced detail without replacing beginner guidance. Cite existing evidence dates/sources and say unavailable when absent. Avoid repetitive generic filler, invented transcript quotations, unsupported AI synthesis, fabricated current data, or fabricated Report Card performance. Respect the established UI architecture and tests. A meaningful complete slice is preferred over cosmetic changes.
             Do not modify GitHub Actions, any workflow, auth, Secrets, provider adapters,
             licensing controls, publication, production ledgers, Report Card state,
             runners, deployment configuration, or cloud infrastructure.
