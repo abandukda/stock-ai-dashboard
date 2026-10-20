@@ -567,6 +567,20 @@ def test_required_coverage_never_passes_with_zero_research_or_incomplete_mobile(
     assert crawler._required_completeness()["status"] == "FAIL"
 
 
+def test_complete_mobile_ticker_matrix_is_required_and_recognized(tmp_path, monkeypatch):
+    crawler = _contract_crawler(tmp_path, monkeypatch)
+    crawler.results = _passing_required_results()
+    assert crawler._required_completeness()["status"] == "PASS"
+    for ticker in REQUIRED_RESEARCH_TICKERS:
+        crawler.results = [
+            row for row in _passing_required_results()
+            if not (row.category == "RESEARCH" and row.viewport == "mobile" and row.ticker_context == ticker)
+        ]
+        completeness = crawler._required_completeness()
+        assert completeness["status"] == "FAIL"
+        assert completeness["missing_research_tickers"] == [(ticker, "mobile")]
+
+
 def test_required_journeys_run_before_supplementary_desktop_and_mobile():
     source = SOURCE.read_text(encoding="utf-8")
     run = source.split("async def run", 1)[1].split("def _summary", 1)[0]
@@ -903,8 +917,10 @@ def test_browser_session_is_shared_between_desktop_and_mobile():
     # deliberately isolated context proves the customer-viewer authorization.
     assert source.count("await browser.new_context") == 2
     assert 'expected_role="customer_viewer"' in source
-    assert 'expected_role="internal_admin"' in source
-    assert "self._required_desktop(page), timeout=360" in source
+    assert 'primary_role = "customer_viewer" if customer_visual_audit else "internal_admin"' in source
+    assert 'expected_role=primary_role' in source
+    assert "home_timeout=180 if customer_visual_audit else 90" in source
+    assert "timeout=450 if customer_visual_audit else 360" in source
     assert "self._required_mobile(page), timeout=300" in source
     assert "await self._supplementary_desktop(page)" in source
     assert "await self._supplementary_mobile(page)" in source

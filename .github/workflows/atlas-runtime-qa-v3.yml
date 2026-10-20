@@ -132,6 +132,7 @@ jobs:
         env:
           ATLAS_AUDIT_PASSWORD: ${{ secrets.ATLAS_AUDIT_PASSWORD }}
           ATLAS_QA_MODE: visual_crawl
+          ATLAS_VISUAL_CRAWL_CUSTOMER_ONLY: "true"
           PYTHONUNBUFFERED: "1"
         run: |
           mkdir -p audit_results/visual_crawl

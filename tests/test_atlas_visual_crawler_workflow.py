@@ -42,6 +42,19 @@ def test_visual_mode_reuses_existing_secret_and_has_no_new_credential_path():
     assert "secrets." in visual
     assert visual.count("secrets.") == 1
     assert "password=" not in visual.lower()
+    assert 'ATLAS_VISUAL_CRAWL_CUSTOMER_ONLY: "true"' in visual
+
+
+def test_visual_mode_uses_a_customer_only_audit_without_changing_required_certification():
+    crawler = (ROOT / "agents" / "atlas_visual_crawler_v1.py").read_text(encoding="utf-8")
+    assert 'os.getenv("ATLAS_VISUAL_CRAWL_CUSTOMER_ONLY", "")' in crawler
+    assert 'primary_role = "customer_viewer" if customer_visual_audit else "internal_admin"' in crawler
+    assert "if not customer_visual_audit:" in crawler
+    assert "await self._customer_role_visual_evidence(page)" not in crawler
+    required = SOURCE.split("Run required production certification", 1)[1].split(
+        "Run Atlas Runtime QA supplementary certification", 1
+    )[0]
+    assert "ATLAS_VISUAL_CRAWL_CUSTOMER_ONLY" not in required
 
 
 def test_visual_mode_invokes_only_standalone_crawler_and_cannot_fall_through():
