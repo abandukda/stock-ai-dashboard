@@ -905,7 +905,8 @@ def test_browser_session_is_shared_between_desktop_and_mobile():
     assert 'expected_role="customer_viewer"' in source
     assert 'primary_role = "customer_viewer" if customer_visual_audit else "internal_admin"' in source
     assert 'expected_role=primary_role' in source
-    assert "self._required_desktop(page), timeout=360" in source
+    assert "home_timeout=180 if customer_visual_audit else 90" in source
+    assert "timeout=450 if customer_visual_audit else 360" in source
     assert "self._required_mobile(page), timeout=300" in source
     assert "await self._supplementary_desktop(page)" in source
     assert "await self._supplementary_mobile(page)" in source

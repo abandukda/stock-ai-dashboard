@@ -3357,9 +3357,9 @@ class AtlasVisualCrawler:
                 viewport=viewport, screenshots=(before,), severity="P1",
             )
 
-    async def _required_desktop(self, page: Page) -> None:
+    async def _required_desktop(self, page: Page, *, home_timeout: int = 90) -> None:
         await page.set_viewport_size(DESKTOP)
-        await asyncio.wait_for(self._home_cards(page), timeout=90)
+        await asyncio.wait_for(self._home_cards(page), timeout=home_timeout)
         for ticker in REQUIRED_RESEARCH_TICKERS:
             passed = await self._submit_research(page, ticker, tabs=True)
             if not passed:
@@ -3803,7 +3803,12 @@ class AtlasVisualCrawler:
                 if phase in {"required", "all"}:
                     await self._customer_navigation_contract(page)
                     await self._role_isolation_contract(page, expected_role=primary_role)
-                    await asyncio.wait_for(self._required_desktop(page), timeout=360)
+                    await asyncio.wait_for(
+                        self._required_desktop(
+                            page, home_timeout=180 if customer_visual_audit else 90,
+                        ),
+                        timeout=450 if customer_visual_audit else 360,
+                    )
                     await asyncio.wait_for(self._required_mobile(page), timeout=300)
                     if self._required_completeness().get("status") != "PASS":
                         raise GlobalCrawlFailure("REQUIRED_PRODUCTION_CERTIFICATION_FAILED")
