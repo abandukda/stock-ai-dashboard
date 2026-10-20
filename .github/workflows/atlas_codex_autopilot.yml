@@ -3,6 +3,8 @@ name: ATLAS Codex Autopilot (bounded self-repair)
 on:
   schedule:
     - cron: '15 5-11 * * 1-5'
+    # Daytime product iteration window, GitHub cron uses UTC.
+    - cron: '15 13-21 * * 1-5'
   workflow_dispatch:
     inputs:
       publish_draft_pr:
