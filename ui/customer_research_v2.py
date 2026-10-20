@@ -10,6 +10,7 @@ import math
 
 import pandas as pd
 import streamlit as st
+from ui.research_learning import build_learning_guide
 
 from services.customer_research_view import Availability, build_customer_research_view
 from services.customer_metric_format import (
@@ -157,6 +158,69 @@ def _render_institutional_overview(report: Mapping[str, Any], *, ticker: str) ->
         values = list(scenarios.get(key) or ())
         st.caption(" · ".join(values) if values else "No verified condition is retained.")
     st.caption(str(scenarios.get("limitation") or "Scenarios are conditional watchpoints, not forecasts."))
+
+
+
+def _render_learning_guide(page: Mapping[str, Any], *, ticker: str) -> None:
+    guide = build_learning_guide(page)
+    if guide["status"] != "AVAILABLE":
+        return
+    _marker("learning-guide", ticker, status=guide["status"], non_scoring="true")
+    st.markdown("### Read the evidence like an investor")
+    st.caption("Learning guidance · Uses this retained snapshot, not live results or AI-generated research.")
+    with st.expander("Earnings: are sales turning into profit and cash?", expanded=True):
+        st.write(
+            "Read sales, profit, and cash together. Higher sales can be encouraging, but costs may rise faster. "
+            "Profit can improve while cash weakens. These are questions to investigate, not conclusions about this company."
+        )
+        if not guide["earnings"]:
+            st.info("Field-level earnings evidence is unavailable in this snapshot. Any retained filing history remains in Detailed evidence below.")
+        for item in guide["earnings"]:
+            st.markdown(f'**{item["question"]}: {_escape_markdown_currency(_financial_value(item["value"], str(item.get("unit") or "")))}**')
+            st.write(item["explanation"])
+            st.caption(
+                f'Fiscal period: {_financial_period(item.get("period"))} · '
+                f'Source: {item.get("provider") or "Unavailable"} · '
+                f'Evidence as of: {_financial_period(item.get("as_of"))} · '
+                f'Evidence ID: {item["evidence_id"]}'
+            )
+        st.caption(
+            "An earnings beat or miss requires actual results and a comparable pre-release estimate for the same period and accounting basis. "
+            "That matched comparison is unavailable in this guide. Management guidance and transcript commentary are also unavailable here. "
+            "A single snapshot cannot establish an improving trend."
+        )
+        st.markdown("**Go deeper: compare earnings fairly**")
+        st.write(
+            "Use the financial statements below to compare the same fiscal quarter with the prior year's quarter, "
+            "or full years with full years. A quarterly filing may contain cumulative year-to-date cash flow; "
+            "do not compare it directly with a single quarter. Keep currency, units, and accounting definitions consistent. "
+            "Separate reported results from forward estimates, and check one-time items and changes in share count."
+        )
+    with st.expander("Bull and bear: what would make the thesis stronger or weaker?", expanded=False):
+        st.write(
+            "An investment thesis connects how a business makes money to why owning its shares might pay off at the price paid. "
+            "The business description and valuation in the brief are starting points. A bull argument asks what must go well; "
+            "a bear argument asks what could go wrong. A Fair Value gap alone does not prove the thesis."
+        )
+        for label, key in (("Bull watch — more supportive evidence", "bull_watch"), ("Bear watch — less supportive evidence", "bear_watch")):
+            st.markdown(f"**{label}**")
+            _list(list(guide[key])) if guide[key] else st.caption("Company-specific monitoring evidence is unavailable.")
+        st.caption(
+            f'Retained ATLAS monitoring prompts · Evaluation snapshot: {guide.get("snapshot") or "Unavailable"}. '
+            "These are conditional prompts, not forecasts, probabilities, or new buy/sell triggers. "
+            "Item-level source dates are unavailable for these prompts; consult Risk & Evidence below for retained measured risks."
+        )
+    with st.expander("What changed: a headline or a change in the business?", expanded=False):
+        st.write(
+            "A news headline tells you what was reported. It does not by itself show that earnings, valuation, or the certified Action changed. "
+            "Compare the underlying evidence with the earlier period before changing your thesis."
+        )
+        for item in guide["headlines"]:
+            st.write(item["headline"])
+            st.caption(f'{item["article_publisher"]} · {_financial_period(item["article_timestamp"])}')
+        if not guide["headlines"]:
+            st.info("Verified recent company headlines are unavailable in this snapshot.")
+        st.caption("A comparison with an earlier certified investment assessment is unavailable in this guide; no rating change is inferred from news.")
 
 
 def _dates(values: pd.Series) -> pd.Series:
@@ -922,6 +986,7 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
         )
         if simple_view.get("data_notice"):
             st.warning(str(simple_view["data_notice"]))
+        _render_learning_guide(page, ticker=ticker)
         evidence_ids = tuple(str(item) for item in reading_views.get("evidence_ids") or () if str(item).strip())
         if evidence_ids:
             with st.expander("Sources for this plain-English guide", expanded=False):
