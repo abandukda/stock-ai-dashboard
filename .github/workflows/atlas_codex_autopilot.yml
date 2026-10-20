@@ -55,15 +55,25 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git add -N -- . ':!.github' ':!data' ':!output' ':!certification'
+          python - <<'PY'
+          import subprocess
+          data = subprocess.check_output(['git','status','--porcelain','-z','--untracked-files=all'])
+          records = [r for r in data.decode().split('\0') if r]
+          if not records:
+              raise SystemExit('Codex did not produce source changes')
+          for record in records:
+              path = record[3:]
+              if not path.startswith('ui/') or path.endswith(('.pyc','.pyo')):
+                  raise SystemExit(f'Forbidden changed path: {path}')
+          print('Changed paths:', ', '.join(r[3:] for r in records))
+          PY
+          python -m compileall -q ui
+          git add -N -- ui
           git diff --binary > /tmp/atlas-autopilot.patch
-          if [[ ! -s /tmp/atlas-autopilot.patch ]]; then
-            echo "No changes produced; nothing to publish."
-            exit 0
-          fi
+          test -s /tmp/atlas-autopilot.patch
           git diff --name-only > /tmp/atlas-changed-paths.txt
-          if grep -E '^(\.github/|data/|output/|certification/|services/(.*provider|.*publication|.*report_card)|app\.py$|requirements|\.streamlit/)' /tmp/atlas-changed-paths.txt; then
-            echo "::error::Protected path modified"; exit 1
+          if grep -v '^ui/' /tmp/atlas-changed-paths.txt; then
+            echo "::error::Only ui/ changes are allowed"; exit 1
           fi
           git diff --check
           sha256sum /tmp/atlas-autopilot.patch > /tmp/atlas-autopilot.patch.sha256
@@ -109,8 +119,8 @@ jobs:
           cd "$GITHUB_WORKSPACE"
           test "$(git rev-parse HEAD)" = "$expected" || { echo "main advanced; refusing stale patch"; exit 1; }
           test -s /tmp/atlas-candidate/atlas-autopilot.patch
-          if grep -E '^(\.github/|data/|output/|certification/|services/(.*provider|.*publication|.*report_card)|app\.py$|requirements|\.streamlit/)' /tmp/atlas-candidate/atlas-changed-paths.txt; then
-            echo "Protected path modified"; exit 1
+          if grep -v '^ui/' /tmp/atlas-candidate/atlas-changed-paths.txt; then
+            echo "Only ui/ changes are allowed"; exit 1
           fi
           git apply --check /tmp/atlas-candidate/atlas-autopilot.patch
           git apply /tmp/atlas-candidate/atlas-autopilot.patch
