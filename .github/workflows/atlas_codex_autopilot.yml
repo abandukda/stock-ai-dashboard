@@ -1,6 +1,8 @@
-name: ATLAS Codex Autopilot (manual pilot)
+name: ATLAS Codex Autopilot (review-first overnight)
 
 on:
+  schedule:
+    - cron: '15,45 5-11 * * *'
   workflow_dispatch:
     inputs:
       publish_draft_pr:
@@ -17,10 +19,28 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  develop:
-    if: github.actor == 'abandukda'
+  overnight_window:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 2
+    permissions: {}
+    outputs:
+      proceed: ${{ steps.window.outputs.proceed }}
+    steps:
+      - id: window
+        shell: bash
+        run: |
+          if [[ '${{ github.event_name }}' == 'workflow_dispatch' || "$(date -u +%F)" == '2026-10-20' ]]; then
+            echo 'proceed=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'proceed=false' >> "$GITHUB_OUTPUT"
+          fi
+
+  develop:
+    needs: overnight_window
+
+    if: needs.overnight_window.outputs.proceed == 'true' && (github.event_name == 'schedule' || github.actor == 'abandukda')
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
     permissions:
       contents: read
     steps:
@@ -41,8 +61,8 @@ jobs:
             You are an ATLAS coding agent working only on the isolated GitHub Actions checkout.
             Read GitHub Issue #78 expectations represented here: make the LIVE customer experience
             more useful without changing certified investments or protected data operations.
-            This first pilot is narrowly scoped: identify and implement ONE safe, meaningful,
-            provider-free Home or Research UI usability correction on the current source.
+            Address the highest-impact outstanding customer UI need in Issue #78; implement ONE safe, meaningful,
+            provider-free Home or Research UI improvement on the current source. Prioritize premium layout parity, readable investment explanations, source-date clarity, and honest Report Card placeholders. Do not imply live performance without measured prospective data.
             Do not modify GitHub Actions, any workflow, auth, Secrets, provider adapters,
             licensing controls, publication, production ledgers, Report Card state,
             runners, deployment configuration, or cloud infrastructure.
@@ -136,7 +156,7 @@ jobs:
 
   draft_pr:
     needs: validate
-    if: inputs.publish_draft_pr && github.actor == 'abandukda'
+    if: github.event_name == 'schedule' || (inputs.publish_draft_pr && github.actor == 'abandukda')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
