@@ -1,8 +1,8 @@
-name: ATLAS Codex Autopilot (review-first overnight)
+name: ATLAS Codex Autopilot (bounded self-repair)
 
 on:
   schedule:
-    - cron: '15,45 5-11 * * *'
+    - cron: '15 5-11 * * 1-5'
   workflow_dispatch:
     inputs:
       publish_draft_pr:
@@ -29,7 +29,7 @@ jobs:
       - id: window
         shell: bash
         run: |
-          if [[ '${{ github.event_name }}' == 'workflow_dispatch' || "$(date -u +%F)" == '2026-10-20' ]]; then
+          if [[ '${{ github.event_name }}' == 'workflow_dispatch' || '${{ github.event_name }}' == 'schedule' ]]; then
             echo 'proceed=true' >> "$GITHUB_OUTPUT"
           else
             echo 'proceed=false' >> "$GITHUB_OUTPUT"
@@ -40,7 +40,7 @@ jobs:
 
     if: needs.overnight_window.outputs.proceed == 'true' && (github.event_name == 'schedule' || github.actor == 'abandukda')
     runs-on: ubuntu-latest
-    timeout-minutes: 18
+    timeout-minutes: 35
     permissions:
       contents: read
     steps:
@@ -61,8 +61,8 @@ jobs:
             You are an ATLAS coding agent working only on the isolated GitHub Actions checkout.
             Read GitHub Issue #78 expectations represented here: make the LIVE customer experience
             more useful without changing certified investments or protected data operations.
-            Address the highest-impact outstanding customer UI need in Issue #78; implement ONE safe, meaningful,
-            provider-free Home or Research UI improvement on the current source. Prioritize premium layout parity, readable investment explanations, source-date clarity, and honest Report Card placeholders. Do not imply live performance without measured prospective data.
+            Implement a coherent, substantial, testable customer Research improvement aligned with Issue #78;
+            Prioritize beginner-first stock education: explain the business model, investment thesis, valuation, bull and bear arguments, earnings interpretation, what changed, and important risks using clear everyday language. Include advanced detail without replacing beginner guidance. Cite existing evidence dates/sources and say unavailable when absent. Avoid repetitive generic filler, invented transcript quotations, unsupported AI synthesis, fabricated current data, or fabricated Report Card performance. Respect the established UI architecture and tests. A meaningful complete slice is preferred over cosmetic changes.
             Do not modify GitHub Actions, any workflow, auth, Secrets, provider adapters,
             licensing controls, publication, production ledgers, Report Card state,
             runners, deployment configuration, or cloud infrastructure.
@@ -71,6 +71,46 @@ jobs:
             Run only focused local tests if dependencies are already installed.
             Leave modifications in the checkout. Do NOT commit, push, or create a PR.
             Explain what changed, tests, and any unresolved limitations.
+      - name: Prepare dependency-backed test environment
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install test requirements
+        run: python -m pip install --disable-pip-version-check -r requirements.txt pytest
+      - name: Initial offline Research regression suite
+        id: initial_test
+        continue-on-error: true
+        shell: bash
+        env:
+          ATLAS_QA_MODE: '1'
+          CI: 'true'
+        run: |
+          set -o pipefail
+          python -m pytest -q tests/test_customer_research_v2.py 2>&1 | tee "$GITHUB_WORKSPACE/.atlas-autopilot-test.log"
+      - name: Repair first failed test (one bounded Codex attempt)
+        if: steps.initial_test.outcome == 'failure'
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          permission-profile: ":workspace"
+          prompt: |
+            The prior UI-only Research change failed local tests. Read .atlas-autopilot-test.log.
+            Diagnose and repair the actual failure in the repository checkout. You may only edit
+            ui/ Python source. Keep data, financial computations, publication, auth, providers,
+            workflows, and infrastructure untouched. Do not access network or invent data.
+            Do not commit or push. Prefer reverting the original unsafe change to passing
+            a broken patch. This is the ONE permitted automatic repair attempt.
+      - name: Remove local test diagnostics before patch packaging
+        if: always()
+        run: rm -f .atlas-autopilot-test.log
+      - name: Final required offline Research regression suite
+        shell: bash
+        env:
+          ATLAS_QA_MODE: '1'
+          CI: 'true'
+        run: |
+          set -euo pipefail
+          python -m pytest -q tests/test_customer_research_v2.py
       - name: Reject forbidden modifications and assemble patch
         shell: bash
         run: |
@@ -198,4 +238,4 @@ jobs:
           git -c http.extraheader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)" push "https://github.com/$GITHUB_REPOSITORY.git" HEAD
           gh pr create --draft --head "codex/autopilot-$RUN_ID" --base main \
             --title "ATLAS Autopilot: provider-free UI pilot ($RUN_ID)" \
-            --body "Autonomous development proposal for Issue #78. Manual review required. No production merge, provider calls, or deployment authorized. Runner: $RUN_ID; base SHA: $expected."
+            --body "Autonomous development proposal for Issue #78. Manual review required. Draft proposal; production merge only after passing governed checks. No licensed provider calls, production data writes or publication authorized. Runner: $RUN_ID; base SHA: $expected."
