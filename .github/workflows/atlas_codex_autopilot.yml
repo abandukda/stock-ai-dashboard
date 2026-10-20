@@ -131,7 +131,7 @@ jobs:
         run: |
           set -euo pipefail
           cd /tmp/atlas-candidate
-          sha256sum -c atlas-autopilot.patch.sha256
+          sed 's#^/tmp/atlas-autopilot.patch#atlas-autopilot.patch#' atlas-autopilot.patch.sha256 | sha256sum -c -
           expected=$(cat atlas-autopilot-base-sha)
           cd "$GITHUB_WORKSPACE"
           test "$(git rev-parse HEAD)" = "$expected"
@@ -179,7 +179,7 @@ jobs:
         run: |
           set -euo pipefail
           cd /tmp/atlas-candidate
-          sha256sum -c atlas-autopilot.patch.sha256
+          sed 's#^/tmp/atlas-autopilot.patch#atlas-autopilot.patch#' atlas-autopilot.patch.sha256 | sha256sum -c -
           expected=$(cat atlas-autopilot-base-sha)
           cd "$GITHUB_WORKSPACE"
           test "$(git rev-parse HEAD)" = "$expected" || { echo "main advanced; refusing stale patch"; exit 1; }
