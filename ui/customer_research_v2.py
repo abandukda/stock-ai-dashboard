@@ -1018,6 +1018,13 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
             # Use the already-certified projection carried by this page.
             price_frame = stock_rows.copy()
             _dark_line_chart(price_frame, height=300, y_title="Price (USD/share)", key=f"research-price-chart-{ticker}")
+            if not stock_rows.empty:
+                st.caption(
+                    f"History shown: {stock_rows.index.min():%b %d, %Y} – "
+                    f"{stock_rows.index.max():%b %d, %Y}. "
+                    "Ranges end at the latest available source date. "
+                    "Available history may cover less than the selected range."
+                )
             st.caption(
                 "Each point is a verified completed-session close. Use the range control to inspect direction and "
                 "volatility; the line is historical context, not a forecast."
