@@ -3764,13 +3764,19 @@ class AtlasVisualCrawler:
 
     async def run(self, *, phase: str = "all") -> dict[str, Any]:
         self.enforce_required_authority = phase in {"required", "all"}
+        customer_visual_audit = (
+            phase == "all"
+            and os.getenv("ATLAS_VISUAL_CRAWL_CUSTOMER_ONLY", "").strip().lower()
+            in {"1", "true", "yes"}
+        )
+        primary_role = "customer_viewer" if customer_visual_audit else "internal_admin"
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.screenshot_dir.mkdir(parents=True, exist_ok=True)
         async with async_playwright() as pw:
             browser: Browser = await pw.chromium.launch(headless=self.headless)
             context: BrowserContext = await browser.new_context(viewport=DESKTOP)
             page = await context.new_page()
-            self._attach_streamlit_transport(page, role="internal_admin")
+            self._attach_streamlit_transport(page, role=primary_role)
             try:
                 try:
                     self.authentication = await asyncio.wait_for(
@@ -3796,34 +3802,37 @@ class AtlasVisualCrawler:
                     raise GlobalCrawlFailure(category) from exc
                 if phase in {"required", "all"}:
                     await self._customer_navigation_contract(page)
-                    await self._role_isolation_contract(page, expected_role="internal_admin")
+                    await self._role_isolation_contract(page, expected_role=primary_role)
                     await asyncio.wait_for(self._required_desktop(page), timeout=360)
                     await asyncio.wait_for(self._required_mobile(page), timeout=300)
                     if self._required_completeness().get("status") != "PASS":
                         raise GlobalCrawlFailure("REQUIRED_PRODUCTION_CERTIFICATION_FAILED")
-                    viewer_password = os.getenv("ATLAS_VIEWER_QA_PASSWORD", "").strip()
-                    if not viewer_password:
-                        raise GlobalCrawlFailure("VIEWER_QA_PASSWORD_MISSING")
-                    viewer_context = await browser.new_context(viewport=DESKTOP)
-                    try:
-                        viewer_page = await viewer_context.new_page()
-                        self._attach_streamlit_transport(viewer_page, role="customer_viewer")
-                        (self.output_dir / "viewer-auth").mkdir(parents=True, exist_ok=True)
-                        await _open_and_authenticate(
-                            viewer_page, self.url, self.output_dir / "viewer-auth",
-                            expected_sha=self.expected_deployed_source_sha,
-                            allow_local_exact_candidate=(
-                                os.getenv("ATLAS_EXACT_CANDIDATE_QA", "").strip().lower()
-                                in {"1", "true", "yes"}
-                            ),
-                            password_override=viewer_password,
-                        )
-                        await self._customer_navigation_contract(viewer_page)
-                        await self._role_isolation_contract(viewer_page, expected_role="customer_viewer")
-                        await self._customer_role_visual_evidence(viewer_page)
-                    finally:
-                        await viewer_context.close()
-                if phase in {"supplementary", "all"}:
+                    if customer_visual_audit:
+                        await self._customer_role_visual_evidence(page)
+                    else:
+                        viewer_password = os.getenv("ATLAS_VIEWER_QA_PASSWORD", "").strip()
+                        if not viewer_password:
+                            raise GlobalCrawlFailure("VIEWER_QA_PASSWORD_MISSING")
+                        viewer_context = await browser.new_context(viewport=DESKTOP)
+                        try:
+                            viewer_page = await viewer_context.new_page()
+                            self._attach_streamlit_transport(viewer_page, role="customer_viewer")
+                            (self.output_dir / "viewer-auth").mkdir(parents=True, exist_ok=True)
+                            await _open_and_authenticate(
+                                viewer_page, self.url, self.output_dir / "viewer-auth",
+                                expected_sha=self.expected_deployed_source_sha,
+                                allow_local_exact_candidate=(
+                                    os.getenv("ATLAS_EXACT_CANDIDATE_QA", "").strip().lower()
+                                    in {"1", "true", "yes"}
+                                ),
+                                password_override=viewer_password,
+                            )
+                            await self._customer_navigation_contract(viewer_page)
+                            await self._role_isolation_contract(viewer_page, expected_role="customer_viewer")
+                            await self._customer_role_visual_evidence(viewer_page)
+                        finally:
+                            await viewer_context.close()
+                if phase in {"supplementary", "all"} and not customer_visual_audit:
                     await self._supplementary_desktop(page)
                     await self._supplementary_mobile(page)
             finally:

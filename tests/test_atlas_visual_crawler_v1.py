@@ -903,7 +903,8 @@ def test_browser_session_is_shared_between_desktop_and_mobile():
     # deliberately isolated context proves the customer-viewer authorization.
     assert source.count("await browser.new_context") == 2
     assert 'expected_role="customer_viewer"' in source
-    assert 'expected_role="internal_admin"' in source
+    assert 'primary_role = "customer_viewer" if customer_visual_audit else "internal_admin"' in source
+    assert 'expected_role=primary_role' in source
     assert "self._required_desktop(page), timeout=360" in source
     assert "self._required_mobile(page), timeout=300" in source
     assert "await self._supplementary_desktop(page)" in source
