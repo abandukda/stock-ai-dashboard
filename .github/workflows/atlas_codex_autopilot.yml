@@ -1,4 +1,4 @@
-name: ATLAS Codex Autopilot (bounded overnight)
+name: ATLAS Codex Autopilot (review-first overnight)
 
 on:
   schedule:
@@ -19,46 +19,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  claim:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: write
-    outputs:
-      run_allowed: ${{ steps.slot.outputs.run_allowed }}
-      iteration: ${{ steps.slot.outputs.iteration }}
-    steps:
-      - name: Claim one of at most ten overnight attempts
-        id: slot
-        env:
-          GH_TOKEN: ${{ github.token }}
-          EVENT_NAME: ${{ github.event_name }}
-          GH_REPO: ${{ github.repository }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ "$EVENT_NAME" != "schedule" ]]; then
-            echo "run_allowed=true" >> "$GITHUB_OUTPUT"
-            echo "iteration=manual" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          base_sha=$(gh api "repos/$GH_REPO/commits/main" --jq .sha)
-          for i in $(seq 1 10); do
-            slot=$(printf '%02d' "$i")
-            ref="refs/heads/codex/autopilot-slot-$slot"
-            if ! gh api "repos/$GH_REPO/git/ref/heads/codex/autopilot-slot-$slot" >/dev/null 2>&1; then
-              gh api -X POST "repos/$GH_REPO/git/refs" -f ref="$ref" -f sha="$base_sha" >/dev/null
-              echo "run_allowed=true" >> "$GITHUB_OUTPUT"
-              echo "iteration=$slot" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-          done
-          echo "run_allowed=false" >> "$GITHUB_OUTPUT"
-          echo "iteration=complete" >> "$GITHUB_OUTPUT"
-
   develop:
-    needs: claim
-    if: needs.claim.outputs.run_allowed == 'true' && (github.event_name == 'schedule' || github.actor == 'abandukda')
+    if: github.event_name == 'schedule' || github.actor == 'abandukda'
     runs-on: ubuntu-latest
     timeout-minutes: 18
     permissions:
@@ -81,8 +43,8 @@ jobs:
             You are an ATLAS coding agent working only on the isolated GitHub Actions checkout.
             Read GitHub Issue #78 expectations represented here: make the LIVE customer experience
             more useful without changing certified investments or protected data operations.
-            Iteration ${{ needs.claim.outputs.iteration }}: identify and implement ONE safe, meaningful,
-            provider-free Home or Research UI usability correction on the current source.
+            Address the highest-impact outstanding customer UI need in Issue #78; implement ONE safe, meaningful,
+            provider-free Home or Research UI improvement on the current source. Prioritize premium layout parity, readable investment explanations, source-date clarity, and honest Report Card placeholders. Do not imply live performance without measured prospective data.
             Do not modify GitHub Actions, any workflow, auth, Secrets, provider adapters,
             licensing controls, publication, production ledgers, Report Card state,
             runners, deployment configuration, or cloud infrastructure.
