@@ -1490,10 +1490,10 @@ def _render_groups(story: Mapping[str, Any], *, emit_interactive) -> None:
 
 def _action_counts(story: Mapping[str, Any]) -> str:
     contract = dict(story.get("home_action_count_contract") or {})
-    governed = dict(contract.get("home_featured_action_counts") or {})
-    states = [_customer_state(card) for card in story.get("home_featured_cards") or _home_candidate_surface(story.get("cards") or ())]
+    governed = dict(contract.get("customer_published_action_counts") or {})
+    states = [_customer_state(card) for card in story.get("cards") or story.get("home_featured_cards") or ()]
     values = (
-        ("Buy Now", governed.get("BUY_NOW", states.count("BUY_NOW")), "buy"),
+        ("Buy Now", _governed_buy_now_inventory(story), "buy"),
         ("Build a Position", governed.get("ACCUMULATE", states.count("ACCUMULATE")), "build"),
     )
     return '<div class="atlas-home-action-counts">' + "".join(
@@ -1786,7 +1786,7 @@ def _render_command_deck(story: Mapping[str, Any]) -> None:
         '<section class="atlas-command-deck" data-atlas-qa="home-command-deck" aria-label="ATLAS command center status">'
         '<article class="atlas-metric-card"><small>FRESHNESS</small><b>' + html.escape(timestamp) + '</b><span class="atlas-freshness-indicator">Certified snapshot</span></article>'
         '<article class="atlas-metric-card"><small>MARKET PULSE</small><b>' + html.escape(market_status) + '</b><span>Reference only · non-scoring</span></article>'
-        '<article class="atlas-metric-card"><small>BUY NOW INVENTORY</small><b>' + html.escape(str(_governed_buy_now_inventory(story))) + '</b><span>Customer-publishable records · up to 10 featured below</span></article>'
+        '<article class="atlas-metric-card"><small>BUY NOW INVENTORY</small><b>' + html.escape(str(_governed_buy_now_inventory(story))) + '</b><span>Certified records · featured ideas and full list below</span></article>'
         '<article class="atlas-metric-card"><small>LEAD OPPORTUNITY</small><b>' + html.escape(lead_label) + '</b><span>Certified order · no reranking</span></article></section>',
         unsafe_allow_html=True,
     )
@@ -1993,6 +1993,7 @@ def render_home_guidance_vnext(story: Mapping[str, Any], *, emit_interactive=Non
     _render_command_deck(story)
     _section_marker("atlas_action_summary")
     st.markdown("## ATLAS Action Summary")
+    st.caption("Counts cover all customer-publishable records, including ideas beyond the featured cards.")
     st.markdown(_action_counts(story), unsafe_allow_html=True)
     _render_groups(story, emit_interactive=emit_interactive)
     _render_intelligence_modules(story)

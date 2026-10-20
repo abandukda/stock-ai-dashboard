@@ -952,6 +952,8 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
         .atlas-research-highlight{border:1px solid rgba(148,163,184,.18);border-radius:13px;padding:.78rem;background:rgba(15,23,42,.58)}
         .atlas-research-highlight small{display:block;color:#8fa4bd;font-size:.65rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;margin-bottom:.3rem}
         .atlas-research-highlight p{margin:0;color:#e5edf6;font-size:.9rem;line-height:1.45}
+        body:has([data-atlas-qa="research-vnext"]) [data-testid="stExpander"] summary{background:#111e32!important;color:#f2f6fc!important}
+        body:has([data-atlas-qa="research-vnext"]) [data-testid="stExpander"] summary:hover{background:#17263d!important}
         @media(max-width:700px){.atlas-research-brief{padding:.8rem}.atlas-research-highlights{grid-template-columns:1fr}.atlas-research-highlight{padding:.7rem}}
         </style>""", unsafe_allow_html=True)
         brief_sentences = tuple(str(item).strip() for item in simple_view.get("brief_sentences") or () if str(item).strip())

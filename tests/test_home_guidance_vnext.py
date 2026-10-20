@@ -126,6 +126,24 @@ def test_home_action_summary_uses_plain_customer_labels_not_star_jargon():
     assert "★" not in rendered
 
 
+def test_home_action_summary_reconciles_full_inventory_beyond_featured_slice():
+    from ui.home_guidance_vnext import _action_counts
+
+    story = {
+        "home_featured_cards": [{"guidance": "BUY_NOW"}] * 10,
+        "home_runtime_contract": {"inventory_authority": {"publishable_buy_now_count": 11}},
+        "home_action_count_contract": {
+            "home_featured_action_counts": {"BUY_NOW": 10, "ACCUMULATE": 0},
+            "customer_published_action_counts": {"BUY_NOW": 11, "ACCUMULATE": 2},
+        },
+    }
+    rendered = _action_counts(story)
+    assert '<small>Buy Now</small><b>11</b>' in rendered
+    assert '<small>Build a Position</small><b>2</b>' in rendered
+    story["home_runtime_contract"]["inventory_authority"]["publishable_buy_now_count"] = 0
+    assert '<small>Buy Now</small><b>0</b>' in _action_counts(story)
+
+
 def test_pre_policy_persisted_evaluation_cannot_override_current_home_contract():
     stale = canonical_evaluation(guidance="ACCUMULATE")
     stale["guidance"].pop("policy_version", None)
