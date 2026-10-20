@@ -27861,7 +27861,8 @@ def render_detail(row):
         # The final active Research route resolves the UX-2 adapter directly.
         # This bypasses stale renderer aliases retained by long-lived Streamlit
         # module state while preserving V104/V2 compatibility entry points.
-        from ui.research_vnext import render_full_research_vnext as render_full_research_report
+        from ui.research_runtime import research_renderers
+        _, render_full_research_report = research_renderers(BOOTSTRAP_SOURCE_SHA)
         research_render_checkpoint("render_detail:before")
         render_complete = bool(render_full_research_report(dict(row)))
         research_render_checkpoint("render_detail:after")
@@ -28152,7 +28153,8 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
         if generated_at not in {"", "Unavailable"}:
             _research_context_caption += f" · Generated {v8055_format_et(generated_at)}"
         try:
-            from ui.customer_research_v2 import render_customer_research_first_screen
+            from ui.research_runtime import research_renderers
+            render_customer_research_first_screen, _ = research_renderers(BOOTSTRAP_SOURCE_SHA)
             with _research_first_screen_slot.container():
                 render_customer_research_first_screen(merged)
             st.session_state["_atlas_research_first_screen_rendered"] = ticker
