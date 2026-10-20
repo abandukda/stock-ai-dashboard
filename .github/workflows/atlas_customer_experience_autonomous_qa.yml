@@ -68,7 +68,7 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
-      - run: pip install -r requirements.txt pytest pyyaml
+      - run: pip install -r requirements.txt pytest pyyaml playwright==1.52.0
       - name: Enforce candidate and repair policy
         env:
           EXPECTED_SHA: ${{ inputs.candidate_sha || github.event.pull_request.head.sha || github.sha }}
