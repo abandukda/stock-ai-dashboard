@@ -3812,9 +3812,7 @@ class AtlasVisualCrawler:
                     await asyncio.wait_for(self._required_mobile(page), timeout=300)
                     if self._required_completeness().get("status") != "PASS":
                         raise GlobalCrawlFailure("REQUIRED_PRODUCTION_CERTIFICATION_FAILED")
-                    if customer_visual_audit:
-                        await self._customer_role_visual_evidence(page)
-                    else:
+                    if not customer_visual_audit:
                         viewer_password = os.getenv("ATLAS_VIEWER_QA_PASSWORD", "").strip()
                         if not viewer_password:
                             raise GlobalCrawlFailure("VIEWER_QA_PASSWORD_MISSING")
