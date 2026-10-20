@@ -60,7 +60,7 @@ jobs:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           permission-profile: ":workspace"
           prompt: |
-            You are an ATLAS coding agent working only on the isolated GitHub Actions checkout.
+            You are an ATLAS coding agent working only on the isolated GitHub Actions checkout. Allowed files: ui/ and services/customer_research_v2.py; do not touch other services.
             Read GitHub Issue #78 expectations represented here: make the LIVE customer experience
             more useful without changing certified investments or protected data operations.
             Implement a coherent, substantial, testable customer Research improvement aligned with Issue #78;
@@ -98,7 +98,7 @@ jobs:
           prompt: |
             The prior UI-only Research change failed local tests. Read .atlas-autopilot-test.log.
             Diagnose and repair the actual failure in the repository checkout. You may only edit
-            ui/ Python source. Keep data, financial computations, publication, auth, providers,
+            ui/ Python source and services/customer_research_v2.py. Keep data, financial computations, publication, auth, providers,
             workflows, and infrastructure untouched. Do not access network or invent data.
             Do not commit or push. Prefer reverting the original unsafe change to passing
             a broken patch. This is the ONE permitted automatic repair attempt.
@@ -125,17 +125,17 @@ jobs:
               raise SystemExit('Codex did not produce source changes')
           for record in records:
               path = record[3:]
-              if not path.startswith('ui/') or path.endswith(('.pyc','.pyo')):
+              if not (path.startswith('ui/') or path == 'services/customer_research_v2.py') or path.endswith(('.pyc','.pyo')):
                   raise SystemExit(f'Forbidden changed path: {path}')
           print('Changed paths:', ', '.join(r[3:] for r in records))
           PY
-          python -m compileall -q ui
-          git add -N -- ui
+          python -m compileall -q ui services/customer_research_v2.py
+          git add -N -- ui services/customer_research_v2.py
           git diff --binary > /tmp/atlas-autopilot.patch
           test -s /tmp/atlas-autopilot.patch
           git diff --name-only > /tmp/atlas-changed-paths.txt
-          if grep -v '^ui/' /tmp/atlas-changed-paths.txt; then
-            echo "::error::Only ui/ changes are allowed"; exit 1
+          if grep -Ev '^(ui/|services/customer_research_v2\.py$)' /tmp/atlas-changed-paths.txt; then
+            echo "::error::Only ui/ and services/customer_research_v2.py changes are allowed"; exit 1
           fi
           git diff --check
           sha256sum /tmp/atlas-autopilot.patch > /tmp/atlas-autopilot.patch.sha256
@@ -178,11 +178,11 @@ jobs:
           cd "$GITHUB_WORKSPACE"
           test "$(git rev-parse HEAD)" = "$expected"
           test -s /tmp/atlas-candidate/atlas-autopilot.patch
-          if grep -v '^ui/' /tmp/atlas-candidate/atlas-changed-paths.txt; then exit 1; fi
+          if grep -Ev '^(ui/|services/customer_research_v2\.py$)' /tmp/atlas-candidate/atlas-changed-paths.txt; then exit 1; fi
           git apply --check /tmp/atlas-candidate/atlas-autopilot.patch
           git apply /tmp/atlas-candidate/atlas-autopilot.patch
           git diff --check
-          python -m compileall -q ui
+          python -m compileall -q ui services/customer_research_v2.py
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -226,8 +226,8 @@ jobs:
           cd "$GITHUB_WORKSPACE"
           test "$(git rev-parse HEAD)" = "$expected" || { echo "main advanced; refusing stale patch"; exit 1; }
           test -s /tmp/atlas-candidate/atlas-autopilot.patch
-          if grep -v '^ui/' /tmp/atlas-candidate/atlas-changed-paths.txt; then
-            echo "Only ui/ changes are allowed"; exit 1
+          if grep -Ev '^(ui/|services/customer_research_v2\.py$)' /tmp/atlas-candidate/atlas-changed-paths.txt; then
+            echo "Only ui/ and services/customer_research_v2.py changes are allowed"; exit 1
           fi
           git apply --check /tmp/atlas-candidate/atlas-autopilot.patch
           git apply /tmp/atlas-candidate/atlas-autopilot.patch
