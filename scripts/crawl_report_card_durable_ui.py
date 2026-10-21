@@ -185,6 +185,62 @@ async def shot(page: Page, root: Path, name: str, manifest: list[dict[str, Any]]
     manifest.append({"name": name, "path": str(target.name), "url": page.url})
 
 
+async def certify_original_cohort_charts(page: Page, output: Path, mode: str,
+                                         manifest: list[dict[str, Any]]) -> None:
+    """Open every original signal and verify its exact retained snapshot chart."""
+    authority = json.loads((output / "retained_chart_authority.json").read_text())
+    expected = {row["ticker"]: row for row in authority["signals"]}
+    if len(expected) != 20 or authority["signal_count"] != 20:
+        raise AssertionError("REPORT_CARD_ORIGINAL_COHORT_MUST_HAVE_20_SIGNALS")
+    buttons = page.get_by_role("button", name="View Signal Digest →", exact=True)
+    if await buttons.count() != 20:
+        raise AssertionError(f"REPORT_CARD_ORIGINAL_COHORT_UI_COUNT:{mode}")
+    verified = []
+    for index in range(20):
+        expander = page.locator('[data-testid="stExpander"]').nth(index + 1)
+        details = expander.locator("details")
+        if await details.get_attribute("open") is None:
+            await expander.locator("summary").click()
+        button = expander.get_by_role("button", name="View Signal Digest →", exact=True)
+        await button.wait_for(state="visible", timeout=30000)
+        identity = re.search(r"Signal ID:\s*([^\s]+)", await expander.inner_text())
+        if identity is None:
+            raise AssertionError(f"REPORT_CARD_COHORT_SIGNAL_ID_MISSING:{mode}:{index}")
+        signal_id = identity.group(1).strip("`")
+        await button.click()
+        await wait_for_report_card_detail_state(page, mode, signal_id)
+        await wait_for_report_card_detail_settled(page, mode)
+        detail = page.locator('[data-atlas-qa="report-card-signal-detail"]')
+        ticker = await detail.get_attribute("data-atlas-ticker")
+        snapshot = await detail.get_attribute("data-atlas-snapshot")
+        if ticker not in expected or snapshot != expected[ticker]["evaluation_snapshot_id"]:
+            raise AssertionError(f"REPORT_CARD_COHORT_SNAPSHOT_MISMATCH:{mode}:{ticker}")
+        if ticker in {row["ticker"] for row in verified}:
+            raise AssertionError(f"REPORT_CARD_COHORT_DUPLICATE_SIGNAL:{mode}:{ticker}")
+        chart = page.locator('[data-atlas-qa="report-card-price-chart"]')
+        await chart.wait_for(state="attached", timeout=30000)
+        facts = {key: await chart.get_attribute(f"data-atlas-chart-{key}")
+                 for key in ("status", "classification", "as-of", "evidence-count")}
+        if (facts["status"] != "AVAILABLE" or facts["classification"] != "EDUCATIONAL_NON_SCORING"
+                or facts["as-of"] != expected[ticker]["as_of"]
+                or int(facts["evidence-count"] or "0") < 1):
+            raise AssertionError(f"REPORT_CARD_COHORT_CHART_INVALID:{mode}:{ticker}:{facts}")
+        panel = chart.locator("xpath=following::div[@data-testid='stPlotlyChart'][1]")
+        await panel.wait_for(state="visible", timeout=30000)
+        target = output / f"original-chart-{mode}-{ticker}.png"
+        await panel.screenshot(path=str(target))
+        manifest.append({"name": target.stem, "path": target.name, "url": page.url})
+        verified.append({"ticker": ticker, "signal_id": signal_id, "snapshot": snapshot, **facts})
+        (output / f"original-cohort-charts-{mode}.json").write_text(json.dumps({
+            "status": "PASS" if len(verified) == 20 else "IN_PROGRESS", "verified": verified,
+            "expected": 20, "verified_count": len(verified), "provider_calls": 0,
+        }, indent=2), encoding="utf-8")
+        await page.get_by_role("button", name="← Back to Report Card", exact=True).click()
+        await wait_for_report_card_overview_settled(page, mode)
+    if {row["ticker"] for row in verified} != set(expected):
+        raise AssertionError(f"REPORT_CARD_ORIGINAL_COHORT_INCOMPLETE:{mode}")
+
+
 def validate_qa_passwords(admin: str, viewer: str) -> None:
     """Reject ambiguous role credentials without disclosing either value."""
     if not admin.strip() or not viewer.strip():
@@ -193,11 +249,13 @@ def validate_qa_passwords(admin: str, viewer: str) -> None:
         raise RuntimeError("REPORT_CARD_QA_ROLE_CREDENTIAL_COLLISION:APP_PASSWORD_AND_ATLAS_AUDIT_PASSWORD_MUST_DIFFER")
 
 
-async def run(output: Path) -> None:
+async def run(output: Path, *, require_original_cohort: bool = False) -> None:
     admin = os.environ.get("ATLAS_INTERNAL_QA_PASSWORD", "")
     viewer = os.environ.get("ATLAS_VIEWER_QA_PASSWORD", "")
     validate_qa_passwords(admin, viewer)
     output.mkdir(parents=True, exist_ok=True)
+    if require_original_cohort and not (output / "retained_chart_authority.json").is_file():
+        raise RuntimeError("REPORT_CARD_ORIGINAL_COHORT_AUTHORITY_REQUIRED")
     manifest: list[dict[str, Any]] = []
     links: list[dict[str, Any]] = []
     access: dict[str, Any] = {}
@@ -356,6 +414,8 @@ async def run(output: Path) -> None:
             if await overview.get_attribute("data-atlas-report-card-view") != "OVERVIEW":
                 raise AssertionError(f"REPORT_CARD_BACK_VIEW_STATE_INVALID:{mode}")
             await wait_for_report_card_overview_settled(page, mode)
+            if require_original_cohort and mode in {"desktop", "mobile"}:
+                await certify_original_cohort_charts(page, output, mode, manifest)
             await select_route(page, "Home")
             await page.locator('[data-atlas-qa="home-performance-tracking"]').wait_for(timeout=30000)
             await page.get_by_role("button", name="View Report Card", exact=True).click()
@@ -422,8 +482,9 @@ async def run(output: Path) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--require-original-cohort", action="store_true")
     args = parser.parse_args()
-    asyncio.run(run(args.output_dir))
+    asyncio.run(run(args.output_dir, require_original_cohort=args.require_original_cohort))
     return 0
 
 
