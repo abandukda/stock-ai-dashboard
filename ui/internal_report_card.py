@@ -11,7 +11,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 from services.report_card_dashboard import build_internal_report_card
-from ui.report_card_overview import OVERVIEW_CSS, overview_html
+from ui.report_card_overview import OVERVIEW_CSS, overview_html, render_signal_directory
 
 
 REPORT_CARD_VIEW_OVERVIEW = "OVERVIEW"
@@ -397,6 +397,7 @@ def render_internal_report_card(ledger_path: Path, *, authorized: bool) -> Mappi
         'aria-hidden="true" style="display:none">report-card-overview</span>',
         unsafe_allow_html=True,
     )
+    render_signal_directory(report["signals"], on_open=open_report_card_detail)
     st.markdown(
         '<div class="atlas-source-chips"><span class="atlas-certification-chip">Append-only ledger</span>'
         f'<span class="atlas-source-chip">Activated {report["activation_timestamp"]}</span>'

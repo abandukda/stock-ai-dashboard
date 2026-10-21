@@ -55,3 +55,83 @@ OVERVIEW_CSS = '''<style>
 @media(max-width:1000px){.atlas-rc-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.atlas-rc-evidence-grid{grid-template-columns:1fr 1fr}}
 @media(max-width:600px){.atlas-rc-evidence-grid{grid-template-columns:1fr}.atlas-rc-summary article{padding:.85rem}.atlas-rc-metrics{gap:.5rem}.atlas-rc-metrics strong{font-size:1.8rem}.atlas-rc-summary h2{font-size:1.1rem!important}}
 </style>'''
+
+
+def _date(value: Any) -> str:
+    from datetime import datetime, timezone
+    try:
+        parsed = datetime.fromisoformat(str(value).replace('Z', '+00:00'))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc).strftime('%b %d, %Y')
+    except (TypeError, ValueError):
+        return 'Date unavailable'
+
+
+def _reference_price(value: Any) -> str:
+    import math
+    try:
+        price = float(value)
+        return f'${price:,.2f}' if math.isfinite(price) else 'Unavailable'
+    except (TypeError, ValueError):
+        return 'Unavailable'
+
+
+def signal_directory_html(signals) -> str:
+    """Original signal identity and pending evidence; no derived entry or return."""
+    rows = []
+    for signal in signals:
+        count = int(signal.get('observation_count') or 0)
+        state = f'{count} recorded' if count else 'Pending'
+        rows.append(
+            '<tr>'
+            f'<th scope="row">{escape(str(signal["ticker"]))}</th>'
+            f'<td>{escape(_date(signal.get("signal_timestamp")))}</td>'
+            f'<td>{escape(_reference_price(signal.get("reference_price")))}'
+            f'<small>{escape(_date(signal.get("reference_price_timestamp")))}</small></td>'
+            f'<td><span class="atlas-rc-signal-state">{escape(state)}</span></td></tr>'
+        )
+    return (
+        f'<section class="atlas-rc-directory" data-atlas-qa="report-card-signal-directory" data-atlas-signal-count="{len(signals)}">'
+        '<h2>Original signal history</h2><p>Registered recommendations and their original price evidence.</p>'
+        '<div class="atlas-rc-directory-scroll" tabindex="0" role="region" aria-label="Original signal history table">'
+        '<table><caption>Original registered signals</caption><thead><tr>'
+        '<th scope="col">Signal</th><th scope="col">Registered (UTC)</th>'
+        '<th scope="col">Signal reference price</th><th scope="col">Observations</th>'
+        '</tr></thead><tbody>' + ''.join(rows) + '</tbody></table></div>'
+        '<p class="atlas-rc-reference-note">A signal reference price is not an executable entry. '
+        'Historical prices do not create prospective returns. Open a signal to inspect its original chart and evidence.</p>'
+        '</section>'
+    )
+
+
+DIRECTORY_CSS = '''<style>
+.atlas-rc-directory{margin:1.1rem 0;color:#e7eff9}.atlas-rc-directory h2{font-size:1.45rem!important;margin:.25rem 0!important}
+.atlas-rc-directory p{color:#a9bfd5;font-size:.88rem;line-height:1.5}.atlas-rc-directory-scroll{max-height:420px;overflow:auto;border:1px solid #30455e;border-radius:14px;background:#101d2f}
+.atlas-rc-directory table{width:100%;border-collapse:collapse;min-width:480px;font-size:.88rem}
+.atlas-rc-directory caption{text-align:left;padding:.6rem .8rem;color:#a9bfd5;font-size:.78rem}
+.atlas-rc-directory th,.atlas-rc-directory td{padding:.8rem;text-align:left;border-bottom:1px solid #263b54;vertical-align:middle}
+.atlas-rc-directory thead th{position:sticky;top:0;background:#182b42;color:#c0d6ed;font-size:.72rem;letter-spacing:.025em;z-index:1}
+.atlas-rc-directory tbody th{color:#f1f7ff;font-weight:750}.atlas-rc-directory td{color:#d4e2f1;font-variant-numeric:tabular-nums}
+.atlas-rc-directory td small{display:block;color:#9aafc6;font-size:.7rem;margin-top:.22rem}
+.atlas-rc-signal-state{display:inline-block;padding:.25rem .5rem;border:1px solid #6a593c;border-radius:999px;background:#2a281f;color:#e8cc91;font-size:.76rem}
+.atlas-rc-directory .atlas-rc-reference-note{font-size:.75rem;color:#9bafc5;margin:.6rem 0}
+.atlas-rc-directory-scroll:focus-visible{outline:3px solid #8bc1ff;outline-offset:3px}
+@media(max-width:600px){.atlas-rc-directory th,.atlas-rc-directory td{padding:.65rem .6rem}.atlas-rc-directory table{min-width:440px;font-size:.82rem}}
+</style>'''
+
+
+def render_signal_directory(signals, *, on_open) -> None:
+    import streamlit as st
+    st.markdown(DIRECTORY_CSS + signal_directory_html(signals), unsafe_allow_html=True)
+    by_id = {str(item['signal_id']): item for item in signals}
+    if not by_id:
+        st.caption('No registered signals are available.')
+        return
+    selected = st.selectbox(
+        'Open an original signal', tuple(by_id),
+        format_func=lambda signal_id: f'{by_id[signal_id]["ticker"]} · {_date(by_id[signal_id].get("signal_timestamp"))}',
+        key='report_card_directory_selection',
+    )
+    st.button('Open selected signal →', key='report_card_directory_open',
+              on_click=on_open, args=(st.session_state, selected), type='primary')

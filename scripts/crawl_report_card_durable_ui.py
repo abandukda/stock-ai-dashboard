@@ -43,6 +43,10 @@ async def _wait_for_stable_condition(
     raise AssertionError(failure)
 
 
+async def marker_attribute(marker: Any, key: str) -> Any:
+    return await marker.get_attribute(f"data-atlas-{key}")
+
+
 async def wait_for_report_card_overview_settled(page: Page, mode: str) -> None:
     metric_labels = ("Signals", "Observations", "Open signals", "SPY comparisons")
     copy_labels = (
@@ -51,6 +55,14 @@ async def wait_for_report_card_overview_settled(page: Page, mode: str) -> None:
     )
 
     async def settled() -> bool:
+        directory = page.locator('[data-atlas-qa="report-card-signal-directory"]')
+        overview = page.locator('[data-atlas-qa="report-card-overview"]')
+        if not await directory.count() or not await overview.count():
+            return False
+        expected = int(await marker_attribute(overview, "signal-count") or -1)
+        if (int(await marker_attribute(directory, "signal-count") or -2) != expected
+                or await directory.locator("tbody tr").count() != expected):
+            return False
         for label in metric_labels:
             locator = page.get_by_text(label, exact=True).first
             if not await locator.count() or not await locator.is_visible():
