@@ -659,9 +659,10 @@ class AtlasVisualCrawler:
             try:
                 await scope.evaluate("""() => {
                   window.scrollTo(0, 0);
-                  for (const node of document.querySelectorAll(
-                    '[data-testid="stAppViewContainer"], [data-testid="stMain"]'
-                  )) node.scrollTop = 0;
+                  for (const node of document.querySelectorAll('*')) {
+                    if (node.scrollHeight > node.clientHeight &&
+                        /auto|scroll/.test(getComputedStyle(node).overflowY)) node.scrollTop = 0;
+                  }
                 }""")
             except Exception:
                 continue
@@ -1558,17 +1559,22 @@ class AtlasVisualCrawler:
         scope = await self._app_scope(page)
         geometry = await scope.evaluate("""
             () => {
-              const candidates = [
-                document.querySelector('[data-testid="stAppViewContainer"]'),
-                document.querySelector('[data-testid="stMain"]'),
-                document.scrollingElement,
-              ].filter(Boolean);
+              const candidates = [document.scrollingElement, ...Array.from(
+                document.querySelectorAll('*')
+              ).filter(element => element.clientHeight > 0 &&
+                element.scrollHeight > element.clientHeight &&
+                /auto|scroll/.test(getComputedStyle(element).overflowY))].filter(Boolean);
               const node = candidates.sort((a, b) =>
-                Math.max(b.scrollHeight || 0, b.clientHeight || 0) -
-                Math.max(a.scrollHeight || 0, a.clientHeight || 0))[0];
+                (b.scrollHeight - b.clientHeight) - (a.scrollHeight - a.clientHeight))[0];
+              const path = [];
+              for (let current = node; current && current !== document.documentElement;
+                   current = current.parentElement) {
+                const siblings = Array.from(current.parentElement?.children || []);
+                path.unshift(`${current.tagName.toLowerCase()}:nth-child(${siblings.indexOf(current) + 1})`);
+              }
               return {
                 selector: node === document.scrollingElement ? '__document__' :
-                  (node.getAttribute('data-testid') ? `[data-testid="${node.getAttribute('data-testid')}"]` : '__document__'),
+                  ['html', ...path].join(' > '),
                 scrollHeight: Math.max(node.scrollHeight || 0, node.clientHeight || 0),
                 clientHeight: Math.max(node.clientHeight || window.innerHeight, 1),
                 originalTop: node.scrollTop || window.scrollY || 0,
