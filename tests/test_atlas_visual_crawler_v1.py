@@ -876,7 +876,7 @@ def test_supporting_evidence_and_grounding_are_independently_certified():
     assert "trade date" in source.lower()
     assert "temporarily unavailable" in source.lower()
     assert "data-atlas-response-length" in source
-    assert 'reversed(range(await candidates.count()))' in source
+    assert 'for candidate in reversed(candidates):' in source
     assert 'missing evidence\\s*&\\s*limitations' in source
     assert 'response_marker is not None and lower_evidence_settled' in source
 
@@ -1322,3 +1322,35 @@ def test_readonly_desktop_audit_preserves_watchlist_and_reaches_ask():
         if not edit:
             assert crawler._record.await_args.kwargs["category"] == "AUDIT_SCOPE"
             assert crawler._record.await_args.kwargs["required"] is False
+
+
+def test_ask_response_evidence_in_streamlit_iframe(monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock, Mock
+    import agents.atlas_visual_crawler_v1 as module
+
+    evidence = object()
+    root = SimpleNamespace(locator=Mock(return_value=SimpleNamespace(all=AsyncMock(return_value=[]))))
+    frame = SimpleNamespace(locator=Mock(return_value=SimpleNamespace(all=AsyncMock(return_value=[evidence]))))
+    monkeypatch.setattr(module, "_scopes", lambda page: [root, frame])
+    actual = asyncio.run(AtlasVisualCrawler._completed_ask_responses(None, object()))
+    assert actual == [evidence]
+    root.locator.assert_called_once()
+    frame.locator.assert_called_once()
+
+
+def test_home_keeps_cta_proof_separate_from_full_research_tab_matrix():
+    method = inspect.getsource(AtlasVisualCrawler._home_cards)
+    assert "_click_tabs" not in method
+    assert 'await button.click(timeout=6000)' in method
+    assert 'passed=destination and exact_ticker and render_complete and not exception' in method
+    for runner in (AtlasVisualCrawler._required_desktop, AtlasVisualCrawler._required_mobile):
+        source = inspect.getsource(runner)
+        assert "for ticker in REQUIRED_RESEARCH_TICKERS" in source
+        assert "tabs=True" in source
+    assert sum(x["timeout_seconds"] for x in module_budget()) <= 720
+
+
+def module_budget():
+    from agents.atlas_visual_crawler_v1 import REQUIRED_PHASE_BUDGET
+    return REQUIRED_PHASE_BUDGET.values()
