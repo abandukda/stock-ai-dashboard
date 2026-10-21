@@ -6,8 +6,8 @@ from typing import Any, Mapping
 def overview_html(report: Mapping[str, Any]) -> str:
     observations = int(report['observation_count'])
     metrics = (
-        ('Tracked signals', report['signal_count'], 'Original registered cohort'),
-        ('Recorded observations', observations, 'Prospective evidence in the ledger'),
+        ('Signals', report['signal_count'], 'Original registered cohort'),
+        ('Observations', observations, 'Prospective evidence in the ledger'),
         ('Open signals', report['open_signal_count'], 'Tracking remains in progress'),
         ('SPY comparisons', report['spy_comparison_count'], 'Same-session benchmark evidence'),
     )
