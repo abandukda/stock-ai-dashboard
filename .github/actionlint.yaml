@@ -1,0 +1,4 @@
+self-hosted-runner:
+  labels:
+    - atlas-worker-1
+    - atlas-contabo-staging

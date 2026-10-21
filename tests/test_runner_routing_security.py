@@ -96,6 +96,23 @@ class RoutingSecurity(unittest.TestCase):
         self.assertIn("'ATLAS_CUSTOMER_REPORT_CARD_ENABLED'] == 'false'", source)
         self.assertIn('production_ledger_access=False', source)
 
+    def test_runner_identity_context_is_scoped_to_first_step(self):
+        # GitHub rejects runner context in jobs.<job>.env before allocation.
+        job = workflows()[SMOKE]['jobs']['smoke']
+        self.assertFalse(any('runner.' in value for value in job['env'].values()))
+        first = job['steps'][0]
+        self.assertEqual(first['env']['ATLAS_ACTUAL_RUNNER'], '${{ runner.name }}')
+        self.assertIn('test "$ATLAS_ACTUAL_RUNNER" = atlas-contabo-1', first['run'])
+
+    def test_ci_checks_workflow_semantics_with_checksum_pinned_linter(self):
+        steps = workflows()['atlas_runner_routing_ci.yml']['jobs']['offline-routing-contract']['steps']
+        lint = next(step['run'] for step in steps if 'pinned actionlint' in step.get('name', ''))
+        self.assertIn('actionlint_1.7.12_linux_amd64.tar.gz', lint)
+        self.assertIn('8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8', lint)
+        self.assertIn('sha256sum -c -', lint)
+        self.assertIn('.github/workflows/' + SMOKE, lint)
+        self.assertNotIn('-ignore', lint)
+
     def test_launcher_preserves_registration_and_has_bounded_foreground_mode(self):
         source = (ROOT / 'scripts/contabo_smoke_once.sh').read_text()
         for forbidden in ('config.sh', 'svc.sh install', 'svc.sh start', 'sudo ', 'pkill ', 'killall '):

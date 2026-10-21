@@ -46,6 +46,13 @@ which explicitly requests `atlas-worker-1`; do not cancel or retarget it.
 1. Review/approve the exact PR head and merge the routing fix. Issue78 requires
    explicit exact-head owner approval for any merge to auto-deployed main.
 2. Recheck saved all-external approval, staging label, main identity and queue.
+   Require workflow expression validation as well as YAML parsing. PR106 merged
+   at `ec6e4e2accefad1f70cf8bfb4d0d0e8a284a482e`, but GitHub rejected its smoke
+   job-level `runner.name` context before allocation (run39636193499). The repair
+   scopes that context to the first step and adds checksum-pinned actionlint to
+   hosted CI. Check workflow runs for the exact source SHA, including validation
+   failures that may not appear in commit check-runs. Do not dispatch or start
+   Contabo until the separately approved repair is merged and validated.
    Do not approve outside/fork self-hosted workflows during the smoke window.
 3. Dispatch `ATLAS Contabo Provider-Free Smoke` from **main**, as `abandukda`.
    Record the resulting run ID and exact main SHA; ensure its only job is

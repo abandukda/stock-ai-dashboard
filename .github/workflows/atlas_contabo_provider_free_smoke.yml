@@ -21,12 +21,13 @@ jobs:
     permissions: {}
     timeout-minutes: 5
     env:
-      ATLAS_ACTUAL_RUNNER: ${{ runner.name }}
       ATLAS_CUSTOMER_REPORT_CARD_ENABLED: 'false'
       ATLAS_QA_PROVIDER_CALLS_ALLOWED: '0'
       ATLAS_ALLOW_EXTERNAL_AI: 'false'
     steps:
       - name: Verify assigned runner before any workload
+        env:
+          ATLAS_ACTUAL_RUNNER: ${{ runner.name }}
         shell: bash
         run: |
           set -euo pipefail

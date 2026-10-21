@@ -4,6 +4,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/**'
+      - '.github/actionlint.yaml'
       - 'scripts/contabo_smoke_once.sh'
       - 'tests/test_runner_routing_security.py'
       - 'tests/test_full_qa_split_handoff.py'
@@ -21,6 +22,20 @@ jobs:
         with:
           persist-credentials: false
       - run: python3 -m pip install PyYAML==6.0.3 pytest==9.1.1
+      - name: Validate smoke and routing workflow expressions with pinned actionlint
+        shell: bash
+        run: |
+          set -euo pipefail
+          lint_dir=$(mktemp -d "$RUNNER_TEMP/atlas-actionlint.XXXXXXXX")
+          trap 'rm -rf "$lint_dir"' EXIT
+          curl --proto '=https' --tlsv1.2 -fsSL \
+            https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz \
+            -o "$lint_dir/actionlint.tar.gz"
+          printf '%s  %s\n' '8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8' "$lint_dir/actionlint.tar.gz" | sha256sum -c -
+          tar --no-same-owner -xzf "$lint_dir/actionlint.tar.gz" -C "$lint_dir" actionlint
+          "$lint_dir/actionlint" -shellcheck= -pyflakes= \
+            .github/workflows/atlas_contabo_provider_free_smoke.yml \
+            .github/workflows/atlas_runner_routing_ci.yml
       - name: Enforce routing and negative-case startup guard contracts
         run: python3 -m unittest discover -s tests -p test_runner_routing_security.py -v
       - name: Preserve full QA split and finalization contracts
