@@ -58,6 +58,10 @@ def inject_atlas_design_system() -> None:
           body:has([data-atlas-role-category="customer_viewer"]) .st-key-v784_single_nav [role="radiogroup"] label{min-width:0!important;justify-content:center;padding:.42rem .15rem!important;gap:.2rem!important;margin:0!important}
           body:has([data-atlas-role-category="customer_viewer"]) .st-key-v784_single_nav [role="radiogroup"] label p{font-size:.72rem!important;white-space:nowrap}
         }
+        @media(max-width:420px){
+          /* Four complete labelled controls need two rows at narrow widths. */
+          body:has([data-atlas-role-category="customer_viewer"]) .st-key-v784_single_nav [role="radiogroup"]{grid-template-columns:repeat(2,minmax(0,1fr))}
+        }
         </style>
         <span data-atlas-qa="atlas-design-system" data-atlas-design-version="1" aria-hidden="true" style="display:none">atlas-design-system</span>
         """,
