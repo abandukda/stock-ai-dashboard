@@ -26472,6 +26472,9 @@ def v784_top_nav(pages):
       [data-testid="stRadio"] label p{display:block!important;visibility:visible!important;font-size:.7rem!important;letter-spacing:0!important;white-space:nowrap!important}
     }
     </style>""", unsafe_allow_html=True)
+    if tuple(pages) == ("Home", "Research", "Watchlist", "Ask ATLAS"):
+        from services.customer_navigation_contract import customer_mobile_navigation_css
+        st.markdown(customer_mobile_navigation_css(), unsafe_allow_html=True)
     selected = st.radio(
         "Navigate",
         pages,

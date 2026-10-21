@@ -56,3 +56,11 @@ class PostMergeVerification(unittest.TestCase):
         self.assertEqual(classify('The runner has received a shutdown signal.')['cause'],'SHUTDOWN_INITIATOR_UNPROVEN')
         self.assertEqual(classify('Out of memory: Killed process 123 (python3)')['cause'],'HOST_OOM_RECORDED')
         self.assertEqual(classify('operation canceled')['cause'],'INSUFFICIENT_EVIDENCE')
+
+    def test_mobile_navigation_scopes_customer_grid_without_role_changes(self):
+        from services.customer_navigation_contract import customer_mobile_navigation_css
+        css=customer_mobile_navigation_css()
+        self.assertIn('grid-template-columns:repeat(2,minmax(0,1fr))!important',css)
+        self.assertIn('@media(max-width:420px)',css)
+        app=(Path(__file__).resolve().parents[1]/'app.py').read_text()
+        self.assertIn('if tuple(pages) == ("Home", "Research", "Watchlist", "Ask ATLAS"):',app)
