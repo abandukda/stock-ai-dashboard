@@ -18,6 +18,16 @@ EARNINGS_FIELDS = {
     "forward_eps": ("Expected profit per share", "Forward EPS is an estimate of future profit per share, not a reported earnings result. It cannot establish that the company beat expectations."),
 }
 
+RESILIENCE_FIELDS = {
+    "cash_and_equivalents": ("Cash on hand", "Cash can help pay bills or fund investment. It is a balance at a point in time, not the cash generated during a year."),
+    "total_debt": ("Borrowed money", "Debt must be serviced even when business slows. Check repayment dates, interest costs, and any restrictions before judging whether it is manageable."),
+    "shares_outstanding": ("Shares outstanding", "Each share represents a slice of ownership. Issuing more shares can reduce your slice; a single share count cannot establish dilution or buybacks."),
+}
+
+
+def _finite_number(value: Any) -> bool:
+    return not isinstance(value, bool) and isinstance(value, (int, float)) and math.isfinite(value)
+
 
 def _mapping(value: Any) -> Mapping[str, Any]:
     return value if isinstance(value, Mapping) else {}
@@ -29,27 +39,42 @@ def build_learning_guide(page: Mapping[str, Any]) -> dict[str, Any]:
         return {"status": "UNAVAILABLE", "earnings": (), "headlines": ()}
     snapshot = _mapping(page.get("financial_snapshot"))
     rows = []
+    resilience = []
     seen = set()
     for item in snapshot.get("items") or ():
         if snapshot.get("status") != "AVAILABLE" or not isinstance(item, Mapping):
             continue
         field = item.get("field")
         value = item.get("value")
-        if field not in EARNINGS_FIELDS or field in seen or not item.get("evidence_id"):
+        definitions = {**EARNINGS_FIELDS, **RESILIENCE_FIELDS}
+        if field not in definitions or field in seen or not item.get("evidence_id"):
             continue
-        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+        if not _finite_number(value):
             continue
         seen.add(field)
-        title, explanation = EARNINGS_FIELDS[field]
-        rows.append({**dict(item), "question": title, "explanation": explanation})
+        title, explanation = definitions[field]
+        target = rows if field in EARNINGS_FIELDS else resilience
+        target.append({**dict(item), "question": title, "explanation": explanation})
     changes = _mapping(page.get("recent_changes"))
     headlines = tuple(dict(item) for item in changes.get("items") or ()
                       if isinstance(item, Mapping) and item.get("headline")
                       and item.get("article_publisher") and item.get("article_timestamp")) if changes.get("status") == "AVAILABLE" else ()
     summary = _mapping(page.get("summary"))
     conditions = _mapping(summary.get("watch_conditions"))
+    about = _mapping(page.get("about"))
+    profile = _mapping(about.get("profile"))
+    provenance = _mapping(about.get("provenance"))
+    description = next((profile[key].strip() for key in ("description", "business_summary", "company_description")
+                        if isinstance(profile.get(key), str) and profile[key].strip()), None)
+    business = ({"description": description, "provenance": dict(provenance)}
+                if about.get("status") == "AVAILABLE" and description and provenance.get("raw_evidence_id") else None)
+    valuation = tuple(dict(item) for item in page.get("fundamentals") or ()
+                      if isinstance(item, Mapping) and item.get("fact_name") in {"Last Certified Close", "ATLAS Fair Value"}
+                      and item.get("classification") == "CERTIFIED_ATLAS" and item.get("source")
+                      and item.get("evidence_ids") and _finite_number(item.get("value")))
     return {
         "status": "AVAILABLE", "earnings": tuple(rows), "headlines": headlines,
+        "business": business, "valuation": valuation, "resilience": tuple(resilience),
         "bull_watch": tuple(conditions.get("strengthen") or ()),
         "bear_watch": tuple(conditions.get("weaken") or ()),
         "risks": tuple(summary.get("risks") or ()),

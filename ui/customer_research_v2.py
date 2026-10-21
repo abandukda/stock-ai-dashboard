@@ -161,6 +161,17 @@ def _render_institutional_overview(report: Mapping[str, Any], *, ticker: str) ->
 
 
 
+def _render_learning_fact(item: Mapping[str, Any]) -> None:
+    st.markdown(f'**{item["question"]}: {_escape_markdown_currency(_financial_value(item["value"], str(item.get("unit") or "")))}**')
+    st.write(item["explanation"])
+    st.caption(
+        f'Fiscal period: {_financial_period(item.get("period"))} · '
+        f'Source: {item.get("provider") or "Unavailable"} · '
+        f'Evidence as of: {_financial_period(item.get("as_of"))} · '
+        f'Evidence ID: {item["evidence_id"]}'
+    )
+
+
 def _render_learning_guide(page: Mapping[str, Any], *, ticker: str) -> None:
     guide = build_learning_guide(page)
     if guide["status"] != "AVAILABLE":
@@ -168,6 +179,43 @@ def _render_learning_guide(page: Mapping[str, Any], *, ticker: str) -> None:
     _marker("learning-guide", ticker, status=guide["status"], non_scoring="true")
     st.markdown("### Read the evidence like an investor")
     st.caption("Learning guidance · Uses this retained snapshot, not live results or AI-generated research.")
+    with st.expander("Business model: how does this company make money?", expanded=True):
+        if guide["business"]:
+            st.write(_escape_markdown_currency(guide["business"]["description"]))
+            provenance = guide["business"]["provenance"]
+            st.caption(
+                f'Source: {provenance.get("provider") or provenance.get("source") or "Unavailable"} · '
+                f'Evidence captured: {_financial_period(provenance.get("capture_timestamp"))} · '
+                f'Evidence ID: {provenance["raw_evidence_id"]}'
+            )
+        else:
+            st.info("A source-linked business description is unavailable in this snapshot.")
+        st.write(
+            "Start by identifying what customers pay for and why they keep buying. Then ask what it costs to deliver "
+            "that product or service. A company can grow sales without keeping more profit. The profile alone does not "
+            "establish pricing power, repeat purchases, or a lasting advantage over competitors."
+        )
+        st.caption("Go deeper: use segment and customer disclosures to check which activities generate sales and profit, and whether a few customers account for a large share. Those breakdowns are unavailable in this guide.")
+    with st.expander("Valuation: is a good business a good investment at this price?", expanded=True):
+        st.write(
+            "Price is what a share cost at the retained close. Fair Value is ATLAS's published estimate of what a share "
+            "is worth under its assumptions. Even a strong business can be an expensive investment. A gap between price "
+            "and Fair Value is a reason to examine the assumptions; it is not a promised gain or a deadline for reaching that value."
+        )
+        for item in guide["valuation"]:
+            st.markdown(f'**{item["fact_name"]}: {_escape_markdown_currency(item["display_value"])}**')
+            st.caption(
+                f'Period: {_financial_period(item.get("period"))} · Source: {item["source"]} · '
+                f'As of: {_financial_period(item.get("source_timestamp"))} · '
+                f'Evidence IDs: {", ".join(str(value) for value in item["evidence_ids"])}'
+            )
+        if len({item["fact_name"] for item in guide["valuation"]}) < 2:
+            st.info("A source-linked price and Fair Value pair is unavailable in this guide; no comparison is inferred.")
+        st.caption(
+            "Go deeper: ask how sensitive the valuation is to growth, future profit margins, investment needs, and the return "
+            "investors require for taking risk. A reproducible assumption-by-assumption sensitivity analysis is unavailable "
+            "in this guide. Analyst targets are separate opinions; they do not validate ATLAS Fair Value."
+        )
     with st.expander("Earnings: are sales turning into profit and cash?", expanded=True):
         st.write(
             "Read sales, profit, and cash together. Higher sales can be encouraging, but costs may rise faster. "
@@ -176,14 +224,7 @@ def _render_learning_guide(page: Mapping[str, Any], *, ticker: str) -> None:
         if not guide["earnings"]:
             st.info("Field-level earnings evidence is unavailable in this snapshot. Any retained filing history remains in Detailed evidence below.")
         for item in guide["earnings"]:
-            st.markdown(f'**{item["question"]}: {_escape_markdown_currency(_financial_value(item["value"], str(item.get("unit") or "")))}**')
-            st.write(item["explanation"])
-            st.caption(
-                f'Fiscal period: {_financial_period(item.get("period"))} · '
-                f'Source: {item.get("provider") or "Unavailable"} · '
-                f'Evidence as of: {_financial_period(item.get("as_of"))} · '
-                f'Evidence ID: {item["evidence_id"]}'
-            )
+            _render_learning_fact(item)
         st.caption(
             "An earnings beat or miss requires actual results and a comparable pre-release estimate for the same period and accounting basis. "
             "That matched comparison is unavailable in this guide. Management guidance and transcript commentary are also unavailable here. "
@@ -195,6 +236,19 @@ def _render_learning_guide(page: Mapping[str, Any], *, ticker: str) -> None:
             "or full years with full years. A quarterly filing may contain cumulative year-to-date cash flow; "
             "do not compare it directly with a single quarter. Keep currency, units, and accounting definitions consistent. "
             "Separate reported results from forward estimates, and check one-time items and changes in share count."
+        )
+    with st.expander("Financial risks: can the business withstand a difficult year?", expanded=False):
+        for item in guide["resilience"]:
+            _render_learning_fact(item)
+        if not guide["resilience"]:
+            st.info("Source-linked cash, debt, and share-count evidence is unavailable in this snapshot.")
+        st.markdown("**Risks retained in the investment assessment**")
+        _list(list(guide["risks"])) if guide["risks"] else st.caption("Company-specific measured risks are unavailable; missing evidence does not mean low risk.")
+        st.caption(
+            f'ATLAS assessment · Evaluation snapshot: {guide.get("snapshot") or "Unavailable"}. '
+            "Individual risk source dates are unavailable here. Cash and debt from different dates or definitions should not "
+            "be netted together. Debt maturity, interest coverage, and restricted-cash details are unavailable in this guide; "
+            "these balances alone cannot establish financial safety."
         )
     with st.expander("Bull and bear: what would make the thesis stronger or weaker?", expanded=False):
         st.write(
