@@ -88,7 +88,12 @@ def _instant(value: Any) -> datetime | None:
     try:
         if isinstance(value, (int, float)):
             return datetime.fromtimestamp(float(value), tz=timezone.utc)
-        return datetime.fromisoformat(str(value).strip().replace("Z", "+00:00")).astimezone(timezone.utc)
+        instant = datetime.fromisoformat(str(value).strip().replace("Z", "+00:00"))
+        # Provider date-only periods and naive ISO stamps must not inherit the
+        # worker's local timezone and silently move to the previous UTC date.
+        if instant.tzinfo is None:
+            instant = instant.replace(tzinfo=timezone.utc)
+        return instant.astimezone(timezone.utc)
     except (TypeError, ValueError, OSError):
         return None
 

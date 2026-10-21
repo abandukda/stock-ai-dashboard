@@ -1226,3 +1226,27 @@ def test_unlined_financial_values_are_not_projected_or_used_in_brief():
     page = build_customer_research_v2(source)
     assert page["financial_snapshot"]["status"] == "UNAVAILABLE"
     assert all("999" not in reason for reason in page["summary"]["why_rating"])
+
+
+@pytest.mark.parametrize('worker_zone', ['UTC', 'Asia/Tokyo', 'America/New_York'])
+def test_research_calendar_dates_do_not_inherit_worker_timezone(monkeypatch, worker_zone):
+    import os
+    import time
+    from datetime import timezone
+    from services.customer_research_v2 import _human_date, _instant
+    if not hasattr(time, 'tzset'):
+        pytest.skip('Worker timezone controls require tzset')
+    previous = os.environ.get('TZ')
+    try:
+        monkeypatch.setenv('TZ', worker_zone)
+        time.tzset()
+        assert _instant('2026-10-20').isoformat() == '2026-10-20T00:00:00+00:00'
+        assert _instant('2026-10-20T12:30:00').isoformat() == '2026-10-20T12:30:00+00:00'
+        assert _human_date('2026-01-25') == 'Jan 25, 2026'
+        assert _instant('2026-10-20T01:00:00+09:00').isoformat() == '2026-10-19T16:00:00+00:00'
+    finally:
+        if previous is None:
+            monkeypatch.delenv('TZ', raising=False)
+        else:
+            monkeypatch.setenv('TZ', previous)
+        time.tzset()
