@@ -1271,3 +1271,16 @@ def test_daily_brief_uses_company_specific_thesis_risk_and_governed_market_conte
     assert "Valuation compression." in body
     assert "Treasury yields rose while the broad market finished mixed." in body
     assert 'data-atlas-model-status="NOT_INVOKED"' in body
+
+
+def test_compact_card_preserves_canonical_dated_price_label_in_rendered_ui():
+    app = AppTest.from_string('''
+from ui.home_guidance_vnext import _compact_opportunity_card
+_compact_opportunity_card({'ticker':'NVDA','display_price':233.99,
+    'display_price_label':'Last-known Price','atlas_fair_value':346.05}, key='dated-price')
+''').run()
+    assert not app.exception
+    rendered = '\n'.join(str(item.value) for item in app.markdown)
+    assert '<small>Last-known Price</small>' in rendered
+    assert '<small>Current Price</small>' not in rendered
+    assert '$233.99' in rendered and '$346.05' in rendered

@@ -1377,7 +1377,7 @@ def _compact_opportunity_card(card: Mapping[str, Any], *, key: str, first: bool 
         f'<header><div><small>{html.escape(_display(state))}</small><h3>{html.escape(identity)}</h3></div>'
         f'<aside><small>{html.escape(featured_label)}</small><strong>{html.escape(_display(state))}</strong></aside></header>'
         '<div class="atlas-home-compact-values">'
-        f'<span><small>Current Price</small><b>{html.escape(_money(card.get("display_price")))}</b></span>'
+        f'<span><small>{html.escape(str(card.get("display_price_label") or "Dated price"))}</small><b>{html.escape(_money(card.get("display_price")))}</b></span>'
         f'<span><small>ATLAS Fair Value</small><b>{html.escape(_money(card.get("atlas_fair_value")))}</b></span>'
         f'<span><small>Potential</small><b>{html.escape(_score(potential, suffix="%"))}</b></span>'
         f'<span><small>Opportunity</small><b>{html.escape(_score(card.get("opportunity")))}</b></span>'
@@ -1763,7 +1763,7 @@ def _render_daily_brief(story: Mapping[str, Any]) -> None:
     lead_panel = (
         '<small>LEADING CERTIFIED OPPORTUNITY</small>'
         f'<b>{html.escape(identity)}</b><div class="atlas-brief-values">'
-        f'<span><small>Dated price</small><strong>{html.escape(_money(lead.get("display_price")))}</strong></span>'
+        f'<span><small>{html.escape(str(lead.get("display_price_label") or "Dated price"))}</small><strong>{html.escape(_money(lead.get("display_price")))}</strong></span>'
         f'<span><small>ATLAS Fair Value</small><strong>{html.escape(_money(lead.get("atlas_fair_value")))}</strong></span>'
         '</div><span>Fair Value is an estimate, not a guaranteed return. Open the investment case below.</span>'
         if lead else
