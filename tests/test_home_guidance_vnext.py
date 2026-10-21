@@ -1298,3 +1298,10 @@ _render_footer_navigation()
         app.button[index].click().run()
         assert not app.exception
         assert app.session_state['v79_pending_page'] == route
+
+
+def test_compact_reason_rejects_classifier_fragments_but_preserves_sourced_prose():
+    from ui.home_guidance_vnext import _compact_reason
+    assert _compact_reason({'certified_summary_facts':{'financial_driver':'shallow drawdown'}}) == 'A concise certified investment reason is unavailable for this snapshot.'
+    sentence = 'Recurring subscription revenue supports the retained business case.'
+    assert _compact_reason({'certified_summary_facts':{'financial_driver':sentence}}) == sentence

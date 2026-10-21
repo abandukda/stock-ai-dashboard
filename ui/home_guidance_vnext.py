@@ -1283,14 +1283,14 @@ def _compact_reason(card: Mapping[str, Any]) -> str:
     thesis = list((projection.get("sections") or {}).get("thesis") or ())
     if thesis:
         projected = str(thesis[0].get("text") or "").strip()
-        if projected and not re.search(r"\d", projected):
+        if len(projected.split()) >= 6 and not re.search(r"\d", projected):
             return projected.rstrip(".") + "."
     facts = card.get("certified_summary_facts") if isinstance(card.get("certified_summary_facts"), Mapping) else {}
     for key in ("business_driver", "financial_driver", "valuation_driver", "primary_driver"):
         value = facts.get(key)
         if value and not isinstance(value, (Mapping, list, tuple, set)):
             statement = str(value).strip().rstrip(".")
-            if not re.search(r"\d", statement):
+            if len(statement.split()) >= 6 and not re.search(r"\d", statement):
                 return statement + "."
     summary = _atlas_summary(card).strip()
     if summary and "cannot produce" not in summary.lower():
@@ -1366,8 +1366,9 @@ def _compact_opportunity_card(card: Mapping[str, Any], *, key: str, first: bool 
     featured_label = f"Featured #{int(rank)}" if isinstance(rank, (int, float)) else "Featured idea"
     # The lead thesis and risk already appear in the Daily Intelligence Brief.
     # Do not repeat the same paragraphs immediately in the first card.
+    thesis_available = thesis != "A concise certified investment reason is unavailable for this snapshot."
     narrative = "" if first else (
-        f'<p class="atlas-home-compact-thesis"><b>Why it stands out</b> {html.escape(thesis)}</p>'
+        (f'<p class="atlas-home-compact-thesis"><b>Why it stands out</b> {html.escape(thesis)}</p>' if thesis_available else '')
         + (f'<p class="atlas-home-compact-risk"><b>Main concern</b> {html.escape(risk)}</p>' if risk else '')
     )
     st.markdown(
@@ -1748,7 +1749,8 @@ def _render_daily_brief(story: Mapping[str, Any]) -> None:
         lead_copy = (
             f'{html.escape(identity)} leads the certified BUY NOW set with an Opportunity score of '
             f'{html.escape(_score(lead.get("opportunity")))}. '
-            f'<strong>Why it stands out:</strong> {html.escape(thesis)}'
+            + (f'<strong>Why it stands out:</strong> {html.escape(thesis)}'
+               if thesis != "A concise certified investment reason is unavailable for this snapshot." else '')
             + (f' <strong>Main concern:</strong> {html.escape(risk)}' if risk else '')
         )
     else:
