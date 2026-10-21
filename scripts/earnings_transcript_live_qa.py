@@ -14,7 +14,7 @@ from services.transcript_intelligence_runtime import (
 from services.transcript_provider import ConfiguredTranscriptProvider
 
 
-def run(symbols: list[str]) -> dict[str, Any]:
+def run(symbols: list[str], *, allow_external_ai: bool = False) -> dict[str, Any]:
     provider = ConfiguredTranscriptProvider()
     results = []
     for symbol in symbols:
@@ -30,9 +30,11 @@ def run(symbols: list[str]) -> dict[str, Any]:
         selected = periods[0]
         first = retrieve_and_summarize_transcript(
             symbol, year=int(selected["fiscal_year"]), quarter=int(selected["fiscal_quarter"]), provider=provider,
+            allow_external_ai=allow_external_ai,
         )
         second = retrieve_and_summarize_transcript(
             symbol, year=int(selected["fiscal_year"]), quarter=int(selected["fiscal_quarter"]), provider=provider,
+            allow_external_ai=allow_external_ai,
         )
         op = dict(first.operation_metadata)
         results.append({
@@ -79,9 +81,11 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--symbols", default="AAPL,MSFT,NVDA")
     parser.add_argument("--output", default="audit_results/earnings_transcript_live_qa/report.json")
-    parser.add_argument("--require-ai", action="store_true")
+    parser.add_argument("--require-ai", action="store_true",
+                        help="Explicitly enable paid external AI; use only with separate owner authorization")
     args = parser.parse_args()
-    report = run([item.strip().upper() for item in args.symbols.split(",") if item.strip()])
+    report = run([item.strip().upper() for item in args.symbols.split(",") if item.strip()],
+                 allow_external_ai=args.require_ai)
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
