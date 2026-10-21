@@ -148,7 +148,7 @@ jobs:
         shell: bash
         run: |
           python scripts/crawl_report_card_durable_ui.py \
-            --output-dir audit_results/report_card_durable_readonly
+            --output-dir audit_results/report_card_durable_readonly --require-original-cohort
 
       - name: Stop runner-local UI
         if: ${{ always() }}
