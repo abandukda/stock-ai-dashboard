@@ -50,6 +50,12 @@ def test_stitched_capture_uses_clamped_browser_offsets_without_repeating_rows(tm
     class Browser:
         top = 0
 
+        async def add_style_tag(self, **_):
+            class Style:
+                async def evaluate(self, _):
+                    pass
+            return Style()
+
         async def evaluate(self, script, args=None):
             if args is None:
                 return {"selector": "__document__", "scrollHeight": 10,
@@ -82,6 +88,40 @@ def test_stitched_capture_uses_clamped_browser_offsets_without_repeating_rows(tm
         assert [picture.getpixel((0, row))[0] for row in range(10)] == list(range(10))
     assert facts["actual_scroll_offsets"] == [0, 4]
     assert browser.top == 2  # Capture restores the user's original position.
+
+
+def test_capture_chrome_is_restored_before_interactions_even_after_failure():
+    from agents.qa_screenshot_capture import screenshot_for_evidence
+
+    class Browser:
+        header_hidden = False
+        fail = False
+
+        async def add_style_tag(self, **_):
+            self.header_hidden = True
+            browser = self
+            class Style:
+                async def evaluate(self, _):
+                    browser.header_hidden = False
+            return Style()
+
+        async def screenshot(self, **_):
+            assert self.header_hidden
+            if self.fail:
+                raise RuntimeError('CAPTURE_FAILED')
+            return b'actual screenshot'
+
+    browser = Browser()
+    assert asyncio.run(screenshot_for_evidence(browser, style_scope=browser)) == b'actual screenshot'
+    assert not browser.header_hidden
+    browser.fail = True
+    try:
+        asyncio.run(screenshot_for_evidence(browser, style_scope=browser))
+    except RuntimeError as error:
+        assert str(error) == 'CAPTURE_FAILED'
+    else:
+        raise AssertionError('Capture failure must propagate')
+    assert not browser.header_hidden
 
 
 def test_watchlist_journey_re_resolves_controls_after_streamlit_reruns():

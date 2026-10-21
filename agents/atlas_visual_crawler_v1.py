@@ -27,6 +27,7 @@ from agents.atlas_runtime_qa_v3 import (
     expected_deployed_source_sha,
 )
 from agents.product_hardening_certification import ACTIVE_PAGES
+from agents.qa_screenshot_capture import screenshot_for_evidence
 from agents.runtime_qa_architecture import full_certification_ticker_matrix
 from agents.runtime_qa_architecture import decode_context_summary, stable_digest
 from agents.runtime_qa_user_journeys_v40 import (
@@ -1475,7 +1476,7 @@ class AtlasVisualCrawler:
             if await marker.count():
                 role = (await marker.get_attribute("data-atlas-role-category") or role).strip()
             await scope.add_style_tag(content=(
-                '[data-testid="stHeader"], [data-testid="stAppDeployButton"], '
+                '[data-testid="stAppDeployButton"], '
                 '[data-testid="stStatusWidget"], [data-testid="stToolbar"], '
                 '.stDeployButton { visibility:hidden !important; }'
             ))
@@ -1525,7 +1526,7 @@ class AtlasVisualCrawler:
                         )
                     else:
                         await asyncio.wait_for(
-                            page.screenshot(path=str(path), full_page=False), timeout=12.0,
+                            screenshot_for_evidence(page, style_scope=scope, path=str(path), full_page=False), timeout=12.0,
                         )
                     last_error = None
                     break
@@ -1601,7 +1602,7 @@ class AtlasVisualCrawler:
                 }
             """, [selector, position])
             await page.wait_for_timeout(80)
-            raw = await page.screenshot(full_page=False)
+            raw = await screenshot_for_evidence(page, style_scope=scope, full_page=False)
             images.append(Image.open(BytesIO(raw)).convert("RGB"))
             actual_positions.append(int(actual_top))
         await scope.evaluate("""
@@ -1636,12 +1637,14 @@ class AtlasVisualCrawler:
         path = self.screenshot_dir / f"{slug[:180]}.png"
         try:
             await locator.scroll_into_view_if_needed(timeout=5000)
-            await locator.screenshot(path=str(path))
+            scope = await self._app_scope(locator.page)
+            await screenshot_for_evidence(locator, style_scope=scope, path=str(path))
             relative = str(path.relative_to(self.output_dir))
             self.manifest.append({
                 "page": page_name, "interaction": interaction, "state": state,
                 "ticker": ticker, "viewport": viewport, "path": relative,
                 "generated": True, "capture": "visible_element", "segments": 1, "complete": True,
+                "chrome_hidden": ["stHeader"],
             })
             return relative
         except Exception:

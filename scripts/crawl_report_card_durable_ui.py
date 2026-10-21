@@ -12,6 +12,7 @@ import time
 from typing import Any
 
 from playwright.async_api import Page, async_playwright
+from agents.qa_screenshot_capture import screenshot_for_evidence
 
 
 VIEWPORTS = {"desktop": {"width": 1440, "height": 1000}, "tablet": {"width": 1024, "height": 900},
@@ -193,10 +194,7 @@ async def select_route(page: Page, label: str) -> None:
 
 async def shot(page: Page, root: Path, name: str, manifest: list[dict[str, Any]]) -> None:
     target = root / f"{name}.png"
-    # Exclude Streamlit's deployment chrome, not any ATLAS content or controls.
-    # Its fixed header otherwise obscures labels in later component captures.
-    await page.add_style_tag(content='[data-testid="stHeader"] { visibility:hidden !important; }')
-    await page.screenshot(path=str(target), full_page=True)
+    await screenshot_for_evidence(page, style_scope=page, path=str(target), full_page=True)
     manifest.append({"name": name, "path": str(target.name), "url": page.url,
                      "chrome_hidden": ["stHeader"]})
 
@@ -206,7 +204,7 @@ async def verify_signal_directory_picker(
 ) -> None:
     summary = page.locator('[data-atlas-qa="report-card-executive-summary"]')
     summary_target = output / f"report-card-evidence-summary-{mode}.png"
-    await summary.screenshot(path=str(summary_target))
+    await screenshot_for_evidence(summary, style_scope=page, path=str(summary_target))
     manifest.append({"name": f"report-card-evidence-summary-{mode}",
                      "path": summary_target.name, "url": page.url})
     directory = page.locator('[data-atlas-qa="report-card-signal-directory"]')
@@ -215,7 +213,7 @@ async def verify_signal_directory_picker(
     if not expected_id:
         raise AssertionError(f"REPORT_CARD_DIRECTORY_IDENTITY_MISSING:{mode}")
     target = output / f"signal-directory-{mode}.png"
-    await directory.screenshot(path=str(target))
+    await screenshot_for_evidence(directory, style_scope=page, path=str(target))
     manifest.append({"name": f"signal-directory-{mode}", "path": target.name, "url": page.url})
     # Scope by the exact visible label and Streamlit widget boundary rather
     # than a framework-dependent inner input name. Preserve the unique visible
@@ -288,7 +286,7 @@ async def certify_original_cohort_charts(page: Page, output: Path, mode: str,
         panel = chart.locator("xpath=following::div[@data-testid='stPlotlyChart'][1]")
         await panel.wait_for(state="visible", timeout=30000)
         target = output / f"original-chart-{mode}-{ticker}.png"
-        await panel.screenshot(path=str(target))
+        await screenshot_for_evidence(panel, style_scope=page, path=str(target))
         manifest.append({"name": target.stem, "path": target.name, "url": page.url})
         verified.append({"ticker": ticker, "signal_id": signal_id, "snapshot": snapshot, **facts})
         print(f"ORIGINAL_COHORT_CHART_PASS:{mode}:{ticker}:{len(verified)}/20", flush=True)
@@ -456,7 +454,7 @@ async def run(output: Path, *, require_original_cohort: bool = False) -> None:
             chart_panel = page.locator('[data-atlas-qa="report-card-price-chart"]').locator("xpath=following::div[@data-testid='stPlotlyChart'][1]")
             if await chart_panel.count():
                 chart_target = output / f"report-card-chart-{mode}.png"
-                await chart_panel.screenshot(path=str(chart_target))
+                await screenshot_for_evidence(chart_panel, style_scope=page, path=str(chart_target))
                 manifest.append({"name": f"report-card-chart-{mode}", "path": chart_target.name, "url": page.url})
             about = page.locator('[data-testid="stExpander"]').filter(has_text=re.compile(r"^About ")).first
             if await about.count():
