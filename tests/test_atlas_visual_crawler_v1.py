@@ -1301,3 +1301,24 @@ def test_customer_copy_contract_rejects_space_separated_timestamps_and_empty_cor
     assert r'\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}' in source
     assert "'Decision', 'ATLAS Investment Summary', 'Risk & Evidence'" in source
     assert "'What Changed Recently'" in source
+
+
+def test_readonly_desktop_audit_preserves_watchlist_and_reaches_ask():
+    """Production visuals must finish without mutating a populated account."""
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    for edit in (False, True):
+        page = SimpleNamespace(set_viewport_size=AsyncMock())
+        crawler = SimpleNamespace(
+            _home_cards=AsyncMock(), _submit_research=AsyncMock(return_value=True),
+            _page_visit=AsyncMock(return_value=True), _watchlist_edit_journey=AsyncMock(),
+            _ask=AsyncMock(), _record=AsyncMock(),
+        )
+        asyncio.run(AtlasVisualCrawler._required_desktop(crawler, page, watchlist_edit=edit))
+        assert crawler._watchlist_edit_journey.await_count == int(edit)
+        crawler._ask.assert_awaited_once_with(page, viewport="desktop")
+        assert crawler._submit_research.await_count == len(REQUIRED_RESEARCH_TICKERS)
+        if not edit:
+            assert crawler._record.await_args.kwargs["category"] == "AUDIT_SCOPE"
+            assert crawler._record.await_args.kwargs["required"] is False
