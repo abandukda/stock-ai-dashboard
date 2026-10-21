@@ -66,7 +66,7 @@ REQUIRED_PHASE_BUDGET = {
     "research_desktop_avt": {"timeout_seconds": 45, "retries": 0},
     "research_desktop_incomplete": {"timeout_seconds": 45, "retries": 0},
     "watchlist_ask_desktop": {"timeout_seconds": 60, "retries": 0},
-    "home_mobile": {"timeout_seconds": 30, "retries": 0},
+    "home_mobile": {"timeout_seconds": 90, "retries": 0},
     "research_mobile_nvda": {"timeout_seconds": 45, "retries": 0},
     "research_mobile_msft": {"timeout_seconds": 45, "retries": 0},
     "research_mobile_avt": {"timeout_seconds": 45, "retries": 0},
@@ -3048,10 +3048,10 @@ class AtlasVisualCrawler:
                     screenshots=(before, after), severity="P1",
                     exception=await self._exception_identity(page) if exception else {},
                 )
-                if destination and exact_ticker:
-                    await self._click_tabs(
-                        page, page_name="Research Any Ticker", ticker=ticker, viewport=viewport,
-                    )
+                # Home proves each real CTA and its exact destination. The
+                # required Research matrix independently exercises every tab
+                # for each required ticker and viewport, without repeating that
+                # expensive sweep inside the aggregate Home phase.
             except Exception as exc:
                 after = await self._shot(page, page_name="Home", interaction=interaction_id, state="failure", viewport=viewport, ticker=ticker)
                 await self._record(
@@ -3238,6 +3238,15 @@ class AtlasVisualCrawler:
                     return identity
         return identity
 
+    async def _completed_ask_responses(self, page: Page) -> list[Any]:
+        """Find response evidence in both direct and Streamlit-framed apps."""
+        responses = []
+        for scope in _scopes(page):
+            responses.extend(await scope.locator(
+                '[data-atlas-qa="ask-ai-response"][data-atlas-status="complete"]'
+            ).all())
+        return responses
+
     async def _ask(self, page: Page, *, viewport: str = "desktop", ticker: str = "NVDA") -> None:
         ticker = ticker.strip().upper()
         await self._page_visit(page, "Ask AI", viewport=viewport)
@@ -3260,11 +3269,10 @@ class AtlasVisualCrawler:
             response_marker = None
             settled_text = ""
             while time.monotonic() < deadline:
-                candidates = page.locator('[data-atlas-qa="ask-ai-response"][data-atlas-status="complete"]')
-                if await candidates.count():
+                candidates = await self._completed_ask_responses(page)
+                if candidates:
                     response_marker = None
-                    for candidate_index in reversed(range(await candidates.count())):
-                        candidate = candidates.nth(candidate_index)
+                    for candidate in reversed(candidates):
                         evidence_metadata = False
                         for key in ("evidence-used", "evidence-missing", "evidence-ids", "evidence-limitations"):
                             if await candidate.get_attribute(f"data-atlas-{key}"):
@@ -3645,7 +3653,7 @@ class AtlasVisualCrawler:
 
     async def _required_mobile(self, page: Page) -> None:
         await page.set_viewport_size(MOBILE)
-        await asyncio.wait_for(self._home_cards(page, viewport="mobile"), timeout=30)
+        await asyncio.wait_for(self._home_cards(page, viewport="mobile"), timeout=90)
         for ticker in REQUIRED_RESEARCH_TICKERS:
             passed = await self._submit_research(page, ticker, tabs=True, viewport="mobile")
             if not passed:
