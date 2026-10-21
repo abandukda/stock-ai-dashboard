@@ -37,6 +37,7 @@ jobs:
           tests/test_report_card_end_to_end_offline.py
           tests/test_report_card_retained_chart.py
           tests/test_report_card_signal_digest.py
+          tests/test_report_card_retained_inventory.py
       - name: Compile bounded Report Card modules
         run: >-
           python -m py_compile
