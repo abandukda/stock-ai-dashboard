@@ -219,3 +219,32 @@ def test_missing_management_summary_uses_only_an_existing_evidence_bound_claim()
     valid, violations, diagnostics = validate_grounded_summary(bound, source)
     assert valid is True, violations
     assert all(item["failure_reason"] is None for item in diagnostics)
+
+
+def test_api_key_alone_never_authorizes_external_ai(monkeypatch):
+    import services.transcript_intelligence_runtime as runtime
+    monkeypatch.setenv('OPENAI_API_KEY', 'configured-test-key-not-authorization')
+    def forbidden(payload):
+        raise AssertionError('External AI called without explicit approval')
+    monkeypatch.setattr(runtime, '_openai_summarizer', forbidden)
+    clear_transcript_runtime_cache()
+    result = retrieve_and_summarize_transcript('MSFT', year=2026, quarter=2, provider=_provider([]))
+    assert result.operation_metadata['ai_summary_status'] == 'AI_SUMMARY_NOT_AUTHORIZED'
+    assert result.operation_metadata['grounding_status'] == 'NOT_RUN'
+    assert result.insight is None
+    assert result.customer_projection['semantic_status'] == 'DATA_UNAVAILABLE'
+    assert 'grounding failed' not in result.customer_projection['status_detail'].lower()
+
+
+def test_explicit_external_ai_opt_in_uses_injected_stub_without_network(monkeypatch):
+    import services.transcript_intelligence_runtime as runtime
+    calls = []
+    def approved_stub(payload):
+        calls.append(payload['ticker'])
+        return _summary(payload)
+    monkeypatch.setattr(runtime, '_openai_summarizer', approved_stub)
+    clear_transcript_runtime_cache()
+    result = retrieve_and_summarize_transcript('MSFT', year=2026, quarter=2,
+        provider=_provider([]), allow_external_ai=True)
+    assert calls == ['MSFT']
+    assert result.operation_metadata['grounding_status'] == 'PASS'

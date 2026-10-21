@@ -300,12 +300,14 @@ def _openai_summarizer(payload: Mapping[str, Any]) -> tuple[Mapping[str, Any] | 
 def retrieve_and_summarize_transcript(
     symbol: str, *, year: int, quarter: int,
     provider: ConfiguredTranscriptProvider | None = None,
+    allow_external_ai: bool = False,
     summarizer: Callable[[Mapping[str, Any]], tuple[Mapping[str, Any] | None, str, str]] | None = None,
 ) -> TranscriptRuntimeResult:
     """Retrieve evidence and optionally call an explicitly supplied approved summarizer.
 
     No default external model call exists: raw licensed text may leave this boundary
-    only through a caller-supplied, separately approved summarizer.
+    only through a caller-supplied approved summarizer or explicit external-AI opt-in.
+    A configured API key alone is not authorization.
     """
     provider = provider or ConfiguredTranscriptProvider()
     key = (str(symbol).upper(), int(year), int(quarter), _provider_name(provider))
@@ -329,16 +331,25 @@ def retrieve_and_summarize_transcript(
     grounding = "NOT_RUN"
     ai_status = "AI_SUMMARY_UNAVAILABLE"
     if isinstance(raw, str) and raw.strip():
-        generated, model_provider, model_version = (summarizer or _openai_summarizer)({
+        payload = {
             "ticker": key[0], "requested_period": f"{year}-Q{quarter}",
             "resolved_period": evidence.payload.get("resolved_period"),
             "schema_version": TRANSCRIPT_SUMMARY_SCHEMA_VERSION,
             "transcript": raw,
-        })
+        }
+        if summarizer is not None:
+            generated, model_provider, model_version = summarizer(payload)
+        elif allow_external_ai:
+            generated, model_provider, model_version = _openai_summarizer(payload)
+        else:
+            generated, model_version = None, ""
+            model_provider = ("OPENAI_NOT_AUTHORIZED" if str(os.getenv("OPENAI_API_KEY", "")).strip()
+                              else "OPENAI_NOT_CONFIGURED")
         valid, violations, claim_diagnostics = validate_grounded_summary(generated, raw)
         grounding = "PASS" if valid else "NOT_RUN" if generated is None else "FAIL"
         ai_status = (
             "PASS" if valid else "AI_PROVIDER_NOT_CONFIGURED" if model_provider == "OPENAI_NOT_CONFIGURED"
+            else "AI_SUMMARY_NOT_AUTHORIZED" if model_provider == "OPENAI_NOT_AUTHORIZED"
             else "AI_SUMMARY_FAILED" if generated is None else "AI_SUMMARY_GROUNDING_FAILED"
         )
         if valid and generated is not None:
@@ -349,7 +360,7 @@ def retrieve_and_summarize_transcript(
                 prompt_version=TRANSCRIPT_SUMMARY_PROMPT_VERSION,
             )
             projection = transcript_customer_projection(insight)
-        elif violations:
+        elif generated is not None and violations:
             projection = {"semantic_status": "DATA_UNAVAILABLE", "status_detail": "AI summary grounding failed."}
     return TranscriptRuntimeResult(evidence, insight, projection, {
         "cache_status": "CACHE_HIT" if cache_hit else "CACHE_MISS",
