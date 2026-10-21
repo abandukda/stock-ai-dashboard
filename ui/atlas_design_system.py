@@ -48,6 +48,11 @@ def inject_atlas_design_system() -> None:
         [data-testid="stElementContainer"]:has([data-testid="stMarkdownContainer"]>style:only-child){display:none}
         [data-testid="stElementContainer"]:has([data-atlas-qa="customer-navigation-contract"]),
         [data-testid="stElementContainer"]:has([data-atlas-qa="deployment-readiness"]){display:none}
+        /* Streamlit's fixed toolbar must never cover the first navigation row.
+           Reserve explicit clearance after removing empty stylesheet rows. */
+        [data-testid="stMainBlockContainer"]{padding-top:max(4.5rem,calc(4rem + env(safe-area-inset-top)))!important}
+        [data-testid="stMain"]{scroll-padding-top:4.5rem}
+        .st-key-v784_single_nav{scroll-margin-top:4.5rem}
         @media(max-width:600px){
           body:has([data-atlas-role-category="customer_viewer"]) .st-key-v784_single_nav [role="radiogroup"]{display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr));overflow:visible!important;gap:.2rem!important;padding:.25rem!important}
           body:has([data-atlas-role-category="customer_viewer"]) .st-key-v784_single_nav [role="radiogroup"] label{min-width:0!important;justify-content:center;padding:.42rem .15rem!important;gap:.2rem!important;margin:0!important}
