@@ -3357,7 +3357,9 @@ class AtlasVisualCrawler:
                 viewport=viewport, screenshots=(before,), severity="P1",
             )
 
-    async def _required_desktop(self, page: Page, *, home_timeout: int = 90) -> None:
+    async def _required_desktop(
+        self, page: Page, *, home_timeout: int = 90, watchlist_edit: bool = True,
+    ) -> None:
         await page.set_viewport_size(DESKTOP)
         await asyncio.wait_for(self._home_cards(page), timeout=home_timeout)
         for ticker in REQUIRED_RESEARCH_TICKERS:
@@ -3366,7 +3368,16 @@ class AtlasVisualCrawler:
                 raise GlobalCrawlFailure(f"REQUIRED_RESEARCH_FAILED_{ticker}")
         if not await asyncio.wait_for(self._page_visit(page, "Watchlist Intelligence"), timeout=20):
             raise GlobalCrawlFailure("REQUIRED_WATCHLIST_DESKTOP_FAILED")
-        await self._watchlist_edit_journey(page)
+        if watchlist_edit:
+            await self._watchlist_edit_journey(page)
+        else:
+            await self._record(
+                category="AUDIT_SCOPE", page_name="Watchlist Intelligence",
+                interaction="read-only-visual-audit", required=False,
+                expected="Read-only visual coverage; edit persistence requires isolated functional certification",
+                observed="Watchlist mutations not attempted; existing account state preserved",
+                passed=True, elapsed=0.0, viewport="desktop",
+            )
         await asyncio.wait_for(self._ask(page, viewport="desktop"), timeout=35)
 
     async def _watchlist_edit_journey(self, page: Page) -> None:
@@ -3806,6 +3817,7 @@ class AtlasVisualCrawler:
                     await asyncio.wait_for(
                         self._required_desktop(
                             page, home_timeout=180 if customer_visual_audit else 90,
+                            watchlist_edit=not customer_visual_audit,
                         ),
                         timeout=450 if customer_visual_audit else 360,
                     )
