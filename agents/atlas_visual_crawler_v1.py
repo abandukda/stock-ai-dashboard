@@ -1456,23 +1456,31 @@ class AtlasVisualCrawler:
             ["git", "rev-parse", "HEAD"], cwd=self.root, text=True,
         ).strip()
 
+    async def _app_scope(self, page: Page) -> Any:
+        """Resolve the actual Streamlit DOM, preserving direct-app support."""
+        for scope in _scopes(page):
+            if await scope.locator('[data-testid="stMain"]').count():
+                return scope
+        return page
+
     async def _shot(
         self, page: Page, *, page_name: str, interaction: str, state: str,
         viewport: str = "desktop", ticker: str = "", complete_surface: bool = False,
     ) -> str:
+        scope = await self._app_scope(page)
         role = "unauthenticated"
         try:
-            marker = page.locator('[data-atlas-qa="customer-navigation-contract"]').last
+            marker = scope.locator('[data-atlas-qa="customer-navigation-contract"]').last
             if await marker.count():
                 role = (await marker.get_attribute("data-atlas-role-category") or role).strip()
-            await page.add_style_tag(content=(
+            await scope.add_style_tag(content=(
                 '[data-testid="stStatusWidget"], [data-testid="stToolbar"], '
                 '.stDeployButton { visibility:hidden !important; }'
             ))
         except Exception:
             pass
         try:
-            state_digest = await asyncio.wait_for(page.evaluate("""() => {
+            state_digest = await asyncio.wait_for(scope.evaluate("""() => {
               const root = document.querySelector('[data-testid="stAppViewContainer"]') || document.body;
               return root ? root.innerHTML : '';
             }"""), timeout=3.0)
@@ -1547,7 +1555,8 @@ class AtlasVisualCrawler:
 
     async def _stitched_streamlit_screenshot(self, page: Page, path: Path) -> dict[str, Any]:
         """Capture Streamlit's real scrolling surface rather than only the browser viewport."""
-        geometry = await page.evaluate("""
+        scope = await self._app_scope(page)
+        geometry = await scope.evaluate("""
             () => {
               const candidates = [
                 document.querySelector('[data-testid="stAppViewContainer"]'),
@@ -1572,7 +1581,7 @@ class AtlasVisualCrawler:
         images: list[Image.Image] = []
         selector = str(geometry.get("selector") or "__document__")
         for position in positions:
-            await page.evaluate("""
+            await scope.evaluate("""
                 ([selector, top]) => {
                   const node = selector === '__document__' ? document.scrollingElement : document.querySelector(selector);
                   if (node === document.scrollingElement) window.scrollTo(0, top);
@@ -1582,7 +1591,7 @@ class AtlasVisualCrawler:
             await page.wait_for_timeout(80)
             raw = await page.screenshot(full_page=False)
             images.append(Image.open(BytesIO(raw)).convert("RGB"))
-        await page.evaluate("""
+        await scope.evaluate("""
             ([selector, top]) => {
               const node = selector === '__document__' ? document.scrollingElement : document.querySelector(selector);
               if (node === document.scrollingElement) window.scrollTo(0, top);

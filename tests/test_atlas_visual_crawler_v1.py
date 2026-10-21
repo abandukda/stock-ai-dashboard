@@ -1354,3 +1354,20 @@ def test_home_keeps_cta_proof_separate_from_full_research_tab_matrix():
 def module_budget():
     from agents.atlas_visual_crawler_v1 import REQUIRED_PHASE_BUDGET
     return REQUIRED_PHASE_BUDGET.values()
+
+
+def test_screenshot_scope_resolves_real_streamlit_frame(monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock, Mock
+    import agents.atlas_visual_crawler_v1 as module
+    outer = SimpleNamespace(locator=Mock(return_value=SimpleNamespace(count=AsyncMock(return_value=0))))
+    app = SimpleNamespace(locator=Mock(return_value=SimpleNamespace(count=AsyncMock(return_value=1))))
+    monkeypatch.setattr(module, "_scopes", lambda page: [outer, app])
+    assert asyncio.run(AtlasVisualCrawler._app_scope(None, outer)) is app
+    monkeypatch.setattr(module, "_scopes", lambda page: [outer])
+    assert asyncio.run(AtlasVisualCrawler._app_scope(None, outer)) is outer
+    for method in (AtlasVisualCrawler._shot, AtlasVisualCrawler._stitched_streamlit_screenshot):
+        source = inspect.getsource(method)
+        assert "await self._app_scope(page)" in source
+        assert "scope.evaluate(" in source
+        assert "page.evaluate(" not in source
