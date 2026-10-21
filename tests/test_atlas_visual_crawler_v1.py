@@ -1381,3 +1381,49 @@ def test_mobile_capture_uses_actual_overflow_surface_instead_of_named_wrappers()
     assert "nth-child" in source
     reset = inspect.getsource(AtlasVisualCrawler._scroll_streamlit_to_top)
     assert "getComputedStyle(node).overflowY" in reset
+
+
+def test_customer_tablet_pass_requires_all_four_routes_at_both_widths(tmp_path, monkeypatch):
+    crawler = _contract_crawler(tmp_path, monkeypatch)
+    sizes, visits, shots = [], [], []
+    class Page:
+        async def set_viewport_size(self, value):
+            sizes.append(value)
+    async def visit(page, name, *, viewport):
+        visits.append((name, viewport))
+        return True
+    async def shot(page, **kwargs):
+        shots.append(kwargs)
+    crawler._page_visit = visit
+    crawler._shot = shot
+    asyncio.run(crawler._customer_tablet_visual_evidence(Page()))
+    assert sizes == [{'width':1024,'height':900}, {'width':768,'height':1024}]
+    assert visits == [(route, viewport) for viewport in ('tablet_1024','tablet_768')
+                      for route in ('Home','Research Any Ticker','Watchlist Intelligence','Ask AI')]
+    assert len(shots) == 8 and all(item['complete_surface'] for item in shots)
+
+
+def test_customer_tablet_route_failure_blocks_certification(tmp_path, monkeypatch):
+    import pytest
+    from agents.atlas_visual_crawler_v1 import GlobalCrawlFailure
+    crawler = _contract_crawler(tmp_path, monkeypatch)
+    class Page:
+        async def set_viewport_size(self, value):
+            pass
+    async def failed(page, name, *, viewport):
+        return False
+    crawler._page_visit = failed
+    with pytest.raises(GlobalCrawlFailure, match='CUSTOMER_ROLE_HOME_FAILED_TABLET_1024'):
+        asyncio.run(crawler._customer_tablet_visual_evidence(Page()))
+
+
+def test_primary_customer_mode_invokes_tablet_pass_without_skipping_existing_gates():
+    tree = ast.parse(SOURCE.read_text())
+    run = next(node for node in ast.walk(tree) if isinstance(node,ast.AsyncFunctionDef) and node.name=='run')
+    primary = next(node for node in ast.walk(run) if isinstance(node,ast.If)
+                   and isinstance(node.test,ast.Name) and node.test.id=='customer_visual_audit')
+    assert any(isinstance(node,ast.Attribute) and node.attr=='_customer_tablet_visual_evidence'
+               for node in ast.walk(primary))
+    code = ast.unparse(run)
+    assert '_required_desktop' in code and '_required_mobile' in code
+    assert '_role_isolation_contract' in code and '_required_completeness' in code
