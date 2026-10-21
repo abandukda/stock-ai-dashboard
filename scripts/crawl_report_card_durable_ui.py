@@ -185,11 +185,18 @@ async def shot(page: Page, root: Path, name: str, manifest: list[dict[str, Any]]
     manifest.append({"name": name, "path": str(target.name), "url": page.url})
 
 
+def validate_qa_passwords(admin: str, viewer: str) -> None:
+    """Reject ambiguous role credentials without disclosing either value."""
+    if not admin.strip() or not viewer.strip():
+        raise RuntimeError("REPORT_CARD_QA_PASSWORDS_REQUIRED")
+    if admin.strip() == viewer.strip():
+        raise RuntimeError("REPORT_CARD_QA_ROLE_CREDENTIAL_COLLISION:APP_PASSWORD_AND_ATLAS_AUDIT_PASSWORD_MUST_DIFFER")
+
+
 async def run(output: Path) -> None:
     admin = os.environ.get("ATLAS_INTERNAL_QA_PASSWORD", "")
     viewer = os.environ.get("ATLAS_VIEWER_QA_PASSWORD", "")
-    if not admin or not viewer:
-        raise RuntimeError("REPORT_CARD_QA_PASSWORDS_REQUIRED")
+    validate_qa_passwords(admin, viewer)
     output.mkdir(parents=True, exist_ok=True)
     manifest: list[dict[str, Any]] = []
     links: list[dict[str, Any]] = []
@@ -381,6 +388,16 @@ async def run(output: Path) -> None:
                 timeout_seconds=30.0,
                 interval_seconds=0.2,
             )
+            await shot(viewer_page, output, f"customer-role-before-assertion-{mode}", manifest)
+            (output / f"customer-role-{mode}.html").write_text(await viewer_page.content(), encoding="utf-8")
+            navigation = viewer_page.locator('[data-atlas-qa="customer-navigation-contract"]')
+            role = await navigation.get_attribute("data-atlas-role-category")
+            (output / f"customer-role-{mode}.json").write_text(json.dumps({
+                "role_category": role,
+                "internal_routes": await navigation.get_attribute("data-atlas-internal-routes"),
+            }, indent=2), encoding="utf-8")
+            if role != "customer_viewer":
+                raise AssertionError(f"REPORT_CARD_VIEWER_ROLE_INVALID:{mode}:{role}")
             viewer_text = await viewer_page.locator("body").inner_text()
             forbidden = ("Internal Report Card", "Ledger integrity", "Backup status", "Signal ID", "SPY comparisons")
             leaked = [value for value in forbidden if value in viewer_text]
