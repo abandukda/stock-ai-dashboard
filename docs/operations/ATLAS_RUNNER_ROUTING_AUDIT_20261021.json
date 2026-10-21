@@ -1,0 +1,473 @@
+[
+  {
+    "workflow": "atlas_contabo_certification_rehearsal.yml",
+    "job": "rehearsal",
+    "route": [
+      "self-hosted",
+      "Linux",
+      "X64",
+      "atlas-contabo-staging"
+    ],
+    "environment": null,
+    "permissions": {}
+  },
+  {
+    "workflow": "atlas_contabo_provider_free_smoke.yml",
+    "job": "smoke",
+    "route": [
+      "self-hosted",
+      "Linux",
+      "X64",
+      "atlas-contabo-staging"
+    ],
+    "environment": null,
+    "permissions": {}
+  },
+  {
+    "workflow": "atlas_daily_incremental_buy_now.yml",
+    "job": "protected-history-backfill-rehearsal",
+    "route": [
+      "self-hosted",
+      "Linux",
+      "X64",
+      "atlas-worker-1"
+    ],
+    "environment": "atlas-licensed-research-acquisition",
+    "permissions": {
+      "actions": "read",
+      "contents": "read"
+    }
+  },
+  {
+    "workflow": "atlas_daily_incremental_buy_now.yml",
+    "job": "protected-history-backfill-acquisition",
+    "route": [
+      "self-hosted",
+      "Linux",
+      "X64",
+      "atlas-worker-1"
+    ],
+    "environment": "atlas-licensed-research-acquisition",
+    "permissions": {
+      "actions": "read",
+      "contents": "read"
+    }
+  },
+  {
+    "workflow": "atlas_daily_incremental_buy_now.yml",
+    "job": "protected-history-backfill-forensics",
+    "route": [
+      "self-hosted",
+      "Linux",
+      "X64",
+      "atlas-worker-1"
+    ],
+    "environment": "atlas-licensed-research-acquisition",
+    "permissions": {
+      "actions": "read",
+      "contents": "read"
+    }
+  },
+  {
+    "workflow": "atlas_daily_incremental_buy_now.yml",
+    "job": "protected-history-backfill-recovery",
+    "route": [
+      "self-hosted",
+      "Linux",
+      "X64",
+      "atlas-worker-1"
+    ],
+    "environment": "atlas-licensed-research-acquisition",
+    "permissions": {
+      "actions": "read",
+      "contents": "read"
+    }
+  },
+  {
+    "workflow": "atlas_daily_incremental_buy_now.yml",
+    "job": "protected-history-backfill-recovery-acquisition",
+    "route": [
+      "self-hosted",
+      "Linux",
+      "X64",
+      "atlas-worker-1"
+    ],
+    "environment": "atlas-licensed-research-acquisition",
+    "permissions": {
+      "actions": "read",
+      "contents": "read"
+    }
+  },
+  {
+    "workflow": "atlas_daily_incremental_buy_now.yml",
+    "job": "protected-completed-backfill-certification",
+    "route": [
+      "self-hosted",
+      "Linux",
+      "X64",
+      "atlas-worker-1"
+    ],
+    "environment": "atlas-licensed-research-acquisition",
+    "permissions": {
+      "actions": "read",
+      "contents": "read"
+    }
+  },
+  {
+    "workflow": "atlas_finnhub_full_universe_aggregation_recovery.yml",
+    "job": "build-immutable-candidate-checkpoint",
+    "route": [
+      "self-hosted",
+      "Linux",
+      "X64",
+      "atlas-worker-1"
+    ],
+    "environment": null,
+    "permissions": {
+      "actions": "read",
+      "contents": "read"
+    }
+  },
+  {
+    "workflow": "atlas_finnhub_full_universe_aggregation_recovery.yml",
+    "job": "build-publication-candidate",
+    "route": [
+      "self-hosted",
+      "Linux",
+      "X64",
+      "atlas-worker-1"
+    ],
+    "environment": null,
+    "permissions": {
+      "actions": "read",
+      "contents": "read"
+    }
+  },
+  {
+    "workflow": "atlas_finnhub_incremental_acquisition.yml",
+    "job": "diagnose",
+    "route": [
+      "self-hosted",
+      "Linux",
+      "X64",
+      "atlas-worker-1"
+    ],
+    "environment": "atlas-licensed-research-acquisition",
+    "permissions": {
+      "actions": "read",
+      "contents": "read"
+    }
+  },
+  {
+    "workflow": "atlas_finnhub_incremental_acquisition.yml",
+    "job": "acquire",
+    "route": [
+      "self-hosted",
+      "Linux",
+      "X64",
+      "atlas-worker-1"
+    ],
+    "environment": "atlas-licensed-research-acquisition",
+    "permissions": {
+      "actions": "read",
+      "contents": "read"
+    }
+  },
+  {
+    "workflow": "atlas_finnhub_incremental_acquisition.yml",
+    "job": "protected-registration-rehearsal",
+    "route": [
+      "self-hosted",
+      "Linux",
+      "X64",
+      "atlas-worker-1"
+    ],
+    "environment": "atlas-licensed-research-acquisition",
+    "permissions": {
+      "actions": "read",
+      "contents": "read"
+    }
+  },
+  {
+    "workflow": "atlas_finnhub_incremental_acquisition.yml",
+    "job": "protected-certification-rehearsal",
+    "route": [
+      "self-hosted",
+      "Linux",
+      "X64",
+      "atlas-worker-1"
+    ],
+    "environment": "atlas-licensed-research-acquisition",
+    "permissions": {
+      "actions": "read",
+      "contents": "read"
+    }
+  },
+  {
+    "workflow": "atlas_finnhub_publication_only_recovery.yml",
+    "job": "build-publication-candidate-only",
+    "route": [
+      "self-hosted",
+      "Linux",
+      "X64",
+      "atlas-worker-1"
+    ],
+    "environment": null,
+    "permissions": {
+      "actions": "read",
+      "contents": "read"
+    }
+  },
+  {
+    "workflow": "atlas_full_qa_certification.yml",
+    "job": "visual-certification",
+    "route": [
+      "self-hosted",
+      "Linux",
+      "X64",
+      "atlas-worker-1"
+    ],
+    "environment": null,
+    "permissions": {
+      "actions": "read",
+      "contents": "read"
+    }
+  },
+  {
+    "workflow": "atlas_internal_prospective_report_card.yml",
+    "job": "capture",
+    "route": [
+      "self-hosted",
+      "Linux",
+      "X64",
+      "atlas-worker-1"
+    ],
+    "environment": "atlas-internal-report-card",
+    "permissions": {
+      "actions": "read",
+      "contents": "read"
+    }
+  },
+  {
+    "workflow": "atlas_internal_report_card_observation.yml",
+    "job": "observe",
+    "route": [
+      "self-hosted",
+      "Linux",
+      "X64",
+      "atlas-worker-1"
+    ],
+    "environment": "atlas-internal-report-card",
+    "permissions": {
+      "actions": "read",
+      "contents": "read"
+    }
+  },
+  {
+    "workflow": "atlas_position_shadow_activation.yml",
+    "job": "activate",
+    "route": [
+      "self-hosted",
+      "Linux",
+      "X64",
+      "atlas-worker-1"
+    ],
+    "environment": "atlas-position-management-shadow",
+    "permissions": {
+      "actions": "read",
+      "contents": "read"
+    }
+  },
+  {
+    "workflow": "atlas_release_smoke_bounded.yml",
+    "job": "verify-publication",
+    "route": [
+      "self-hosted",
+      "Linux",
+      "X64",
+      "atlas-worker-1"
+    ],
+    "environment": null,
+    "permissions": {
+      "actions": "read",
+      "contents": "read"
+    }
+  },
+  {
+    "workflow": "atlas_release_smoke_bounded.yml",
+    "job": "browser-smoke",
+    "route": [
+      "self-hosted",
+      "Linux",
+      "X64",
+      "atlas-worker-1"
+    ],
+    "environment": null,
+    "permissions": {
+      "actions": "read",
+      "contents": "read"
+    }
+  },
+  {
+    "workflow": "atlas_report_card_create_closed_sentinel.yml",
+    "job": "create-closed-sentinel",
+    "route": [
+      "self-hosted",
+      "Linux",
+      "X64",
+      "atlas-worker-1"
+    ],
+    "environment": "atlas-internal-report-card",
+    "permissions": {
+      "contents": "read"
+    }
+  },
+  {
+    "workflow": "atlas_report_card_durable_readonly_certification.yml",
+    "job": "certify",
+    "route": [
+      "self-hosted",
+      "Linux",
+      "X64",
+      "atlas-worker-1"
+    ],
+    "environment": "atlas-internal-report-card",
+    "permissions": {
+      "actions": "read",
+      "contents": "read"
+    }
+  },
+  {
+    "workflow": "atlas_report_card_exchange_calendar.yml",
+    "job": "produce",
+    "route": [
+      "self-hosted",
+      "Linux",
+      "X64",
+      "atlas-worker-1"
+    ],
+    "environment": null,
+    "permissions": {
+      "contents": "read"
+    }
+  },
+  {
+    "workflow": "atlas_report_card_market_evidence_acquisition.yml",
+    "job": "acquire",
+    "route": [
+      "self-hosted",
+      "Linux",
+      "X64",
+      "atlas-worker-1"
+    ],
+    "environment": "atlas-internal-report-card",
+    "permissions": {
+      "actions": "read",
+      "contents": "read"
+    }
+  },
+  {
+    "workflow": "atlas_report_card_observation_producer.yml",
+    "job": "produce",
+    "route": [
+      "self-hosted",
+      "Linux",
+      "X64",
+      "atlas-worker-1"
+    ],
+    "environment": "atlas-internal-report-card",
+    "permissions": {
+      "actions": "read",
+      "contents": "read"
+    }
+  },
+  {
+    "workflow": "atlas_report_card_protected_runner_validation.yml",
+    "job": "validate",
+    "route": [
+      "self-hosted",
+      "Linux",
+      "X64",
+      "atlas-worker-1"
+    ],
+    "environment": "atlas-internal-report-card",
+    "permissions": {
+      "contents": "read"
+    }
+  },
+  {
+    "workflow": "atlas_report_card_retained_inventory.yml",
+    "job": "inventory",
+    "route": [
+      "self-hosted",
+      "Linux",
+      "X64",
+      "atlas-worker-1"
+    ],
+    "environment": "atlas-internal-report-card",
+    "permissions": {
+      "actions": "read",
+      "contents": "read"
+    }
+  },
+  {
+    "workflow": "atlas_research_context_diagnostic.yml",
+    "job": "research-context-ab",
+    "route": [
+      "self-hosted",
+      "Linux",
+      "X64",
+      "atlas-worker-1"
+    ],
+    "environment": null,
+    "permissions": {
+      "actions": "read",
+      "contents": "read"
+    }
+  },
+  {
+    "workflow": "atlas_stable_report_card_gateway.yml",
+    "job": "monitoring-delivery-test",
+    "route": [
+      "self-hosted",
+      "Linux",
+      "X64",
+      "atlas-worker-1"
+    ],
+    "environment": "atlas-internal-report-card",
+    "permissions": {
+      "contents": "read",
+      "actions": "read"
+    }
+  },
+  {
+    "workflow": "atlas_stable_report_card_gateway.yml",
+    "job": "incremental-storage-diagnostic",
+    "route": [
+      "self-hosted",
+      "Linux",
+      "X64",
+      "atlas-worker-1"
+    ],
+    "environment": "atlas-licensed-research-acquisition",
+    "permissions": {
+      "contents": "read",
+      "actions": "read"
+    }
+  },
+  {
+    "workflow": "atlas_stable_report_card_gateway.yml",
+    "job": "protected-preflight",
+    "route": [
+      "self-hosted",
+      "Linux",
+      "X64",
+      "atlas-worker-1"
+    ],
+    "environment": "atlas-internal-report-card",
+    "permissions": {
+      "contents": "read",
+      "actions": "read"
+    }
+  }
+]

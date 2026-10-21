@@ -29,7 +29,8 @@ def routing_errors(definitions):
             route = job.get('runs-on', [])
             if 'self-hosted' not in str(route):
                 continue
-            wanted = STAGING if name == SMOKE and job_id == 'smoke' else LEGACY
+            staging_job = (name, job_id) in {(SMOKE, 'smoke'), ('atlas_contabo_certification_rehearsal.yml', 'rehearsal')}
+            wanted = STAGING if staging_job else LEGACY
             if route != wanted:
                 errors.append(f'{name}:{job_id}:unapproved-runner-route')
     return errors

@@ -3743,6 +3743,9 @@ class AtlasVisualCrawler:
         )
         await asyncio.wait_for(self._ask(page, viewport="mobile_360"), timeout=35)
 
+        await self._customer_tablet_visual_evidence(page)
+
+    async def _customer_tablet_visual_evidence(self, page: Page) -> None:
         # Tablet captures are a focused visual-acceptance pass. The complete
         # interaction contract is already exercised at desktop and mobile;
         # here we verify that every primary customer route remains readable at
@@ -3845,6 +3848,8 @@ class AtlasVisualCrawler:
                         timeout=450 if customer_visual_audit else 360,
                     )
                     await asyncio.wait_for(self._required_mobile(page), timeout=300)
+                    if customer_visual_audit:
+                        await asyncio.wait_for(self._customer_tablet_visual_evidence(page), timeout=180)
                     if self._required_completeness().get("status") != "PASS":
                         raise GlobalCrawlFailure("REQUIRED_PRODUCTION_CERTIFICATION_FAILED")
                     if not customer_visual_audit:

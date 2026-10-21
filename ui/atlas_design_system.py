@@ -43,6 +43,21 @@ def inject_atlas_design_system() -> None:
         @media(max-width:420px){.atlas-report-preview-grid{grid-template-columns:1fr}.atlas-report-preview-grid span{padding:.42rem .48rem}}
         @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
         @media(forced-colors:active){.atlas-page-hero,.atlas-report-preview,.atlas-command-deck article{border:1px solid CanvasText}.atlas-action{forced-color-adjust:auto}}
+        /* A pure stylesheet has no visible content; its Streamlit wrapper
+           must not add a blank dashboard row. Keep all markers in the DOM. */
+        [data-testid="stElementContainer"]:has([data-testid="stMarkdownContainer"]>style:only-child){display:none}
+        [data-testid="stElementContainer"]:has([data-atlas-qa="customer-navigation-contract"]),
+        [data-testid="stElementContainer"]:has([data-atlas-qa="deployment-readiness"]){display:none}
+        /* Streamlit's fixed toolbar must never cover the first navigation row.
+           Reserve explicit clearance after removing empty stylesheet rows. */
+        [data-testid="stMainBlockContainer"]{padding-top:max(4.5rem,calc(4rem + env(safe-area-inset-top)))!important}
+        [data-testid="stMain"]{scroll-padding-top:4.5rem}
+        .st-key-v784_single_nav{scroll-margin-top:4.5rem}
+        @media(max-width:600px){
+          body:has([data-atlas-role-category="customer_viewer"]) .st-key-v784_single_nav [role="radiogroup"]{display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr));overflow:visible!important;gap:.2rem!important;padding:.25rem!important}
+          body:has([data-atlas-role-category="customer_viewer"]) .st-key-v784_single_nav [role="radiogroup"] label{min-width:0!important;justify-content:center;padding:.42rem .15rem!important;gap:.2rem!important;margin:0!important}
+          body:has([data-atlas-role-category="customer_viewer"]) .st-key-v784_single_nav [role="radiogroup"] label p{font-size:.72rem!important;white-space:nowrap}
+        }
         </style>
         <span data-atlas-qa="atlas-design-system" data-atlas-design-version="1" aria-hidden="true" style="display:none">atlas-design-system</span>
         """,

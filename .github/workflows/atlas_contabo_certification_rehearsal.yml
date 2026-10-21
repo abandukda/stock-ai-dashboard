@@ -1,0 +1,44 @@
+name: ATLAS Contabo Generated-Fixture Certification Rehearsal
+on:
+  workflow_dispatch:
+permissions: {}
+concurrency:
+  group: atlas-contabo-provider-free-smoke
+  cancel-in-progress: false
+jobs:
+  rehearsal:
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.repository == 'abandukda/stock-ai-dashboard' &&
+      github.ref == 'refs/heads/main' &&
+      github.actor == 'abandukda' &&
+      github.triggering_actor == 'abandukda'
+    runs-on: [self-hosted, Linux, X64, atlas-contabo-staging]
+    permissions: {}
+    timeout-minutes: 15
+    env:
+      ATLAS_CUSTOMER_REPORT_CARD_ENABLED: 'false'
+      ATLAS_QA_PROVIDER_CALLS_ALLOWED: '0'
+      ATLAS_ALLOW_EXTERNAL_AI: 'false'
+    steps:
+      - name: Verify exact staging runner before workload
+        env:
+          ATLAS_ACTUAL_RUNNER: ${{ runner.name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$ATLAS_ACTUAL_RUNNER" = atlas-contabo-1
+          test "$(id -un)" = atlasrunner
+          test "$(id -u)" -ne 0
+          test "$(hostname -s)" = vmi3675432
+      - name: Run exact-source generated fixture only with bounded memory
+        shell: bash
+        run: |
+          set -euo pipefail
+          work=$(mktemp -d "$RUNNER_TEMP/atlas-rehearsal-code.XXXXXXXX")
+          trap 'rm -rf "$work"' EXIT
+          curl --proto '=https' --tlsv1.2 -fsS \
+            "https://raw.githubusercontent.com/abandukda/stock-ai-dashboard/$GITHUB_SHA/scripts/contabo_certification_rehearsal.py" \
+            -o "$work/rehearsal.py"
+          printf '%s  %s\n' '42ff92fc097ec6a48b0ee0f9705cf17699d8ba0e41b228b7e120142f787d6ada' "$work/rehearsal.py" | sha256sum -c -
+          timeout --signal=TERM --kill-after=15s 12m python3 "$work/rehearsal.py" --source-sha "$GITHUB_SHA"

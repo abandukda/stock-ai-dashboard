@@ -1283,14 +1283,14 @@ def _compact_reason(card: Mapping[str, Any]) -> str:
     thesis = list((projection.get("sections") or {}).get("thesis") or ())
     if thesis:
         projected = str(thesis[0].get("text") or "").strip()
-        if projected and not re.search(r"\d", projected):
+        if len(projected.split()) >= 6 and not re.search(r"\d", projected):
             return projected.rstrip(".") + "."
     facts = card.get("certified_summary_facts") if isinstance(card.get("certified_summary_facts"), Mapping) else {}
     for key in ("business_driver", "financial_driver", "valuation_driver", "primary_driver"):
         value = facts.get(key)
         if value and not isinstance(value, (Mapping, list, tuple, set)):
             statement = str(value).strip().rstrip(".")
-            if not re.search(r"\d", statement):
+            if len(statement.split()) >= 6 and not re.search(r"\d", statement):
                 return statement + "."
     summary = _atlas_summary(card).strip()
     if summary and "cannot produce" not in summary.lower():
@@ -1366,8 +1366,9 @@ def _compact_opportunity_card(card: Mapping[str, Any], *, key: str, first: bool 
     featured_label = f"Featured #{int(rank)}" if isinstance(rank, (int, float)) else "Featured idea"
     # The lead thesis and risk already appear in the Daily Intelligence Brief.
     # Do not repeat the same paragraphs immediately in the first card.
+    thesis_available = thesis != "A concise certified investment reason is unavailable for this snapshot."
     narrative = "" if first else (
-        f'<p class="atlas-home-compact-thesis"><b>Why it stands out</b> {html.escape(thesis)}</p>'
+        (f'<p class="atlas-home-compact-thesis"><b>Why it stands out</b> {html.escape(thesis)}</p>' if thesis_available else '')
         + (f'<p class="atlas-home-compact-risk"><b>Main concern</b> {html.escape(risk)}</p>' if risk else '')
     )
     st.markdown(
@@ -1377,7 +1378,7 @@ def _compact_opportunity_card(card: Mapping[str, Any], *, key: str, first: bool 
         f'<header><div><small>{html.escape(_display(state))}</small><h3>{html.escape(identity)}</h3></div>'
         f'<aside><small>{html.escape(featured_label)}</small><strong>{html.escape(_display(state))}</strong></aside></header>'
         '<div class="atlas-home-compact-values">'
-        f'<span><small>Current Price</small><b>{html.escape(_money(card.get("display_price")))}</b></span>'
+        f'<span><small>{html.escape(str(card.get("display_price_label") or "Dated price"))}</small><b>{html.escape(_money(card.get("display_price")))}</b></span>'
         f'<span><small>ATLAS Fair Value</small><b>{html.escape(_money(card.get("atlas_fair_value")))}</b></span>'
         f'<span><small>Potential</small><b>{html.escape(_score(potential, suffix="%"))}</b></span>'
         f'<span><small>Opportunity</small><b>{html.escape(_score(card.get("opportunity")))}</b></span>'
@@ -1748,7 +1749,8 @@ def _render_daily_brief(story: Mapping[str, Any]) -> None:
         lead_copy = (
             f'{html.escape(identity)} leads the certified BUY NOW set with an Opportunity score of '
             f'{html.escape(_score(lead.get("opportunity")))}. '
-            f'<strong>Why it stands out:</strong> {html.escape(thesis)}'
+            + (f'<strong>Why it stands out:</strong> {html.escape(thesis)}'
+               if thesis != "A concise certified investment reason is unavailable for this snapshot." else '')
             + (f' <strong>Main concern:</strong> {html.escape(risk)}' if risk else '')
         )
     else:
@@ -1760,6 +1762,16 @@ def _render_daily_brief(story: Mapping[str, Any]) -> None:
         if market_read else
         "<strong>Market context:</strong> Current governed context is unavailable, so ATLAS is not inferring a backdrop."
     )
+    lead_panel = (
+        '<small>LEADING CERTIFIED OPPORTUNITY</small>'
+        f'<b>{html.escape(identity)}</b><div class="atlas-brief-values">'
+        f'<span><small>{html.escape(str(lead.get("display_price_label") or "Dated price"))}</small><strong>{html.escape(_money(lead.get("display_price")))}</strong></span>'
+        f'<span><small>ATLAS Fair Value</small><strong>{html.escape(_money(lead.get("atlas_fair_value")))}</strong></span>'
+        '</div><span>Fair Value is an estimate, not a guaranteed return. Open the investment case below.</span>'
+        if lead else
+        '<small>OPPORTUNITY STATUS</small><b>No BUY NOW idea published</b>'
+        '<span>Review Worth Watching for developing ideas and their evidence limitations.</span>'
+    )
     st.markdown(
         '<section class="atlas-daily-brief atlas-ai-insight-panel" data-atlas-qa="daily-intelligence-brief" '
         'data-atlas-explanation-source="DETERMINISTIC_CERTIFIED_PROJECTION" '
@@ -1767,9 +1779,8 @@ def _render_daily_brief(story: Mapping[str, Any]) -> None:
         '<div><small>ATLAS Morning View · CERTIFIED SNAPSHOT</small><h1>Daily Intelligence Brief</h1>'
         f'<p>Actionable opportunities from the latest certified evaluation. {lead_copy}</p>'
         f'<p>{context_copy} Decisions and values below are reproduced from the certified customer projection.</p>'
-        f'<footer>As of {html.escape(_timestamp(story.get("scan_timestamp")))} · No live reranking</footer></div>'
-        '<aside><small>TODAY’S MANDATE</small><b>Find signal.<br>Know the risk.</b>'
-        '<span>DETERMINISTIC CERTIFIED SUMMARY · Presentation-only and cannot change ATLAS guidance.</span></aside></section>',
+        f'<footer>As of {html.escape(_timestamp(story.get("scan_timestamp")))} · No live reranking · DETERMINISTIC CERTIFIED SUMMARY</footer></div>'
+        f'<aside>{lead_panel}</aside></section>',
         unsafe_allow_html=True,
     )
 
@@ -1830,16 +1841,15 @@ def _render_intelligence_modules(story: Mapping[str, Any]) -> None:
 def _render_footer_navigation() -> None:
     _section_marker("footer_navigation")
     st.markdown("### Continue with ATLAS intelligence")
-    destinations = (
-        ("Recovery", "Recovery"), ("Earnings", "Earnings Intelligence"),
-        ("ETFs", "ETFs"), ("Watchlist", "Watchlist Intelligence"),
-        ("Political Context", "Political Intelligence"), ("Research Any Ticker", "Research Any Ticker"),
-    )
+    from services.customer_navigation_contract import CUSTOMER_ROUTES
+    # Every footer action must target a route the customer navigation admits.
+    # Legacy internal labels otherwise bounce viewers silently back to Home.
+    destinations = tuple((page, page) for page in CUSTOMER_ROUTES if page != "Home")
     for start in range(0, len(destinations), 3):
         columns = st.columns(3)
         for column, (label, page) in zip(columns, destinations[start:start + 3]):
             if column.button(label, key=f"home_continue_{page}", use_container_width=True,
-                             type="primary" if page == "Research Any Ticker" else "secondary"):
+                             type="primary" if page == "Research" else "secondary"):
                 st.session_state["v79_pending_page"] = page
                 st.rerun()
 
@@ -1932,6 +1942,20 @@ def _inject_css() -> None:
     .atlas-command-deck{display:grid;grid-template-columns:1.25fr 1fr .8fr .9fr;gap:.45rem;margin:-.45rem 0 1rem}.atlas-command-deck article{min-width:0;padding:.68rem .72rem;border:1px solid rgba(148,163,184,.16);border-radius:12px;background:linear-gradient(160deg,rgba(20,34,53,.86),rgba(10,18,30,.86))}.atlas-command-deck small,.atlas-command-deck b,.atlas-command-deck span{display:block}.atlas-command-deck small{color:#75a8e4;font-size:.64rem;font-weight:800;letter-spacing:.1em}.atlas-command-deck b{margin:.18rem 0;color:#eef5fb;font-size:.92rem;line-height:1.25;overflow-wrap:anywhere}.atlas-command-deck span{color:#8392a5;font-size:.68rem;line-height:1.3}.atlas-home-pending-panel{border-style:dashed!important;background:linear-gradient(135deg,rgba(30,41,59,.56),rgba(11,19,31,.72))!important}
     @media(max-width:700px){.atlas-daily-brief{grid-template-columns:1fr;padding:.85rem .78rem;border-radius:16px}.atlas-daily-brief h1{font-size:2rem!important}.atlas-daily-brief aside{padding:.55rem 0 0;border-left:0;border-top:1px solid rgba(94,234,212,.22)}.atlas-command-deck{grid-template-columns:1fr 1fr;margin:-.45rem 0 .75rem}.atlas-home-risk-radar{grid-template-columns:1fr}.atlas-home-spotlight>div{grid-template-columns:1fr 1fr}.atlas-home-spotlight>div span:last-child{grid-column:1/-1}}
     @media(max-width:420px){.atlas-daily-brief h1{font-size:1.72rem!important}.atlas-command-deck{grid-template-columns:1fr}.atlas-command-deck article{padding:.58rem .62rem}.atlas-home-spotlight>div{grid-template-columns:1fr}.atlas-home-spotlight>div span:last-child{grid-column:auto}}
+    /* Marker-only Streamlit elements must not consume executive-dashboard space. */
+    [data-testid="stElementContainer"]:has([data-atlas-qa="home-runtime-contract"]),
+    [data-testid="stElementContainer"]:has([data-atlas-qa="production-authority"]),
+    [data-testid="stElementContainer"]:has([data-atlas-qa="home-inventory-authority"]),
+    [data-testid="stElementContainer"]:has([data-atlas-qa="home-guidance-vnext"]){display:none}
+    .atlas-daily-brief{grid-template-columns:minmax(0,1.65fr) minmax(260px,1fr);padding:1.15rem 1.25rem}
+    .atlas-daily-brief h1{font-size:2.1rem!important;line-height:1.1!important}
+    .atlas-daily-brief aside>b{font-size:1.4rem;letter-spacing:-.02em}
+    .atlas-brief-values{display:grid;grid-template-columns:1fr 1fr;gap:.65rem;margin:.6rem 0 .8rem}
+    .atlas-brief-values>span{padding:.65rem;border:1px solid rgba(94,234,212,.2);border-radius:12px;background:rgba(6,18,30,.6)}
+    .atlas-brief-values small{font-size:.66rem;letter-spacing:.025em!important;color:#a8bed5!important}
+    .atlas-brief-values strong{display:block;font-size:1.4rem;color:#f2f8ff;margin-top:.25rem;font-variant-numeric:tabular-nums}
+    @media(max-width:1000px){.atlas-daily-brief{grid-template-columns:1fr}.atlas-daily-brief aside{border-left:0;border-top:1px solid rgba(94,234,212,.22);padding:.8rem 0 0}.atlas-brief-values{max-width:440px}}
+    @media(max-width:600px){.atlas-daily-brief{padding:.9rem}.atlas-daily-brief h1{font-size:1.7rem!important}.atlas-brief-values strong{font-size:1.25rem}.atlas-command-deck{grid-template-columns:1fr 1fr}.atlas-command-deck article{padding:.7rem}.atlas-command-deck small{font-size:.64rem}.atlas-command-deck b{font-size:.85rem}}
     </style>""", unsafe_allow_html=True)
 
 

@@ -682,15 +682,8 @@ async def _deployed_readiness_gate(
 async def _authenticate_and_confirm(
     page: Page, output_dir: Path, *, expected_sha: str, password_override: str | None = None,
 ) -> dict[str, Any]:
-    password = (password_override or
-        os.getenv("ATLAS_AUDIT_PASSWORD")
-        or os.getenv("GUEST_PASSWORD")
-        or os.getenv("VIEWER_PASSWORD")
-        or os.getenv("VIEW_PASSWORD")
-        or ""
-    ).strip()
-    if len(password) >= 2 and password[0] == password[-1] and password[0] in {"\"", "'"}:
-        password = password[1:-1].strip()
+    from services.authentication_roles import select_qa_credential
+    password, credential_source = select_qa_credential(password_override, os.environ)
     started = time.monotonic()
     diagnostics: dict[str, Any] = {
         "password_field_detected": False,
@@ -699,6 +692,8 @@ async def _authenticate_and_confirm(
         "navigation_labels": [],
         "frames_seen": [],
         "configured_secret_length": len(password),
+        "credential_normalization": "TRIM_ONLY_LITERAL_QUOTES_PRESERVED",
+        "credential_source": credential_source,
         "poll_count": 0,
     }
 

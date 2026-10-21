@@ -1,0 +1,302 @@
+{
+  "schema": "ATLAS_CONTABO_METADATA_INVENTORY_V1",
+  "source_run": 37216506983,
+  "authority": "GitHub metadata only; bytes not downloaded or rehashed in this task",
+  "transfer_authorized": false,
+  "artifacts": [
+    {
+      "id": 11318542723,
+      "name": "atlas-finnhub-full-universe-final-37216506983",
+      "archive_sha256": "9612c6b9fa02c74de710c7af0c9e644c5976392e2e9efa0c47b20522316d7c1e",
+      "size_bytes": 1316392491,
+      "expired": false
+    },
+    {
+      "id": 11318150853,
+      "name": "atlas-finnhub-full-shard-40-37216506983",
+      "archive_sha256": "2c6bfa6c847380224f8ee37bdc726b9a51191cb02eabceb1fc0b503ecc03c59b",
+      "size_bytes": 194255,
+      "expired": false
+    },
+    {
+      "id": 11317982044,
+      "name": "atlas-finnhub-full-shard-38-37216506983",
+      "archive_sha256": "59356f7974c35772907fa31216a37996ac7807bf2894165fbcf78845c89f91cf",
+      "size_bytes": 922983,
+      "expired": false
+    },
+    {
+      "id": 11317945736,
+      "name": "atlas-finnhub-full-shard-36-37216506983",
+      "archive_sha256": "530943c111e8c550d2bcbda7b40dca2690fd6b0dbf82b8298d903fa08769dfa2",
+      "size_bytes": 976999,
+      "expired": false
+    },
+    {
+      "id": 11317534061,
+      "name": "atlas-finnhub-full-shard-37-37216506983",
+      "archive_sha256": "f52c753b9108a50f9812b12031f1c3fc7c763140b5feea236ebac2f88c47a9ff",
+      "size_bytes": 835349,
+      "expired": false
+    },
+    {
+      "id": 11317441982,
+      "name": "atlas-finnhub-full-shard-34-37216506983",
+      "archive_sha256": "36aa6ec64c1e5c7794520071f9d3d2d757ac885aa4c4ff717f22f4fdf3094218",
+      "size_bytes": 929759,
+      "expired": false
+    },
+    {
+      "id": 11317285495,
+      "name": "atlas-finnhub-full-shard-33-37216506983",
+      "archive_sha256": "3916d2bb7fcd53d0f7af895821360a9cc6319250e255b7ef6a9736b2f69237b2",
+      "size_bytes": 886273,
+      "expired": false
+    },
+    {
+      "id": 11317277473,
+      "name": "atlas-finnhub-full-shard-35-37216506983",
+      "archive_sha256": "9283c5be3c8d1f7046f36732163267f714ba876dae798913d700134398519a84",
+      "size_bytes": 903552,
+      "expired": false
+    },
+    {
+      "id": 11316964525,
+      "name": "atlas-finnhub-full-shard-39-37216506983",
+      "archive_sha256": "0a7106e95c0af6a71d70ede183cfb12b173d8b9148691c5d1d7c68e4a12c7aa9",
+      "size_bytes": 814401,
+      "expired": false
+    },
+    {
+      "id": 11316770990,
+      "name": "atlas-finnhub-full-shard-32-37216506983",
+      "archive_sha256": "d97f0520d4feb19b3e660f92e8fecef9851b376a1f9bbd86e0e4d987b834c0e9",
+      "size_bytes": 931818,
+      "expired": false
+    },
+    {
+      "id": 11316158414,
+      "name": "atlas-finnhub-full-shard-30-37216506983",
+      "archive_sha256": "fea2757a2a8f5233ce0da79b74b698021484c63a5e0767f0b176a1a89492956f",
+      "size_bytes": 915093,
+      "expired": false
+    },
+    {
+      "id": 11315896882,
+      "name": "atlas-finnhub-full-shard-28-37216506983",
+      "archive_sha256": "4a37d649e31ce798d25f305cf47c833490d4ec6c99168f70a62a4597387f323a",
+      "size_bytes": 917579,
+      "expired": false
+    },
+    {
+      "id": 11315828753,
+      "name": "atlas-finnhub-full-shard-31-37216506983",
+      "archive_sha256": "b43665dc407b19923740ff490ba31af89393c3f09e2e5b1162af1e391bf666e7",
+      "size_bytes": 877964,
+      "expired": false
+    },
+    {
+      "id": 11315402968,
+      "name": "atlas-finnhub-full-shard-26-37216506983",
+      "archive_sha256": "75341268f2c094f508b97c006aa2492ef8b1ba8635b8db1dd1b008c21af6c57d",
+      "size_bytes": 839060,
+      "expired": false
+    },
+    {
+      "id": 11315380823,
+      "name": "atlas-finnhub-full-shard-25-37216506983",
+      "archive_sha256": "e9c908ebfcac6ca6a8b36418f0919a46e06bb4ae8f81139a4d0f66469c534edc",
+      "size_bytes": 870005,
+      "expired": false
+    },
+    {
+      "id": 11315353863,
+      "name": "atlas-finnhub-full-shard-29-37216506983",
+      "archive_sha256": "efb00b4eef847d9d68b26d792218f1e672db4ede79eb2319db33f3d123fb36cf",
+      "size_bytes": 795605,
+      "expired": false
+    },
+    {
+      "id": 11315321307,
+      "name": "atlas-finnhub-full-shard-24-37216506983",
+      "archive_sha256": "98efac170a4735ce2ea25acb48d4975fbf8a4df764fd7034e7d5ed04215da52b",
+      "size_bytes": 872155,
+      "expired": false
+    },
+    {
+      "id": 11315293807,
+      "name": "atlas-finnhub-full-shard-27-37216506983",
+      "archive_sha256": "53343cec0eb4db023db672b4aedab94ee5332c7d60f03809f353e7c03bc4a72c",
+      "size_bytes": 877323,
+      "expired": false
+    },
+    {
+      "id": 11315055146,
+      "name": "atlas-finnhub-full-shard-22-37216506983",
+      "archive_sha256": "172ad86c18bb57334f1a63ac65010ba260a57ba65a9e0d65bda735017a908d1f",
+      "size_bytes": 861910,
+      "expired": false
+    },
+    {
+      "id": 11314442854,
+      "name": "atlas-finnhub-full-shard-23-37216506983",
+      "archive_sha256": "85be15e4b9cd02a5970e1f73322be5b3bec8b8d1b71400101f3438627bd6e425",
+      "size_bytes": 925309,
+      "expired": false
+    },
+    {
+      "id": 11314195350,
+      "name": "atlas-finnhub-full-shard-19-37216506983",
+      "archive_sha256": "9feb7d1036159fa1ef8d4d94f401afad9bf28ca901af9d17dfa230f0e31cdb7b",
+      "size_bytes": 842343,
+      "expired": false
+    },
+    {
+      "id": 11314153021,
+      "name": "atlas-finnhub-full-shard-21-37216506983",
+      "archive_sha256": "f6875b41f5e78196cfd4341156bc3c967b34889bde135a02b3b39433f2903673",
+      "size_bytes": 932287,
+      "expired": false
+    },
+    {
+      "id": 11313786290,
+      "name": "atlas-finnhub-full-shard-18-37216506983",
+      "archive_sha256": "2123157a3d594b572e574de3226a81a1171a297e48b06b546a9803fe3c25cb57",
+      "size_bytes": 874960,
+      "expired": false
+    },
+    {
+      "id": 11313695002,
+      "name": "atlas-finnhub-full-shard-17-37216506983",
+      "archive_sha256": "a8760c5ce5c52cbaad1e8dad802a684ea6d36569eba76602261cdb8ec365cc92",
+      "size_bytes": 903266,
+      "expired": false
+    },
+    {
+      "id": 11313624162,
+      "name": "atlas-finnhub-full-shard-20-37216506983",
+      "archive_sha256": "792e690e230f6bb0687fb9370f41b73452b5c31c41e89fa1ada4ab7322185087",
+      "size_bytes": 866767,
+      "expired": false
+    },
+    {
+      "id": 11313526283,
+      "name": "atlas-finnhub-full-shard-16-37216506983",
+      "archive_sha256": "2e4ee3544765920e3ebc8ef8735195f68f9e8fd5d5f828e88c11a3ab51001817",
+      "size_bytes": 901187,
+      "expired": false
+    },
+    {
+      "id": 11313376214,
+      "name": "atlas-finnhub-full-shard-14-37216506983",
+      "archive_sha256": "58f9cfb7fe52200794a984b3fc17a869be72f9f38b608d4769231e6ad3aca67f",
+      "size_bytes": 888202,
+      "expired": false
+    },
+    {
+      "id": 11312990371,
+      "name": "atlas-finnhub-full-shard-13-37216506983",
+      "archive_sha256": "8374724c18815b4a97394c7524226239fe1dfa7c73a98531eab21ca13f3502a8",
+      "size_bytes": 850029,
+      "expired": false
+    },
+    {
+      "id": 11312577406,
+      "name": "atlas-finnhub-full-shard-15-37216506983",
+      "archive_sha256": "83bf7af788e658e6d50a6577a4e3ebf311765aeef593194591be0c8d944ab277",
+      "size_bytes": 828702,
+      "expired": false
+    },
+    {
+      "id": 11312227113,
+      "name": "atlas-finnhub-full-shard-10-37216506983",
+      "archive_sha256": "39cc1681461c0944e6a96cc9e1284fbfd5fcc136c8ca0542eb168a5ce0b2b8b8",
+      "size_bytes": 905260,
+      "expired": false
+    },
+    {
+      "id": 11312175404,
+      "name": "atlas-finnhub-full-shard-9-37216506983",
+      "archive_sha256": "9ddcea21dbae77323d32f0a0e44c012cda5d147e24f448843e4106ac0360141c",
+      "size_bytes": 971915,
+      "expired": false
+    },
+    {
+      "id": 11312109540,
+      "name": "atlas-finnhub-full-shard-12-37216506983",
+      "archive_sha256": "1515d6e9b71ea2f2bdd6aaa565e16514bdca366baae6a71e9c1b210654588d9b",
+      "size_bytes": 862746,
+      "expired": false
+    },
+    {
+      "id": 11312025786,
+      "name": "atlas-finnhub-full-shard-8-37216506983",
+      "archive_sha256": "2149586eb10c30958722115adfdf82d2dbf693406a2a506421332d235bf4e129",
+      "size_bytes": 922212,
+      "expired": false
+    },
+    {
+      "id": 11311818384,
+      "name": "atlas-finnhub-full-shard-11-37216506983",
+      "archive_sha256": "4e5c16d382e1179540c2febb0b1c73290387685d26413ff516920141faadfdc6",
+      "size_bytes": 918280,
+      "expired": false
+    },
+    {
+      "id": 11311082051,
+      "name": "atlas-finnhub-full-shard-7-37216506983",
+      "archive_sha256": "61f24026b85ff0e1ec7b822078acd79726a186fdfa3bf05ce42e06862cb983a7",
+      "size_bytes": 885691,
+      "expired": false
+    },
+    {
+      "id": 11310808736,
+      "name": "atlas-finnhub-full-shard-6-37216506983",
+      "archive_sha256": "6c2478ce2f1b2bddd3653316be2273a4ce28fccb37d3f6027cb188756a124866",
+      "size_bytes": 924594,
+      "expired": false
+    },
+    {
+      "id": 11310655083,
+      "name": "atlas-finnhub-full-shard-2-37216506983",
+      "archive_sha256": "540f202e0ca98c23b8d91499603337084ff45f0ce574307621b3efb3b9a070bc",
+      "size_bytes": 912870,
+      "expired": false
+    },
+    {
+      "id": 11310582204,
+      "name": "atlas-finnhub-full-shard-4-37216506983",
+      "archive_sha256": "ab44819f2901d739ab06c2e6e63e8d5b33dce6122f6a26007f3c313b5214a3d4",
+      "size_bytes": 876674,
+      "expired": false
+    },
+    {
+      "id": 11310369736,
+      "name": "atlas-finnhub-full-shard-5-37216506983",
+      "archive_sha256": "c10a51f384c33c02e5f710f7402c144f2fbc9d80cc9625c563e3c061ec7d25b7",
+      "size_bytes": 840917,
+      "expired": false
+    },
+    {
+      "id": 11310321502,
+      "name": "atlas-finnhub-full-shard-1-37216506983",
+      "archive_sha256": "82619df2b7dc765d4717673a9251b5582fd7e17998668ed496278ad40ae3b17a",
+      "size_bytes": 881613,
+      "expired": false
+    },
+    {
+      "id": 11310154344,
+      "name": "atlas-finnhub-full-shard-3-37216506983",
+      "archive_sha256": "b4e4c6df17e949d39b540d2a96b58d5a39af6401ec4a617f6f7719926cccb379",
+      "size_bytes": 904499,
+      "expired": false
+    },
+    {
+      "id": 11309687170,
+      "name": "atlas-finnhub-full-shard-0-37216506983",
+      "archive_sha256": "5baee3865bb08364aca919994c5a48740bcd889d22b5c11382bb32c29dcb2015",
+      "size_bytes": 886773,
+      "expired": false
+    }
+  ]
+}

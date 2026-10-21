@@ -10,7 +10,7 @@ import math
 
 import pandas as pd
 import streamlit as st
-from ui.research_learning import build_learning_guide
+from ui.research_learning import build_learning_guide, build_valuation_guide
 
 from services.customer_research_view import Availability, build_customer_research_view
 from services.customer_metric_format import (
@@ -161,6 +161,56 @@ def _render_institutional_overview(report: Mapping[str, Any], *, ticker: str) ->
 
 
 
+def _render_valuation_guide(page: Mapping[str, Any]) -> None:
+    guide = build_valuation_guide(page)
+    with st.expander("Valuation: what am I paying for the business?", expanded=False):
+        st.write(
+            "A good business can still be an expensive stock. The share price is the cost of one share; "
+            "Fair Value is an estimate of what that share is worth under a model's assumptions. "
+            "Neither a low share price nor a gap below Fair Value proves that a stock is cheap."
+        )
+        for item in guide["facts"]:
+            st.markdown(f'**{item["fact_name"]}: {_escape_markdown_currency(_money(item["value"]))}**')
+            st.caption(
+                f'Source: {item["source"]} · Evidence as of: {_financial_period(item.get("source_timestamp"))} · '
+                f'Fiscal period: {_financial_period(item.get("period"))} · '
+                f'Evidence IDs: {", ".join(str(value) for value in item["evidence_ids"])}'
+            )
+        present = {item["fact_name"] for item in guide["facts"]}
+        for name in ("Last Certified Close", "ATLAS Fair Value"):
+            if name not in present:
+                st.caption(f"{name}: source-bound evidence is unavailable in this guide.")
+        st.write(
+            "Start with the earnings and cash evidence below: can the business keep generating money for owners? "
+            "Then ask what growth, profitability, and future investment the valuation assumes. "
+            "A larger gap is not a promised return or a timetable. Check each evidence date; a retained close is not a live quote."
+        )
+        st.markdown("**Go deeper: inspect the retained model assumptions**")
+        for item in guide["models"]:
+            st.markdown(f'**{item.get("name") or item.get("methodology_id") or "Retained model"}**')
+            st.write(f'Model estimate per share: {_money(item["value"])}')
+            st.caption(
+                f'Source: {item["source"]} · Fiscal period: {_financial_period(item.get("fiscal_period"))} · '
+                'Model-specific source date: unavailable. Published model detail from this evaluation snapshot.'
+            )
+            if item["assumptions"]:
+                # Plain text preserves retained assumption values without Markdown interpretation.
+                for name, value in item["assumptions"].items():
+                    st.text(f"{name}: {value if value is not None else 'Unavailable'}")
+            else:
+                st.caption("Retained model assumptions are unavailable.")
+        if not guide["models"]:
+            st.info("Published model estimates and assumptions are unavailable in this snapshot.")
+        st.caption(
+            "Growth means future sales or cash expansion; margin means how much sales become profit. "
+            "A discount rate reduces the value of money expected later to reflect time and risk. "
+            "Terminal value estimates what the business is worth beyond the explicit forecast. "
+            "Higher assumed growth or a lower discount rate can raise a model estimate; that is model sensitivity, not new company evidence. "
+            "A price-to-earnings multiple compares price with profit per share. Reported and forecast earnings are different bases; "
+            "no comparable multiple or sensitivity calculation is supplied here."
+        )
+
+
 def _render_learning_guide(page: Mapping[str, Any], *, ticker: str) -> None:
     guide = build_learning_guide(page)
     if guide["status"] != "AVAILABLE":
@@ -168,6 +218,7 @@ def _render_learning_guide(page: Mapping[str, Any], *, ticker: str) -> None:
     _marker("learning-guide", ticker, status=guide["status"], non_scoring="true")
     st.markdown("### Read the evidence like an investor")
     st.caption("Learning guidance · Uses this retained snapshot, not live results or AI-generated research.")
+    _render_valuation_guide(page)
     with st.expander("Earnings: are sales turning into profit and cash?", expanded=True):
         st.write(
             "Read sales, profit, and cash together. Higher sales can be encouraging, but costs may rise faster. "
@@ -205,6 +256,14 @@ def _render_learning_guide(page: Mapping[str, Any], *, ticker: str) -> None:
         for label, key in (("Bull watch — more supportive evidence", "bull_watch"), ("Bear watch — less supportive evidence", "bear_watch")):
             st.markdown(f"**{label}**")
             _list(list(guide[key])) if guide[key] else st.caption("Company-specific monitoring evidence is unavailable.")
+        st.markdown("**Important retained risks**")
+        _list(list(guide["risks"])) if guide["risks"] else st.caption(
+            "Company-specific risk evidence is unavailable. Missing evidence does not mean low risk."
+        )
+        st.caption(
+            "Risks describe concerns in the retained assessment; bear watchpoints describe developments to monitor. "
+            "This guide does not rank their likelihood or estimate potential losses."
+        )
         st.caption(
             f'Retained ATLAS monitoring prompts · Evaluation snapshot: {guide.get("snapshot") or "Unavailable"}. '
             "These are conditional prompts, not forecasts, probabilities, or new buy/sell triggers. "
@@ -884,19 +943,23 @@ def render_customer_research_first_screen(report: Mapping[str, Any]) -> dict[str
     confidence_score = customer_confidence(h["confidence"])
     _marker("root", ticker, version=page["version"], authority="certified_customer_evaluation", section_count=5)
     st.markdown("""<style>
-    .atlas-r2-head{padding:.9rem 1rem;border:1px solid rgba(45,212,191,.25);border-radius:16px;background:linear-gradient(145deg,rgba(15,23,42,.96),rgba(18,39,51,.88));margin-bottom:.55rem}.atlas-r2-kicker{color:#61d8c3;font-size:.68rem;font-weight:800;letter-spacing:.13em}.atlas-r2-title{display:flex;align-items:baseline;justify-content:space-between;gap:.8rem;flex-wrap:wrap}.atlas-r2-head h1{margin:.18rem 0;font-size:1.55rem}.atlas-r2-action{color:#5eead4;font-size:.82rem;font-weight:850;letter-spacing:.07em}.atlas-r2-meta{color:#94a3b8;font-size:.76rem}.atlas-r2-metrics{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:.55rem;margin:.65rem 0}.atlas-r2-metric{padding:.7rem .75rem;border:1px solid rgba(148,163,184,.18);border-radius:12px;background:#0f192b;min-width:0}.atlas-r2-metric small{display:block;color:#8ea1bb;font-size:.62rem;letter-spacing:.08em;text-transform:uppercase}.atlas-r2-metric strong{display:block;color:#f8fafc;font-size:1.15rem;line-height:1.15;margin-top:.25rem;overflow-wrap:anywhere}.atlas-r2-grid{display:grid;grid-template-columns:1fr 1fr;gap:.7rem}.atlas-r2-panel{padding:.9rem;border:1px solid rgba(148,163,184,.16);border-radius:14px;background:rgba(15,23,42,.55)}
-    @media(max-width:700px){.atlas-r2-head h1{font-size:1.25rem}.atlas-r2-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.atlas-r2-metric strong{font-size:1rem}.atlas-r2-grid{grid-template-columns:1fr}.atlas-r2-panel{padding:.75rem}}
+    .atlas-r2-head{padding:.9rem 1rem;border:1px solid rgba(45,212,191,.25);border-radius:16px;background:linear-gradient(145deg,rgba(15,23,42,.96),rgba(18,39,51,.88));margin-bottom:.55rem}.atlas-r2-kicker{color:#61d8c3;font-size:.68rem;font-weight:800;letter-spacing:.13em}.atlas-r2-title{display:flex;align-items:baseline;justify-content:space-between;gap:.8rem;flex-wrap:wrap}.atlas-r2-head h1{margin:.18rem 0;font-size:1.55rem}.atlas-r2-action{color:#5eead4;font-size:.82rem;font-weight:850;letter-spacing:.07em}.atlas-r2-meta{color:#94a3b8;font-size:.76rem}.atlas-r2-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.55rem;margin:.65rem 0}.atlas-r2-metric{padding:.7rem .75rem;border:1px solid rgba(148,163,184,.18);border-radius:12px;background:#0f192b;min-width:0}.atlas-r2-metric small{display:block;color:#8ea1bb;font-size:.62rem;letter-spacing:.08em;text-transform:uppercase}.atlas-r2-metric strong{display:block;color:#f8fafc;font-size:1.15rem;line-height:1.15;margin-top:.25rem;overflow-wrap:anywhere}.atlas-r2-grid{display:grid;grid-template-columns:1fr 1fr;gap:.7rem}.atlas-r2-panel{padding:.9rem;border:1px solid rgba(148,163,184,.16);border-radius:14px;background:rgba(15,23,42,.55)}
+    .atlas-r2-evidence{display:grid;grid-template-columns:1fr 1fr;gap:.55rem;margin:.55rem 0}.atlas-r2-evidence .atlas-r2-metric{background:rgba(22,44,61,.68);border-color:rgba(94,234,212,.18)}.atlas-r2-evidence p{color:#adbed1;font-size:.78rem;line-height:1.45;margin:.4rem 0 0}.atlas-r2-metrics .atlas-r2-metric{padding:1rem}.atlas-r2-metrics strong{font-size:1.65rem}.atlas-r2-section-label{color:#c2d2e4;font-size:.72rem;font-weight:700;letter-spacing:.075em;margin-top:.85rem}.atlas-r2-head h1{font-size:1.9rem;line-height:1.15}.atlas-r2-action{border:1px solid rgba(94,234,212,.35);border-radius:999px;padding:.35rem .65rem;color:#c4e7df}
+    @media(min-width:701px) and (max-width:1000px){.atlas-r2-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}.atlas-r2-metrics strong{font-size:1.35rem}}
+    @media(max-width:700px){.atlas-r2-head h1{font-size:1.25rem}.atlas-r2-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.atlas-r2-metric strong{font-size:1rem}.atlas-r2-grid{grid-template-columns:1fr}.atlas-r2-panel{padding:.75rem}.atlas-r2-metrics .atlas-r2-metric:last-child{grid-column:1/-1}.atlas-r2-evidence{grid-template-columns:1fr}.atlas-r2-metrics .atlas-r2-metric{padding:.8rem}.atlas-r2-metrics strong{font-size:1.3rem}}
     </style>""", unsafe_allow_html=True)
     st.markdown(
         f'<section class="atlas-r2-head atlas-page-hero atlas-page-hero-research atlas-ai-insight-panel"><div class="atlas-r2-kicker">CERTIFIED ATLAS RESEARCH</div>'
         f'<div class="atlas-r2-title"><h1>{escape(ticker)} · {escape(str(page["company"]))}</h1><span class="atlas-r2-action">{escape(h["action"])}</span></div>'
         f'<div class="atlas-r2-meta">{escape(str(page.get("sector") or "Sector unavailable"))} · Last certified close {escape(str(h.get("evidence_as_of") or "Date unavailable"))}</div>'
+        '<div class="atlas-r2-section-label">PRICE &amp; VALUATION</div>'
         f'<div class="atlas-r2-metrics">'
         f'<div class="atlas-r2-metric"><small>Last Certified Close</small><strong>{escape(_money(h["price"]))}</strong></div>'
         f'<div class="atlas-r2-metric"><small>ATLAS Fair Value</small><strong>{escape(_money(h["fair_value"]))}</strong></div>'
         f'<div class="atlas-r2-metric"><small>Fair Value Gap</small><strong>{escape(_pct(h["fair_value_gap_pct"], signed=True))}</strong></div>'
-        f'<div class="atlas-r2-metric"><small>Opportunity</small><strong>{escape(customer_score(h["opportunity"]))}</strong></div>'
-        f'<div class="atlas-r2-metric"><small>Evidence Confidence</small><strong>{escape(str(h.get("confidence_band") or "Unavailable"))} · {escape(confidence_score)}</strong></div>'
+        '</div><div class="atlas-r2-section-label">HOW TO READ THE EVIDENCE</div><div class="atlas-r2-evidence">'
+        f'<div class="atlas-r2-metric"><small>Opportunity</small><strong>{escape(customer_score(h["opportunity"]))}</strong><p>Relative attractiveness in the certified ATLAS method. Read the risks before deciding.</p></div>'
+        f'<div class="atlas-r2-metric"><small>Evidence Confidence</small><strong>{escape(str(h.get("confidence_band") or "Unavailable"))} · {escape(confidence_score)}</strong><p>Strength of the underlying evidence, not the probability of an investment return.</p></div>'
         f'</div></section>', unsafe_allow_html=True,
     )
     _marker(
