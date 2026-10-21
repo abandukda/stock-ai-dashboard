@@ -1284,3 +1284,17 @@ _compact_opportunity_card({'ticker':'NVDA','display_price':233.99,
     assert '<small>Last-known Price</small>' in rendered
     assert '<small>Current Price</small>' not in rendered
     assert '$233.99' in rendered and '$346.05' in rendered
+
+
+def test_customer_footer_buttons_target_admitted_customer_routes():
+    from services.customer_navigation_contract import CUSTOMER_ROUTES
+    app = AppTest.from_string('''
+from ui.home_guidance_vnext import _render_footer_navigation
+_render_footer_navigation()
+''').run()
+    assert not app.exception
+    assert tuple(button.label for button in app.button) == tuple(route for route in CUSTOMER_ROUTES if route != 'Home')
+    for index, route in enumerate(route for route in CUSTOMER_ROUTES if route != 'Home'):
+        app.button[index].click().run()
+        assert not app.exception
+        assert app.session_state['v79_pending_page'] == route

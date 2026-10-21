@@ -1839,16 +1839,15 @@ def _render_intelligence_modules(story: Mapping[str, Any]) -> None:
 def _render_footer_navigation() -> None:
     _section_marker("footer_navigation")
     st.markdown("### Continue with ATLAS intelligence")
-    destinations = (
-        ("Recovery", "Recovery"), ("Earnings", "Earnings Intelligence"),
-        ("ETFs", "ETFs"), ("Watchlist", "Watchlist Intelligence"),
-        ("Political Context", "Political Intelligence"), ("Research Any Ticker", "Research Any Ticker"),
-    )
+    from services.customer_navigation_contract import CUSTOMER_ROUTES
+    # Every footer action must target a route the customer navigation admits.
+    # Legacy internal labels otherwise bounce viewers silently back to Home.
+    destinations = tuple((page, page) for page in CUSTOMER_ROUTES if page != "Home")
     for start in range(0, len(destinations), 3):
         columns = st.columns(3)
         for column, (label, page) in zip(columns, destinations[start:start + 3]):
             if column.button(label, key=f"home_continue_{page}", use_container_width=True,
-                             type="primary" if page == "Research Any Ticker" else "secondary"):
+                             type="primary" if page == "Research" else "secondary"):
                 st.session_state["v79_pending_page"] = page
                 st.rerun()
 
