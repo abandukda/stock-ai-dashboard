@@ -11,6 +11,7 @@ from datetime import date, datetime, timedelta, timezone
 from collections import Counter
 import hashlib
 import json
+import ijson
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
@@ -56,74 +57,96 @@ def resolve_replay_retained_records(
     if len(expected_sha) != 64:
         raise ValueError("INCREMENTAL_PROVIDER_FREE_RETAINED_SOURCE_DIGEST_MISSING")
     candidates = []
-    matches: list[tuple[Path, bytes]] = []
+    matches: list[Path] = []
+    # Publication pools exceed 1 GB. Never retain raw bytes or decode entire
+    # alternative trees just to select the checksum-bound source.
     for path in sorted(artifact_root.rglob("full_evaluation_pool.json")):
-        raw = path.read_bytes()
-        digest = hashlib.sha256(raw).hexdigest()
+        hasher = hashlib.sha256()
+        with path.open("rb") as stream:
+            for block in iter(lambda: stream.read(1024 * 1024), b""):
+                hasher.update(block)
+        file_digest = hasher.hexdigest()
+        schema, count = "INVALID_JSON", None
         try:
-            value = json.loads(raw)
-            schema = "LIST" if isinstance(value, list) else type(value).__name__.upper()
-            count = len(value) if isinstance(value, list) else None
-        except (UnicodeDecodeError, json.JSONDecodeError):
+            with path.open("rb") as stream:
+                events = ijson.parse(stream, use_float=True)
+                prefix, event, value = next(events)
+                schema = ("LIST" if event == "start_array" else
+                          "DICT" if event == "start_map" else type(value).__name__.upper())
+                count = 0 if schema == "LIST" else None
+                for prefix, event, value in events:
+                    if count is not None and prefix == "item" and event in (
+                        "start_map", "start_array", "string", "number", "boolean", "null"
+                    ):
+                        count += 1
+        except (ijson.JSONError, UnicodeDecodeError, StopIteration):
             schema, count = "INVALID_JSON", None
         candidates.append({"relative_path": str(path.relative_to(artifact_root)),
-                           "sha256": digest, "schema": schema, "row_count": count})
-        if digest == expected_sha:
-            matches.append((path, raw))
+                           "sha256": file_digest, "schema": schema, "row_count": count})
+        if file_digest == expected_sha:
+            if schema != "LIST":
+                raise ValueError("INCREMENTAL_PROVIDER_FREE_RETAINED_SCHEMA_INVALID")
+            matches.append(path)
     if not matches:
         raise ValueError("INCREMENTAL_PROVIDER_FREE_RETAINED_SOURCE_NOT_FOUND")
     selected = matches[0]
-    source_rows = json.loads(selected[1])
-    if not isinstance(source_rows, list):
-        raise ValueError("INCREMENTAL_PROVIDER_FREE_RETAINED_SCHEMA_INVALID")
-    by_ticker: dict[str, dict[str, Any]] = {}
-    duplicate_tickers: set[str] = set()
-    for row in source_rows:
-        if not isinstance(row, Mapping):
-            raise ValueError("INCREMENTAL_PROVIDER_FREE_RETAINED_ROW_INVALID")
-        ticker = str(row.get("ticker") or "").strip().upper()
-        if not ticker:
-            raise ValueError("INCREMENTAL_PROVIDER_FREE_RETAINED_TICKER_INVALID")
-        if ticker in by_ticker:
-            duplicate_tickers.add(ticker)
-        else:
-            by_ticker[ticker] = dict(row)
-    if duplicate_tickers:
-        raise ValueError(
-            "INCREMENTAL_PROVIDER_FREE_RETAINED_DUPLICATE_SYMBOL:"
-            + ",".join(sorted(duplicate_tickers))
-        )
     expected = _plan_symbols(plan)
-    missing = sorted(set(expected) - set(by_ticker))
+    expected_set = set(expected)
+    by_ticker: dict[str, dict[str, Any]] = {}
+    seen: set[str] = set()
+    duplicate_tickers: set[str] = set()
+    excluded_reasons: Counter[str] = Counter()
+    source_count = excluded_count = 0
+    with selected.open("rb") as stream:
+        for row in ijson.items(stream, "item", use_float=True):
+            source_count += 1
+            if not isinstance(row, Mapping):
+                raise ValueError("INCREMENTAL_PROVIDER_FREE_RETAINED_ROW_INVALID")
+            ticker = str(row.get("ticker") or "").strip().upper()
+            if not ticker:
+                raise ValueError("INCREMENTAL_PROVIDER_FREE_RETAINED_TICKER_INVALID")
+            if ticker in seen:
+                duplicate_tickers.add(ticker)
+            seen.add(ticker)
+            if ticker in expected_set:
+                by_ticker[ticker] = dict(row)
+                continue
+            excluded_count += 1
+            certification = row.get("publication_certification")
+            certification = certification if isinstance(certification, Mapping) else {}
+            reasons = list(certification.get("blockers") or certification.get("reason_codes") or ())
+            state = str(certification.get("certification_state") or "").strip()
+            if reasons:
+                excluded_reasons.update(str(reason) for reason in reasons if str(reason).strip())
+            elif state:
+                excluded_reasons[state] += 1
+            else:
+                excluded_reasons["NOT_IN_APPROVED_CUSTOMER_MEMBERSHIP"] += 1
+    # Recheck after parsing so a source replacement cannot inherit old authority.
+    hasher = hashlib.sha256()
+    with selected.open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            hasher.update(block)
+    if hasher.hexdigest() != expected_sha:
+        raise ValueError("INCREMENTAL_PROVIDER_FREE_RETAINED_SOURCE_CHANGED")
+    if duplicate_tickers:
+        raise ValueError("INCREMENTAL_PROVIDER_FREE_RETAINED_DUPLICATE_SYMBOL:"
+                         + ",".join(sorted(duplicate_tickers)))
+    missing = sorted(expected_set - set(by_ticker))
     if missing:
-        raise ValueError(
-            "INCREMENTAL_PROVIDER_FREE_RETAINED_PLAN_TICKER_MISSING:"
-            + ",".join(missing)
-        )
+        raise ValueError("INCREMENTAL_PROVIDER_FREE_RETAINED_PLAN_TICKER_MISSING:"
+                         + ",".join(missing))
     rows = validate_replay_retained_scope(
         retained_rows=[by_ticker[ticker] for ticker in expected], plan=plan,
     )
-    excluded = [row for ticker, row in by_ticker.items() if ticker not in set(expected)]
-    excluded_reasons: Counter[str] = Counter()
-    for row in excluded:
-        certification = row.get("publication_certification")
-        certification = certification if isinstance(certification, Mapping) else {}
-        reasons = list(certification.get("blockers") or certification.get("reason_codes") or ())
-        state = str(certification.get("certification_state") or "").strip()
-        if reasons:
-            excluded_reasons.update(str(reason) for reason in reasons if str(reason).strip())
-        elif state:
-            excluded_reasons[state] += 1
-        else:
-            excluded_reasons["NOT_IN_APPROVED_CUSTOMER_MEMBERSHIP"] += 1
     report = {
         "contract": "ATLAS_INCREMENTAL_RETAINED_RECORD_RESOLUTION_V1",
         "expected_source_file_sha256": expected_sha,
-        "selected_relative_path": str(selected[0].relative_to(artifact_root)),
-        "source_row_count": len(source_rows),
+        "selected_relative_path": str(selected.relative_to(artifact_root)),
+        "source_row_count": source_count,
         "selected_row_count": len(rows), "candidate_count": len(candidates),
         "matching_source_count": len(matches),
-        "excluded_row_count": len(excluded),
+        "excluded_row_count": excluded_count,
         "excluded_reason_counts": dict(sorted(excluded_reasons.items())),
         "missing_plan_ticker_count": 0,
         "duplicate_source_ticker_count": 0,
