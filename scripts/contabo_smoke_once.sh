@@ -21,7 +21,7 @@ for directory, children, files in os.walk(home):
     if len(pathlib.Path(directory).relative_to(home).parts)>=4: children[:]=[]
     if '.runner' not in files: continue
     candidate=pathlib.Path(directory)/'.runner'
-    try: data=json.loads(candidate.read_text())
+    try: data=json.loads(candidate.read_text(encoding='utf-8-sig'))
     except (OSError,ValueError): continue
     if data.get('agentName')=='atlas-contabo-1' and data.get('gitHubUrl','').rstrip('/')=='https://github.com/abandukda/stock-ai-dashboard':
         if data.get('ephemeral',False): raise SystemExit('Registration is ephemeral; review before starting to preserve identity.')

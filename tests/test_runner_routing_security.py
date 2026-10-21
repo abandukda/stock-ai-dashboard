@@ -1,5 +1,6 @@
 """Routing is checked before allocation; Contabo smoke never runs repository code."""
 import copy
+import json
 import os
 from pathlib import Path
 import re
@@ -127,6 +128,48 @@ class RoutingSecurity(unittest.TestCase):
         self.assertEqual(doc['permissions'], {'contents': 'read'})
         self.assertEqual(doc['jobs']['offline-routing-contract']['runs-on'], 'ubuntu-24.04')
         self.assertNotIn('secrets.', (ROOT / '.github/workflows/atlas_runner_routing_ci.yml').read_text())
+
+
+class RegistrationDiscovery(unittest.TestCase):
+    def setUp(self):
+        launcher = (ROOT / 'scripts/contabo_smoke_once.sh').read_text()
+        # Execute the real embedded discovery parser, never the launcher/listener.
+        self.code = re.search(r"runner_root=\$\(python3 - <<'PY'\n(.*?)\nPY\n\)", launcher, re.S).group(1)
+        self.registration = dict(agentName='atlas-contabo-1',
+                                 gitHubUrl='https://github.com/abandukda/stock-ai-dashboard',
+                                 ephemeral=False)
+
+    def discover(self, registrations, encoding):
+        with tempfile.TemporaryDirectory() as home:
+            for index, registration in enumerate(registrations):
+                directory = Path(home) / ('runner-' + str(index))
+                directory.mkdir()
+                text = json.dumps(registration) if isinstance(registration, dict) else registration
+                (directory / '.runner').write_text(text, encoding=encoding)
+            result = subprocess.run([sys.executable, '-c', self.code],
+                                    env=dict(PATH=os.defpath, HOME=home),
+                                    capture_output=True, text=True)
+            if result.returncode == 0:
+                self.assertEqual(result.stdout.strip(), str(Path(home) / 'runner-0'))
+            return result
+
+    def test_existing_registration_with_and_without_utf8_bom(self):
+        for encoding in ('utf-8', 'utf-8-sig'):
+            with self.subTest(encoding=encoding):
+                self.assertEqual(self.discover([self.registration], encoding).returncode, 0)
+
+    def test_bom_support_preserves_identity_repository_and_ephemeral_rejections(self):
+        for encoding in ('utf-8', 'utf-8-sig'):
+            for patch in (dict(agentName='other-runner'), dict(gitHubUrl='https://github.com/other/repo'),
+                          dict(ephemeral=True)):
+                with self.subTest(encoding=encoding, patch=patch):
+                    self.assertNotEqual(self.discover([dict(self.registration, **patch)], encoding).returncode, 0)
+
+    def test_malformed_missing_and_duplicate_registrations_fail_closed(self):
+        for encoding in ('utf-8', 'utf-8-sig'):
+            for registrations in ([], ['{invalid json'], [self.registration, self.registration]):
+                with self.subTest(encoding=encoding, registrations=registrations):
+                    self.assertNotEqual(self.discover(registrations, encoding).returncode, 0)
 
 
 class HostJobAllowlist(unittest.TestCase):
