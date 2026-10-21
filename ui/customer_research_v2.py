@@ -10,7 +10,7 @@ import math
 
 import pandas as pd
 import streamlit as st
-from ui.research_learning import build_learning_guide, build_valuation_guide
+from ui.research_learning import build_earnings_reader, build_learning_guide, build_valuation_guide
 
 from services.customer_research_view import Availability, build_customer_research_view
 from services.customer_metric_format import (
@@ -211,6 +211,51 @@ def _render_valuation_guide(page: Mapping[str, Any]) -> None:
         )
 
 
+def _render_earnings_reader(page: Mapping[str, Any]) -> None:
+    reader = build_earnings_reader(page)
+    st.markdown("**Filing reader: what changed from a year earlier?**")
+    if reader["status"] != "AVAILABLE":
+        st.info("Source-bound quarterly filing evidence is unavailable for this reader.")
+        return
+    st.caption(
+        "These are retained reported totals through the fiscal quarter, not newly released results. "
+        "Q1 covers the first quarter; later quarters show cumulative year-to-date totals. "
+        "The prior-year column uses the same fiscal quarter. No single-quarter amounts are inferred."
+    )
+    for row in reader["rows"]:
+        st.markdown(f'**{row["title"]}**')
+        st.write(row["explanation"])
+        for key, label in (("latest", "Latest retained period"), ("prior", "Same fiscal quarter a year earlier")):
+            item = row[key]
+            if item is None:
+                st.caption(f"{label}: unambiguous source-bound evidence is unavailable.")
+                continue
+            st.write(_escape_markdown_currency(
+                f'{label}: {_financial_value(item["value"], "USD")} · '
+                f'FY{item["fiscal_year"]} Q{item["fiscal_quarter"]} · '
+                f'Year-to-date through {item["period_end"]}'
+            ))
+            st.caption(
+                f'Source: retained filing {item["accession"]} · '
+                f'Filed: {item.get("filed_date") or "Unavailable"} · Fact ID: {item["fact_id"]}'
+            )
+        with st.expander(f'{row["title"]}: accounting basis and source details', expanded=False):
+            for key in ("latest", "prior"):
+                if row[key]:
+                    st.text(f'{key}: {row[key]["concept"]} · {row[key]["basis"]} · '
+                            f'Raw source SHA-256: {row[key]["raw_sha256"]}')
+    st.write(
+        "Use the paired amounts to ask whether sales, profit, and cash moved together. "
+        "A larger profit or cash loss is a deterioration even if sales increased. "
+        "Before deciding why, check filing notes for acquisitions, one-time costs, and payment timing. "
+        "Matching fiscal quarters does not establish identical accounting definitions or period lengths."
+    )
+    st.caption(
+        "A causal explanation, comparable pre-release estimates, and management transcript evidence "
+        "are unavailable in this reader. These amounts do not establish an earnings beat or miss."
+    )
+
+
 def _render_learning_guide(page: Mapping[str, Any], *, ticker: str) -> None:
     guide = build_learning_guide(page)
     if guide["status"] != "AVAILABLE":
@@ -240,6 +285,7 @@ def _render_learning_guide(page: Mapping[str, Any], *, ticker: str) -> None:
             "That matched comparison is unavailable in this guide. Management guidance and transcript commentary are also unavailable here. "
             "A single snapshot cannot establish an improving trend."
         )
+        _render_earnings_reader(page)
         st.markdown("**Go deeper: compare earnings fairly**")
         st.write(
             "Use the financial statements below to compare the same fiscal quarter with the prior year's quarter, "

@@ -83,3 +83,89 @@ def build_learning_guide(page: Mapping[str, Any]) -> dict[str, Any]:
         "risks": tuple(summary.get("risks") or ()),
         "snapshot": _mapping(page.get("evidence")).get("evaluation_snapshot_id"),
     }
+
+
+# Exact concepts only: a label containing “revenue” might mean deferred revenue
+# or a segment, and must not silently become consolidated sales.
+_EARNINGS_CONCEPTS = {
+    "Sales": ("INCOME_STATEMENT", {
+        "RevenueFromContractWithCustomerExcludingAssessedTax", "Revenues", "SalesRevenueNet",
+    }, EARNINGS_FIELDS["latest_revenue"][1]),
+    "Profit": ("INCOME_STATEMENT", {"NetIncomeLoss"}, EARNINGS_FIELDS["net_income"][1]),
+    "Cash from operations": ("CASH_FLOW", {"NetCashProvidedByUsedInOperatingActivities"},
+                             EARNINGS_FIELDS["operating_cash_flow"][1]),
+}
+
+
+def build_earnings_reader(page: Mapping[str, Any]) -> dict[str, Any]:
+    """Pair exact reported YTD facts; never infer discrete quarters or surprises.
+
+    The upstream quarterly contract labels flows as YTD. Preserve that basis,
+    including for income statements, rather than guessing from filing labels.
+    Ambiguous concepts, periods, or cells fail closed per measure.
+    """
+    unavailable = {"status": "UNAVAILABLE", "rows": ()}
+    history = _mapping(page.get("statement_history"))
+    if (page.get("status") != "AVAILABLE"
+            or history.get("contract") != "ATLAS_CUSTOMER_STATEMENT_HISTORY_PROJECTION_V1"
+            or history.get("status") != "AVAILABLE"
+            or not page.get("ticker")
+            or str(history.get("ticker") or "").upper() != str(page["ticker"]).upper()
+            or history.get("read_only") is not True
+            or history.get("rating_authority") != "UNCHANGED"
+            or history.get("publication_authority") != "UNCHANGED"
+            or history.get("provider_calls") != 0):
+        return unavailable
+    quarterly = _mapping(history.get("quarterly"))
+    if quarterly.get("status") != "AVAILABLE":
+        return unavailable
+    periods = [p for p in quarterly.get("visible_periods") or ()
+               if isinstance(p, Mapping) and type(p.get("fiscal_year")) is int
+               and type(p.get("fiscal_quarter")) is int and 1 <= p["fiscal_quarter"] <= 4
+               and p.get("accession") and p.get("fiscal_period_end")]
+    if not periods:
+        return unavailable
+    latest_key = max((p["fiscal_year"], p["fiscal_quarter"]) for p in periods)
+
+    def period_for(year: int, quarter: int) -> Mapping[str, Any]:
+        matches = [p for p in periods if (p["fiscal_year"], p["fiscal_quarter"]) == (year, quarter)]
+        return matches[0] if len(matches) == 1 else {}
+
+    latest = period_for(*latest_key)
+    if not latest:
+        return unavailable
+    prior = period_for(latest_key[0] - 1, latest_key[1])
+    statements = _mapping(quarterly.get("statements"))
+    rows = []
+    for title, (lane, concepts, explanation) in _EARNINGS_CONCEPTS.items():
+        raw = statements.get(lane) or ()
+        if isinstance(raw, Mapping):
+            raw = raw.get("rows") or ()
+        candidates = [r for r in raw if isinstance(r, Mapping)
+                      and str(r.get("concept") or "").removeprefix("us-gaap:") in concepts
+                      and _mapping(r.get("unit")).get("canonical") == "USD"]
+
+        def observation(period: Mapping[str, Any]) -> dict[str, Any] | None:
+            if not period or len(candidates) != 1:
+                return None
+            cells = [c for c in candidates[0].get("cells") or ()
+                     if isinstance(c, Mapping) and c.get("accession") == period["accession"]]
+            if len(cells) != 1:
+                return None
+            cell = cells[0]
+            provenance = _mapping(cell.get("provenance"))
+            basis = "DISCRETE_AND_YTD" if period["fiscal_quarter"] == 1 else "REPORTED_CUMULATIVE_YTD"
+            if (cell.get("status") != "AVAILABLE" or not _finite(cell.get("value"))
+                    or not cell.get("fact_id") or cell.get("duration_semantics") != basis
+                    or provenance.get("filing_accession") != period["accession"]
+                    or not provenance.get("raw_sha256")):
+                return None
+            return {"value": cell["value"], "fact_id": cell["fact_id"],
+                    "accession": period["accession"], "filed_date": period.get("filed_date"),
+                    "period_end": period["fiscal_period_end"], "fiscal_year": period["fiscal_year"],
+                    "fiscal_quarter": period["fiscal_quarter"], "basis": basis,
+                    "raw_sha256": provenance["raw_sha256"], "concept": candidates[0]["concept"]}
+
+        rows.append({"title": title, "explanation": explanation,
+                     "latest": observation(latest), "prior": observation(prior)})
+    return {"status": "AVAILABLE", "rows": tuple(rows)}
