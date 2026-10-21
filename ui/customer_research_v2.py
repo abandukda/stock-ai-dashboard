@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 22566)
-Total output lines: 1513
-
 """Customer-facing ATLAS Research V2 renderer."""
 from __future__ import annotations
 
@@ -812,7 +809,43 @@ def _render_combined_statement_history(history: Mapping[str, Any], *, ticker: st
     ):
         with container:
             periods = projection.get("visible_periods") or projection.get("periods") or ()
-            statements = projection.get("statements") if isinstance(projection.get("statements"), Mapping…566 tokens truncated…lings.\n"
+            statements = projection.get("statements") if isinstance(projection.get("statements"), Mapping) else {}
+            if projection.get("status") != "AVAILABLE" or not periods:
+                st.info(f"Validated {frequency} filing history is unavailable for this security.")
+                continue
+            statement_tabs = st.tabs(list(lanes.values()))
+            for statement_tab, (lane, label) in zip(statement_tabs, lanes.items()):
+                with statement_tab:
+                    statement = statements.get(lane) or ()
+                    if isinstance(statement, Mapping):
+                        statement = statement.get("rows") or ()
+                    frame = _statement_history_frame(statement, periods, frequency=frequency)
+                    if frame.empty:
+                        st.info(f"Validated {frequency} {label.lower()} facts are unavailable.")
+                    else:
+                        st.dataframe(
+                            frame, hide_index=True, use_container_width=True,
+                            key=f"research-history-{frequency}-{lane.lower()}-{ticker}",
+                        )
+            income_statement = statements.get("INCOME_STATEMENT") or ()
+            if isinstance(income_statement, Mapping):
+                income_statement = income_statement.get("rows") or ()
+            trend = _statement_history_trend(income_statement, periods, frequency=frequency)
+            if not trend.empty:
+                st.markdown(f"**{frequency.title()} reported trend**")
+                st.line_chart(trend.set_index("Period")[["Value"]], use_container_width=True)
+                st.caption(
+                    f"Exact reported {trend.iloc[0]['Series']} values; no interpolation or forecast. "
+                    "Use the direction to understand how this reported line item changed—not to predict the next period."
+                )
+    disclosure = quarterly.get("disclosure") if isinstance(quarterly.get("disclosure"), Mapping) else {}
+    _render_per_share_credibility(
+        history.get("per_share_credibility") if isinstance(history.get("per_share_credibility"), Mapping) else {},
+        ticker=ticker,
+    )
+    with st.expander("Sources and accounting boundaries", expanded=False):
+        st.markdown(
+            "- Annual source: retained `/stock/financials-reported` annual filings.\n"
             "- Quarterly source: retained `/stock/financials-reported` quarterly filings.\n"
             "- Quarterly income-statement and cash-flow values are cumulative year-to-date except Q1.\n"
             "- A discrete quarter is shown only when an exact prior-YTD match supports subtraction.\n"
