@@ -84,7 +84,7 @@ def signal_directory_html(signals) -> str:
         count = int(signal.get('observation_count') or 0)
         state = f'{count} recorded' if count else 'Pending'
         rows.append(
-            '<tr>'
+            f'<tr data-atlas-signal-id="{escape(str(signal["signal_id"]))}">'
             f'<th scope="row">{escape(str(signal["ticker"]))}</th>'
             f'<td>{escape(_date(signal.get("signal_timestamp")))}</td>'
             f'<td>{escape(_reference_price(signal.get("reference_price")))}'

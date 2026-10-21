@@ -197,6 +197,28 @@ async def shot(page: Page, root: Path, name: str, manifest: list[dict[str, Any]]
     manifest.append({"name": name, "path": str(target.name), "url": page.url})
 
 
+async def verify_signal_directory_picker(
+    page: Page, output: Path, mode: str, manifest: list[dict[str, Any]],
+) -> None:
+    directory = page.locator('[data-atlas-qa="report-card-signal-directory"]')
+    first_row = directory.locator("tbody tr").first
+    expected_id = await marker_attribute(first_row, "signal-id")
+    if not expected_id:
+        raise AssertionError(f"REPORT_CARD_DIRECTORY_IDENTITY_MISSING:{mode}")
+    target = output / f"signal-directory-{mode}.png"
+    await directory.screenshot(path=str(target))
+    manifest.append({"name": f"signal-directory-{mode}", "path": target.name, "url": page.url})
+    picker = page.get_by_role("combobox", name="Open an original signal", exact=True)
+    await picker.scroll_into_view_if_needed()
+    await shot(page, output, f"signal-directory-controls-{mode}", manifest)
+    await page.get_by_role("button", name="Open selected signal →", exact=True).click()
+    await wait_for_report_card_detail_state(page, mode, expected_id)
+    await wait_for_report_card_detail_settled(page, mode)
+    await shot(page, output, f"signal-directory-detail-{mode}", manifest)
+    await page.get_by_role("button", name="← Back to Report Card", exact=True).click()
+    await wait_for_report_card_overview_settled(page, mode)
+
+
 async def wait_for_original_cohort_panels(panels: Any, mode: str) -> None:
     async def settled() -> bool:
         return await panels.count() == 20
@@ -340,6 +362,7 @@ async def run(output: Path, *, require_original_cohort: bool = False) -> None:
             if "0.00%" in report_text and "Pending" not in report_text:
                 raise AssertionError(f"MISLEADING_ZERO_PERFORMANCE:{mode}")
             await shot(page, output, f"internal-report-card-{mode}", manifest)
+            await verify_signal_directory_picker(page, output, mode, manifest)
             await wait_for_report_card_signal_entry_settled(page, mode)
             expander = await open_report_card_signal_expander(page, mode)
             digest_button = page.get_by_role("button", name="View Signal Digest →").first
