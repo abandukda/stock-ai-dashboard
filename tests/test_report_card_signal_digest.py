@@ -366,3 +366,15 @@ def test_report_card_view_metadata_and_home_transition_helpers_are_registered():
     assert 'data-atlas-report-card-view="{REPORT_CARD_VIEW_DETAIL}"' in ui
     assert "open_report_card_overview(st.session_state)" in home
     assert "open_report_card_detail(st.session_state, signal[\"signal_id\"])" in home
+
+
+def test_qa_role_credentials_reject_ambiguous_roles_without_disclosure():
+    from scripts.crawl_report_card_durable_ui import validate_qa_passwords
+    import pytest
+    validate_qa_passwords("internal-test-value", "viewer-test-value")
+    for admin, viewer in [("", "viewer"), ("admin", " ")]:
+        with pytest.raises(RuntimeError, match="PASSWORDS_REQUIRED"):
+            validate_qa_passwords(admin, viewer)
+    with pytest.raises(RuntimeError, match="ROLE_CREDENTIAL_COLLISION") as error:
+        validate_qa_passwords("same-test-value", " same-test-value ")
+    assert "same-test-value" not in str(error.value)

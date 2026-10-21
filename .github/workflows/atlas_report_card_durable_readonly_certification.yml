@@ -78,6 +78,10 @@ jobs:
           python -m pip install playwright==1.52.0
           python -m playwright install chromium
 
+      - name: Verify distinct admin and viewer QA credentials
+        run: >-
+          python -c 'import os; from scripts.crawl_report_card_durable_ui import validate_qa_passwords; validate_qa_passwords(os.environ["ATLAS_INTERNAL_QA_PASSWORD"], os.environ["ATLAS_VIEWER_QA_PASSWORD"]); print("QA_ROLE_CREDENTIALS_DISTINCT")'
+
       - name: Capture immutable before state
         id: before
         shell: bash
