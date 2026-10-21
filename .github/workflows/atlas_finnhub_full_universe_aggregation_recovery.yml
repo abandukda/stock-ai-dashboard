@@ -127,9 +127,13 @@ jobs:
       fail-fast: false
       matrix:
         order: [forward, reverse]
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: [self-hosted, Linux, X64, atlas-worker-1]
     timeout-minutes: 90
     steps:
+      - name: Enforce original runner identity before checkout
+        env:
+          ATLAS_ACTUAL_RUNNER: ${{ runner.name }}
+        run: test "$ATLAS_ACTUAL_RUNNER" = "atlas-worker-1"
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
@@ -217,9 +221,13 @@ jobs:
 
   build-publication-candidate:
     needs: certify-candidate-determinism
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: [self-hosted, Linux, X64, atlas-worker-1]
     timeout-minutes: 90
     steps:
+      - name: Enforce original runner identity before checkout
+        env:
+          ATLAS_ACTUAL_RUNNER: ${{ runner.name }}
+        run: test "$ATLAS_ACTUAL_RUNNER" = "atlas-worker-1"
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:

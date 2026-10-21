@@ -473,7 +473,10 @@ jobs:
 
   visual-certification:
     needs: backend-certification
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: [self-hosted, Linux, X64, atlas-worker-1]
+    permissions:
+      actions: read
+      contents: read
     timeout-minutes: 90
     env:
       PYTHONPATH: "."
@@ -487,6 +490,10 @@ jobs:
       EXPECTED_PUBLICATION_DIGEST: ${{ needs.backend-certification.outputs.publication_digest }}
       EXPECTED_ANALYTICAL_SOURCE_SHA: ${{ needs.backend-certification.outputs.analytical_source_sha }}
     steps:
+      - name: Enforce original runner identity before checkout
+        env:
+          ATLAS_ACTUAL_RUNNER: ${{ runner.name }}
+        run: test "$ATLAS_ACTUAL_RUNNER" = "atlas-worker-1"
       - name: Checkout exact release SHA
         uses: actions/checkout@v4
         with:

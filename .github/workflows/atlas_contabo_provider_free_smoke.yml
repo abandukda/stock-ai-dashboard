@@ -1,0 +1,66 @@
+name: ATLAS Contabo Provider-Free Smoke
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: atlas-contabo-provider-free-smoke
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.repository == 'abandukda/stock-ai-dashboard' &&
+      github.ref == 'refs/heads/main' &&
+      github.actor == 'abandukda' &&
+      github.triggering_actor == 'abandukda'
+    runs-on: [self-hosted, Linux, X64, atlas-contabo-staging]
+    permissions: {}
+    timeout-minutes: 5
+    env:
+      ATLAS_ACTUAL_RUNNER: ${{ runner.name }}
+      ATLAS_CUSTOMER_REPORT_CARD_ENABLED: 'false'
+      ATLAS_QA_PROVIDER_CALLS_ALLOWED: '0'
+      ATLAS_ALLOW_EXTERNAL_AI: 'false'
+    steps:
+      - name: Verify assigned runner before any workload
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$ATLAS_ACTUAL_RUNNER" = atlas-contabo-1
+          test "$(id -un)" = atlasrunner
+          test "$(id -u)" -ne 0
+          test "$(hostname -s)" = vmi3675432
+          command -v python3 >/dev/null
+      - name: Bounded standard-library smoke without checkout or network calls
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, shutil, tempfile
+          assert os.environ['ATLAS_QA_PROVIDER_CALLS_ALLOWED'] == '0'
+          assert os.environ['ATLAS_CUSTOMER_REPORT_CARD_ENABLED'] == 'false'
+          assert os.environ['ATLAS_ALLOW_EXTERNAL_AI'] == 'false'
+          memory_kib = int(next(line.split()[1] for line in pathlib.Path('/proc/meminfo').read_text().splitlines() if line.startswith('MemTotal:')))
+          cpu = len(os.sched_getaffinity(0))
+          free = shutil.disk_usage(os.environ['RUNNER_TEMP']).free
+          assert memory_kib >= 44 * 1024**2, 'RAM below accepted staging minimum'
+          assert cpu >= 12, 'CPU allocation below accepted staging minimum'
+          assert free >= 300 * 1024**3, 'Free disk below accepted staging minimum'
+          payload = b'ATLAS provider-free runner smoke\n' * 1024
+          digest = hashlib.sha256(payload).hexdigest()
+          with tempfile.TemporaryDirectory(prefix='atlas-smoke-', dir=os.environ['RUNNER_TEMP']) as work:
+              target = pathlib.Path(work) / 'smoke.txt'
+              target.write_bytes(payload)
+              assert hashlib.sha256(target.read_bytes()).hexdigest() == digest
+          result = dict(status='PASS', runner='atlas-contabo-1', memory_kib=memory_kib,
+                        cpu_count=cpu, free_bytes=free, temp_roundtrip=True,
+                        provider_calls=0, paid_ai_calls=0, production_ledger_access=False,
+                        publication=False, public_report_card_activation=False)
+          print(json.dumps(result, sort_keys=True))
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as report:
+              report.write('## Contabo provider-free smoke\n```json\n' + json.dumps(result, indent=2) + '\n```\n')
+          PY

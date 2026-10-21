@@ -16,7 +16,7 @@ permissions:
 jobs:
   research-context-ab:
     if: github.ref == 'refs/heads/codex/full-universe-closure-temp'
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: [self-hosted, Linux, X64, atlas-worker-1]
     timeout-minutes: 30
     env:
       PYTHONPATH: "."
@@ -26,6 +26,10 @@ jobs:
       DATA_DIR: audit_results/research_context_ab/runtime
       ATLAS_AUDIT_PASSWORD: ${{ secrets.ATLAS_AUDIT_PASSWORD }}
     steps:
+      - name: Enforce original runner identity before checkout
+        env:
+          ATLAS_ACTUAL_RUNNER: ${{ runner.name }}
+        run: test "$ATLAS_ACTUAL_RUNNER" = "atlas-worker-1"
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: {python-version: "3.11"}
