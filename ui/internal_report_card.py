@@ -11,6 +11,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 from services.report_card_dashboard import build_internal_report_card
+from ui.report_card_overview import OVERVIEW_CSS, overview_html
 
 
 REPORT_CARD_VIEW_OVERVIEW = "OVERVIEW"
@@ -381,11 +382,7 @@ def render_internal_report_card(ledger_path: Path, *, authorized: bool) -> Mappi
         _render_signal_detail(selected)
         return report
 
-    a, b, c, d = st.columns(4)
-    a.metric("Signals", report["signal_count"])
-    b.metric("Observations", report["observation_count"])
-    c.metric("Open signals", report["open_signal_count"])
-    d.metric("SPY comparisons", report["spy_comparison_count"])
+    st.markdown(OVERVIEW_CSS + overview_html(report), unsafe_allow_html=True)
     st.markdown(
         f'<span data-atlas-qa="report-card-overview" '
         f'data-atlas-report-card-view="{REPORT_CARD_VIEW_OVERVIEW}" '
