@@ -1108,6 +1108,14 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
         "six_pillars": pillar_projection,
         "wall_street": wall_street,
         "valuation_chart": valuation_chart,
+        # Keep each valuation reference's own lineage. A price timestamp or
+        # analyst-target date must never stand in for the Fair Value date.
+        "valuation_evidence": {
+            "price": {key: price_env.get(key) for key in
+                      ("value", "source", "as_of", "period", "unit", "evidence_ids")},
+            "fair_value": {key: fv_env.get(key) for key in
+                           ("value", "source", "as_of", "period", "unit", "evidence_ids")},
+        },
         "financial_trend": financial_trend,
         "financial_snapshot": financial_snapshot,
         "financial_depth": {**financial_depth, "availability": financial_availability},

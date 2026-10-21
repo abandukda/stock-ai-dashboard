@@ -18,9 +18,54 @@ EARNINGS_FIELDS = {
     "forward_eps": ("Expected profit per share", "Forward EPS is an estimate of future profit per share, not a reported earnings result. It cannot establish that the company beat expectations."),
 }
 
+VALUATION_METHODS = {
+    "VAL_FORWARD_PE_V1": (
+        "This approach values expected profit per share using a price-to-earnings multiple. "
+        "The multiple is how much investors pay for each dollar of yearly profit. "
+        "Both the profit estimate and the multiple can be too optimistic; forward profit is not a reported result."
+    ),
+    "VAL_FCFF_DCF_V1": (
+        "A discounted cash-flow model estimates future cash available to the business and translates it into today's money. "
+        "Cash expected far in the future is worth less today. Growth, the required return, and the value assigned "
+        "to later years can have a large effect; debt and cash also matter when moving from business value to share value."
+    ),
+}
+
 
 def _mapping(value: Any) -> Mapping[str, Any]:
     return value if isinstance(value, Mapping) else {}
+
+
+def _finite(value: Any) -> bool:
+    return not isinstance(value, bool) and isinstance(value, (int, float)) and math.isfinite(value)
+
+
+def build_valuation_lesson(page: Mapping[str, Any]) -> dict[str, Any]:
+    """Read published references only; never create a target or implied return.
+
+    Missing lineage stays missing, even if a chart has a convenient date.
+    Model assumptions are retained verbatim, without inferred units.
+    """
+    result: dict[str, Any] = {"status": "UNAVAILABLE", "references": (), "models": ()}
+    if page.get("status") != "AVAILABLE":
+        return result
+    references = []
+    evidence = _mapping(page.get("valuation_evidence"))
+    for key, label in (("price", "Last certified close"), ("fair_value", "ATLAS Fair Value estimate")):
+        item = _mapping(evidence.get(key))
+        if _finite(item.get("value")):
+            references.append({**dict(item), "label": label, "kind": key})
+    models = []
+    depth = _mapping(page.get("financial_depth"))
+    if depth.get("status") in {"FULL", "LIMITED"}:
+        for item in depth.get("valuation_models") or ():
+            if not isinstance(item, Mapping) or not _finite(item.get("value")):
+                continue
+            if item.get("unit") != "USD_PER_SHARE":
+                continue
+            models.append({**dict(item), "assumptions": dict(_mapping(item.get("assumptions"))),
+                           "explanation": VALUATION_METHODS.get(item.get("methodology_id"))})
+    return {"status": "AVAILABLE", "references": tuple(references), "models": tuple(models)}
 
 
 def build_learning_guide(page: Mapping[str, Any]) -> dict[str, Any]:

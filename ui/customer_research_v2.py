@@ -10,7 +10,7 @@ import math
 
 import pandas as pd
 import streamlit as st
-from ui.research_learning import build_learning_guide
+from ui.research_learning import build_learning_guide, build_valuation_lesson
 
 from services.customer_research_view import Availability, build_customer_research_view
 from services.customer_metric_format import (
@@ -161,6 +161,73 @@ def _render_institutional_overview(report: Mapping[str, Any], *, ticker: str) ->
 
 
 
+def _render_valuation_lesson(page: Mapping[str, Any], *, ticker: str) -> None:
+    lesson = build_valuation_lesson(page)
+    if lesson["status"] != "AVAILABLE":
+        return
+    _marker("valuation-lesson", ticker, non_scoring="true")
+    with st.expander("Valuation: a good business at what price?", expanded=False):
+        st.write(
+            "A share is a small ownership stake in a business. The price is what buyers last paid; "
+            "Fair Value is ATLAS's estimate of what that stake is worth. Even a growing business can be "
+            "a poor investment if the price already assumes more growth than it delivers."
+        )
+        for item in lesson["references"]:
+            st.markdown(f'**{item["label"]}: {_escape_markdown_currency(_money(item["value"]))} per share**')
+            ids = item.get("evidence_ids")
+            evidence_ids = ", ".join(str(value) for value in ids) if isinstance(ids, (tuple, list)) else "Unavailable"
+            st.caption(
+                f'Source: {item.get("source") or "Unavailable"} · '
+                f'As of: {_financial_period(item.get("as_of"))} · '
+                f'Period: {_financial_period(item.get("period"))} · Evidence IDs: {evidence_ids or "Unavailable"}'
+            )
+        kinds = {item["kind"] for item in lesson["references"]}
+        if "price" not in kinds:
+            st.info("Source-bound last certified close is unavailable for this lesson.")
+        if "fair_value" not in kinds:
+            st.info("Source-bound Fair Value evidence is unavailable for this lesson.")
+        st.write(
+            "The displayed Fair Value gap compares the estimate with the last certified close. "
+            "A positive gap means the estimate is higher; a negative gap means it is lower. "
+            "It is not an expected return, a probability of success, or a promise that the price will reach the estimate. "
+            "Check both dates above: retained evidence does not establish today's trading price."
+        )
+        st.markdown("**Go deeper: what is behind the estimate?**")
+        st.write(
+            "Valuation models depend on assumptions about future business results and the return investors require. "
+            "Slower growth, less cash profit, or a higher required return can lower an estimate. "
+            "The published model outputs below are inputs to review; they are not independent price forecasts."
+        )
+        if not lesson["models"]:
+            st.caption("Published model outputs and assumptions are unavailable in this snapshot.")
+        for model in lesson["models"]:
+            st.markdown(
+                f'**{_escape_markdown_currency(model.get("name") or model.get("methodology_id") or "Published model")}: '
+                f'{_escape_markdown_currency(_money(model["value"]))} per share**'
+            )
+            if model["explanation"]:
+                st.write(model["explanation"])
+            else:
+                st.caption("A plain-English explanation of this model's methodology is unavailable.")
+            st.caption(
+                f'Source: {model.get("source") or "Unavailable"} · '
+                f'Fiscal period: {_financial_period(model.get("fiscal_period"))} · '
+                "Model-specific source date and evidence ID: unavailable in this projection."
+            )
+            if model["assumptions"]:
+                st.caption("Retained assumption labels and values; units are shown only when supplied by the source.")
+                for label, value in model["assumptions"].items():
+                    st.write(_escape_markdown_currency(f'{str(label).replace("_", " ")}: {value}'))
+            else:
+                st.caption("Model assumptions are unavailable; no inputs or sensitivity results are inferred.")
+        st.caption(
+            "A range of outcomes and a margin of safety can help account for uncertainty. "
+            "A margin of safety means paying less than your estimate to leave room for mistakes. "
+            "Company-specific sensitivity calculations and a required discount are unavailable here; "
+            "this lesson does not change the certified Action or Fair Value."
+        )
+
+
 def _render_learning_guide(page: Mapping[str, Any], *, ticker: str) -> None:
     guide = build_learning_guide(page)
     if guide["status"] != "AVAILABLE":
@@ -168,6 +235,7 @@ def _render_learning_guide(page: Mapping[str, Any], *, ticker: str) -> None:
     _marker("learning-guide", ticker, status=guide["status"], non_scoring="true")
     st.markdown("### Read the evidence like an investor")
     st.caption("Learning guidance · Uses this retained snapshot, not live results or AI-generated research.")
+    _render_valuation_lesson(page, ticker=ticker)
     with st.expander("Earnings: are sales turning into profit and cash?", expanded=True):
         st.write(
             "Read sales, profit, and cash together. Higher sales can be encouraging, but costs may rise faster. "
