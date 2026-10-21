@@ -10,7 +10,7 @@ import math
 
 import pandas as pd
 import streamlit as st
-from ui.research_learning import build_learning_guide
+from ui.research_learning import build_learning_guide, build_valuation_guide
 
 from services.customer_research_view import Availability, build_customer_research_view
 from services.customer_metric_format import (
@@ -168,6 +168,7 @@ def _render_learning_guide(page: Mapping[str, Any], *, ticker: str) -> None:
     _marker("learning-guide", ticker, status=guide["status"], non_scoring="true")
     st.markdown("### Read the evidence like an investor")
     st.caption("Learning guidance · Uses this retained snapshot, not live results or AI-generated research.")
+    _render_valuation_guide(page, ticker=ticker)
     with st.expander("Earnings: are sales turning into profit and cash?", expanded=True):
         st.write(
             "Read sales, profit, and cash together. Higher sales can be encouraging, but costs may rise faster. "
@@ -221,6 +222,77 @@ def _render_learning_guide(page: Mapping[str, Any], *, ticker: str) -> None:
         if not guide["headlines"]:
             st.info("Verified recent company headlines are unavailable in this snapshot.")
         st.caption("A comparison with an earlier certified investment assessment is unavailable in this guide; no rating change is inferred from news.")
+
+
+def _render_valuation_guide(page: Mapping[str, Any], *, ticker: str) -> None:
+    guide = build_valuation_guide(page)
+    if guide["status"] != "AVAILABLE":
+        return
+    with st.expander("Valuation: what am I paying, and what must go right?", expanded=False):
+        _marker("valuation-guide", ticker, non_scoring="true", model_count=len(guide["models"]))
+        st.write(
+            "Price is what a share cost at the retained close. Fair Value is ATLAS's estimate of what a share "
+            "is worth under its model assumptions. A good business can still be an expensive investment if "
+            "the price already assumes strong growth. A price below Fair Value can also reflect real risks."
+        )
+        st.write(
+            f'Last certified close: {_money(guide["price"])} · '
+            f'ATLAS Fair Value: {_money(guide["fair_value"])} · '
+            f'Retained Fair Value gap: {_pct(guide["gap_pct"], signed=True)}'
+        )
+        st.caption(
+            f'Close source: {guide["price_source"] or "Unavailable"} · '
+            f'Close as of: {_financial_period(guide["price_as_of"])} · '
+            f'ATLAS evaluation snapshot: {guide["snapshot"] or "Unavailable"}. '
+            "The close date is not a model input date. These are retained figures, not a live quote."
+        )
+        st.write(
+            "The gap compares Fair Value with the retained close. A positive gap means the estimate is above "
+            "that close; a negative gap means it is below. It is not an expected return or a promise that "
+            "the share price will reach the estimate. No time to reach Fair Value is implied."
+        )
+        st.markdown("**What assumptions support the estimate?**")
+        if not guide["models"]:
+            st.info("Published valuation-model detail and assumptions are unavailable in this snapshot. A Fair Value figure alone cannot explain how the estimate was built.")
+        for model in guide["models"]:
+            st.markdown(f'**{_escape_markdown_currency(model.get("name") or model.get("methodology_id") or "Retained valuation model")}**')
+            st.write(f'Model estimate: {_financial_value(model["value"], model["unit"])}')
+            st.caption(
+                f'Source: {model["source"]} · Fiscal period: {_financial_period(model.get("fiscal_period"))} · '
+                f'Model evidence as of: {_financial_period(model.get("as_of"))}. '
+                "A fiscal period identifies the period being valued, not when the estimate was produced."
+            )
+            if model["assumptions"]:
+                st.caption("Retained assumptions, exactly as supplied. Names and units are not inferred; an unlabeled number must not be read as a percentage.")
+                st.json(model["assumptions"])
+            else:
+                st.caption("Model assumptions are unavailable; no growth rate, discount rate, or valuation multiple is inferred.")
+        st.markdown("**Could the balance sheet change the case?**")
+        for item in guide["balance"]:
+            st.markdown(f'**{item["question"]}: {_escape_markdown_currency(_financial_value(item["value"], str(item.get("unit") or "")))}**')
+            st.write(item["explanation"])
+            st.caption(
+                f'Source: {item.get("provider") or "Unavailable"} · '
+                f'Fiscal period: {_financial_period(item.get("period"))} · '
+                f'Evidence as of: {_financial_period(item.get("as_of"))} · Evidence ID: {item["evidence_id"]}'
+            )
+        if not guide["balance"]:
+            st.info("Field-level cash, debt, and market capitalization evidence is unavailable in this guide.")
+        st.caption("Debt maturities, borrowing terms, and restricted-cash detail are unavailable in this guide. No net-debt or debt-servicing conclusion is calculated from unmatched periods.")
+        st.markdown("**Go deeper: test the thesis against the price**")
+        st.write(
+            "Ask whether the retained earnings and cash evidence supports the model's assumptions. "
+            "For an earnings-multiple model, both future profit per share and the multiple investors pay matter. "
+            "For a discounted-cash-flow model, growth, reinvestment needs, and the discount rate matter; "
+            "a higher discount rate generally lowers the value of future cash. These are explanations of "
+            "methods, not claims that either method is present above."
+        )
+        st.caption(
+            "Compare model periods and input definitions before comparing estimates. Different models may share "
+            "the same uncertain inputs, so agreement is not independent confirmation. Sensitivity ranges and "
+            "comparable-company valuation evidence are unavailable in this guide; no alternative target is generated. "
+            "Use the bull and bear watchpoints below to identify which assumptions need checking."
+        )
 
 
 def _dates(values: pd.Series) -> pd.Series:

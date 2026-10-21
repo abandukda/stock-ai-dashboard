@@ -55,3 +55,61 @@ def build_learning_guide(page: Mapping[str, Any]) -> dict[str, Any]:
         "risks": tuple(summary.get("risks") or ()),
         "snapshot": _mapping(page.get("evidence")).get("evaluation_snapshot_id"),
     }
+
+
+BALANCE_FIELDS = {
+    "cash_and_equivalents": ("Cash available", "Cash can help pay bills, repay debt, or fund investment. Some cash may be restricted or needed to keep the business running."),
+    "total_debt": ("Borrowed money", "Debt creates interest and repayment obligations. The amount alone cannot show whether repayments are manageable; maturity dates, interest costs, and cash generation matter."),
+    "market_cap": ("Market value of all shares", "Market capitalization is the market value of the company's shares. It is not the company's sales, cash balance, or the price of one share."),
+}
+
+
+def _sequence(value: Any) -> tuple:
+    return tuple(value) if isinstance(value, (list, tuple)) else ()
+
+
+def _finite(value: Any) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+
+
+def build_valuation_guide(page: Mapping[str, Any]) -> dict[str, Any]:
+    """Explain admitted valuation evidence without recomputing prices or weights.
+
+    Model assumptions are copied as retained, including their raw names and units.
+    A price timestamp is never assigned to a model or its assumptions.
+    """
+    if page.get("status") != "AVAILABLE":
+        return {"status": "UNAVAILABLE"}
+    header = _mapping(page.get("header"))
+    snapshot = _mapping(page.get("financial_snapshot"))
+    depth = _mapping(page.get("financial_depth"))
+    balance = []
+    seen = set()
+    if snapshot.get("status") == "AVAILABLE":
+        for item in _sequence(snapshot.get("items")):
+            if not isinstance(item, Mapping):
+                continue
+            field = item.get("field")
+            if (field not in BALANCE_FIELDS or field in seen or not item.get("evidence_id")
+                    or not _finite(item.get("value"))):
+                continue
+            seen.add(field)
+            title, explanation = BALANCE_FIELDS[field]
+            balance.append({**dict(item), "question": title, "explanation": explanation})
+    models = []
+    if depth.get("status") in {"FULL", "LIMITED"}:
+        for item in _sequence(depth.get("valuation_models")):
+            if (not isinstance(item, Mapping) or not _finite(item.get("value"))
+                    or item.get("unit") != "USD_PER_SHARE" or not item.get("source")):
+                continue
+            models.append({**dict(item), "assumptions": dict(_mapping(item.get("assumptions")))})
+    return {
+        "status": "AVAILABLE",
+        "price": header.get("price") if _finite(header.get("price")) else None,
+        "price_source": header.get("price_source"),
+        "price_as_of": header.get("price_timestamp"),
+        "fair_value": header.get("fair_value") if _finite(header.get("fair_value")) else None,
+        "gap_pct": header.get("fair_value_gap_pct") if _finite(header.get("fair_value_gap_pct")) else None,
+        "snapshot": _mapping(page.get("evidence")).get("evaluation_snapshot_id"),
+        "models": tuple(models), "balance": tuple(balance),
+    }
