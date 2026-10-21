@@ -200,6 +200,11 @@ async def shot(page: Page, root: Path, name: str, manifest: list[dict[str, Any]]
 async def verify_signal_directory_picker(
     page: Page, output: Path, mode: str, manifest: list[dict[str, Any]],
 ) -> None:
+    summary = page.locator('[data-atlas-qa="report-card-executive-summary"]')
+    summary_target = output / f"report-card-evidence-summary-{mode}.png"
+    await summary.screenshot(path=str(summary_target))
+    manifest.append({"name": f"report-card-evidence-summary-{mode}",
+                     "path": summary_target.name, "url": page.url})
     directory = page.locator('[data-atlas-qa="report-card-signal-directory"]')
     first_row = directory.locator("tbody tr").first
     expected_id = await marker_attribute(first_row, "signal-id")
@@ -208,8 +213,17 @@ async def verify_signal_directory_picker(
     target = output / f"signal-directory-{mode}.png"
     await directory.screenshot(path=str(target))
     manifest.append({"name": f"signal-directory-{mode}", "path": target.name, "url": page.url})
-    picker = page.get_by_role("combobox", name="Open an original signal", exact=True)
+    # Scope by the exact visible label and Streamlit widget boundary rather
+    # than a framework-dependent inner input name. Preserve the unique visible
+    # control requirement and exact-ID detail assertions below.
+    picker = page.get_by_test_id("stSelectbox").filter(
+        has=page.get_by_text("Open an original signal", exact=True))
+    if await picker.count() != 1:
+        raise AssertionError(f"REPORT_CARD_DIRECTORY_PICKER_COUNT:{mode}")
+    await picker.wait_for(state="visible", timeout=30000)
     await picker.scroll_into_view_if_needed()
+    (output / f"signal-directory-control-{mode}.html").write_text(
+        await picker.evaluate("el => el.outerHTML"), encoding="utf-8")
     await shot(page, output, f"signal-directory-controls-{mode}", manifest)
     await page.get_by_role("button", name="Open selected signal →", exact=True).click()
     await wait_for_report_card_detail_state(page, mode, expected_id)
