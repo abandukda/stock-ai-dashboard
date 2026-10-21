@@ -34,9 +34,13 @@ observation has been recorded.
 
 1. **G1: current read-only validation.** Bind the exact reviewed release source,
    ledger checksum/tip, isolated primary and backup mounts, verified backup,
-   owner-controlled CLOSED sentinel, current governed XNYS calendar/cutoff and
-   original publication reconciliation. The retained publication is now located;
-   supply it through `--publication-evidence` when reconciling the cohort.
+   owner-controlled CLOSED sentinel and current governed XNYS calendar/cutoff.
+   Historical chart lineage and customer-publication proof are distinct. The
+   recovered source bundle proves the original chart snapshot bindings; it does
+   not prove a contemporaneous October 8 customer-visible publication. The G1
+   customer-publication reconciliation remains UNPROVEN for all 20 signals until
+   authentic exact-identity publication evidence is supplied. This does not block
+   internal observation eligibility and must not be relabeled as publication proof.
 2. **Certified market evidence.** The first registered one-session target is
    October 9 for this cohort; the five-session target is October 15. Required
    evidence includes the exact due ticker closes, SPY reference and horizon

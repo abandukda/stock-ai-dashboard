@@ -378,3 +378,22 @@ def test_qa_role_credentials_reject_ambiguous_roles_without_disclosure():
     with pytest.raises(RuntimeError, match="ROLE_CREDENTIAL_COLLISION") as error:
         validate_qa_passwords("same-test-value", " same-test-value ")
     assert "same-test-value" not in str(error.value)
+
+
+def test_original_cohort_waits_for_all_20_rendered_panels(monkeypatch):
+    import asyncio
+    import scripts.crawl_report_card_durable_ui as crawler
+    class Panels:
+        def __init__(self):
+            self.counts = iter([1, 7, 19, 20, 20])
+            self.calls = 0
+        async def count(self):
+            self.calls += 1
+            return next(self.counts)
+    panels = Panels()
+    original_wait = crawler._wait_for_stable_condition
+    async def fast_wait(check, failure):
+        await original_wait(check, failure, interval_seconds=0, timeout_seconds=1)
+    monkeypatch.setattr(crawler, "_wait_for_stable_condition", fast_wait)
+    asyncio.run(crawler.wait_for_original_cohort_panels(panels, "desktop"))
+    assert panels.calls == 5

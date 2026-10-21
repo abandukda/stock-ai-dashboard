@@ -185,6 +185,12 @@ async def shot(page: Page, root: Path, name: str, manifest: list[dict[str, Any]]
     manifest.append({"name": name, "path": str(target.name), "url": page.url})
 
 
+async def wait_for_original_cohort_panels(panels: Any, mode: str) -> None:
+    async def settled() -> bool:
+        return await panels.count() == 20
+    await _wait_for_stable_condition(settled, f"REPORT_CARD_ORIGINAL_COHORT_UI_COUNT:{mode}")
+
+
 async def certify_original_cohort_charts(page: Page, output: Path, mode: str,
                                          manifest: list[dict[str, Any]]) -> None:
     """Open every original signal and verify its exact retained snapshot chart."""
@@ -192,12 +198,14 @@ async def certify_original_cohort_charts(page: Page, output: Path, mode: str,
     expected = {row["ticker"]: row for row in authority["signals"]}
     if len(expected) != 20 or authority["signal_count"] != 20:
         raise AssertionError("REPORT_CARD_ORIGINAL_COHORT_MUST_HAVE_20_SIGNALS")
-    buttons = page.get_by_role("button", name="View Signal Digest →", exact=True)
-    if await buttons.count() != 20:
-        raise AssertionError(f"REPORT_CARD_ORIGINAL_COHORT_UI_COUNT:{mode}")
+    # Role lookup excludes buttons hidden inside collapsed panels. Count the
+    # rendered signal panels, then open each panel before locating its action.
+    panels = page.locator('[data-testid="stExpander"]').filter(
+        has_text=re.compile(r" · [A-Z_]+ · \d+ observations"))
     verified = []
     for index in range(20):
-        expander = page.locator('[data-testid="stExpander"]').nth(index + 1)
+        await wait_for_original_cohort_panels(panels, mode)
+        expander = panels.nth(index)
         details = expander.locator("details")
         if await details.get_attribute("open") is None:
             await expander.locator("summary").click()
@@ -231,6 +239,7 @@ async def certify_original_cohort_charts(page: Page, output: Path, mode: str,
         await panel.screenshot(path=str(target))
         manifest.append({"name": target.stem, "path": target.name, "url": page.url})
         verified.append({"ticker": ticker, "signal_id": signal_id, "snapshot": snapshot, **facts})
+        print(f"ORIGINAL_COHORT_CHART_PASS:{mode}:{ticker}:{len(verified)}/20", flush=True)
         (output / f"original-cohort-charts-{mode}.json").write_text(json.dumps({
             "status": "PASS" if len(verified) == 20 else "IN_PROGRESS", "verified": verified,
             "expected": 20, "verified_count": len(verified), "provider_calls": 0,
