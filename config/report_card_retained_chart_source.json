@@ -1,0 +1,70 @@
+{
+  "candidate_digest": "57de0b0baae58a3db7bcf14a951b12530f5eaa73e5092971a885d62d33aa7ce4",
+  "manifest_sha256": "36a525e06bca8c0b3b2b8c59b99eead0ac4560eff4c38cb8e858361f7b0c1dee",
+  "publication_digest": "1c0435fd23725f14a203826cb46009a2a3b22f9bf0def9cd681f55e6aa4e0712",
+  "publication_sha256": "50f1f3c7d82c7cf802aa32f8204a849ed7e0dbbf26fd17e5d263f8fb98ce96c8",
+  "run_identity_sha256": "f292f866192fdfebaf8b8120df1350bbebc27aead76a1e4ac73117fc7f71091d",
+  "schema": "ATLAS_REPORT_CARD_RETAINED_CHART_SOURCE_V1",
+  "shards": {
+    "shard-000": {
+      "checkpoint_sha256": "7b473f11ec57f08a06940d08fbfbdc75f3a749d8de2e2b1fc3b4fc26d123c6d3",
+      "payload_sha256": "459ecde24478b420df3826eee3b9b8e81f4592d822e5e7ac9161262b4b149f40"
+    },
+    "shard-002": {
+      "checkpoint_sha256": "c20c741520b828b447857a3502e0f1d8e5af409354330c436a50ebc46a35e638",
+      "payload_sha256": "a76778122868fba52b0f118b1f26f9ddecbbfb305bdd29446c905686d053071b"
+    },
+    "shard-010": {
+      "checkpoint_sha256": "bab4111ba77218ef815f82f1bd6d969a9b77ae42c7308cb5e705d0510d003c3a",
+      "payload_sha256": "942c841155b89a2926bd6fbb226034eb8dd8119ec2a53e951057023d6b344ce2"
+    },
+    "shard-011": {
+      "checkpoint_sha256": "117fd09afb66e9155981db8b7f2dd4a28a859dd6a4ed4568afc2cd995a89e75a",
+      "payload_sha256": "49df50b677ffd6f064ac34412aee1ec61162c244b50a60a561cdaf59855bcd38"
+    },
+    "shard-016": {
+      "checkpoint_sha256": "a8531233f7d58684872e6f5688bb786f1d3cd42498932fcecbd1b7c1d74a9675",
+      "payload_sha256": "9a76552090e6481b46f47c5c5a74594ae74d3f2256cf3ccbee4444317f0011d0"
+    },
+    "shard-018": {
+      "checkpoint_sha256": "487f811eee5ec237d34d60f27c577f1965682026e50441fd55a79dced94a59c6",
+      "payload_sha256": "7649206194d7c98a2849a8b5d6dfe293f47ae60519101cd5bb22cc01cf44332e"
+    },
+    "shard-023": {
+      "checkpoint_sha256": "1b159f84a7668f94b7b8032d84d0c82db98456eedd750951d254b7b632a4970d",
+      "payload_sha256": "c7883104f450ab75826d1a3d13872c6f6c5fc8572ec022f18eeb40ac6134fa39"
+    },
+    "shard-024": {
+      "checkpoint_sha256": "dc5dbe5dd8a8231e2f3681f4983501cda3efe2cfe45873ba9fa97261dc6d61b4",
+      "payload_sha256": "6e824703b846a886f4d84b3c8b58e8ea67b48cd925cc68b9e11dc986f534d88c"
+    },
+    "shard-025": {
+      "checkpoint_sha256": "ef58847e8915b3259fb9d243de0d3eb783d8b92f0609fabc4ddffbbee9282c83",
+      "payload_sha256": "7e37ec716ffa8a3a9419b2a9b004e7109d28e5b1f84053dddcddf7c537472103"
+    },
+    "shard-026": {
+      "checkpoint_sha256": "83980376633bcb7209570c0804983ab64ded21fe3533f74ccb7944fec5e339ca",
+      "payload_sha256": "b7c6d3bb2a2630801e63ab72448a711ba0fd63267f5c1ca6086f573023c21ee1"
+    },
+    "shard-029": {
+      "checkpoint_sha256": "b6bdcfff70b707a22572ae8c47d8a2d32157adc9f8792d195b9b6b7273562f28",
+      "payload_sha256": "dca2ffe16f70074338ae07302df38d05d75d0bb0c84472ea1906c5be4cbc2b0f"
+    },
+    "shard-031": {
+      "checkpoint_sha256": "8c27a7e38e8850829a3a6e093f310740a36c4c46eaa643999a1c5259d4518657",
+      "payload_sha256": "3c3d51069a4d292e87b6a46bdf4645ca20dbacf90d48c6743571383d77cc05c1"
+    },
+    "shard-037": {
+      "checkpoint_sha256": "ee150e9d4ed2b41666175e0ad2a2bba62d3ea55729690730cad33c42aa5b7eef",
+      "payload_sha256": "475568dd1417522b528b1716c1adbe55ef6d5b4fbf24d818bed87fb2739670bc"
+    },
+    "shard-040": {
+      "checkpoint_sha256": "16d4aaa1b1a2ac69fdb07e537077888626c30c4f4c42e8d409c2222cfb661115",
+      "payload_sha256": "12944c26976130a1463f3103ae49f6cc4a9345131e744cde1e18ed904c23e092"
+    }
+  },
+  "source_artifact": "atlas-finnhub-full-universe-final-37553164176",
+  "source_artifact_sha256": "ecf66bcd49a72bbd85f76365b9005a43622f87494b2aa4468f3a1ef3c0bcf4f1",
+  "source_run_id": 37553164176,
+  "source_sha": "1e57ec65df04424c2629b8f6bedf154b91452e2a"
+}

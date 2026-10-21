@@ -9,6 +9,7 @@ on:
         type: string
 
 permissions:
+  actions: read
   contents: read
 
 concurrency:
@@ -25,6 +26,7 @@ jobs:
       ATLAS_REPORT_CARD_DURABLE_ROOT: ${{ vars.ATLAS_REPORT_CARD_DURABLE_ROOT }}
       ATLAS_REPORT_CARD_BACKUP_ROOT: ${{ vars.ATLAS_REPORT_CARD_BACKUP_ROOT }}
       ATLAS_INTERNAL_REPORT_CARD_UI_ENABLED: "true"
+      ATLAS_REPORT_CARD_CHART_EVIDENCE_ROOT: ${{ github.workspace }}/audit_results/report_card_chart_authority
       ATLAS_INTERNAL_QA_PASSWORD: ${{ secrets.APP_PASSWORD }}
       ATLAS_VIEWER_QA_PASSWORD: ${{ secrets.ATLAS_AUDIT_PASSWORD }}
       APP_PASSWORD: ${{ secrets.APP_PASSWORD }}
@@ -34,6 +36,7 @@ jobs:
       FMP_API_KEY: ""
       NEWSAPI_KEY: ""
       ALPHA_VANTAGE_API_KEY: ""
+      OPENAI_API_KEY: ""
     steps:
       - name: Checkout exact reviewed candidate
         uses: actions/checkout@v4
@@ -84,6 +87,35 @@ jobs:
             --backup-root "$ATLAS_REPORT_CARD_BACKUP_ROOT" \
             --output-dir audit_results/report_card_durable_readonly \
             --phase before
+
+      - name: Restore exact original certified publication artifact
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 37553164176
+          name: atlas-finnhub-full-universe-final-37553164176
+          path: audit_results/report_card_original_publication
+
+      - name: Restore existing completed daily acquisition shards
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 37553164176
+          pattern: atlas-finnhub-full-shard-*-37553164176
+          merge-multiple: true
+          path: audit_results/report_card_original_shards
+
+      - name: Bind original snapshots to verified retained chart bars
+        run: >-
+          python scripts/prepare_report_card_retained_chart.py
+          --ledger "$ATLAS_REPORT_CARD_DURABLE_ROOT/report-card.sqlite3"
+          --source audit_results/report_card_original_publication/publication_bundle
+          --shards audit_results/report_card_original_shards
+          --config config/report_card_retained_chart_source.json
+          --output "$ATLAS_REPORT_CARD_CHART_EVIDENCE_ROOT"
+          --report audit_results/report_card_durable_readonly/retained_chart_authority.json
 
       - name: Audit durable ledger and cohort read-only
         id: audit

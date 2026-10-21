@@ -4,6 +4,8 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import sqlite3
+from contextlib import closing
 
 from services.prospective_report_card import ProspectiveLedger
 from datetime import datetime, timezone
@@ -23,6 +25,9 @@ def _fixture(path: Path) -> Path:
         "withholding_status": "CUSTOMER_PUBLISHABLE", "candidate_digest": "candidate",
         "publication_digest": "publication", "evaluation_snapshot_id": "snapshot",
     }, created_at=now)
+    # Freeze the committed temporary fixture before the immutable before capture.
+    with closing(sqlite3.connect(path)) as db:
+        db.execute('PRAGMA wal_checkpoint(TRUNCATE)')
     return path
 
 

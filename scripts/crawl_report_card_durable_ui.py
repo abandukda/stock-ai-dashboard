@@ -288,6 +288,18 @@ async def run(output: Path) -> None:
                     raise AssertionError(f"REPORT_CARD_SIGNAL_IDENTITY_MISSING:{mode}:{key}")
             if detail_facts["context-classification"] != "CONTEXTUAL_NON_SCORING":
                 raise AssertionError(f"REPORT_CARD_SIGNAL_CONTEXT_CLASSIFICATION_MISSING:{mode}")
+            # Preserve the actual settled detail before any chart assertion can
+            # fail. A missing-data branch must be distinguishable from a lost
+            # selection, selector drift, or a rendered Streamlit exception.
+            await shot(page, output, f"signal-detail-before-chart-{mode}", manifest)
+            (output / f"signal-detail-{mode}.html").write_text(await page.content(), encoding="utf-8")
+            unavailable = page.locator('[data-atlas-qa="report-card-chart-unavailable"]')
+            (output / f"chart-state-{mode}.json").write_text(json.dumps({
+                "detail": detail_facts,
+                "unavailable_marker_present": bool(await unavailable.count()),
+                "chart_status": (await unavailable.first.get_attribute("data-atlas-chart-status")
+                                 if await unavailable.count() else "AWAITING_AVAILABLE_MARKER"),
+            }, indent=2), encoding="utf-8")
             chart = page.locator('[data-atlas-qa="report-card-price-chart"]')
             await chart.wait_for(state="attached", timeout=30000)
             if await chart.get_attribute("data-atlas-chart-status") != "AVAILABLE":
