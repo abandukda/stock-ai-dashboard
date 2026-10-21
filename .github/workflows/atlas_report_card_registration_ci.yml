@@ -24,7 +24,7 @@ jobs:
           cache: pip
       - run: pip install -r requirements.txt
       - name: Install registration-only test dependencies
-        run: python -m pip install exchange_calendars==4.13.2 PyYAML==6.0.3
+        run: python -m pip install exchange_calendars==4.13.2 PyYAML==6.0.3 playwright==1.52.0
       - name: Validate manual workflow registration contracts
         run: python -m pytest -q tests/test_report_card_workflow_registration.py
       - name: Validate calendar acquisition and deterministic production
@@ -35,6 +35,8 @@ jobs:
           tests/test_report_card_observation_producer.py
           tests/test_report_card_observation_activation.py
           tests/test_report_card_end_to_end_offline.py
+          tests/test_report_card_retained_chart.py
+          tests/test_report_card_signal_digest.py
       - name: Compile bounded Report Card modules
         run: >-
           python -m py_compile
