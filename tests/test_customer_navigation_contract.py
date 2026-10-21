@@ -65,3 +65,22 @@ def test_internal_routes_require_explicit_admin_role() -> None:
     assert internal_routes_allowed("viewer") is False
     assert internal_routes_allowed(None) is False
     assert internal_routes_allowed("") is False
+
+
+def test_earnings_is_reachable_for_admin_and_denied_to_customer() -> None:
+    import ast
+    module = ast.parse(Path("app.py").read_text(encoding="utf-8"))
+    main = next(node for node in reversed(module.body)
+                if isinstance(node, ast.FunctionDef) and node.name == "main")
+    internal = next(node.value for node in ast.walk(main)
+                    if isinstance(node, ast.Assign)
+                    and any(isinstance(target, ast.Name) and target.id == "internal_pages"
+                            for target in node.targets))
+    internal_pages = ast.literal_eval(internal)
+    assert "Earnings" in internal_pages
+    for role in ("admin", "viewer", None):
+        allowed = (*CUSTOMER_ROUTES, *internal_pages) if internal_routes_allowed(role) else CUSTOMER_ROUTES
+        state = {"v784_single_nav": "Earnings Intelligence"}
+        migrate_navigation_state(state, allowed_routes=allowed)
+        assert state["v784_single_nav"] == ("Earnings" if role == "admin" else "Home")
+    assert "Earnings" not in CUSTOMER_ROUTES

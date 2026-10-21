@@ -28635,7 +28635,7 @@ def main():
         role_category,
     )
     customer_pages = list(CUSTOMER_ROUTES)
-    internal_pages = ["Today's Opportunities", "Volume Intelligence", "Atlas Core Holdings", "Full Ranked Scan", "Portfolio Intelligence", "Recovery", "ETFs", "Political Intelligence", "Developer Center"]
+    internal_pages = ["Today's Opportunities", "Volume Intelligence", "Atlas Core Holdings", "Earnings", "Full Ranked Scan", "Portfolio Intelligence", "Recovery", "ETFs", "Political Intelligence", "Developer Center"]
     pages = list(customer_pages)
     _internal_authorized = internal_routes_allowed(get_user_role())
     if _internal_authorized:
