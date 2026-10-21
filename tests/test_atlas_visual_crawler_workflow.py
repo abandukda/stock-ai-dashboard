@@ -9,13 +9,13 @@ SOURCE = WORKFLOW.read_text(encoding="utf-8")
 REQUIREMENTS = (ROOT / "requirements-runtime-qa.txt").read_text(encoding="utf-8")
 
 
-def test_dispatch_exposes_three_isolated_modes_and_schedule_stays_full():
+def test_dispatch_exposes_three_modes_and_supplementary_requires_explicit_preflight():
     options = SOURCE.split("options:", 1)[1].split("schedule:", 1)[0]
     assert options.count("- full") == 1
     assert options.count("- targeted_preflight") == 1
     assert options.count("- visual_crawl") == 1
     assert "github.event_name == 'workflow_dispatch' && inputs.mode == 'visual_crawl'" in SOURCE
-    assert "github.event_name != 'workflow_dispatch' || inputs.mode != 'visual_crawl'" in SOURCE
+    assert "github.event_name == 'workflow_dispatch' && inputs.mode == 'targeted_preflight'" in SOURCE
     assert "github.event_name == 'workflow_dispatch' && inputs.mode || 'full'" in SOURCE
 
 
@@ -45,7 +45,7 @@ def test_visual_mode_reuses_existing_secret_and_has_no_new_credential_path():
     assert 'ATLAS_VISUAL_CRAWL_CUSTOMER_ONLY: "true"' in visual
 
 
-def test_visual_mode_uses_a_customer_only_audit_without_changing_required_certification():
+def test_production_customer_modes_preserve_separate_internal_role_contract():
     crawler = (ROOT / "agents" / "atlas_visual_crawler_v1.py").read_text(encoding="utf-8")
     assert 'os.getenv("ATLAS_VISUAL_CRAWL_CUSTOMER_ONLY", "")' in crawler
     assert 'primary_role = "customer_viewer" if customer_visual_audit else "internal_admin"' in crawler
@@ -54,7 +54,9 @@ def test_visual_mode_uses_a_customer_only_audit_without_changing_required_certif
     required = SOURCE.split("Run required production certification", 1)[1].split(
         "Run Atlas Runtime QA supplementary certification", 1
     )[0]
-    assert "ATLAS_VISUAL_CRAWL_CUSTOMER_ONLY" not in required
+    assert 'ATLAS_VISUAL_CRAWL_CUSTOMER_ONLY: "true"' in required
+    assert "--phase all" in required
+    assert "internal_admin" in crawler  # protected/internal assertions stay intact
 
 
 def test_visual_mode_invokes_only_standalone_crawler_and_cannot_fall_through():
@@ -136,8 +138,8 @@ def test_non_visual_modes_and_schedule_cannot_invoke_visual_crawler():
     visual = SOURCE.split("Run non-blocking Atlas Visual Crawler", 1)[1].split(
         "Summarize Visual Crawler certification", 1
     )[0]
-    assert "inputs.mode != 'visual_crawl'" in runtime
+    assert "inputs.mode == 'targeted_preflight'" in runtime
     assert "inputs.mode == 'visual_crawl'" in visual
     assert "github.event_name == 'workflow_dispatch'" in visual
-    assert "github.event_name != 'workflow_dispatch'" in runtime
+    assert "github.event_name == 'workflow_dispatch'" in runtime
     assert "ATLAS_QA_MODE" not in visual.replace("ATLAS_QA_MODE: visual_crawl", "")
