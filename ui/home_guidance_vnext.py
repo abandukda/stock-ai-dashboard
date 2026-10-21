@@ -1760,6 +1760,16 @@ def _render_daily_brief(story: Mapping[str, Any]) -> None:
         if market_read else
         "<strong>Market context:</strong> Current governed context is unavailable, so ATLAS is not inferring a backdrop."
     )
+    lead_panel = (
+        '<small>LEADING CERTIFIED OPPORTUNITY</small>'
+        f'<b>{html.escape(identity)}</b><div class="atlas-brief-values">'
+        f'<span><small>Dated price</small><strong>{html.escape(_money(lead.get("display_price")))}</strong></span>'
+        f'<span><small>ATLAS Fair Value</small><strong>{html.escape(_money(lead.get("atlas_fair_value")))}</strong></span>'
+        '</div><span>Fair Value is an estimate, not a guaranteed return. Open the investment case below.</span>'
+        if lead else
+        '<small>OPPORTUNITY STATUS</small><b>No BUY NOW idea published</b>'
+        '<span>Review Worth Watching for developing ideas and their evidence limitations.</span>'
+    )
     st.markdown(
         '<section class="atlas-daily-brief atlas-ai-insight-panel" data-atlas-qa="daily-intelligence-brief" '
         'data-atlas-explanation-source="DETERMINISTIC_CERTIFIED_PROJECTION" '
@@ -1767,9 +1777,8 @@ def _render_daily_brief(story: Mapping[str, Any]) -> None:
         '<div><small>ATLAS Morning View · CERTIFIED SNAPSHOT</small><h1>Daily Intelligence Brief</h1>'
         f'<p>Actionable opportunities from the latest certified evaluation. {lead_copy}</p>'
         f'<p>{context_copy} Decisions and values below are reproduced from the certified customer projection.</p>'
-        f'<footer>As of {html.escape(_timestamp(story.get("scan_timestamp")))} · No live reranking</footer></div>'
-        '<aside><small>TODAY’S MANDATE</small><b>Find signal.<br>Know the risk.</b>'
-        '<span>DETERMINISTIC CERTIFIED SUMMARY · Presentation-only and cannot change ATLAS guidance.</span></aside></section>',
+        f'<footer>As of {html.escape(_timestamp(story.get("scan_timestamp")))} · No live reranking · DETERMINISTIC CERTIFIED SUMMARY</footer></div>'
+        f'<aside>{lead_panel}</aside></section>',
         unsafe_allow_html=True,
     )
 
@@ -1919,6 +1928,20 @@ def _inject_css() -> None:
     @media(max-width:480px){.atlas-home-card-head{grid-template-columns:1fr auto;align-items:end}.atlas-home-card-head>span{grid-column:1/-1}.atlas-home-card-head h3{font-size:1.35rem!important}.atlas-home-card-head aside strong{font-size:1.2rem}.atlas-home-guidance-identity{gap:.18rem .38rem;margin:.02rem 0 .1rem}.atlas-home-guidance-identity strong{font-size:1rem}.atlas-home-guidance-identity span{font-size:.74rem}.atlas-home-guidance-identity em{font-size:.72rem}.atlas-home-atlas-score{grid-template-columns:auto 1fr auto;gap:.1rem .42rem;padding:.55rem;margin:.03rem 0 .12rem;min-height:108px}.atlas-home-score-label{font-size:.7rem}.atlas-home-atlas-score strong{font-size:1.25rem}.atlas-home-score-stars{grid-row:2;grid-column:1/3;font-size:.88rem}.atlas-home-atlas-score b{grid-row:1;grid-column:3}.atlas-home-atlas-score small{grid-row:3;grid-column:1/-1;font-size:.76rem}.atlas-home-guidance-summary{font-size:.84rem;line-height:1.4;margin:.08rem 0 .12rem!important}.atlas-home-guidance-quick{grid-template-columns:1fr;gap:.28rem;margin:.06rem 0 .14rem}.atlas-home-guidance-quick section{padding:.36rem .46rem}.atlas-home-guidance-quick h4{font-size:.92rem}.atlas-home-guidance-quick li{font-size:.825rem;line-height:1.38}.atlas-home-key-numbers{grid-template-columns:repeat(2,minmax(0,1fr));gap:.12rem;padding:.18rem}.atlas-home-key-numbers .atlas-home-guidance-metric{padding:.18rem .22rem}.atlas-home-full-evidence section{padding:.58rem 0}.atlas-home-full-evidence h4{font-size:.95rem;margin-bottom:.32rem}.atlas-home-full-evidence p,.atlas-home-full-reasons li{font-size:.825rem;line-height:1.45}.atlas-home-full-metrics{grid-template-columns:1fr;gap:.18rem}.atlas-home-full-reasons{grid-template-columns:1fr;gap:.55rem}.atlas-home-trade-row{gap:.16rem .38rem;font-size:.84rem}.atlas-home-trade-row span+span::before{margin-right:.38rem}.atlas-home-comparison{grid-template-columns:1fr 1fr}.atlas-home-target{padding:.48rem}.atlas-home-target b{font-size:.92rem}.atlas-home-wall-street-facts{grid-template-columns:repeat(2,minmax(0,1fr))}}
     .atlas-home-comparison{grid-template-columns:repeat(auto-fit,minmax(125px,1fr));min-height:0}.atlas-home-win i{display:grid;gap:.12rem;font-style:normal;font-weight:700;color:#d9e3ef}.atlas-home-win i small{font-size:.72rem;line-height:1.3;font-weight:400;color:#96a4b6}
     @media(max-width:700px){.atlas-home-action-counts{grid-template-columns:repeat(2,minmax(0,1fr))}.atlas-home-comparison{grid-template-columns:repeat(2,minmax(0,1fr))}.atlas-home-comparison .atlas-home-target-current{grid-column:1/-1}.atlas-home-action{grid-template-columns:1fr}.atlas-home-action-stars{grid-row:auto;font-size:1.45rem}.atlas-home-action>small{grid-column:auto}.atlas-home-card-head h3 i{display:block;margin-top:.18rem}}
+    /* Marker-only Streamlit elements must not consume executive-dashboard space. */
+    [data-testid="stElementContainer"]:has([data-atlas-qa="home-runtime-contract"]),
+    [data-testid="stElementContainer"]:has([data-atlas-qa="production-authority"]),
+    [data-testid="stElementContainer"]:has([data-atlas-qa="home-inventory-authority"]),
+    [data-testid="stElementContainer"]:has([data-atlas-qa="home-guidance-vnext"]){display:none}
+    .atlas-daily-brief{grid-template-columns:minmax(0,1.65fr) minmax(260px,1fr);padding:1.15rem 1.25rem}
+    .atlas-daily-brief h1{font-size:2.1rem!important;line-height:1.1!important}
+    .atlas-daily-brief aside>b{font-size:1.4rem;letter-spacing:-.02em}
+    .atlas-brief-values{display:grid;grid-template-columns:1fr 1fr;gap:.65rem;margin:.6rem 0 .8rem}
+    .atlas-brief-values>span{padding:.65rem;border:1px solid rgba(94,234,212,.2);border-radius:12px;background:rgba(6,18,30,.6)}
+    .atlas-brief-values small{font-size:.66rem;letter-spacing:.025em!important;color:#a8bed5!important}
+    .atlas-brief-values strong{display:block;font-size:1.4rem;color:#f2f8ff;margin-top:.25rem;font-variant-numeric:tabular-nums}
+    @media(max-width:1000px){.atlas-daily-brief{grid-template-columns:1fr}.atlas-daily-brief aside{border-left:0;border-top:1px solid rgba(94,234,212,.22);padding:.8rem 0 0}.atlas-brief-values{max-width:440px}}
+    @media(max-width:600px){.atlas-daily-brief{padding:.9rem}.atlas-daily-brief h1{font-size:1.7rem!important}.atlas-brief-values strong{font-size:1.25rem}.atlas-command-deck{grid-template-columns:1fr 1fr}.atlas-command-deck article{padding:.7rem}.atlas-command-deck small{font-size:.64rem}.atlas-command-deck b{font-size:.85rem}}
     </style>""", unsafe_allow_html=True)
     st.markdown("""<style>
     .atlas-home-market-strip{display:flex;align-items:center;gap:.7rem;padding:.45rem .65rem;margin:.1rem 0 .35rem;border-radius:10px;background:rgba(30,41,59,.38);color:#b9c4d3}.atlas-home-market-strip small{white-space:nowrap;color:#7fa9d8}.atlas-home-market-strip p{margin:0!important;font-size:.82rem}
