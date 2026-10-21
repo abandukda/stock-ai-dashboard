@@ -1371,3 +1371,13 @@ def test_screenshot_scope_resolves_real_streamlit_frame(monkeypatch):
         assert "await self._app_scope(page)" in source
         assert "scope.evaluate(" in source
         assert "page.evaluate(" not in source
+
+
+def test_mobile_capture_uses_actual_overflow_surface_instead_of_named_wrappers():
+    source = inspect.getsource(AtlasVisualCrawler._stitched_streamlit_screenshot)
+    assert "getComputedStyle(element).overflowY" in source
+    assert "element.scrollHeight > element.clientHeight" in source
+    assert "b.scrollHeight - b.clientHeight" in source
+    assert "nth-child" in source
+    reset = inspect.getsource(AtlasVisualCrawler._scroll_streamlit_to_top)
+    assert "getComputedStyle(node).overflowY" in reset
