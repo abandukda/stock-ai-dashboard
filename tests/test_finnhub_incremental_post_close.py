@@ -419,3 +419,39 @@ def test_adapter_unavailable_record_fails_closed(tmp_path):
             plan=small_plan(), adapter=UnavailableAdapter(), raw_root=tmp_path / "raw",
             checkpoint_path=tmp_path / "checkpoint.json", parameters_by_family=transport_parameters(),
         )
+
+
+def test_retained_resolver_streams_large_excluded_rows_under_memory_bound(tmp_path):
+    import hashlib
+    import tracemalloc
+    plan = small_plan()
+    path = tmp_path / 'full_evaluation_pool.json'
+    # More than 20 MB of excluded source evidence must not remain resident.
+    with path.open('w') as out:
+        out.write('[{"ticker":"A","current_price":1.25},{"ticker":"B","current_price":2.5}')
+        for i in range(80):
+            out.write(',' + json.dumps({'ticker': f'X{i}', 'retained_evidence': 'x' * 262144}))
+        out.write(']')
+    with path.open('rb') as source:
+        sha = hashlib.file_digest(source, 'sha256').hexdigest()
+    plan['governed_membership'] = {'source_file_sha256': sha}
+    tracemalloc.start()
+    try:
+        selected, report = resolve_replay_retained_records(artifact_root=tmp_path, plan=plan)
+        _, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+    assert peak < 8 * 1024 * 1024
+    assert selected == [{'ticker': 'A', 'current_price': 1.25}, {'ticker': 'B', 'current_price': 2.5}]
+    assert report['source_row_count'] == 82 and report['excluded_row_count'] == 80
+
+
+def test_retained_resolver_rejects_duplicates_outside_selected_membership(tmp_path):
+    import hashlib
+    rows = [{'ticker': t} for t in ['A', 'B', 'X', 'X']]
+    raw = json.dumps(rows).encode()
+    (tmp_path / 'full_evaluation_pool.json').write_bytes(raw)
+    plan = small_plan()
+    plan['governed_membership'] = {'source_file_sha256': hashlib.sha256(raw).hexdigest()}
+    with pytest.raises(ValueError, match='DUPLICATE_SYMBOL:X'):
+        resolve_replay_retained_records(artifact_root=tmp_path, plan=plan)
