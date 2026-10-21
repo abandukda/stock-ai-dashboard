@@ -12,6 +12,7 @@ import time
 from typing import Any
 
 from playwright.async_api import Page, async_playwright
+from agents.qa_screenshot_capture import screenshot_for_evidence
 
 
 VIEWPORTS = {"desktop": {"width": 1440, "height": 1000}, "tablet": {"width": 1024, "height": 900},
@@ -43,6 +44,10 @@ async def _wait_for_stable_condition(
     raise AssertionError(failure)
 
 
+async def marker_attribute(marker: Any, key: str) -> Any:
+    return await marker.get_attribute(f"data-atlas-{key}")
+
+
 async def wait_for_report_card_overview_settled(page: Page, mode: str) -> None:
     metric_labels = ("Signals", "Observations", "Open signals", "SPY comparisons")
     copy_labels = (
@@ -51,6 +56,14 @@ async def wait_for_report_card_overview_settled(page: Page, mode: str) -> None:
     )
 
     async def settled() -> bool:
+        directory = page.locator('[data-atlas-qa="report-card-signal-directory"]')
+        overview = page.locator('[data-atlas-qa="report-card-overview"]')
+        if not await directory.count() or not await overview.count():
+            return False
+        expected = int(await marker_attribute(overview, "signal-count") or -1)
+        if (int(await marker_attribute(directory, "signal-count") or -2) != expected
+                or await directory.locator("tbody tr").count() != expected):
+            return False
         for label in metric_labels:
             locator = page.get_by_text(label, exact=True).first
             if not await locator.count() or not await locator.is_visible():
@@ -181,8 +194,45 @@ async def select_route(page: Page, label: str) -> None:
 
 async def shot(page: Page, root: Path, name: str, manifest: list[dict[str, Any]]) -> None:
     target = root / f"{name}.png"
-    await page.screenshot(path=str(target), full_page=True)
-    manifest.append({"name": name, "path": str(target.name), "url": page.url})
+    await screenshot_for_evidence(page, style_scope=page, path=str(target), full_page=True)
+    manifest.append({"name": name, "path": str(target.name), "url": page.url,
+                     "chrome_hidden": ["stHeader"]})
+
+
+async def verify_signal_directory_picker(
+    page: Page, output: Path, mode: str, manifest: list[dict[str, Any]],
+) -> None:
+    summary = page.locator('[data-atlas-qa="report-card-executive-summary"]')
+    summary_target = output / f"report-card-evidence-summary-{mode}.png"
+    await screenshot_for_evidence(summary, style_scope=page, path=str(summary_target))
+    manifest.append({"name": f"report-card-evidence-summary-{mode}",
+                     "path": summary_target.name, "url": page.url})
+    directory = page.locator('[data-atlas-qa="report-card-signal-directory"]')
+    first_row = directory.locator("tbody tr").first
+    expected_id = await marker_attribute(first_row, "signal-id")
+    if not expected_id:
+        raise AssertionError(f"REPORT_CARD_DIRECTORY_IDENTITY_MISSING:{mode}")
+    target = output / f"signal-directory-{mode}.png"
+    await screenshot_for_evidence(directory, style_scope=page, path=str(target))
+    manifest.append({"name": f"signal-directory-{mode}", "path": target.name, "url": page.url})
+    # Scope by the exact visible label and Streamlit widget boundary rather
+    # than a framework-dependent inner input name. Preserve the unique visible
+    # control requirement and exact-ID detail assertions below.
+    picker = page.get_by_test_id("stSelectbox").filter(
+        has=page.get_by_text("Open an original signal", exact=True))
+    if await picker.count() != 1:
+        raise AssertionError(f"REPORT_CARD_DIRECTORY_PICKER_COUNT:{mode}")
+    await picker.wait_for(state="visible", timeout=30000)
+    await picker.scroll_into_view_if_needed()
+    (output / f"signal-directory-control-{mode}.html").write_text(
+        await picker.evaluate("el => el.outerHTML"), encoding="utf-8")
+    await shot(page, output, f"signal-directory-controls-{mode}", manifest)
+    await page.get_by_role("button", name="Open selected signal →", exact=True).click()
+    await wait_for_report_card_detail_state(page, mode, expected_id)
+    await wait_for_report_card_detail_settled(page, mode)
+    await shot(page, output, f"signal-directory-detail-{mode}", manifest)
+    await page.get_by_role("button", name="← Back to Report Card", exact=True).click()
+    await wait_for_report_card_overview_settled(page, mode)
 
 
 async def wait_for_original_cohort_panels(panels: Any, mode: str) -> None:
@@ -236,7 +286,7 @@ async def certify_original_cohort_charts(page: Page, output: Path, mode: str,
         panel = chart.locator("xpath=following::div[@data-testid='stPlotlyChart'][1]")
         await panel.wait_for(state="visible", timeout=30000)
         target = output / f"original-chart-{mode}-{ticker}.png"
-        await panel.screenshot(path=str(target))
+        await screenshot_for_evidence(panel, style_scope=page, path=str(target))
         manifest.append({"name": target.stem, "path": target.name, "url": page.url})
         verified.append({"ticker": ticker, "signal_id": signal_id, "snapshot": snapshot, **facts})
         print(f"ORIGINAL_COHORT_CHART_PASS:{mode}:{ticker}:{len(verified)}/20", flush=True)
@@ -328,6 +378,7 @@ async def run(output: Path, *, require_original_cohort: bool = False) -> None:
             if "0.00%" in report_text and "Pending" not in report_text:
                 raise AssertionError(f"MISLEADING_ZERO_PERFORMANCE:{mode}")
             await shot(page, output, f"internal-report-card-{mode}", manifest)
+            await verify_signal_directory_picker(page, output, mode, manifest)
             await wait_for_report_card_signal_entry_settled(page, mode)
             expander = await open_report_card_signal_expander(page, mode)
             digest_button = page.get_by_role("button", name="View Signal Digest →").first
@@ -403,7 +454,7 @@ async def run(output: Path, *, require_original_cohort: bool = False) -> None:
             chart_panel = page.locator('[data-atlas-qa="report-card-price-chart"]').locator("xpath=following::div[@data-testid='stPlotlyChart'][1]")
             if await chart_panel.count():
                 chart_target = output / f"report-card-chart-{mode}.png"
-                await chart_panel.screenshot(path=str(chart_target))
+                await screenshot_for_evidence(chart_panel, style_scope=page, path=str(chart_target))
                 manifest.append({"name": f"report-card-chart-{mode}", "path": chart_target.name, "url": page.url})
             about = page.locator('[data-testid="stExpander"]').filter(has_text=re.compile(r"^About ")).first
             if await about.count():

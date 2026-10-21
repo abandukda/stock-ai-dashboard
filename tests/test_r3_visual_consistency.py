@@ -89,7 +89,10 @@ def test_home_command_center_is_responsive_at_required_mobile_widths():
     assert "@media(max-width:700px)" in home
     assert "@media(max-width:420px)" in home
     assert "COMPANY SPOTLIGHT" not in home
-    assert "up to 10 featured below" in home
+    # The governed Home contract features three ideas, with the complete list retained.
+    assert "enumerate(actionable[:3])" in home
+    assert "remaining = all_actionable[3:]" in home
+    assert "View all {len(all_actionable)} BUY NOW opportunities" in home
     assert "render_customer_report_card_preview" in home
 
 
@@ -100,3 +103,18 @@ def test_visual_gate_has_keyboard_and_high_contrast_fallbacks():
     preview = (ROOT / "ui" / "report_card_preview.py").read_text(encoding="utf-8")
     assert "SPY comparison pending" in preview
     assert "Source-bound observations required" in preview
+
+
+def test_rendered_pending_preview_hides_unapproved_counts_and_preserves_off_state():
+    from streamlit.testing.v1 import AppTest
+    app = AppTest.from_string('''
+from ui.report_card_preview import render_customer_report_card_preview
+render_customer_report_card_preview({'published_observation_count': 987654321, 'published_signal_count': 987654321})
+''').run()
+    assert not app.exception
+    rendered = '\n'.join(str(item.value) for item in app.markdown)
+    assert 'data-atlas-report-card-preview-state="PENDING"' in rendered
+    assert 'Public activation OFF' in rendered
+    assert 'Returns and SPY comparison pending' in rendered
+    assert '987654321' not in rendered
+    assert '<details><summary>How performance will be measured</summary>' in rendered

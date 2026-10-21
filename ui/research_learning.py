@@ -23,6 +23,34 @@ def _mapping(value: Any) -> Mapping[str, Any]:
     return value if isinstance(value, Mapping) else {}
 
 
+def _finite(value: Any) -> bool:
+    return not isinstance(value, bool) and isinstance(value, (int, float)) and math.isfinite(value)
+
+
+def build_valuation_guide(page: Mapping[str, Any]) -> dict[str, Any]:
+    """Explain admitted valuation evidence without deriving a multiple or target.
+
+    Use individual fact provenance rather than the chart's shared timestamp:
+    a retained close and a model estimate need not have the same evidence date.
+    """
+    facts = []
+    models = []
+    if page.get("status") == "AVAILABLE":
+        for raw in page.get("fundamentals") or ():
+            item = _mapping(raw)
+            if (item.get("fact_name") in {"Last Certified Close", "ATLAS Fair Value"}
+                    and item.get("classification") == "CERTIFIED_ATLAS"
+                    and item.get("source") and item.get("evidence_ids")
+                    and _finite(item.get("value"))):
+                facts.append(dict(item))
+        for raw in _mapping(page.get("financial_depth")).get("valuation_models") or ():
+            item = _mapping(raw)
+            if (_finite(item.get("value")) and item.get("unit") == "USD_PER_SHARE"
+                    and item.get("source") == "CERTIFIED_ATLAS_VALUATION"):
+                models.append({**dict(item), "assumptions": dict(_mapping(item.get("assumptions")))})
+    return {"facts": tuple(facts), "models": tuple(models)}
+
+
 def build_learning_guide(page: Mapping[str, Any]) -> dict[str, Any]:
     """Select evidence without calculating trends or treating missing data as zero."""
     if page.get("status") != "AVAILABLE":

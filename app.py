@@ -4982,6 +4982,14 @@ def viewer_password_matches(password):
 
 
 def dashboard_login_gate():
+    from services.authentication_roles import credential_configuration, resolve_credential_role
+    viewer_passwords = get_configured_viewer_passwords()
+    role_configuration = credential_configuration(ADMIN_PASSWORD, viewer_passwords)
+    # Validate before restoring an existing session; ambiguous configuration
+    # must not preserve an administrator session created by precedence.
+    if not role_configuration["role_configuration_valid"]:
+        st.error("Authentication configuration is ambiguous. Administrator and viewer credentials must be distinct.")
+        return False
     if st.session_state.get("authenticated"):
         # Keep the legacy and canonical role aliases synchronized across every
         # Streamlit rerun. Research/navigation must never turn a valid session
@@ -5024,16 +5032,13 @@ def dashboard_login_gate():
     if st.button("Login"):
         st.session_state["last_login_typed_length"] = len(password)
 
-        if ADMIN_PASSWORD and password == ADMIN_PASSWORD:
+        matched_role = resolve_credential_role(password, admin=ADMIN_PASSWORD, viewers=viewer_passwords)
+        if matched_role is not None:
             st.session_state["authenticated"] = True
-            st.session_state["role"] = "admin"
-            st.session_state["user_role"] = "admin"
-            st.rerun()
-
-        if viewer_password_matches(password):
-            st.session_state["authenticated"] = True
-            st.session_state["role"] = "viewer"
-            st.session_state["user_role"] = "viewer"
+            st.session_state["role"] = matched_role
+            st.session_state["user_role"] = matched_role
+            st.session_state["authentication_path"] = "PASSWORD_FORM"
+            st.session_state["authentication_credential_role"] = matched_role
             st.rerun()
 
         st.error(f"Invalid password. Typed password length: {len(password)}. Match it to one of the configured viewer password lengths above.")
@@ -28630,7 +28635,7 @@ def main():
         role_category,
     )
     customer_pages = list(CUSTOMER_ROUTES)
-    internal_pages = ["Today's Opportunities", "Volume Intelligence", "Atlas Core Holdings", "Full Ranked Scan", "Portfolio Intelligence", "Recovery", "ETFs", "Political Intelligence", "Developer Center"]
+    internal_pages = ["Today's Opportunities", "Volume Intelligence", "Atlas Core Holdings", "Earnings", "Full Ranked Scan", "Portfolio Intelligence", "Recovery", "ETFs", "Political Intelligence", "Developer Center"]
     pages = list(customer_pages)
     _internal_authorized = internal_routes_allowed(get_user_role())
     if _internal_authorized:

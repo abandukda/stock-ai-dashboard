@@ -43,6 +43,87 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "agents" / "atlas_visual_crawler_v1.py"
 
 
+def test_stitched_capture_uses_clamped_browser_offsets_without_repeating_rows(tmp_path):
+    from io import BytesIO
+    from PIL import Image
+
+    class Browser:
+        top = 0
+
+        async def add_style_tag(self, **_):
+            class Style:
+                async def evaluate(self, _):
+                    pass
+            return Style()
+
+        async def evaluate(self, script, args=None):
+            if args is None:
+                return {"selector": "__document__", "scrollHeight": 10,
+                        "clientHeight": 6, "originalTop": 2}
+            self.top = min(max(args[1], 0), 4)
+            return self.top
+
+        async def wait_for_timeout(self, _):
+            pass
+
+        async def screenshot(self, **_):
+            picture = Image.new("RGB", (2, 6))
+            for row in range(6):
+                for column in range(2):
+                    picture.putpixel((column, row), (self.top + row, 0, 0))
+            data = BytesIO()
+            picture.save(data, format="PNG")
+            return data.getvalue()
+
+    browser = Browser()
+    crawler = object.__new__(AtlasVisualCrawler)
+
+    async def scope(_):
+        return browser
+
+    crawler._app_scope = scope
+    target = tmp_path / "stitched.png"
+    facts = asyncio.run(crawler._stitched_streamlit_screenshot(browser, target))
+    with Image.open(target) as picture:
+        assert [picture.getpixel((0, row))[0] for row in range(10)] == list(range(10))
+    assert facts["actual_scroll_offsets"] == [0, 4]
+    assert browser.top == 2  # Capture restores the user's original position.
+
+
+def test_capture_chrome_is_restored_before_interactions_even_after_failure():
+    from agents.qa_screenshot_capture import screenshot_for_evidence
+
+    class Browser:
+        header_hidden = False
+        fail = False
+
+        async def add_style_tag(self, **_):
+            self.header_hidden = True
+            browser = self
+            class Style:
+                async def evaluate(self, _):
+                    browser.header_hidden = False
+            return Style()
+
+        async def screenshot(self, **_):
+            assert self.header_hidden
+            if self.fail:
+                raise RuntimeError('CAPTURE_FAILED')
+            return b'actual screenshot'
+
+    browser = Browser()
+    assert asyncio.run(screenshot_for_evidence(browser, style_scope=browser)) == b'actual screenshot'
+    assert not browser.header_hidden
+    browser.fail = True
+    try:
+        asyncio.run(screenshot_for_evidence(browser, style_scope=browser))
+    except RuntimeError as error:
+        assert str(error) == 'CAPTURE_FAILED'
+    else:
+        raise AssertionError('Capture failure must propagate')
+    assert not browser.header_hidden
+
+
 def test_watchlist_journey_re_resolves_controls_after_streamlit_reruns():
     """The governed journey must never reuse pre-rerun Streamlit controls."""
     source = SOURCE.read_text()
@@ -1381,3 +1462,49 @@ def test_mobile_capture_uses_actual_overflow_surface_instead_of_named_wrappers()
     assert "nth-child" in source
     reset = inspect.getsource(AtlasVisualCrawler._scroll_streamlit_to_top)
     assert "getComputedStyle(node).overflowY" in reset
+
+
+def test_customer_tablet_pass_requires_all_four_routes_at_both_widths(tmp_path, monkeypatch):
+    crawler = _contract_crawler(tmp_path, monkeypatch)
+    sizes, visits, shots = [], [], []
+    class Page:
+        async def set_viewport_size(self, value):
+            sizes.append(value)
+    async def visit(page, name, *, viewport):
+        visits.append((name, viewport))
+        return True
+    async def shot(page, **kwargs):
+        shots.append(kwargs)
+    crawler._page_visit = visit
+    crawler._shot = shot
+    asyncio.run(crawler._customer_tablet_visual_evidence(Page()))
+    assert sizes == [{'width':1024,'height':900}, {'width':768,'height':1024}]
+    assert visits == [(route, viewport) for viewport in ('tablet_1024','tablet_768')
+                      for route in ('Home','Research Any Ticker','Watchlist Intelligence','Ask AI')]
+    assert len(shots) == 8 and all(item['complete_surface'] for item in shots)
+
+
+def test_customer_tablet_route_failure_blocks_certification(tmp_path, monkeypatch):
+    import pytest
+    from agents.atlas_visual_crawler_v1 import GlobalCrawlFailure
+    crawler = _contract_crawler(tmp_path, monkeypatch)
+    class Page:
+        async def set_viewport_size(self, value):
+            pass
+    async def failed(page, name, *, viewport):
+        return False
+    crawler._page_visit = failed
+    with pytest.raises(GlobalCrawlFailure, match='CUSTOMER_ROLE_HOME_FAILED_TABLET_1024'):
+        asyncio.run(crawler._customer_tablet_visual_evidence(Page()))
+
+
+def test_primary_customer_mode_invokes_tablet_pass_without_skipping_existing_gates():
+    tree = ast.parse(SOURCE.read_text())
+    run = next(node for node in ast.walk(tree) if isinstance(node,ast.AsyncFunctionDef) and node.name=='run')
+    primary = next(node for node in ast.walk(run) if isinstance(node,ast.If)
+                   and isinstance(node.test,ast.Name) and node.test.id=='customer_visual_audit')
+    assert any(isinstance(node,ast.Attribute) and node.attr=='_customer_tablet_visual_evidence'
+               for node in ast.walk(primary))
+    code = ast.unparse(run)
+    assert '_required_desktop' in code and '_required_mobile' in code
+    assert '_role_isolation_contract' in code and '_required_completeness' in code

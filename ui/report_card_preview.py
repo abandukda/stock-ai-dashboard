@@ -62,6 +62,31 @@ def customer_report_card_preview(publication: Mapping[str, Any] | None = None) -
 def render_customer_report_card_preview(publication: Mapping[str, Any] | None = None) -> dict[str, str]:
     preview = customer_report_card_preview(publication)
     st.markdown("## Report Card Preview")
+    if preview["state"] == "PENDING":
+        st.markdown(
+            '<style>.atlas-report-pending-preview{padding:1.2rem;border:1px solid #34465f;border-radius:18px;background:linear-gradient(135deg,#14273b,#101b2d);color:#e8eff8}'
+            '.atlas-report-pending-preview h3{margin:.4rem 0!important;font-size:1.3rem!important}.atlas-report-pending-preview p{color:#bacbdd;line-height:1.55}'
+            '.atlas-report-readiness{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.65rem;margin:1rem 0}'
+            '.atlas-report-readiness article{padding:.8rem;border:1px solid #34465f;border-radius:12px;background:rgba(4,14,25,.35)}'
+            '.atlas-report-readiness small,.atlas-report-readiness b{display:block}.atlas-report-readiness small{font-size:.65rem;color:#8eb2d7;letter-spacing:.05em}.atlas-report-readiness b{font-size:.9rem;margin-top:.35rem;line-height:1.45}'
+            '.atlas-report-pending-preview summary{cursor:pointer;color:#b7d9f5;font-size:.85rem}.atlas-report-pending-preview details p{font-size:.82rem;margin:.5rem 0}'
+            '@media(max-width:700px){.atlas-report-readiness{grid-template-columns:1fr}.atlas-report-readiness article{padding:.7rem}.atlas-report-pending-preview{padding:.9rem}}</style>'
+            '<section class="atlas-report-pending-preview atlas-report-card-summary" data-atlas-qa="home-report-card-preview" '
+            'data-atlas-report-card-preview-state="PENDING">'
+            f'<small>{html.escape(preview["eyebrow"])}</small><h3>{html.escape(preview["title"])}</h3>'
+            f'<p>{html.escape(preview["body"])}</p>'
+            '<div class="atlas-report-readiness" aria-label="Performance evidence readiness">'
+            '<article><small>01 · EVIDENCE</small><b>Certified observations required</b></article>'
+            '<article><small>02 · MEASUREMENT</small><b>Returns and SPY comparison pending</b></article>'
+            '<article><small>03 · PUBLICATION</small><b>Public activation OFF</b></article></div>'
+            '<details><summary>How performance will be measured</summary>'
+            f'<p>{html.escape(preview["methodology"])}. {html.escape(preview["provenance"])}. '
+            f'{html.escape(preview["success_definition"])}</p>'
+            '<p>Pending means evidence is not yet mature or not publicly approved. '
+            'No successful/unsuccessful classification or realized return is inferred from a recommendation.</p>'
+            '</details></section>', unsafe_allow_html=True,
+        )
+        return preview
     st.markdown(
         '<section class="atlas-report-preview atlas-report-card-summary" data-atlas-qa="home-report-card-preview" '
         f'data-atlas-report-card-preview-state="{html.escape(preview["state"])}">'

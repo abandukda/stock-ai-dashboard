@@ -27,6 +27,7 @@ from agents.atlas_runtime_qa_v3 import (
     expected_deployed_source_sha,
 )
 from agents.product_hardening_certification import ACTIVE_PAGES
+from agents.qa_screenshot_capture import screenshot_for_evidence
 from agents.runtime_qa_architecture import full_certification_ticker_matrix
 from agents.runtime_qa_architecture import decode_context_summary, stable_digest
 from agents.runtime_qa_user_journeys_v40 import (
@@ -1475,6 +1476,7 @@ class AtlasVisualCrawler:
             if await marker.count():
                 role = (await marker.get_attribute("data-atlas-role-category") or role).strip()
             await scope.add_style_tag(content=(
+                '[data-testid="stAppDeployButton"], '
                 '[data-testid="stStatusWidget"], [data-testid="stToolbar"], '
                 '.stDeployButton { visibility:hidden !important; }'
             ))
@@ -1511,7 +1513,10 @@ class AtlasVisualCrawler:
         slug = re.sub(r"[^a-zA-Z0-9_-]+", "_", f"{self._shot_number:04d}_{role}_{viewport}_{page_name}_{interaction}_{state}")
         path = self.screenshot_dir / f"{slug[:180]}.png"
         try:
-            metadata: dict[str, Any] = {"capture": "viewport", "segments": 1, "complete": True}
+            metadata: dict[str, Any] = {
+                "capture": "viewport", "segments": 1, "complete": True,
+                "chrome_hidden": ["stHeader", "stToolbar", "stStatusWidget", "stAppDeployButton"],
+            }
             last_error: Exception | None = None
             for attempt in range(2):
                 try:
@@ -1521,7 +1526,7 @@ class AtlasVisualCrawler:
                         )
                     else:
                         await asyncio.wait_for(
-                            page.screenshot(path=str(path), full_page=False), timeout=12.0,
+                            screenshot_for_evidence(page, style_scope=scope, path=str(path), full_page=False), timeout=12.0,
                         )
                     last_error = None
                     break
@@ -1585,18 +1590,21 @@ class AtlasVisualCrawler:
         step = max(int(geometry.get("clientHeight") or 1), 1)
         positions = list(range(0, total, step)) or [0]
         images: list[Image.Image] = []
+        actual_positions: list[int] = []
         selector = str(geometry.get("selector") or "__document__")
         for position in positions:
-            await scope.evaluate("""
+            actual_top = await scope.evaluate("""
                 ([selector, top]) => {
                   const node = selector === '__document__' ? document.scrollingElement : document.querySelector(selector);
                   if (node === document.scrollingElement) window.scrollTo(0, top);
                   else if (node) node.scrollTop = top;
+                  return node === document.scrollingElement ? window.scrollY : (node?.scrollTop || 0);
                 }
             """, [selector, position])
             await page.wait_for_timeout(80)
-            raw = await page.screenshot(full_page=False)
+            raw = await screenshot_for_evidence(page, style_scope=scope, full_page=False)
             images.append(Image.open(BytesIO(raw)).convert("RGB"))
+            actual_positions.append(int(actual_top))
         await scope.evaluate("""
             ([selector, top]) => {
               const node = selector === '__document__' ? document.scrollingElement : document.querySelector(selector);
@@ -1607,14 +1615,18 @@ class AtlasVisualCrawler:
         width = max(image.width for image in images)
         final_height = total
         stitched = Image.new("RGB", (width, final_height), "white")
-        for position, image in zip(positions, images):
+        # The browser clamps the final scroll request. Place its pixels at the
+        # observed offset, never at the unattainable requested offset.
+        for position, image in zip(actual_positions, images):
             remaining = max(final_height - position, 0)
             if not remaining:
                 break
             crop = image.crop((0, 0, image.width, min(image.height, remaining)))
             stitched.paste(crop, (0, position))
         stitched.save(path)
-        return {"capture": "streamlit_stitched", "segments": len(images), "complete": True, "scroll_height": total}
+        return {"capture": "streamlit_stitched", "segments": len(images), "complete": True,
+                "scroll_height": total, "actual_scroll_offsets": actual_positions,
+                "chrome_hidden": ["stHeader", "stToolbar", "stStatusWidget", "stAppDeployButton"]}
 
     async def _shot_locator(
         self, locator: Any, *, page_name: str, interaction: str, state: str,
@@ -1625,12 +1637,14 @@ class AtlasVisualCrawler:
         path = self.screenshot_dir / f"{slug[:180]}.png"
         try:
             await locator.scroll_into_view_if_needed(timeout=5000)
-            await locator.screenshot(path=str(path))
+            scope = await self._app_scope(locator.page)
+            await screenshot_for_evidence(locator, style_scope=scope, path=str(path))
             relative = str(path.relative_to(self.output_dir))
             self.manifest.append({
                 "page": page_name, "interaction": interaction, "state": state,
                 "ticker": ticker, "viewport": viewport, "path": relative,
                 "generated": True, "capture": "visible_element", "segments": 1, "complete": True,
+                "chrome_hidden": ["stHeader"],
             })
             return relative
         except Exception:
@@ -3743,6 +3757,9 @@ class AtlasVisualCrawler:
         )
         await asyncio.wait_for(self._ask(page, viewport="mobile_360"), timeout=35)
 
+        await self._customer_tablet_visual_evidence(page)
+
+    async def _customer_tablet_visual_evidence(self, page: Page) -> None:
         # Tablet captures are a focused visual-acceptance pass. The complete
         # interaction contract is already exercised at desktop and mobile;
         # here we verify that every primary customer route remains readable at
@@ -3845,6 +3862,8 @@ class AtlasVisualCrawler:
                         timeout=450 if customer_visual_audit else 360,
                     )
                     await asyncio.wait_for(self._required_mobile(page), timeout=300)
+                    if customer_visual_audit:
+                        await asyncio.wait_for(self._customer_tablet_visual_evidence(page), timeout=180)
                     if self._required_completeness().get("status") != "PASS":
                         raise GlobalCrawlFailure("REQUIRED_PRODUCTION_CERTIFICATION_FAILED")
                     if not customer_visual_audit:

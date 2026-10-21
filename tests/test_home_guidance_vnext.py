@@ -1271,3 +1271,37 @@ def test_daily_brief_uses_company_specific_thesis_risk_and_governed_market_conte
     assert "Valuation compression." in body
     assert "Treasury yields rose while the broad market finished mixed." in body
     assert 'data-atlas-model-status="NOT_INVOKED"' in body
+
+
+def test_compact_card_preserves_canonical_dated_price_label_in_rendered_ui():
+    app = AppTest.from_string('''
+from ui.home_guidance_vnext import _compact_opportunity_card
+_compact_opportunity_card({'ticker':'NVDA','display_price':233.99,
+    'display_price_label':'Last-known Price','atlas_fair_value':346.05}, key='dated-price')
+''').run()
+    assert not app.exception
+    rendered = '\n'.join(str(item.value) for item in app.markdown)
+    assert '<small>Last-known Price</small>' in rendered
+    assert '<small>Current Price</small>' not in rendered
+    assert '$233.99' in rendered and '$346.05' in rendered
+
+
+def test_customer_footer_buttons_target_admitted_customer_routes():
+    from services.customer_navigation_contract import CUSTOMER_ROUTES
+    app = AppTest.from_string('''
+from ui.home_guidance_vnext import _render_footer_navigation
+_render_footer_navigation()
+''').run()
+    assert not app.exception
+    assert tuple(button.label for button in app.button) == tuple(route for route in CUSTOMER_ROUTES if route != 'Home')
+    for index, route in enumerate(route for route in CUSTOMER_ROUTES if route != 'Home'):
+        app.button[index].click().run()
+        assert not app.exception
+        assert app.session_state['v79_pending_page'] == route
+
+
+def test_compact_reason_rejects_classifier_fragments_but_preserves_sourced_prose():
+    from ui.home_guidance_vnext import _compact_reason
+    assert _compact_reason({'certified_summary_facts':{'financial_driver':'shallow drawdown'}}) == 'A concise certified investment reason is unavailable for this snapshot.'
+    sentence = 'Recurring subscription revenue supports the retained business case.'
+    assert _compact_reason({'certified_summary_facts':{'financial_driver':sentence}}) == sentence
