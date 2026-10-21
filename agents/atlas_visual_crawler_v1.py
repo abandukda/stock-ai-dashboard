@@ -1475,6 +1475,7 @@ class AtlasVisualCrawler:
             if await marker.count():
                 role = (await marker.get_attribute("data-atlas-role-category") or role).strip()
             await scope.add_style_tag(content=(
+                '[data-testid="stHeader"], [data-testid="stAppDeployButton"], '
                 '[data-testid="stStatusWidget"], [data-testid="stToolbar"], '
                 '.stDeployButton { visibility:hidden !important; }'
             ))
@@ -1511,7 +1512,10 @@ class AtlasVisualCrawler:
         slug = re.sub(r"[^a-zA-Z0-9_-]+", "_", f"{self._shot_number:04d}_{role}_{viewport}_{page_name}_{interaction}_{state}")
         path = self.screenshot_dir / f"{slug[:180]}.png"
         try:
-            metadata: dict[str, Any] = {"capture": "viewport", "segments": 1, "complete": True}
+            metadata: dict[str, Any] = {
+                "capture": "viewport", "segments": 1, "complete": True,
+                "chrome_hidden": ["stHeader", "stToolbar", "stStatusWidget", "stAppDeployButton"],
+            }
             last_error: Exception | None = None
             for attempt in range(2):
                 try:
@@ -1585,18 +1589,21 @@ class AtlasVisualCrawler:
         step = max(int(geometry.get("clientHeight") or 1), 1)
         positions = list(range(0, total, step)) or [0]
         images: list[Image.Image] = []
+        actual_positions: list[int] = []
         selector = str(geometry.get("selector") or "__document__")
         for position in positions:
-            await scope.evaluate("""
+            actual_top = await scope.evaluate("""
                 ([selector, top]) => {
                   const node = selector === '__document__' ? document.scrollingElement : document.querySelector(selector);
                   if (node === document.scrollingElement) window.scrollTo(0, top);
                   else if (node) node.scrollTop = top;
+                  return node === document.scrollingElement ? window.scrollY : (node?.scrollTop || 0);
                 }
             """, [selector, position])
             await page.wait_for_timeout(80)
             raw = await page.screenshot(full_page=False)
             images.append(Image.open(BytesIO(raw)).convert("RGB"))
+            actual_positions.append(int(actual_top))
         await scope.evaluate("""
             ([selector, top]) => {
               const node = selector === '__document__' ? document.scrollingElement : document.querySelector(selector);
@@ -1607,14 +1614,18 @@ class AtlasVisualCrawler:
         width = max(image.width for image in images)
         final_height = total
         stitched = Image.new("RGB", (width, final_height), "white")
-        for position, image in zip(positions, images):
+        # The browser clamps the final scroll request. Place its pixels at the
+        # observed offset, never at the unattainable requested offset.
+        for position, image in zip(actual_positions, images):
             remaining = max(final_height - position, 0)
             if not remaining:
                 break
             crop = image.crop((0, 0, image.width, min(image.height, remaining)))
             stitched.paste(crop, (0, position))
         stitched.save(path)
-        return {"capture": "streamlit_stitched", "segments": len(images), "complete": True, "scroll_height": total}
+        return {"capture": "streamlit_stitched", "segments": len(images), "complete": True,
+                "scroll_height": total, "actual_scroll_offsets": actual_positions,
+                "chrome_hidden": ["stHeader", "stToolbar", "stStatusWidget", "stAppDeployButton"]}
 
     async def _shot_locator(
         self, locator: Any, *, page_name: str, interaction: str, state: str,

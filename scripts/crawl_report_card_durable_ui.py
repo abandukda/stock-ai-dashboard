@@ -193,8 +193,12 @@ async def select_route(page: Page, label: str) -> None:
 
 async def shot(page: Page, root: Path, name: str, manifest: list[dict[str, Any]]) -> None:
     target = root / f"{name}.png"
+    # Exclude Streamlit's deployment chrome, not any ATLAS content or controls.
+    # Its fixed header otherwise obscures labels in later component captures.
+    await page.add_style_tag(content='[data-testid="stHeader"] { visibility:hidden !important; }')
     await page.screenshot(path=str(target), full_page=True)
-    manifest.append({"name": name, "path": str(target.name), "url": page.url})
+    manifest.append({"name": name, "path": str(target.name), "url": page.url,
+                     "chrome_hidden": ["stHeader"]})
 
 
 async def verify_signal_directory_picker(

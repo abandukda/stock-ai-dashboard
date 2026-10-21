@@ -43,6 +43,47 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "agents" / "atlas_visual_crawler_v1.py"
 
 
+def test_stitched_capture_uses_clamped_browser_offsets_without_repeating_rows(tmp_path):
+    from io import BytesIO
+    from PIL import Image
+
+    class Browser:
+        top = 0
+
+        async def evaluate(self, script, args=None):
+            if args is None:
+                return {"selector": "__document__", "scrollHeight": 10,
+                        "clientHeight": 6, "originalTop": 2}
+            self.top = min(max(args[1], 0), 4)
+            return self.top
+
+        async def wait_for_timeout(self, _):
+            pass
+
+        async def screenshot(self, **_):
+            picture = Image.new("RGB", (2, 6))
+            for row in range(6):
+                for column in range(2):
+                    picture.putpixel((column, row), (self.top + row, 0, 0))
+            data = BytesIO()
+            picture.save(data, format="PNG")
+            return data.getvalue()
+
+    browser = Browser()
+    crawler = object.__new__(AtlasVisualCrawler)
+
+    async def scope(_):
+        return browser
+
+    crawler._app_scope = scope
+    target = tmp_path / "stitched.png"
+    facts = asyncio.run(crawler._stitched_streamlit_screenshot(browser, target))
+    with Image.open(target) as picture:
+        assert [picture.getpixel((0, row))[0] for row in range(10)] == list(range(10))
+    assert facts["actual_scroll_offsets"] == [0, 4]
+    assert browser.top == 2  # Capture restores the user's original position.
+
+
 def test_watchlist_journey_re_resolves_controls_after_streamlit_reruns():
     """The governed journey must never reuse pre-rerun Streamlit controls."""
     source = SOURCE.read_text()
