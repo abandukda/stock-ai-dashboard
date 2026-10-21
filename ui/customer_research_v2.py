@@ -1,3 +1,6 @@
+Warning: truncated output (original token count: 22566)
+Total output lines: 1513
+
 """Customer-facing ATLAS Research V2 renderer."""
 from __future__ import annotations
 
@@ -10,7 +13,7 @@ import math
 
 import pandas as pd
 import streamlit as st
-from ui.research_learning import build_learning_guide
+from ui.research_learning import build_learning_guide, build_valuation_guide
 
 from services.customer_research_view import Availability, build_customer_research_view
 from services.customer_metric_format import (
@@ -161,6 +164,56 @@ def _render_institutional_overview(report: Mapping[str, Any], *, ticker: str) ->
 
 
 
+def _render_valuation_guide(page: Mapping[str, Any]) -> None:
+    guide = build_valuation_guide(page)
+    with st.expander("Valuation: what am I paying for the business?", expanded=False):
+        st.write(
+            "A good business can still be an expensive stock. The share price is the cost of one share; "
+            "Fair Value is an estimate of what that share is worth under a model's assumptions. "
+            "Neither a low share price nor a gap below Fair Value proves that a stock is cheap."
+        )
+        for item in guide["facts"]:
+            st.markdown(f'**{item["fact_name"]}: {_escape_markdown_currency(_money(item["value"]))}**')
+            st.caption(
+                f'Source: {item["source"]} · Evidence as of: {_financial_period(item.get("source_timestamp"))} · '
+                f'Fiscal period: {_financial_period(item.get("period"))} · '
+                f'Evidence IDs: {", ".join(str(value) for value in item["evidence_ids"])}'
+            )
+        present = {item["fact_name"] for item in guide["facts"]}
+        for name in ("Last Certified Close", "ATLAS Fair Value"):
+            if name not in present:
+                st.caption(f"{name}: source-bound evidence is unavailable in this guide.")
+        st.write(
+            "Start with the earnings and cash evidence below: can the business keep generating money for owners? "
+            "Then ask what growth, profitability, and future investment the valuation assumes. "
+            "A larger gap is not a promised return or a timetable. Check each evidence date; a retained close is not a live quote."
+        )
+        st.markdown("**Go deeper: inspect the retained model assumptions**")
+        for item in guide["models"]:
+            st.markdown(f'**{item.get("name") or item.get("methodology_id") or "Retained model"}**')
+            st.write(f'Model estimate per share: {_money(item["value"])}')
+            st.caption(
+                f'Source: {item["source"]} · Fiscal period: {_financial_period(item.get("fiscal_period"))} · '
+                'Model-specific source date: unavailable. Published model detail from this evaluation snapshot.'
+            )
+            if item["assumptions"]:
+                # Plain text preserves retained assumption values without Markdown interpretation.
+                for name, value in item["assumptions"].items():
+                    st.text(f"{name}: {value if value is not None else 'Unavailable'}")
+            else:
+                st.caption("Retained model assumptions are unavailable.")
+        if not guide["models"]:
+            st.info("Published model estimates and assumptions are unavailable in this snapshot.")
+        st.caption(
+            "Growth means future sales or cash expansion; margin means how much sales become profit. "
+            "A discount rate reduces the value of money expected later to reflect time and risk. "
+            "Terminal value estimates what the business is worth beyond the explicit forecast. "
+            "Higher assumed growth or a lower discount rate can raise a model estimate; that is model sensitivity, not new company evidence. "
+            "A price-to-earnings multiple compares price with profit per share. Reported and forecast earnings are different bases; "
+            "no comparable multiple or sensitivity calculation is supplied here."
+        )
+
+
 def _render_learning_guide(page: Mapping[str, Any], *, ticker: str) -> None:
     guide = build_learning_guide(page)
     if guide["status"] != "AVAILABLE":
@@ -168,6 +221,7 @@ def _render_learning_guide(page: Mapping[str, Any], *, ticker: str) -> None:
     _marker("learning-guide", ticker, status=guide["status"], non_scoring="true")
     st.markdown("### Read the evidence like an investor")
     st.caption("Learning guidance · Uses this retained snapshot, not live results or AI-generated research.")
+    _render_valuation_guide(page)
     with st.expander("Earnings: are sales turning into profit and cash?", expanded=True):
         st.write(
             "Read sales, profit, and cash together. Higher sales can be encouraging, but costs may rise faster. "
@@ -205,6 +259,14 @@ def _render_learning_guide(page: Mapping[str, Any], *, ticker: str) -> None:
         for label, key in (("Bull watch — more supportive evidence", "bull_watch"), ("Bear watch — less supportive evidence", "bear_watch")):
             st.markdown(f"**{label}**")
             _list(list(guide[key])) if guide[key] else st.caption("Company-specific monitoring evidence is unavailable.")
+        st.markdown("**Important retained risks**")
+        _list(list(guide["risks"])) if guide["risks"] else st.caption(
+            "Company-specific risk evidence is unavailable. Missing evidence does not mean low risk."
+        )
+        st.caption(
+            "Risks describe concerns in the retained assessment; bear watchpoints describe developments to monitor. "
+            "This guide does not rank their likelihood or estimate potential losses."
+        )
         st.caption(
             f'Retained ATLAS monitoring prompts · Evaluation snapshot: {guide.get("snapshot") or "Unavailable"}. '
             "These are conditional prompts, not forecasts, probabilities, or new buy/sell triggers. "
@@ -750,43 +812,7 @@ def _render_combined_statement_history(history: Mapping[str, Any], *, ticker: st
     ):
         with container:
             periods = projection.get("visible_periods") or projection.get("periods") or ()
-            statements = projection.get("statements") if isinstance(projection.get("statements"), Mapping) else {}
-            if projection.get("status") != "AVAILABLE" or not periods:
-                st.info(f"Validated {frequency} filing history is unavailable for this security.")
-                continue
-            statement_tabs = st.tabs(list(lanes.values()))
-            for statement_tab, (lane, label) in zip(statement_tabs, lanes.items()):
-                with statement_tab:
-                    statement = statements.get(lane) or ()
-                    if isinstance(statement, Mapping):
-                        statement = statement.get("rows") or ()
-                    frame = _statement_history_frame(statement, periods, frequency=frequency)
-                    if frame.empty:
-                        st.info(f"Validated {frequency} {label.lower()} facts are unavailable.")
-                    else:
-                        st.dataframe(
-                            frame, hide_index=True, use_container_width=True,
-                            key=f"research-history-{frequency}-{lane.lower()}-{ticker}",
-                        )
-            income_statement = statements.get("INCOME_STATEMENT") or ()
-            if isinstance(income_statement, Mapping):
-                income_statement = income_statement.get("rows") or ()
-            trend = _statement_history_trend(income_statement, periods, frequency=frequency)
-            if not trend.empty:
-                st.markdown(f"**{frequency.title()} reported trend**")
-                st.line_chart(trend.set_index("Period")[["Value"]], use_container_width=True)
-                st.caption(
-                    f"Exact reported {trend.iloc[0]['Series']} values; no interpolation or forecast. "
-                    "Use the direction to understand how this reported line item changed—not to predict the next period."
-                )
-    disclosure = quarterly.get("disclosure") if isinstance(quarterly.get("disclosure"), Mapping) else {}
-    _render_per_share_credibility(
-        history.get("per_share_credibility") if isinstance(history.get("per_share_credibility"), Mapping) else {},
-        ticker=ticker,
-    )
-    with st.expander("Sources and accounting boundaries", expanded=False):
-        st.markdown(
-            "- Annual source: retained `/stock/financials-reported` annual filings.\n"
+            statements = projection.get("statements") if isinstance(projection.get("statements"), Mapping…566 tokens truncated…lings.\n"
             "- Quarterly source: retained `/stock/financials-reported` quarterly filings.\n"
             "- Quarterly income-statement and cash-flow values are cumulative year-to-date except Q1.\n"
             "- A discrete quarter is shown only when an exact prior-YTD match supports subtraction.\n"
