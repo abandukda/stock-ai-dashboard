@@ -11,7 +11,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 from services.report_card_dashboard import build_internal_report_card
-from ui.report_card_overview import OVERVIEW_CSS, overview_html, render_signal_directory
+from ui.report_card_overview import OVERVIEW_CSS, overview_html, render_signal_directory, horizon_coverage_html
 
 
 REPORT_CARD_VIEW_OVERVIEW = "OVERVIEW"
@@ -410,11 +410,8 @@ def render_internal_report_card(ledger_path: Path, *, authorized: bool) -> Mappi
                 f'{report["admission_integrity"]} · **Backup status:** {report["last_backup_status"]}')
     if report["admission_defects"]:
         st.error("Signal-admission QA failed: " + ", ".join(report["admission_defects"]))
-    coverage_rows = [
-        {"Horizon": f"{h} sessions", **values} for h, values in report["coverage"].items()
-    ]
     st.subheader("Matured horizon coverage")
-    st.dataframe(coverage_rows, width="stretch", hide_index=True)
+    st.markdown(horizon_coverage_html(report["coverage"]), unsafe_allow_html=True)
     st.subheader("Signal admission and observation detail")
     for signal in report["signals"]:
         with st.expander(f'{signal["ticker"]} · {signal["original_action"]} · {signal["observation_count"]} observations'):

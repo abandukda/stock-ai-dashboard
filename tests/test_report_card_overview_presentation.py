@@ -57,3 +57,13 @@ render_signal_directory([
     assert not app.exception
     assert app.session_state['report_card_selected_signal_id'] == 'original-b'
     assert app.session_state['report_card_view_mode'] == 'DETAIL'
+
+
+def test_horizon_coverage_preserves_pending_counts_and_escapes_labels():
+    from ui.report_card_overview import horizon_coverage_html
+    view = horizon_coverage_html({1: {'available': 0, 'unavailable': 0, 'pending': 20},
+                                  '<unsafe>': {'available': 2, 'unavailable': 1, 'pending': 17}})
+    assert '<td>20</td>' in view and '<td>17</td>' in view
+    assert '&lt;unsafe&gt;' in view and '<unsafe>' not in view
+    assert 'pending is not a measured return' in view
+    assert '0%' not in view and '$0' not in view

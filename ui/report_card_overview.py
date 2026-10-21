@@ -135,3 +135,21 @@ def render_signal_directory(signals, *, on_open) -> None:
     )
     st.button('Open selected signal →', key='report_card_directory_open',
               on_click=on_open, args=(st.session_state, selected), type='primary')
+
+
+def horizon_coverage_html(coverage: Mapping[Any, Mapping[str, Any]]) -> str:
+    """Render recorded coverage verbatim; pending is never a zero return."""
+    rows = ''.join(
+        '<tr><th scope="row">' + escape(str(horizon)) + ' sessions</th>'
+        + ''.join('<td>' + str(int(values.get(key, 0))) + '</td>'
+                  for key in ('available', 'unavailable', 'pending')) + '</tr>'
+        for horizon, values in coverage.items()
+    )
+    return (
+        '<section class="atlas-rc-directory" data-atlas-qa="report-card-horizon-coverage">'
+        '<div class="atlas-rc-directory-scroll" tabindex="0" role="region" aria-label="Horizon observation coverage">'
+        '<table><caption>Recorded observation counts by horizon; pending is not a measured return.</caption>'
+        '<thead><tr><th scope="col">Horizon</th><th scope="col">Available</th>'
+        '<th scope="col">Unavailable</th><th scope="col">Pending</th></tr></thead>'
+        '<tbody>' + rows + '</tbody></table></div></section>'
+    )
