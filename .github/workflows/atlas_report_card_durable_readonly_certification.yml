@@ -40,14 +40,24 @@ jobs:
         with:
           ref: ${{ inputs.candidate_ref }}
 
+      - name: Prepare audit diagnostics
+        run: mkdir -p audit_results/report_card_durable_readonly
+
       - name: Enforce exact runner and immutable inputs
         shell: bash
         run: |
           test "${{ runner.name }}" = "atlas-worker-1"
-          test -n "$ATLAS_REPORT_CARD_DURABLE_ROOT"
-          test -n "$ATLAS_REPORT_CARD_BACKUP_ROOT"
-          test -n "$ATLAS_INTERNAL_QA_PASSWORD"
-          test -n "$ATLAS_VIEWER_QA_PASSWORD"
+          require_config() {
+            if test -z "${!1:-}"; then
+              echo "::error::Required read-only audit configuration is missing: $1"
+              printf '%s\n' "$1" >> audit_results/report_card_durable_readonly/missing_configuration.txt
+              return 1
+            fi
+          }
+          require_config ATLAS_REPORT_CARD_DURABLE_ROOT
+          require_config ATLAS_REPORT_CARD_BACKUP_ROOT
+          require_config ATLAS_INTERNAL_QA_PASSWORD
+          require_config ATLAS_VIEWER_QA_PASSWORD
           test "$ATLAS_REPORT_CARD_DURABLE_ROOT" = "/mnt/atlas_report_card_primary"
           test "$ATLAS_REPORT_CARD_BACKUP_ROOT" = "/mnt/atlas_report_card_backup"
           test -f "$ATLAS_REPORT_CARD_DURABLE_ROOT/report-card.sqlite3"
@@ -66,6 +76,7 @@ jobs:
           python -m playwright install chromium
 
       - name: Capture immutable before state
+        id: before
         shell: bash
         run: |
           python scripts/certify_report_card_durable_readonly.py \
@@ -75,6 +86,7 @@ jobs:
             --phase before
 
       - name: Audit durable ledger and cohort read-only
+        id: audit
         shell: bash
         run: |
           python scripts/certify_report_card_durable_readonly.py \
@@ -111,7 +123,8 @@ jobs:
           fi
 
       - name: Capture after state and prove no mutation
-        if: ${{ always() }}
+        id: after
+        if: ${{ always() && steps.before.outcome == 'success' }}
         shell: bash
         run: |
           python scripts/certify_report_card_durable_readonly.py \
@@ -126,7 +139,7 @@ jobs:
             --phase compare
 
       - name: Build certification summary
-        if: ${{ always() }}
+        if: ${{ always() && steps.before.outcome == 'success' && steps.audit.outcome == 'success' && steps.after.outcome == 'success' }}
         shell: bash
         run: |
           python -c 'import json,pathlib; p=pathlib.Path("audit_results/report_card_durable_readonly"); before=json.loads((p/"before_state.json").read_text()); after=json.loads((p/"after_state.json").read_text()); audit=json.loads((p/"ledger_integrity.json").read_text()); links=json.loads((p/"link_crawl.json").read_text()) if (p/"link_crawl.json").exists() else {"status":"FAIL"}; access=json.loads((p/"access_control.json").read_text()) if (p/"access_control.json").exists() else {}; ready=audit["classification"]=="LEDGER_AND_COHORT_PASS" and links["status"]=="PASS" and all(x.get("status")=="PASS" for x in access.values()) and before["sha256"]==after["sha256"]; state="REAL_REPORT_CARD_LEDGER_CERTIFIED_READY_FOR_FIRST_OBSERVATION" if ready else ("REPORT_CARD_SIGNAL_COHORT_REQUIRES_REVIEW" if audit["classification"]!="LEDGER_AND_COHORT_PASS" else "REPORT_CARD_DURABLE_UI_CERTIFICATION_BLOCKED"); summary={"final_state":state,"candidate_ref":"${{ inputs.candidate_ref }}","before_checksum":before["sha256"],"after_checksum":after["sha256"],"signal_count":audit["signal_count"],"observation_count":audit["observation_count"],"provider_calls":0,"ledger_mutation":"NONE" if before["sha256"]==after["sha256"] else "DETECTED","customer_visibility":"OFF"}; (p/"certification_summary.json").write_text(json.dumps(summary,indent=2)); (p/"summary.md").write_text("# ATLAS durable Report Card certification\n\n```json\n"+json.dumps(summary,indent=2)+"\n```\n")'
