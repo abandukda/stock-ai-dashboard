@@ -24,7 +24,7 @@ def test_workflow_splits_backend_visual_and_finalization():
     path = Path(".github/workflows/atlas_full_qa_certification.yml")
     source = path.read_text()
     assert "  backend-certification:\n" in source
-    assert "  visual-certification:\n    needs: backend-certification\n    runs-on: [self-hosted, Linux, X64]" in source
+    assert "  visual-certification:\n    needs: backend-certification\n    runs-on: [self-hosted, Linux, X64, atlas-worker-1]" in source
     assert "  finalization:\n    needs: [backend-certification, visual-certification]\n    runs-on: ubuntu-latest" in source
     assert source.index("Build governed backend certification handoff") < source.index("visual-certification:")
     assert "--mode RELEASE_FULL" in source

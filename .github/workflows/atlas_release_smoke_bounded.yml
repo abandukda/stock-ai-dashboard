@@ -28,9 +28,13 @@ env:
 jobs:
   verify-publication:
     if: github.ref == 'refs/heads/codex/full-universe-closure-temp'
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: [self-hosted, Linux, X64, atlas-worker-1]
     timeout-minutes: 90
     steps:
+      - name: Enforce original runner identity before checkout
+        env:
+          ATLAS_ACTUAL_RUNNER: ${{ runner.name }}
+        run: test "$ATLAS_ACTUAL_RUNNER" = "atlas-worker-1"
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: {python-version: "3.11"}
@@ -98,13 +102,17 @@ jobs:
 
   browser-smoke:
     needs: verify-publication
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: [self-hosted, Linux, X64, atlas-worker-1]
     timeout-minutes: 45
     env:
       ATLAS_EXACT_CANDIDATE_QA: "true"
       DATA_DIR: audit_results/release_smoke/runtime
       ATLAS_AUDIT_PASSWORD: ${{ secrets.ATLAS_AUDIT_PASSWORD }}
     steps:
+      - name: Enforce original runner identity before checkout
+        env:
+          ATLAS_ACTUAL_RUNNER: ${{ runner.name }}
+        run: test "$ATLAS_ACTUAL_RUNNER" = "atlas-worker-1"
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: {python-version: "3.11"}
