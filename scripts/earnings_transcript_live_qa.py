@@ -34,7 +34,7 @@ def run(symbols: list[str], *, allow_external_ai: bool = False) -> dict[str, Any
         )
         second = retrieve_and_summarize_transcript(
             symbol, year=int(selected["fiscal_year"]), quarter=int(selected["fiscal_quarter"]), provider=provider,
-            allow_external_ai=allow_external_ai,
+            allow_external_ai=False,
         )
         op = dict(first.operation_metadata)
         results.append({

@@ -20,8 +20,8 @@ def test_dual_utc_wakeups_select_six_pm_across_dst():
     assert winter["eligible"] and winter["observed_at_eastern"].startswith("2026-11-04T18:05")
     wrong_summer_wakeup = schedule_decision(now=datetime(2026, 10, 14, 23, 5, tzinfo=UTC))
     wrong_winter_wakeup = schedule_decision(now=datetime(2026, 11, 4, 22, 5, tzinfo=UTC))
-    # The inactive UTC wake can be a legitimate delayed execution after 18:00 ET.
-    assert wrong_summer_wakeup["eligible"] is True
+    # The inactive UTC wake is outside the approved 18:00–18:30 ET window.
+    assert wrong_summer_wakeup["eligible"] is False
     assert wrong_winter_wakeup["eligible"] is False
 
 
@@ -40,9 +40,10 @@ def test_early_close_is_finalized_by_six_pm():
     assert decision["calendar"]["early_close"] is True
 
 
-def test_delayed_github_start_remains_eligible_but_never_crosses_session_day():
+def test_delayed_github_start_fails_closed_after_approved_window():
     delayed = schedule_decision(now=datetime(2026, 10, 15, 2, 5, tzinfo=UTC))
-    assert delayed["eligible"] is True
+    assert delayed["eligible"] is False
+    assert delayed["reason"] == "POST_CLOSE_WINDOW_EXPIRED"
     assert delayed["observed_at_eastern"].startswith("2026-10-14T22:05")
     before = schedule_decision(now=datetime(2026, 10, 14, 21, 55, tzinfo=UTC))
     assert before["eligible"] is False and before["reason"] == "BEFORE_POST_CLOSE_WINDOW"
@@ -190,3 +191,9 @@ def test_daily_buy_now_workflow_needs_references_declared_jobs():
         "workflow references undeclared jobs: "
         f"{sorted(referenced_jobs - declared_jobs)}"
     )
+
+
+@pytest.mark.parametrize("minute,second,eligible", [(0, 0, True), (29, 59, True), (30, 0, True), (30, 1, False), (31, 0, False)])
+def test_post_close_window_exact_boundaries(minute, second, eligible):
+    result = schedule_decision(now=datetime(2026, 10, 22, 22, minute, second, tzinfo=UTC))
+    assert result["eligible"] is eligible

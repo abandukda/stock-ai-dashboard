@@ -14,7 +14,7 @@ from services.report_card_exchange_calendar import build_xnys_calendar, verify_x
 SCHEMA_VERSION = "ATLAS_DAILY_BUY_NOW_POST_CLOSE_V1"
 EASTERN = ZoneInfo("America/New_York")
 POST_CLOSE = time(18, 0)
-WAKE_WINDOW_END = time(23, 59, 59)
+WAKE_WINDOW_END = time(18, 30)
 
 
 def _canonical(value: Any) -> bytes:
