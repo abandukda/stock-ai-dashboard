@@ -10,7 +10,7 @@ import math
 
 import pandas as pd
 import streamlit as st
-from ui.research_learning import build_learning_guide, build_valuation_guide
+from ui.research_learning import build_learning_guide, build_valuation_guide, build_annual_earnings_comparison
 
 from services.customer_research_view import Availability, build_customer_research_view
 from services.customer_metric_format import (
@@ -211,6 +211,39 @@ def _render_valuation_guide(page: Mapping[str, Any]) -> None:
         )
 
 
+def _render_annual_earnings_comparison(page: Mapping[str, Any]) -> None:
+    comparison = build_annual_earnings_comparison(page)
+    st.markdown("**What changed in reported annual earnings?**")
+    if comparison["status"] != "AVAILABLE":
+        st.info("A source-bound comparison of two consecutive full years is unavailable. Quarterly, undated, and unmatched periods are not compared here.")
+        return
+    st.caption(
+        f'Full year ending {comparison["prior_period"]} → full year ending {comparison["current_period"]} · '
+        f'Source: {comparison["source"]} · Evidence as of: {_financial_period(comparison.get("as_of"))} · '
+        f'Evidence IDs: {", ".join(comparison["evidence_ids"])}'
+    )
+    for item in comparison["rows"]:
+        prior = _financial_value(item["prior"], item["unit"])
+        current = _financial_value(item["current"], item["unit"])
+        # Margin differences are percentage points, never percentage growth.
+        difference = (f'{item["change"]:+,.2f} percentage points' if item["unit"] == "PERCENT"
+                      else _financial_value(item["change"], item["unit"]))
+        st.markdown(_escape_markdown_currency(
+            f'**{item["label"]}**: {prior} → {current} · Change: {difference}'
+        ))
+        st.write(item["question"])
+    present = {item["label"] for item in comparison["rows"]}
+    missing = [label for label in ("Sales", "Profit", "Cash from operations", "Cash after investment", "Operating margin") if label not in present]
+    if missing:
+        st.caption("Annual comparison unavailable for: " + ", ".join(missing) + ".")
+    st.caption(
+        "Changes above are arithmetic from retained annual figures, not an earnings beat or miss. "
+        "A move from a loss toward zero is different from profitable growth. "
+        "Matching year-end dates do not establish matching accounting definitions; check restatements and filing notes. "
+        "Causes, management explanations, and comparable pre-release estimates are unavailable in this comparison."
+    )
+
+
 def _render_learning_guide(page: Mapping[str, Any], *, ticker: str) -> None:
     guide = build_learning_guide(page)
     if guide["status"] != "AVAILABLE":
@@ -240,6 +273,7 @@ def _render_learning_guide(page: Mapping[str, Any], *, ticker: str) -> None:
             "That matched comparison is unavailable in this guide. Management guidance and transcript commentary are also unavailable here. "
             "A single snapshot cannot establish an improving trend."
         )
+        _render_annual_earnings_comparison(page)
         st.markdown("**Go deeper: compare earnings fairly**")
         st.write(
             "Use the financial statements below to compare the same fiscal quarter with the prior year's quarter, "

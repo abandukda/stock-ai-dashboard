@@ -83,3 +83,73 @@ def build_learning_guide(page: Mapping[str, Any]) -> dict[str, Any]:
         "risks": tuple(summary.get("risks") or ()),
         "snapshot": _mapping(page.get("evidence")).get("evaluation_snapshot_id"),
     }
+
+
+# Deliberately limited to reported annual series already admitted by the page.
+ANNUAL_QUESTIONS = {
+    "Revenue": ("USD", "Sales", "Did customer demand grow, or did prices or acquisitions lift sales? The figures alone cannot explain the cause."),
+    "Net Income": ("USD", "Profit", "Did profit keep pace with sales? Check costs, taxes, and one-time gains or charges in the filing."),
+    "Operating Cash Flow": ("USD", "Cash from operations", "Did cash follow profit? Customer payments, inventory, and bill timing can explain a difference."),
+    "Free Cash Flow": ("USD", "Cash after investment", "How much cash remained after investment? Check the source definition and whether spending was deferred."),
+    "Operating Margin": ("PERCENT", "Operating margin", "Did the company keep more of each sales dollar? Check pricing, costs, and changes in the business mix."),
+}
+
+
+def build_annual_earnings_comparison(page: Mapping[str, Any]) -> dict[str, Any]:
+    """Compare adjacent full years, never infer reporting frequency or causes.
+
+    This is arithmetic on retained evidence, not an earnings surprise, forecast,
+    or change to a certified investment assessment. Fail closed on ambiguous
+    dates, duplicate periods, unsupported units, and incomplete provenance.
+    """
+    from datetime import date
+
+    unavailable = {"status": "UNAVAILABLE", "rows": ()}
+    trend = _mapping(page.get("financial_trend"))
+    provenance = _mapping(trend.get("provenance"))
+    source = provenance.get("source") or provenance.get("provider")
+    evidence_ids = provenance.get("evidence_ids") or ()
+    if isinstance(evidence_ids, (tuple, list)):
+        evidence_ids = tuple(str(value) for value in evidence_ids if value)
+    else:
+        evidence_ids = ()
+    if not evidence_ids and provenance.get("raw_evidence_id"):
+        evidence_ids = (str(provenance["raw_evidence_id"]),)
+    if (page.get("status") != "AVAILABLE" or trend.get("status") != "AVAILABLE"
+            or trend.get("periodicity") != "ANNUAL" or not source or not evidence_ids):
+        return unavailable
+    periods = trend.get("periods")
+    if not isinstance(periods, (list, tuple)) or len(periods) < 2:
+        return unavailable
+    try:
+        dates = [date.fromisoformat(value) for value in periods]
+    except (TypeError, ValueError):
+        return unavailable
+    if len(set(dates)) != len(dates):
+        return unavailable
+    order = sorted(range(len(dates)), key=dates.__getitem__)
+    earlier, latest = order[-2:]
+    prior, current = dates[earlier], dates[latest]
+    if current.year != prior.year + 1 or (current.month, current.day) != (prior.month, prior.day):
+        return unavailable
+    rows = []
+    series = _mapping(trend.get("series"))
+    units = _mapping(trend.get("units"))
+    for label, (unit, title, question) in ANNUAL_QUESTIONS.items():
+        values = series.get(label)
+        if (units.get(label) != unit or not isinstance(values, (tuple, list))
+                or len(values) != len(periods)):
+            continue
+        previous, value = values[earlier], values[latest]
+        if not _finite(previous) or not _finite(value):
+            continue
+        change = value - previous
+        if not _finite(change):
+            continue
+        rows.append(dict(label=title, prior=previous, current=value, change=change,
+                         unit=unit, question=question))
+    if not rows:
+        return unavailable
+    return dict(status="AVAILABLE", rows=tuple(rows), prior_period=periods[earlier],
+                current_period=periods[latest], source=source, evidence_ids=evidence_ids,
+                as_of=provenance.get("capture_timestamp") or provenance.get("as_of"))
