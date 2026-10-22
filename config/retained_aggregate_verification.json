@@ -1,0 +1,30 @@
+{
+  "schema": "ATLAS_AGGREGATE_READONLY_VERIFICATION_V1",
+  "artifacts": [
+    {
+      "artifact_id": 11318542723,
+      "run_id": 37216506983,
+      "source_sha": "aa12ff9e89c1ac72e20aadad41decfba9a3d774d",
+      "archive_sha256": "9612c6b9fa02c74de710c7af0c9e644c5976392e2e9efa0c47b20522316d7c1e",
+      "archive_size_bytes": 1316392491,
+      "required_file_sha256": {
+        "full_evaluation_pool.json": "c0f04aaccfd93154f4b69e240db9817e0bf7f84da143356142c4b07a066f2ca0"
+      }
+    },
+    {
+      "artifact_id": 11456584757,
+      "run_id": 37553164176,
+      "source_sha": "1e57ec65df04424c2629b8f6bedf154b91452e2a",
+      "archive_sha256": "ecf66bcd49a72bbd85f76365b9005a43622f87494b2aa4468f3a1ef3c0bcf4f1",
+      "archive_size_bytes": 740189265,
+      "required_file_sha256": {
+        "market_full_scan.json": "50f1f3c7d82c7cf802aa32f8204a849ed7e0dbbf26fd17e5d263f8fb98ce96c8",
+        "publication_manifest.json": "36a525e06bca8c0b3b2b8c59b99eead0ac4560eff4c38cb8e858361f7b0c1dee"
+      }
+    }
+  ],
+  "scope": "INTEGRITY_ONLY_NOT_FINANCIAL_CERTIFICATION",
+  "ledger_access": false,
+  "provider_calls": 0,
+  "standing_authorization": false
+}

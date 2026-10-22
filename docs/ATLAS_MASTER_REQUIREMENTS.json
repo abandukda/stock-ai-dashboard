@@ -181,7 +181,7 @@
       "last_updated": "2026-10-22T00:55:00Z"
     }
   ],
-  "current_main_sha": "4d0a11e188e1529531cbac1ace1b0a2c74a4df32",
+  "current_main_sha": "d48e356e40d8258b5c0f0f308f7d2cf0e9689b94",
   "latest_execution": {
     "current_main_sha": "7cf867cee761c16a5f91153edd83d0deff7c155d",
     "verified_customer_sha": "7cf867cee761c16a5f91153edd83d0deff7c155d",
@@ -210,15 +210,114 @@
     "live_verified": false,
     "remaining_acceptance": "Actual NVDA/MSFT/historicalAMZN desktop/tablet/mobile production chart screenshots after separately approved merge; full original Home/Research/ReportCard mockups unavailable."
   },
+  "current_production_evidence": {
+    "run": 39708451001,
+    "expected_deployed_sha": "4d0a11e188e1529531cbac1ace1b0a2c74a4df32",
+    "checks_passed": 83,
+    "screenshots": 71,
+    "artifact_id": 12396192859,
+    "artifact_sha256": "8160c124bbf3f20d46b1ff038dc7bae1438d6710464e4ff74c0de1f417a7cf99",
+    "scope_limitations": [
+      "Historical baseline predates merged active chart; fresh production QA required",
+      "premium design acceptance open",
+      "private original20 not production certified",
+      "current certified data unavailable"
+    ]
+  },
+  "release_trains": {
+    "A": [
+      "ui",
+      "earnings",
+      "charts"
+    ],
+    "B": [
+      "data",
+      "contabo"
+    ],
+    "C": [
+      "report_card"
+    ],
+    "D": [
+      "daily"
+    ],
+    "E": [
+      "operations",
+      "autopilot"
+    ]
+  },
+  "review_candidates": {
+    "117": {
+      "head": "170d715a41d5465f4cf1a0e98b6aea0565d8e61f",
+      "scope": "Active customer chart integration",
+      "local_passed": 164,
+      "ci_success": [
+        39709282554,
+        39709282485,
+        39709282506
+      ],
+      "merged": true,
+      "deployed": false,
+      "live_verified": false,
+      "merge_sha": "d48e356e40d8258b5c0f0f308f7d2cf0e9689b94"
+    },
+    "118": {
+      "head": "c0931e272d67c6ab51f2f36841690896800ef9d4",
+      "scope": "Bounded retained aggregate verification tooling",
+      "local_passed": 17,
+      "ci_success": [
+        39711446462,
+        39711446215,
+        39711446296,
+        39711446265
+      ],
+      "actual_aggregate_run": false,
+      "merged": false
+    },
+    "119": {
+      "scope": "New editorial Home target in active renderer",
+      "branch": "codex/premium-home-command-center",
+      "local_passed": 94,
+      "ci": "REQUIRE_EXACT_HEAD",
+      "draft": true,
+      "merged": false,
+      "deployed": false,
+      "live_verified": false,
+      "original_mockup_parity": false
+    }
+  },
+  "owner_directive": "2026-10-22 MASTER CONSOLIDATED EXECUTION DIRECTIVE",
   "active_chart_integration": {
     "root_cause": "PR116 upgraded legacy ui/research_report_v2.py; actual customer renderer ui/customer_research_v2.py remained on line chart. No customer chart upgrade accepted.",
     "repair": "Wire shared reviewed chart into active renderer AFTER existing ownership gate; preserve ticker/date/range and separateFairValue; add actual active marker plus REQUIRED NVDA/MSFTdesktop/mobile four-panel SVG/chart screenshots in read-only production QA.",
     "additional_integrity_fix": "Missing sourcehigh/low remainNone rather than copiedfromclose; candlesticks cannot be fabricated.",
     "tests": "164localPASS; existing three-ticker actualrenderer test now intercepts activechartadapter and preserves exactprice identities.",
-    "merged": false,
+    "merged": true,
     "deployed": false,
     "live_verified": false,
     "latest_production_run": 39708451001,
-    "latest_production_status": "IN_PROGRESS; no newchartacceptance"
+    "latest_production_status": "POST_MERGE_LIVE_QA_REQUIRED",
+    "merge_sha": "d48e356e40d8258b5c0f0f308f7d2cf0e9689b94"
+  },
+  "aggregate_integrity_review": {
+    "scope": "Two fixed retained final ZIPs; archive+member+canonical-file integrity only",
+    "built": true,
+    "tested": "17localtestsPASS;96MiBgeneratedmember;14-testprofile36,564KiBRSS/0.879s;twoalreadydownloadedshardcompatibilityprobesPASS,sourceunchanged",
+    "merged": false,
+    "deployed": false,
+    "live_verified": false,
+    "actual_final_aggregate_execution": "NOT_DISPATCHED_NOT_AUTHORIZED",
+    "workflow": "atlas_retained_aggregate_verify.yml",
+    "resource_limits": "1MiBchunk;512MiBaddressspace;25min;1024entries;16GiBmember/32GiBtotal;8GiBfreetempdisk",
+    "data_scope": "11318542723+11456584757 only; no extraction/sourceupload/productionledger/SSH/Contabo/protectedmigration/providers/paidAI/publication",
+    "approval": "Exact-headmerge plus separate exact-merged-main ownerdispatch authorization for ephemeral hosted retained-artifact verification",
+    "remaining_blockers": "Actuallargearchivebytes/canonicalpins stillnotverified;originalDOhost/currentraw-checkpoint/independentbackup/ledgerWAL evidence stillrequired"
+  },
+  "conflict_reconciliation": {
+    "base_main": "d48e356e40d8258b5c0f0f308f7d2cf0e9689b94",
+    "conflicting_files": [
+      "docs/ATLAS_MASTER_REQUIREMENTS.md",
+      "docs/ATLAS_MASTER_REQUIREMENTS.json"
+    ],
+    "strategy": "Semantic union of Research117, aggregate118 and premiumHome119 requirements. Identical shared documents on both review branches prevent sequential-merge conflicts. No implementation/security/financial assertions discarded."
   }
 }

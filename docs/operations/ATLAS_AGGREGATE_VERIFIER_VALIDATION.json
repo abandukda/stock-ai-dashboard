@@ -1,0 +1,42 @@
+{
+  "schema": "ATLAS_STREAM_VERIFIER_VALIDATION_V1",
+  "scope": "NEW_VERIFIER_COMPATIBILITY_ON_TWO_ALREADY_AUTHORIZED_LOCAL_SHARDS_NOT_REPEAT_FULL_DATA_CERTIFICATION",
+  "local_tests": 14,
+  "synthetic_member_bytes": 100663296,
+  "test_resource_profile": {
+    "exit_code": 0,
+    "elapsed_seconds": 0.879,
+    "peak_rss_kib": 36564,
+    "scope": "GENERATED_FIXTURES_ONLY",
+    "provider_calls": 0,
+    "ledger_access": false
+  },
+  "actual_local_archive_probes": [
+    {
+      "artifact_id": 11318150853,
+      "source_run": 37216506983,
+      "archive_sha256": "2c6bfa6c847380224f8ee37bdc726b9a51191cb02eabceb1fc0b503ecc03c59b",
+      "archive_bytes": 194255,
+      "member_count": 1,
+      "elapsed_seconds": 0.005,
+      "source_unchanged": true,
+      "financial_certification": false
+    },
+    {
+      "artifact_id": 11457116086,
+      "source_run": 37553164176,
+      "archive_sha256": "43b2ade4ba3e5ac5e2d899d50078bd108d7642a60f347d4382bf1428cb67e160",
+      "archive_bytes": 824945,
+      "member_count": 3,
+      "elapsed_seconds": 0.017,
+      "source_unchanged": true,
+      "financial_certification": false
+    }
+  ],
+  "provider_calls": 0,
+  "ledger_access": false,
+  "protected_runner_use": false,
+  "oversized_aggregates_verified": false,
+  "local_tests_final": 17,
+  "profile_note": "Resource profile is the earlier14-test timed run; final17-test suite passed after CLI/journal/CRC regressions."
+}

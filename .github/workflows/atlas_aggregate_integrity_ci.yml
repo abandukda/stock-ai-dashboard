@@ -1,0 +1,22 @@
+name: ATLAS Aggregate Integrity Offline CI
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - scripts/verify_retained_aggregate.py
+      - tests/test_retained_aggregate_verifier.py
+      - config/retained_aggregate_verification.json
+      - .github/workflows/atlas_retained_aggregate_verify.yml
+      - .github/workflows/atlas_aggregate_integrity_ci.yml
+permissions:
+  contents: read
+jobs:
+  offline:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: python3 -m pip install pytest==9.1.1 PyYAML==6.0.3
+      - run: python3 -m pytest -q tests/test_retained_aggregate_verifier.py
