@@ -52,13 +52,14 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
       - run: pip install -r requirements.txt pytest pyyaml
       - name: Provider-free ingestion and transcript regressions
         run: >-
-          pytest -q
+          python -m pytest -q
           tests/test_research_history_ingestion.py
           tests/test_research_market_read_model.py
           tests/test_research_refresh_execution.py

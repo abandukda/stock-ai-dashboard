@@ -20,6 +20,11 @@ def test_paid_operations_require_separate_owner_exact_main_authorizations():
     data = yaml.safe_load((ROOT / ".github/workflows/atlas_earnings_transcript_qa.yml").read_text())
     offline = data["jobs"]["provider-free"]
     assert "secrets." not in str(offline)
+    assert "python -m pytest" in str(offline)
+    assert "github.event.pull_request.head.sha" in str(offline)
+    other = (ROOT / ".github/workflows/atlas_transcript_offline_ci.yml").read_text()
+    assert "PyYAML==6.0.3" in other
+    assert "github.event.pull_request.head.sha" in other
     live = data["jobs"]["transcript-functional-qa"]
     gate = live["if"]
     for required in ("workflow_dispatch", "github.actor == 'abandukda'", "refs/heads/main",
