@@ -59,6 +59,8 @@ class PremiumHomeRender(unittest.TestCase):
                             capture_complete_streamlit(page,target/f'GENERATED_HOME_{width}.png')
                             self.assertEqual(page.locator('[data-atlas-qa="home-actionable-card"]').count(),3)
                             self.assertEqual(page.locator('.atlas-home-featured-case').count(),1)
+                            self.assertEqual(page.locator('.atlas-reference-command').evaluate("e=>getComputedStyle(e).display"),'grid')
+                            self.assertTrue(page.locator('[data-atlas-qa="home-reference-style"]').count())
                             self.assertLessEqual(page.evaluate('document.documentElement.scrollWidth'),width+1)
                             featured_actions=page.locator('[class*="st-key-home_top_idea_position_"]').get_by_role('button',name='View Research →',exact=True)
                             self.assertEqual(featured_actions.count(),3)

@@ -2990,6 +2990,8 @@ class AtlasVisualCrawler:
                 await self._research_v2_section_screenshots(page, ticker, viewport)
             if passed and ticker in {"NVDA", "MSFT"} and os.getenv("ATLAS_VISUAL_CRAWL_CUSTOMER_ONLY", "").lower() in {"true", "1", "yes"}:
                 passed = await self._annotated_chart_evidence(page, ticker, viewport)
+                digest_passed = await self._premium_render_evidence(page, surface="Research Any Ticker", viewport=viewport, ticker=ticker)
+                passed = passed and digest_passed
             for entry in reversed(self.manifest):
                 if entry.get("path") == after:
                     entry["research_terminal_state"] = completion.get("research_terminal_state")
@@ -3033,6 +3035,35 @@ class AtlasVisualCrawler:
             )
             return False
 
+    async def _premium_render_evidence(self, page: Page, *, surface: str, viewport: str, ticker: str = "") -> bool:
+        observed = {"surface": surface, "marker": False, "rendered": False}
+        for scope in _scopes(page):
+            if surface == "Home":
+                marker = scope.locator('[data-atlas-qa="home-reference-style"]')
+                hero = scope.locator('.atlas-reference-command')
+                if not await marker.count() or not await hero.count():
+                    continue
+                expected = hashlib.sha256((self.root / "ui/premium_home_styles.py").read_bytes()).hexdigest()
+                actual = await marker.first.get_attribute("data-atlas-source-sha256")
+                observed.update(marker=actual == expected, expected_style_sha256=expected,
+                                actual_style_sha256=actual,
+                                rendered=await hero.first.evaluate("e => getComputedStyle(e).display === 'grid'"))
+            else:
+                digest = scope.locator('[data-atlas-qa="research-executive-digest"]')
+                answers = scope.locator('[data-atlas-qa="research-comprehensive-analysis"] article')
+                if not await digest.count():
+                    continue
+                text = await digest.first.inner_text()
+                observed.update(marker=True, answer_count=await answers.count(),
+                                rendered=await digest.first.is_visible() and bool(text.strip())
+                                and "External AI not invoked" in text and await answers.count() == 6)
+        passed = bool(observed["marker"] and observed["rendered"])
+        await self._record(category="PREMIUM_RENDER", page_name=surface,
+                           interaction="source-bound-visible-presentation", expected="Current styles and nonempty deterministic digest; no fixture substitution",
+                           observed=json.dumps(observed, sort_keys=True), passed=passed, elapsed=0.0,
+                           viewport=viewport, ticker=ticker, screenshots=(), severity="P1")
+        return passed
+
     async def _home_cards(self, page: Page, *, viewport: str = "desktop") -> None:
         await self._page_visit(page, "Home", viewport=viewport)
         authority = await self._home_runtime_authority(page)
@@ -3044,6 +3075,9 @@ class AtlasVisualCrawler:
         )
         if not authority.get("passed"):
             raise GlobalCrawlFailure("HOME_RUNTIME_AUTHORITY_FAILED")
+        if os.getenv("ATLAS_VISUAL_CRAWL_CUSTOMER_ONLY", "").lower() in {"true", "1", "yes"}:
+            if not await self._premium_render_evidence(page, surface="Home", viewport=viewport):
+                raise GlobalCrawlFailure("PREMIUM_HOME_RENDER_FAILED")
         contract = await self._home_guidance_vnext_contract(page)
         await self._record(
             category="HOME_GUIDANCE_VNEXT", page_name="Home", interaction="guidance-contract",

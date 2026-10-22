@@ -4,6 +4,11 @@ from ui.home_guidance_vnext import render_home_guidance_vnext
 
 st.set_page_config(layout='wide',page_title='ATLAS generated review fixture')
 st.warning('GENERATED FIXTURE — NOT MARKET DATA OR PRODUCTION VERIFICATION')
+# Reproduce an already-imported stylesheet surviving a code deployment.
+import ui.premium_home_styles as stale_styles
+stale_styles.PREMIUM_HOME_CSS='/* GENERATED STALE IMPORT CASE */'
+if hasattr(stale_styles,'__atlas_presentation_source_sha256__'):
+    del stale_styles.__atlas_presentation_source_sha256__
 cards=[]
 for rank,ticker in enumerate(('FIXTURE_A','FIXTURE_B','FIXTURE_C','FIXTURE_D'),start=1):
     cards.append({'ticker':ticker,'company':'Generated company '+str(rank),'guidance':'BUY_NOW',
