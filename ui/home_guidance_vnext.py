@@ -1364,15 +1364,14 @@ def _compact_opportunity_card(card: Mapping[str, Any], *, key: str, first: bool 
     thesis, risk = _compact_card_narrative(card)
     rank = card.get("production_rank")
     featured_label = f"Featured #{int(rank)}" if isinstance(rank, (int, float)) else "Featured idea"
-    # The lead thesis and risk already appear in the Daily Intelligence Brief.
-    # Do not repeat the same paragraphs immediately in the first card.
+    # The featured case retains a distinct narrative and evidence hierarchy.
     thesis_available = thesis != "A concise certified investment reason is unavailable for this snapshot."
-    narrative = "" if first else (
+    narrative = (
         (f'<p class="atlas-home-compact-thesis"><b>Why it stands out</b> {html.escape(thesis)}</p>' if thesis_available else '')
         + (f'<p class="atlas-home-compact-risk"><b>Main concern</b> {html.escape(risk)}</p>' if risk else '')
     )
     st.markdown(
-        f'<article class="atlas-home-compact-card" data-atlas-qa="home-actionable-card" '
+        f'<article class="atlas-home-compact-card{ " atlas-home-featured-case" if first else ""}" data-atlas-qa="home-actionable-card" '
         f'data-atlas-first="{str(first).lower()}" data-atlas-ticker="{html.escape(ticker)}" '
         f'data-atlas-guidance="{html.escape(state)}" data-atlas-evidence-status="{html.escape(evidence)}">'
         f'<header><div><small>{html.escape(_display(state))}</small><h3>{html.escape(identity)}</h3></div>'
@@ -1418,20 +1417,30 @@ def _render_groups(story: Mapping[str, Any], *, emit_interactive) -> None:
         'style="display:none">Strongest Opportunities</span>', unsafe_allow_html=True,
     )
     total = _governed_buy_now_inventory(story)
-    visible = min(len(actionable), 3)
+    featured_cards = actionable[:3]
+    visible = len(featured_cards)
     st.markdown("## Strongest Opportunities")
     st.caption(
         f"Showing {visible} featured idea{'s' if visible != 1 else ''} from {total} total certified BUY NOW "
-        "opportunities. Featured order follows the published ranking; these are decisions, not performance results."
+        "opportunities. Featured order follows the published ranking; these are decisions, not performance results. "
+        "ATLAS Fair Value is an estimate, not a guaranteed return."
     )
     if not actionable:
         empty = story.get("home_opportunity_empty_state") if isinstance(story.get("home_opportunity_empty_state"), Mapping) else {}
         st.info(str(empty.get("message") or "ATLAS found no stocks meeting the strongest certified opportunity threshold for this snapshot."))
-    for index, card in enumerate(actionable[:3]):
-        with st.container(key=f"home_top_idea_position_{index + 1}"):
-            _compact_opportunity_card(card, key=f"actionable_{index}", first=index == 0)
-        if index == 0:
-            emit_interactive()
+    if actionable:
+        st.markdown('<div class="atlas-home-section-kicker">01 / FEATURED INVESTMENT CASE</div>', unsafe_allow_html=True)
+        with st.container(key="home_top_idea_position_1"):
+            _compact_opportunity_card(actionable[0], key="actionable_0", first=True)
+        emit_interactive()
+    if len(actionable) > 1:
+        st.markdown('<div class="atlas-home-section-kicker">02 / COMPARE THE SHORTLIST</div>', unsafe_allow_html=True)
+        st.caption("Compare dated valuation and confidence; a high potential estimate is not a forecast return.")
+        columns = st.columns(2)
+        for index, card in enumerate(featured_cards[1:], start=1):
+            with columns[index - 1]:
+                with st.container(key=f"home_top_idea_position_{index + 1}"):
+                    _compact_opportunity_card(card, key=f"actionable_{index}")
     if len(all_actionable) > 3:
         remaining = all_actionable[3:]
         with st.expander(f"View all {len(all_actionable)} BUY NOW opportunities", expanded=False):
@@ -1650,7 +1659,7 @@ def _render_market_strip(story: Mapping[str, Any]) -> None:
         body = "Current market context is unavailable."
     st.markdown(
         '<div class="atlas-home-market-strip" data-atlas-qa="market-today" data-atlas-non-scoring="true">'
-        f'<small>Market context · for reference only</small><p>{body}</p></div>', unsafe_allow_html=True,
+        f'<small>Market context · for reference only · {html.escape(_timestamp(context.get("as_of")))}</small><p>{body}</p></div>' , unsafe_allow_html=True,
     )
 
 
@@ -1762,25 +1771,19 @@ def _render_daily_brief(story: Mapping[str, Any]) -> None:
         if market_read else
         "<strong>Market context:</strong> Current governed context is unavailable, so ATLAS is not inferring a backdrop."
     )
-    lead_panel = (
-        '<small>LEADING CERTIFIED OPPORTUNITY</small>'
-        f'<b>{html.escape(identity)}</b><div class="atlas-brief-values">'
-        f'<span><small>{html.escape(str(lead.get("display_price_label") or "Dated price"))}</small><strong>{html.escape(_money(lead.get("display_price")))}</strong></span>'
-        f'<span><small>ATLAS Fair Value</small><strong>{html.escape(_money(lead.get("atlas_fair_value")))}</strong></span>'
-        '</div><span>Fair Value is an estimate, not a guaranteed return. Open the investment case below.</span>'
-        if lead else
-        '<small>OPPORTUNITY STATUS</small><b>No BUY NOW idea published</b>'
-        '<span>Review Worth Watching for developing ideas and their evidence limitations.</span>'
-    )
     st.markdown(
-        '<section class="atlas-daily-brief atlas-ai-insight-panel" data-atlas-qa="daily-intelligence-brief" '
+        '<section class="atlas-daily-brief atlas-ai-insight-panel atlas-editorial-brief" data-atlas-qa="daily-intelligence-brief" '
         'data-atlas-explanation-source="DETERMINISTIC_CERTIFIED_PROJECTION" '
         'data-atlas-model-status="NOT_INVOKED">'
-        '<div><small>ATLAS Morning View · CERTIFIED SNAPSHOT</small><h1>Daily Intelligence Brief</h1>'
-        f'<p>Actionable opportunities from the latest certified evaluation. {lead_copy}</p>'
-        f'<p>{context_copy} Decisions and values below are reproduced from the certified customer projection.</p>'
-        f'<footer>As of {html.escape(_timestamp(story.get("scan_timestamp")))} · No live reranking · DETERMINISTIC CERTIFIED SUMMARY</footer></div>'
-        f'<aside>{lead_panel}</aside></section>',
+        '<header><small>ATLAS / INVESTMENT COMMAND CENTER</small><h1>Clarity before conviction.</h1>'
+        '<p class="atlas-editorial-subtitle">Daily Intelligence Brief</p><p>Actionable opportunities from the latest certified evaluation.</p></header>'
+        '<div class="atlas-editorial-columns"><article><small>THE MARKET / WHAT IT MEANS</small>'
+        f'<p>{context_copy}</p></article>'
+        '<article><small>THE OPPORTUNITY / WHERE TO LOOK</small>'
+        f'<p>{lead_copy}</p></article></div>'
+        '<footer><b>Two evidence clocks.</b> Market context is dated separately below. Investment decisions use '
+        f'the retained certified snapshot: {html.escape(_timestamp(story.get("scan_timestamp")))}. '
+        'DETERMINISTIC CERTIFIED SUMMARY · AI model not invoked · No live reranking.</footer></section>',
         unsafe_allow_html=True,
     )
 
@@ -1959,12 +1962,18 @@ def _inject_css() -> None:
     </style>""", unsafe_allow_html=True)
 
 
+def _inject_editorial_css() -> None:
+    from ui.premium_home_styles import PREMIUM_HOME_CSS
+    st.markdown(f"<style>{PREMIUM_HOME_CSS}</style>", unsafe_allow_html=True)
+
+
 def render_home_guidance_vnext(story: Mapping[str, Any], *, emit_interactive=None, authorized_internal: bool = False) -> None:
     """Render persisted Guidance shell; optional context occurs after interactivity."""
     if emit_interactive is None:
         from services.session_stability import emit_page_interactive as emit
         emit_interactive = lambda: emit(st, "Home")
     _inject_css()
+    _inject_editorial_css()
     runtime = dict(story.get("home_runtime_contract") or {})
     authority = dict(runtime.get("production_authority") or {})
     inventory = dict(runtime.get("inventory_authority") or {})
@@ -2014,6 +2023,7 @@ def render_home_guidance_vnext(story: Mapping[str, Any], *, emit_interactive=Non
         unsafe_allow_html=True,
     )
     _render_daily_brief(story)
+    _render_market_strip(story)
     _render_command_deck(story)
     _section_marker("atlas_action_summary")
     st.markdown("## ATLAS Action Summary")
@@ -2024,9 +2034,6 @@ def render_home_guidance_vnext(story: Mapping[str, Any], *, emit_interactive=Non
     # Operational tracking remains available to authorized users, but it must
     # not precede the customer intelligence brief or certified opportunities.
     _render_internal_performance_tracking(authorized_internal=authorized_internal)
-    # Market context is secondary to the customer's certified opportunity
-    # inventory. Keep it below the actionable ideas on both desktop and mobile.
-    _render_market_strip(story)
     _render_market_read(story)
     _render_footer_navigation()
 
