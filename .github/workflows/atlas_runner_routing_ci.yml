@@ -15,6 +15,10 @@ on:
       - 'tests/test_customer_nav_geometry.py'
       - 'app.py'
       - 'tests/test_runner_routing_security.py'
+      - 'services/annotated_research_chart.py'
+      - 'ui/internal_report_card.py'
+      - 'ui/research_report_v2.py'
+      - 'tests/test_annotated_chart_render.py'
       - 'services/customer_navigation_styles.py'
       - 'services/customer_navigation_contract.py'
       - 'tests/test_post_merge_production_verify.py'
@@ -76,7 +80,16 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: python -m pip install playwright==1.52.0
+      - run: python -m pip install playwright==1.52.0 plotly==6.7.0
       - run: python -m playwright install --with-deps chromium
       - name: Require all four customer labels inside viewport
         run: python -m unittest discover -s tests -p test_customer_nav_geometry.py -v
+      - name: Render educational chart at desktop tablet and mobile
+        run: python -m unittest discover -s tests -p test_annotated_chart_render.py -v
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atlas-educational-chart-preview-${{ github.run_id }}
+          path: audit_results/annotated_chart
+          if-no-files-found: error
+          retention-days: 14

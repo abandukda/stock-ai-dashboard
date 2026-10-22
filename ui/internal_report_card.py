@@ -174,9 +174,13 @@ def _render_signal_detail(detail: Mapping[str, Any]) -> None:
                           row=1, col=1, secondary_y=True)
         support, resistance = chart["support_zone"], chart["resistance_zone"]
         fig.add_hrect(y0=support[0], y1=support[1], fillcolor="rgba(34,197,94,.14)", line_width=0,
-                      annotation_text="Support zone", row=1, col=1)
+                      annotation_text=f"Support · ${support[0]:,.2f}–${support[1]:,.2f}",
+                      annotation_position="top left", annotation_font_color="#6ee7b7",
+                      annotation_bgcolor="#102b27", row=1, col=1)
         fig.add_hrect(y0=resistance[0], y1=resistance[1], fillcolor="rgba(59,130,246,.14)", line_width=0,
-                      annotation_text="Resistance zone", row=1, col=1)
+                      annotation_text=f"Resistance · ${resistance[0]:,.2f}–${resistance[1]:,.2f}",
+                      annotation_position="top left", annotation_font_color="#93c5fd",
+                      annotation_bgcolor="#13243b", row=1, col=1)
         trend = chart.get("trendline")
         if trend:
             fig.add_trace(go.Scatter(x=[bars[0]["date"], bars[-1]["date"]], y=[trend["start"], trend["end"]],
@@ -238,7 +242,7 @@ def _render_signal_detail(detail: Mapping[str, Any]) -> None:
                 "gridcolor": "rgba(71,85,105,.35)", "zerolinecolor": "rgba(71,85,105,.45)",
             },
             yaxis={"title": "Price", "gridcolor": "rgba(71,85,105,.35)", "zerolinecolor": "rgba(71,85,105,.45)"},
-            annotations=[{
+            annotations=[*fig.layout.annotations, {
                 "xref": "paper", "yref": "paper", "x": 0, "y": -0.17,
                 "xanchor": "left", "yanchor": "top", "showarrow": False,
                 "text": "  •  ".join(visible_series),

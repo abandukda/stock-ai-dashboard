@@ -181,7 +181,7 @@
       "last_updated": "2026-10-22T00:55:00Z"
     }
   ],
-  "current_main_sha": "cbcf044153f540affc960da8f7e9000b5c116bc5",
+  "current_main_sha": "7cf867cee761c16a5f91153edd83d0deff7c155d",
   "latest_execution": {
     "current_main_sha": "cbcf044153f540affc960da8f7e9000b5c116bc5",
     "verified_customer_sha": "041ded97b71307f90c763cfc491153bca6a35f91",
@@ -202,5 +202,22 @@
     "private_report_card_live_verified": false,
     "current_certified_market_data": false,
     "design_parity": false
+  },
+  "chart_review": {
+    "reference": "owner download.png",
+    "reference_library_id": "libfile_bca5da08085881919e4edd11969f070e",
+    "reference_sha256": "065c1564e636ba2388a3329d511f3173a76853e6c0f1d267fe22312ee0042afc",
+    "actual_defect": "Report Card update_layout annotations=[footer] overwrote Support/Resistance shape annotations",
+    "review_changes": [
+      "Preserve existing shape annotations plus footer; explicit price ranges and readable colors",
+      "Research four-panel chart: supplied OHLC candles or honest close-only fallback, SMA20/50/200bars, descriptiveOLS, volume, WilderRSI14, MACD12/26signal9",
+      "No providers/scoring/ledger/history changes; supplied level authority retained; calculation fingerprint and timestamp separate from source freshness"
+    ],
+    "local_tests": "93PASS",
+    "browser_preview": "LOCALBLOCKEDChromium installation; hosted generated-fixture rendering required360/768/1440",
+    "merged": false,
+    "deployed": false,
+    "live_verified": false,
+    "remaining_acceptance": "Actual NVDA/MSFT/historicalAMZN desktop/tablet/mobile production chart screenshots after separately approved merge; full original Home/Research/ReportCard mockups unavailable."
   }
 }
