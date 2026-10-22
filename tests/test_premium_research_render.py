@@ -29,9 +29,13 @@ class PremiumResearchRender(unittest.TestCase):
                             for width in (360,768,1440):
                                 page=browser.new_page(viewport={'width':width,'height':1000})
                                 try:
-                                    page.goto(f'http://127.0.0.1:{port}/?ticker={ticker}')
+                                    page.goto(f'http://127.0.0.1:{port}/?ticker={ticker}&warm_admission=1')
                                     page.wait_for_selector('[data-fixture-complete="true"]',timeout=30000)
                                     self.assertEqual(page.locator('[data-testid="stException"]').count(),0)
+                                    self.assertEqual(page.locator('[data-warm-admission-fixture="true"]').count(), 1)
+                                    admission = page.locator('[data-atlas-qa="research-v2-market-admission"]')
+                                    self.assertEqual(admission.get_attribute('data-atlas-status'), 'NOT_RECORDED')
+                                    self.assertEqual(admission.get_attribute('data-atlas-reason'), 'ADMISSION_RECEIPT_UNAVAILABLE')
                                     self.assertTrue(page.locator('[data-atlas-qa="research-executive-digest"]').is_visible())
                                     navigation=page.get_by_role('navigation',name='Research sections')
                                     navigation.get_by_role('link',name='Chart & technicals',exact=True).click()
