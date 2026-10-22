@@ -7,6 +7,13 @@ st.set_page_config(layout='wide', page_title='ATLAS generated Research review')
 st.warning('GENERATED FIXTURE — NOT MARKET DATA OR PRODUCTION VERIFICATION')
 ticker=str(st.query_params.get('ticker','NVDA')).upper()
 if ticker not in {'NVDA','MSFT','META','ANET'}: st.stop()
+warm_admission = st.query_params.get('warm_admission') == '1'
+if warm_admission:
+    # Reproduce a new UI meeting an already-imported older financial dependency.
+    import services.research_market_read_model as financial
+    if hasattr(financial, 'public_admission_marker_values'):
+        delattr(financial, 'public_admission_marker_values')
+    st.markdown('<span data-warm-admission-fixture="true"></span>', unsafe_allow_html=True)
 def field(name,value):
     return {'name':name,'value':value,'certification_status':'CERTIFIED', 'source':'GENERATED_FIXTURE',
             'as_of':'2026-10-02T20:00:00Z','evidence_ids':['generated:'+ticker+':'+name],'unit':'PER_SHARE'}
@@ -39,7 +46,11 @@ if not hasattr(renderer,'_fixture_original_customer_view'):
     renderer._fixture_original_customer_view=renderer.build_customer_research_view
 def legacy_projection(value):
     view=renderer._fixture_original_customer_view(value)
-    return replace(view,payload=MappingProxyType({k:v for k,v in view.as_mapping().items() if k!='investment_digest'}))
+    payload = {k:v for k,v in view.as_mapping().items() if k!='investment_digest'}
+    if warm_admission:
+        payload['market_context'] = dict(payload.get('market_context') or {})
+        payload['market_context'].pop('admission_receipt', None)
+    return replace(view,payload=MappingProxyType(payload))
 renderer.build_customer_research_view=legacy_projection
 render_customer_research_v2(report,ask_cta=lambda _:None)
 st.markdown('<span data-fixture-complete="true">Generated Research fixture complete</span>',unsafe_allow_html=True)

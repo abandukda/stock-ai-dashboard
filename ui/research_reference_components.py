@@ -1,5 +1,6 @@
 """Reference-aligned presentation of the same admitted customer evidence."""
 from html import escape
+from typing import Any, Mapping
 from datetime import datetime
 import re
 from zoneinfo import ZoneInfo
@@ -78,3 +79,38 @@ def fundamentals_cards_html(facts):
                 '<article><small>' + escape(str(fact["fact_name"])) + '</small><strong>'
                 + escape(str(fact["display_value"])) + '</strong></article>'
                 for fact in facts) + '</section>')
+
+
+# Public diagnostic projection only; never reload or depend on a warm financial module.
+ADMISSION_STATUS_CODES = frozenset({"AVAILABLE", "PARTIAL", "UNAVAILABLE", "QA_ONLY", "NOT_RECORDED"})
+ADMISSION_REASON_CODES = frozenset({
+    "INVALID_TICKER", "ROOTS_NOT_CONFIGURED", "FILE_NOT_FOUND", "FILE_UNREADABLE",
+    "SCHEMA_OR_LINEAGE_REJECTED", "SOURCE_PIN_MISMATCH", "BUNDLE_PIN_MISMATCH",
+    "BACKUP_AUTHORITY_REJECTED", "RECORD_HASH_MISMATCH", "NO_VERIFIED_FAMILIES",
+    "CONTEXT_ADMITTED", "HISTORY_FAMILY_REJECTED", "HISTORY_FAMILY_MISSING",
+    "QA_ENRICHMENT_USED", "ADMISSION_RECEIPT_UNAVAILABLE", "BUNDLE_ACCEPTED",
+})
+
+
+def public_admission_marker_values(receipt: Any) -> dict[str, Any]:
+    """Only public enumerated codes may cross the rendered diagnostic boundary."""
+    receipt = receipt if isinstance(receipt, Mapping) else {}
+    status, reason = receipt.get("status"), receipt.get("reason")
+    result = {
+        "status": status if isinstance(status, str) and status in ADMISSION_STATUS_CODES else "NOT_RECORDED",
+        "reason": reason if isinstance(reason, str) and reason in ADMISSION_REASON_CODES else "ADMISSION_RECEIPT_UNAVAILABLE",
+    }
+    for field in ("primary_configured", "backup_configured", "source_pin_configured", "bundle_pin_configured"):
+        result[field] = receipt.get(field) is True
+    for field in ("accepted_family_count", "rejected_family_count"):
+        value = receipt.get(field)
+        result[field] = value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else 0
+    history = receipt.get("history_status")
+    result["history_status"] = history if isinstance(history, str) and history in {
+        "ADMITTED", "REJECTED", "MISSING", "NOT_EVALUATED"
+    } else "NOT_EVALUATED"
+    result["history_reason"] = {
+        "ADMITTED": "HISTORY_FAMILY_ADMITTED", "REJECTED": "HISTORY_FAMILY_REJECTED",
+        "MISSING": "HISTORY_FAMILY_ABSENT", "NOT_EVALUATED": "HISTORY_NOT_EVALUATED",
+    }[result["history_status"]]
+    return result

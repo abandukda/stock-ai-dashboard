@@ -1207,13 +1207,13 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
         return False
     header = page["header"]
     chart = page["chart"]
-    from services.research_market_read_model import public_admission_marker_values
+    from services.presentation_source import presentation_module
+    reference = presentation_module("ui.research_reference_components")
+    public_admission_marker_values = reference.public_admission_marker_values
     market_context = page.get("market_context") if isinstance(page.get("market_context"), Mapping) else {}
     _marker("market-admission", ticker, **public_admission_marker_values(market_context.get("admission_receipt")))
     ask_cta(report)
 
-    from services.presentation_source import presentation_module
-    reference = presentation_module("ui.research_reference_components")
     st.markdown(reference.RESEARCH_REFERENCE_CSS + reference.research_section_navigation_html(), unsafe_allow_html=True)
     summary = page["summary"]
     st.markdown('<div id="atlas-research-overview"></div>', unsafe_allow_html=True)
