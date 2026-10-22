@@ -7,7 +7,7 @@ from typing import Mapping, Any
 import unittest
 from unittest.mock import Mock
 
-from ui.research_learning import build_learning_guide, build_valuation_guide
+from ui.research_learning import build_learning_guide, build_valuation_guide, build_evidence_workbook
 
 
 def fact(field="net_income", value=0, **extra):
@@ -21,6 +21,84 @@ def page(*items):
 
 
 class ResearchLearningTests(unittest.TestCase):
+    def workbook_page(self):
+        return {**page(), "about": {"status": "AVAILABLE", "profile": {
+            "description": "Retained company description"}, "provenance": {"raw_evidence_id": "profile:1"}},
+            "financial_trend": {"status": "AVAILABLE", "periods": ["2024-FY", "2025-FY"],
+                "periodicity": "ANNUAL", "series": {"Revenue": [0, -12], "Net Income": [None, 2]},
+                "units": {"Revenue": "USD", "Net Income": "USD"},
+                "provenance": {"source": "Retained filings", "as_of": "2026-02-01",
+                               "evidence_ids": ["filing:1"]}}}
+
+    def test_workbook_preserves_observations_missing_cells_and_source_dates(self):
+        source = self.workbook_page()
+        before = deepcopy(source)
+        result = build_evidence_workbook(source)
+        self.assertEqual(source, before)
+        self.assertEqual(result["business"]["description"], "Retained company description")
+        self.assertNotIn("as_of", result["business"]["provenance"])
+        self.assertEqual(result["history"][0]["values"]["Revenue"]["value"], 0)
+        self.assertEqual(result["history"][1]["values"]["Revenue"]["value"], -12)
+        self.assertIsNone(result["history"][0]["values"]["Net Income"]["value"])
+        self.assertEqual(result["provenance"], source["financial_trend"]["provenance"])
+        self.assertIn("Operating Cash Flow", result["missing"])
+        self.assertNotIn("Revenue", result["missing"])
+
+    def test_workbook_rejects_unaligned_unbound_and_duplicate_periods(self):
+        for change in ({"status": "UNAVAILABLE"}, {"provenance": {}},
+                       {"periods": ["2025-FY", "2025-FY"]}, {"periods": [None, "2025-FY"]},
+                       {"periods": ["2025-FY"]}, {"units": {}},
+                       {"series": {"Revenue": [1]}},
+                       {"series": {"Revenue": [True, float("nan")]}}):
+            with self.subTest(change=change):
+                source = self.workbook_page()
+                source["financial_trend"].update(change)
+                self.assertEqual(build_evidence_workbook(source)["history"], ())
+
+    def test_workbook_does_not_relabel_unknown_frequency_or_fill_invalid_values(self):
+        source = self.workbook_page()
+        source["financial_trend"].pop("periodicity")
+        source["financial_trend"]["series"]["Revenue"] = [float("inf"), 1]
+        result = build_evidence_workbook(source)
+        self.assertEqual(result["periodicity"], "UNAVAILABLE")
+        self.assertIsNone(result["history"][0]["values"]["Revenue"]["value"])
+
+    def test_workbook_business_and_page_fail_closed(self):
+        for change in ({"status": "UNAVAILABLE"}, {"provenance": {}}, {"profile": {"industry": "Example"}}):
+            source = self.workbook_page()
+            source["about"].update(change)
+            self.assertIsNone(build_evidence_workbook(source)["business"])
+        source = self.workbook_page()
+        source["status"] = "RATING_NOT_PUBLISHED"
+        result = build_evidence_workbook(source)
+        self.assertIsNone(result["business"])
+        self.assertEqual(result["history"], ())
+
+    def test_workbook_renderer_shows_exact_cells_and_missing_provenance(self):
+        tree = ast.parse((Path(__file__).parents[1] / "customer_research_v2.py").read_text())
+        function = next(node for node in tree.body if isinstance(node, ast.FunctionDef)
+                        and node.name == "_render_evidence_workbook")
+        streamlit = Mock()
+        streamlit.expander.side_effect = lambda *args, **kwargs: nullcontext()
+        namespace = dict(st=streamlit, Mapping=Mapping, Any=Any,
+                         build_evidence_workbook=build_evidence_workbook,
+                         _financial_value=lambda value, unit: f"{value} {unit}")
+        exec(compile(ast.Module(body=[function], type_ignores=[]), "workbook_renderer", "exec"), namespace)
+        render = namespace["_render_evidence_workbook"]
+        render(self.workbook_page())
+        rows = streamlit.dataframe.call_args.args[0]
+        self.assertEqual(rows[0]["Net Income"], "Unavailable")
+        self.assertEqual(rows[0]["Revenue"], "0 USD")
+        self.assertEqual(rows[1]["Revenue"], "-12 USD")
+        captions = " ".join(call.args[0] for call in streamlit.caption.call_args_list)
+        self.assertIn("Evidence as of: Unavailable", captions)
+        self.assertIn("2026-02-01", captions)
+        self.assertIn("filing:1", captions)
+        streamlit.reset_mock()
+        render(page())
+        streamlit.dataframe.assert_not_called()
+        self.assertEqual(streamlit.info.call_count, 2)
+
     def test_valuation_preserves_separate_dates_sources_and_missing_dates(self):
         close = dict(fact_name="Last Certified Close", value=12, source="Retained close",
                      source_timestamp="2025-12-31", evidence_ids=("close:1",),

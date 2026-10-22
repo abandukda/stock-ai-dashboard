@@ -27,6 +27,53 @@ def _finite(value: Any) -> bool:
     return not isinstance(value, bool) and isinstance(value, (int, float)) and math.isfinite(value)
 
 
+def build_evidence_workbook(page: Mapping[str, Any]) -> dict[str, Any]:
+    """Copy admitted business context and aligned history, never infer a trend.
+
+    Missing observations remain missing. No sorting, period relabeling, growth
+    calculations or cross-source joins are safe with this contract.
+    """
+    result = {"business": None, "history": (), "periodicity": "UNAVAILABLE",
+              "provenance": {}, "missing": ()}
+    if page.get("status") != "AVAILABLE":
+        return result
+    about = _mapping(page.get("about"))
+    profile = _mapping(about.get("profile"))
+    provenance = _mapping(about.get("provenance"))
+    if about.get("status") == "AVAILABLE" and provenance.get("raw_evidence_id"):
+        description = next((profile[key].strip() for key in
+                            ("description", "business_summary", "company_description")
+                            if isinstance(profile.get(key), str) and profile[key].strip()), None)
+        if description:
+            result["business"] = {"description": description, "provenance": dict(provenance)}
+    trend = _mapping(page.get("financial_trend"))
+    provenance = _mapping(trend.get("provenance"))
+    periods = trend.get("periods")
+    series = _mapping(trend.get("series"))
+    units = _mapping(trend.get("units"))
+    definitions = {"Revenue": "USD", "Net Income": "USD", "Operating Cash Flow": "USD",
+                   "Free Cash Flow": "USD", "EPS": "USD_PER_SHARE", "Operating Margin": "PERCENT"}
+    admitted = {}
+    if (trend.get("status") == "AVAILABLE"
+            and (provenance.get("raw_evidence_id") or provenance.get("evidence_ids"))
+            and isinstance(periods, (list, tuple)) and len(periods) >= 2
+            and all(isinstance(period, str) and period.strip() for period in periods)
+            and len(set(periods)) == len(periods)):
+        for label, unit in definitions.items():
+            values = series.get(label)
+            if (units.get(label) == unit and isinstance(values, (list, tuple))
+                    and len(values) == len(periods) and any(_finite(value) for value in values)):
+                admitted[label] = tuple(value if _finite(value) else None for value in values)
+        if admitted:
+            result["history"] = tuple({"period": period, "values": {
+                label: {"value": values[index], "unit": definitions[label]}
+                for label, values in admitted.items()}} for index, period in enumerate(periods))
+            result["provenance"] = dict(provenance)
+            result["periodicity"] = trend.get("periodicity") or "UNAVAILABLE"
+    result["missing"] = tuple(label for label in definitions if label not in admitted)
+    return result
+
+
 def build_valuation_guide(page: Mapping[str, Any]) -> dict[str, Any]:
     """Explain admitted valuation evidence without deriving a multiple or target.
 

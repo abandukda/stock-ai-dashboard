@@ -10,7 +10,7 @@ import math
 
 import pandas as pd
 import streamlit as st
-from ui.research_learning import build_learning_guide, build_valuation_guide
+from ui.research_learning import build_learning_guide, build_valuation_guide, build_evidence_workbook
 
 from services.customer_research_view import Availability, build_customer_research_view
 from services.customer_metric_format import (
@@ -211,6 +211,61 @@ def _render_valuation_guide(page: Mapping[str, Any]) -> None:
         )
 
 
+def _render_evidence_workbook(page: Mapping[str, Any]) -> None:
+    workbook = build_evidence_workbook(page)
+
+    def cite(provenance: Mapping[str, Any]) -> None:
+        ids = provenance.get("evidence_ids") or ()
+        if isinstance(ids, str):
+            ids = (ids,)
+        st.caption(
+            f'Source: {provenance.get("source") or provenance.get("provider") or "Unavailable"} · '
+            f'Evidence as of: {provenance.get("as_of") or "Unavailable"} · '
+            f'Captured: {provenance.get("capture_timestamp") or "Unavailable"} · '
+            f'Evidence IDs: {provenance.get("raw_evidence_id") or ", ".join(str(item) for item in ids) or "Unavailable"}'
+        )
+
+    with st.expander("Business model: where does the money come from?", expanded=True):
+        business = workbook["business"]
+        if business:
+            st.write(business["description"])
+            cite(business["provenance"])
+        else:
+            st.info("A source-bound business description is unavailable in this snapshot.")
+        st.write(
+            "Start by identifying what the company sells, who pays, and whether customers pay once or repeatedly. "
+            "Then ask which costs grow with sales and how much money is needed for equipment or inventory. "
+            "Use the retained description to find answers; details it does not cover remain unavailable."
+        )
+        st.caption(
+            "For a deeper thesis, look for segment sales, customer concentration, pricing power, and competition in the source filings. "
+            "This guide does not infer those details from an industry label."
+        )
+    with st.expander("Earnings history: inspect the evidence across periods", expanded=True):
+        if workbook["history"]:
+            st.caption(f'Reporting frequency: {workbook["periodicity"]}. Period labels and order are retained exactly.')
+            rows = [{"Fiscal period": row["period"], **{
+                label: (_financial_value(item["value"], item["unit"])
+                        if item["value"] is not None else "Unavailable")
+                for label, item in row["values"].items()}} for row in workbook["history"]]
+            st.dataframe(rows, hide_index=True, use_container_width=True)
+            cite(workbook["provenance"])
+        else:
+            st.info("Source-bound multi-period earnings evidence is unavailable in this guide.")
+        if workbook["missing"]:
+            st.caption("History unavailable for: " + ", ".join(workbook["missing"]) + ".")
+        st.write(
+            "Read across each period: how much was sold, how much profit remained, and how much cash came in? "
+            "Then read down each column. If profit and cash move differently, check payment timing and one-time items in the filings. "
+            "An empty cell means unavailable, never zero."
+        )
+        st.caption(
+            "Advanced checks: confirm matching period lengths, currency, accounting basis, and restatements before calculating growth. "
+            "EPS also depends on share count. Quarterly cash flow can be cumulative year to date. "
+            "These retained observations do not establish an earnings beat, a cause for a change, or a forecast."
+        )
+
+
 def _render_learning_guide(page: Mapping[str, Any], *, ticker: str) -> None:
     guide = build_learning_guide(page)
     if guide["status"] != "AVAILABLE":
@@ -218,6 +273,7 @@ def _render_learning_guide(page: Mapping[str, Any], *, ticker: str) -> None:
     _marker("learning-guide", ticker, status=guide["status"], non_scoring="true")
     st.markdown("### Read the evidence like an investor")
     st.caption("Learning guidance · Uses this retained snapshot, not live results or AI-generated research.")
+    _render_evidence_workbook(page)
     _render_valuation_guide(page)
     with st.expander("Earnings: are sales turning into profit and cash?", expanded=True):
         st.write(
