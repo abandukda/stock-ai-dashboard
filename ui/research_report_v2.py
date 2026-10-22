@@ -6,6 +6,7 @@ Atlas V2 Phase 1 — Unified Institutional Research Report
 from __future__ import annotations
 
 from html import escape
+from datetime import datetime, timezone
 from typing import Any, Mapping
 import re
 
@@ -635,34 +636,14 @@ def _render_price_chart(report: Mapping[str, Any]) -> None:
     frame[close_col] = pd.to_numeric(frame[close_col], errors="coerce")
     frame = frame.dropna(subset=[date_col, close_col]).sort_values(date_col)
 
-    fig = make_subplots(
-        rows=2,
-        cols=1,
-        shared_xaxes=True,
-        row_heights=[0.72, 0.28],
-        vertical_spacing=0.06,
-    )
-    fig.add_trace(
-        go.Scatter(
-            x=frame[date_col],
-            y=frame[close_col],
-            mode="lines",
-            name="Price",
-        ),
-        row=1,
-        col=1,
-    )
-
     current_evaluation = ((report.get("research_context") or {}).get("current_evaluation") or {})
     canonical_technical = (current_evaluation.get("technical_confirmation") or {}).get("evidence") or {}
     technical = canonical_technical or section.get("data") or {}
     lines = [
         ("Atlas Fair Value", report.get("validated_fair_value"), "dash"),
-        ("SMA 20", technical.get("sma20"), "dash"),
-        ("SMA 50", technical.get("sma50"), "dashdot"),
-        ("SMA 200", technical.get("sma200"), "longdash"),
         ("Support", technical.get("support"), "dot"),
-        ("Pivot / Breakout", technical.get("pivot") if technical.get("pivot") is not None else technical.get("resistance"), "dot"),
+        ("Resistance", technical.get("resistance"), "dot"),
+        ("Pivot / Breakout", technical.get("pivot"), "dot"),
     ]
     plan = report.get("trade_plan") or {}
     lines.extend(
@@ -675,36 +656,36 @@ def _render_price_chart(report: Mapping[str, Any]) -> None:
         ]
     )
 
-    for name, value, dash in lines:
-        if value is None:
-            continue
-        fig.add_hline(
-            y=float(value),
-            line_dash=dash,
-            annotation_text=name,
-            row=1,
-            col=1,
-        )
-
-    if volume_col:
-        frame[volume_col] = pd.to_numeric(frame[volume_col], errors="coerce")
-        fig.add_trace(
-            go.Bar(
-                x=frame[date_col],
-                y=frame[volume_col],
-                name="Volume",
-            ),
-            row=2,
-            col=1,
-        )
-
-    fig.update_layout(
-        height=650,
-        margin=dict(l=10, r=10, t=30, b=10),
-        legend_orientation="h",
-        hovermode="x unified",
-    )
+    from services.annotated_research_chart import build_annotated_research_chart
+    records = []
+    for _, row in frame.iterrows():
+        bar = {"date": row[date_col].isoformat(), "close": row[close_col]}
+        for normalized, aliases in (("open", ("open", "Open")), ("high", ("high", "High")),
+                                    ("low", ("low", "Low")), ("volume", ("volume", "Volume"))):
+            source_key = next((key for key in aliases if key in frame.columns), None)
+            if source_key is not None:
+                bar[normalized] = row[source_key]
+        if "ticker" in frame.columns:
+            bar["ticker"] = row["ticker"]
+        records.append(bar)
+    try:
+        fig, chart_evidence = build_annotated_research_chart(records, ticker=str(report.get("ticker") or ""), levels=lines)
+    except ValueError:
+        st.warning("Chart evidence needs validation. ATLAS has not inferred missing prices or indicators.")
+        return
     st.plotly_chart(fig, use_container_width=True)
+    if not chart_evidence["candles"]:
+        st.caption("Close-only evidence: candlesticks are unavailable because complete valid OHLC bars were not supplied.")
+    if not chart_evidence["volume_available"]:
+        st.caption("Volume evidence is unavailable; no volume was inferred.")
+    st.markdown("#### Reading this chart")
+    st.write(chart_evidence["outlook"])
+    st.caption("Click a legend item to hide a series; double-click to isolate it. Hover to inspect the supplied bar.")
+    if chart_evidence["pending_lookbacks"]:
+        st.caption("Awaiting complete lookback: " + ", ".join(chart_evidence["pending_lookbacks"]))
+    st.caption(chart_evidence["methodology"])
+    st.caption(f"Presentation calculated {datetime.now(timezone.utc).isoformat()} · This does not refresh the source price date.")
+    st.caption(f"Calculation evidence: {chart_evidence['evidence_digest']} · Educational indicators only; certified ratings and signal history are unchanged.")
     provenance = dict(section.get("history_provenance") or {})
     if selected_contract:
         provenance.update({

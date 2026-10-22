@@ -122,8 +122,8 @@ def test_internal_chart_wires_governed_price_volume_indicators_and_outcomes():
     for contract in (
         "go.Candlestick(", 'name="Volume"', 'name="RSI (14)"', 'name="MACD"',
         'name="MACD signal"', 'name="Original ATLAS signal"', 'name="Measured outcomes"',
-        'name="SPY · indexed to 100"', 'annotation_text="Support zone"',
-        'annotation_text="Resistance zone"',
+        'name="SPY · indexed to 100"', 'annotation_text=f"Support · $',
+        'annotation_text=f"Resistance · $',
     ):
         assert contract in source
     assert "EDUCATIONAL_NON_SCORING" in source
