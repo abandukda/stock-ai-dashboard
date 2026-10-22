@@ -5,6 +5,8 @@ on:
     paths:
       - services/transcript_intelligence_runtime.py
       - services/transcript_provider.py
+      - services/transcript_evidence_store.py
+      - tests/test_transcript_evidence_store.py
       - scripts/earnings_transcript_live_qa.py
       - tests/test_transcript_intelligence_runtime.py
       - .github/workflows/atlas_transcript_offline_ci.yml
@@ -30,6 +32,7 @@ jobs:
           python -m pytest -q
           tests/test_transcript_intelligence_runtime.py
           tests/test_transcript_provider_contract.py
+          tests/test_transcript_evidence_store.py
           tests/test_atlas_vnext_earnings.py
           tests/test_earnings_transcript_workflow.py
           tests/test_provider_family_boundary_adversarial.py

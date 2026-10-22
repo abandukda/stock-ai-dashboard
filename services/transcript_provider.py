@@ -99,6 +99,14 @@ class ConfiguredTranscriptProvider:
         )
         self._get = get
 
+    def durable_cache_partition(self) -> str:
+        """Private stable account/license namespace; never project or log this token."""
+        if not self._key:
+            raise PermissionError("TRANSCRIPT_CACHE_ACCOUNT_NOT_CONFIGURED")
+        identity = json.dumps([self._provider, self._base, self._license.value,
+                               TRANSCRIPT_ADAPTER_VERSION], separators=(",", ":")).encode()
+        return hmac.new(self._key.encode(), identity, hashlib.sha256).hexdigest()
+
     def cache_partition(self) -> str:
         """Opaque process-local identity; never serialize credentials or this token.
 
