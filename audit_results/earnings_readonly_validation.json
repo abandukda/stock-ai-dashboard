@@ -1,0 +1,26 @@
+{
+  "test_args": [
+    "-q",
+    "tests/test_transcript_cache_reader.py",
+    "tests/test_earnings_cached_transcript_ui.py",
+    "tests/test_transcript_evidence_store.py",
+    "tests/test_transcript_intelligence_runtime.py",
+    "tests/test_transcript_provider_contract.py",
+    "tests/test_atlas_vnext_earnings.py",
+    "tests/test_earnings_transcript_workflow.py"
+  ],
+  "pythonpath": "/workspace/atlas-qa-deps:/workspace/atlas-ui-deps:/workspace/atlas-chart-deps:.",
+  "exit_code": 0,
+  "network_attempts": 0,
+  "elapsed_seconds": 1.5248105459977523,
+  "peak_rss_kib": 190444,
+  "source_sha256": {
+    "services/transcript_cache_reader.py": "91ceb532f89a10b9cc433c49c5a98951a67e2810c57a1218080d986a06cae4ca",
+    "services/transcript_evidence_store.py": "05465b33991d9387345bd0eea034243ab8ad6b73815c027f6553c0b2b8d2bf22",
+    "ui/earnings_vnext.py": "05b257921ee5fbb2c80dadfa23310d4a4e4b9fcca9abc0789aac2a24ef40e8bb",
+    "tests/test_transcript_cache_reader.py": "59104f61a131c72673d9c00be9b5ccbb75b916c7dfe1bf9003ace249f8870392",
+    "tests/test_earnings_cached_transcript_ui.py": "1887f08d2009b949d5686fec2a5e4d962a91796aa0d9ae6f3298539b1c6c97af",
+    "tests/test_atlas_vnext_earnings.py": "c8916df5ed9ab68c99135dfac41dd8173d0d78c5e6478984407b65b06cc5a979",
+    "docs/operations/ATLAS_EARNINGS_READ_ONLY_CACHE_REVIEW.md": "e51a4a8abe31092d75c5c6fad3b43dfdb390fe648f1608b618b70a209ede6285"
+  }
+}

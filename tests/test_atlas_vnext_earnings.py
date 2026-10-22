@@ -82,10 +82,14 @@ def test_guidance_transcript_revision_and_reaction_boundaries():
     assert story["transcript_intelligence"]["semantic_status"] == "AVAILABLE"
 
 
-def test_active_earnings_ui_uses_governed_transcript_runtime_not_placeholder():
+def test_active_earnings_ui_reads_cache_without_provider_or_model_execution():
     source = (ROOT / "ui" / "earnings_vnext.py").read_text(encoding="utf-8")
-    assert "retrieve_and_summarize_transcript" in source
-    assert "transcript_period_index" in source
+    assert "retrieve_and_summarize_transcript" not in source
+    assert "ConfiguredTranscriptProvider" not in source
+    assert "transcript_period_index" not in source
+    assert "cache_reader.period_index(ticker)" in source
+    assert "cache_reader.read(ticker" in source
+    assert "disabled=cache_reader is None" in source
     assert "Earnings-call transcript retrieval is unavailable." not in source
     assert "Transcript insights are contextual and do not independently change ATLAS's rating." in source
 

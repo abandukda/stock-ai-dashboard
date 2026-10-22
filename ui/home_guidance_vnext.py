@@ -1383,6 +1383,7 @@ def _compact_opportunity_card(card: Mapping[str, Any], *, key: str, first: bool 
             f'<span><small>{html.escape(str(card.get("display_price_label") or "Dated price"))}</small><b>{html.escape(_money(card.get("display_price")))}</b></span>'
             f'<span><small>ATLAS Fair Value</small><b>{html.escape(_money(card.get("atlas_fair_value")))}</b></span>'
             f'<span><small>Potential</small><b>{html.escape(_score(potential, suffix="%"))}</b></span></div>'
+            f'{narrative}'
             f'<footer>{html.escape(evidence)} · Certified {_timestamp(card.get("decision_as_of"))}</footer></article>',
             unsafe_allow_html=True,
         )
@@ -1402,7 +1403,8 @@ def _compact_opportunity_card(card: Mapping[str, Any], *, key: str, first: bool 
         f'<span><small>Confidence</small><b>{html.escape(_score(card.get("decision_confidence"), suffix="%"))}</b></span>'
         f'<span><small>Entry Status</small><b>{html.escape(entry_status)}</b></span></div>'
         f'{narrative}'
-        '<footer>'
+        + ('<p class="atlas-home-entry-explanation">Entry plan not published. BUY NOW is the certified classification, not a personalized entry instruction.</p>' if entry_status == 'Not published' else '')
+        + '<footer>'
         f'<span>{html.escape(evidence)}</span><span>Certified {_timestamp(card.get("decision_as_of"))}</span></footer></article>',
         unsafe_allow_html=True,
     )
@@ -1439,6 +1441,8 @@ def _render_groups(story: Mapping[str, Any], *, emit_interactive) -> None:
     visible = len(featured_cards)
     st.markdown('<div id="atlas-opportunities"></div>', unsafe_allow_html=True)
     st.markdown("## Strongest Opportunities")
+    from ui.home_reference_components import published_inventory_html
+    st.markdown(published_inventory_html(total, timestamp=_timestamp(story.get("scan_timestamp"))), unsafe_allow_html=True)
     st.caption(
         f"Showing {visible} featured idea{'s' if visible != 1 else ''} from {total} total certified BUY NOW "
         "opportunities. Featured order follows the published ranking; these are decisions, not performance results. "
@@ -1694,6 +1698,9 @@ def _render_market_read(story: Mapping[str, Any]) -> None:
     interpretation = str(briefing.get("interpretation") or "").strip()
     sentences = [part.strip() for part in re.split(r"(?<=[.!?])\s+", interpretation) if part.strip()]
     concise = " ".join(sentences[:4])
+    market = story.get("market_today") or {}
+    if not concise and not market.get("instruments"):
+        concise = "Source dates, market drivers and methodology are available below. The independent market clock does not refresh the certified investment decisions."
     st.markdown(
         '<section class="atlas-home-market-read" data-atlas-qa="atlas-market-read" '
         'data-atlas-non-scoring="true"><h2>ATLAS Market Read</h2>'
@@ -1797,12 +1804,13 @@ def _render_daily_brief(story: Mapping[str, Any]) -> None:
         "<strong>Market context:</strong> Current governed context is unavailable, so ATLAS is not inferring a backdrop."
     )
     from ui.home_reference_components import market_cards_html
-    market_cards = market_cards_html(market, money=_money, timestamp=_timestamp)
+    market_cards = market_cards_html(market, money=_money, timestamp=_timestamp, show_empty_notice=False)
+    command_mode = "atlas-command-has-markets" if market.get("instruments") else "atlas-command-retained-focus"
     st.markdown(
-        '<section class="atlas-daily-brief atlas-ai-insight-panel atlas-editorial-brief atlas-reference-command" data-atlas-qa="daily-intelligence-brief" '
+        f'<section class="atlas-daily-brief atlas-ai-insight-panel atlas-editorial-brief atlas-reference-command {command_mode}" data-atlas-qa="daily-intelligence-brief" '
         'data-atlas-explanation-source="DETERMINISTIC_CERTIFIED_PROJECTION" data-atlas-model-status="NOT_INVOKED">'
         '<div class="atlas-reference-brand"><small>ATLAS AI / MARKET COMMAND CENTER</small>'
-        '<h1>Smarter investing<br>with ATLAS.</h1><p>Real evidence. Clear context.<br>A focused view of what matters now.</p>'
+        '<h1>Your investment<br>command center.</h1><p>Explore the evidence.<br>Understand the opportunity and risk.</p>'
         '<a class="atlas-reference-explore" href="#atlas-opportunities">Explore opportunities →</a>'
         '<div class="atlas-brand-orbit" aria-hidden="true"></div></div>'
         '<div class="atlas-reference-intelligence">' + market_cards +
@@ -2062,9 +2070,11 @@ def render_home_guidance_vnext(story: Mapping[str, Any], *, emit_interactive=Non
         _render_market_strip(story)
     _render_command_deck(story)
     _section_marker("atlas_action_summary")
-    st.markdown("## ATLAS Action Summary")
-    st.caption("Counts cover all customer-publishable records, including ideas beyond the featured cards.")
-    st.markdown(_action_counts(story), unsafe_allow_html=True)
+    st.markdown(
+        '<section class="atlas-home-action-overview"><div><h2>ATLAS Action Summary</h2>'
+        '<p>All customer-publishable records · certified classifications, not realized returns.</p></div>'
+        + _action_counts(story) + '</section>', unsafe_allow_html=True,
+    )
     _render_groups(story, emit_interactive=emit_interactive)
     _render_intelligence_modules(story)
     # Operational tracking remains available to authorized users, but it must

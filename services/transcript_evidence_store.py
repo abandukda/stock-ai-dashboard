@@ -11,6 +11,7 @@ from contextlib import contextmanager
 from dataclasses import replace
 from datetime import datetime, timezone
 import hashlib
+import hmac
 import json
 import os
 from pathlib import Path
@@ -36,6 +37,15 @@ def _json(value: Any) -> str:
 
 def _hash(value: Any) -> str:
     return hashlib.sha256(_json(value).encode()).hexdigest()
+
+
+def _authenticate(value, *, partition, kind, identity):
+    body = dict(value)
+    supplied = body.pop("_cache_auth", None)
+    expected = hmac.new(partition.encode(), _json([kind, identity, body]).encode(), hashlib.sha256).hexdigest()
+    if not isinstance(supplied, str) or not hmac.compare_digest(supplied, expected):
+        raise ValueError("TRANSCRIPT_CACHE_ACCOUNT_BINDING_REVALIDATION_REQUIRED")
+    return body
 
 
 def _record(value: dict) -> GovernedRecord:
@@ -97,16 +107,19 @@ class TranscriptEvidenceStore:
             db.close()
 
     @staticmethod
-    def _get(db, kind, identity):
+    def _get(db, kind, identity, partition):
         row = db.execute("SELECT body,digest FROM records WHERE kind=? AND identity=?", (kind, identity)).fetchone()
         if row is None:
             return None
         if hashlib.sha256(row[0].encode()).hexdigest() != row[1]:
             raise ValueError("TRANSCRIPT_CACHE_HASH_MISMATCH")
-        return json.loads(row[0])
+        return _authenticate(json.loads(row[0]), partition=partition, kind=kind, identity=identity)
 
     @staticmethod
-    def _put(db, kind, identity, value):
+    def _put(db, kind, identity, value, partition):
+        value = dict(value)
+        value.pop("_cache_auth", None)
+        value["_cache_auth"] = hmac.new(partition.encode(), _json([kind, identity, value]).encode(), hashlib.sha256).hexdigest()
         body = _json(value)
         db.execute("INSERT INTO records VALUES (?,?,?,?)", (kind, identity, body, hashlib.sha256(body.encode()).hexdigest()))
 
@@ -123,7 +136,7 @@ class TranscriptEvidenceStore:
         request = _hash([partition, ticker, year, quarter])
         with self._connect() as db:
             db.execute("BEGIN IMMEDIATE")
-            stored = self._get(db, "transcript", request)
+            stored = self._get(db, "transcript", request, partition)
             acquired = False
             if stored is None:
                 if not acquisition_authorized:
@@ -144,10 +157,10 @@ class TranscriptEvidenceStore:
                 if (evidence.payload.get("year"), evidence.payload.get("quarter")) != (year, quarter):
                     raise ValueError("TRANSCRIPT_EXACT_PERIOD_REQUIRED")
                 if stored is None:
-                    self._put(db, "transcript", request, evidence.as_dict())
+                    self._put(db, "transcript", request, evidence.as_dict(), partition)
             summary_key = _hash([request, evidence.payload.get("raw_content_hash"), summary_revision,
                                  TRANSCRIPT_SUMMARY_PROMPT_VERSION, TRANSCRIPT_SUMMARY_SCHEMA_VERSION])
-            saved = self._get(db, "summary", summary_key) if summary_revision else None
+            saved = self._get(db, "summary", summary_key, partition) if summary_revision else None
             if saved:
                 insight = _record(saved["insight"])
                 if (insight.payload.get("source_transcript_evidence_id") != evidence.provenance.raw_evidence_id
@@ -177,7 +190,7 @@ class TranscriptEvidenceStore:
                     summarizer=guarded_summary if summary_authorized and summarizer is not None else None,
                 )
                 if result.insight is not None:
-                    self._put(db, "summary", summary_key, {"insight": result.insight.as_dict(), "operation": dict(result.operation_metadata)})
+                    self._put(db, "summary", summary_key, {"insight": result.insight.as_dict(), "operation": dict(result.operation_metadata)}, partition)
             metadata = {**dict(result.operation_metadata),
                         "cache_status": "DURABLE_HIT" if stored else "DURABLE_MISS",
                         "summary_cache_status": "DURABLE_HIT" if saved else "DURABLE_MISS",
