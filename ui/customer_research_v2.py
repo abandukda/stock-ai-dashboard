@@ -980,6 +980,8 @@ def render_customer_research_first_screen(report: Mapping[str, Any]) -> dict[str
             unsafe_allow_html=True,
         )
         return page
+    from ui.research_reference_components import RESEARCH_REFERENCE_CSS
+    st.markdown(RESEARCH_REFERENCE_CSS, unsafe_allow_html=True)
     h = page["header"]
     confidence_score = customer_confidence(h["confidence"])
     _marker("root", ticker, version=page["version"], authority="certified_customer_evaluation", section_count=5)
@@ -993,12 +995,10 @@ def render_customer_research_first_screen(report: Mapping[str, Any]) -> dict[str
         f'<section class="atlas-r2-head atlas-page-hero atlas-page-hero-research atlas-ai-insight-panel"><div class="atlas-r2-kicker">CERTIFIED ATLAS RESEARCH</div>'
         f'<div class="atlas-r2-title"><h1>{escape(ticker)} · {escape(str(page["company"]))}</h1><span class="atlas-r2-action">{escape(h["action"])}</span></div>'
         f'<div class="atlas-r2-meta">{escape(str(page.get("sector") or "Sector unavailable"))} · Last certified close {escape(str(h.get("evidence_as_of") or "Date unavailable"))}</div>'
-        '<div class="atlas-r2-section-label">PRICE &amp; VALUATION</div>'
         f'<div class="atlas-r2-metrics">'
         f'<div class="atlas-r2-metric"><small>Last Certified Close</small><strong>{escape(_money(h["price"]))}</strong></div>'
         f'<div class="atlas-r2-metric"><small>ATLAS Fair Value</small><strong>{escape(_money(h["fair_value"]))}</strong></div>'
         f'<div class="atlas-r2-metric"><small>Fair Value Gap</small><strong>{escape(_pct(h["fair_value_gap_pct"], signed=True))}</strong></div>'
-        '</div><div class="atlas-r2-section-label">HOW TO READ THE EVIDENCE</div><div class="atlas-r2-evidence">'
         f'<div class="atlas-r2-metric"><small>Opportunity</small><strong>{escape(customer_score(h["opportunity"]))}</strong><p>Relative attractiveness in the certified ATLAS method. Read the risks before deciding.</p></div>'
         f'<div class="atlas-r2-metric"><small>Evidence Confidence</small><strong>{escape(str(h.get("confidence_band") or "Unavailable"))} · {escape(confidence_score)}</strong><p>Strength of the underlying evidence, not the probability of an investment return.</p></div>'
         f'</div></section>', unsafe_allow_html=True,
@@ -1036,7 +1036,12 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
     header = page["header"]
     ask_cta(report)
 
+    st.markdown('<nav class="atlas-research-section-nav" aria-label="Research sections">'
+                '<a href="#atlas-research-overview">Overview</a><a href="#atlas-research-technicals">Chart &amp; technicals</a>'
+                '<a href="#atlas-research-financials">Financials &amp; valuation</a><a href="#atlas-research-risks">Risks &amp; evidence</a>'
+                '<a href="#atlas-research-developments">Developments</a></nav>', unsafe_allow_html=True)
     summary = page["summary"]
+    st.markdown('<div id="atlas-research-overview"></div>', unsafe_allow_html=True)
     _marker("section", ticker, section_name="Decision")
     st.markdown("## ATLAS Investment Summary")
     reading_views = page.get("reading_views") if isinstance(page.get("reading_views"), Mapping) else {}
@@ -1060,18 +1065,8 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
         body:has([data-atlas-qa="research-vnext"]) [data-testid="stExpander"] summary:hover{background:#17263d!important}
         @media(max-width:700px){.atlas-research-brief{padding:.8rem}.atlas-research-highlights{grid-template-columns:1fr}.atlas-research-highlight{padding:.7rem}}
         </style>""", unsafe_allow_html=True)
-        brief_sentences = tuple(str(item).strip() for item in simple_view.get("brief_sentences") or () if str(item).strip())
-        brief_html = "".join(f"<p>{escape(sentence)}</p>" for sentence in brief_sentences)
-        fallback_intro = escape(
-            str(simple_view.get("intro") or "A plain-English guide is unavailable.")
-        )
-        st.markdown(
-            f'<section class="atlas-research-brief" data-atlas-qa="research-simple-brief">'
-            f'<h3>{escape(str(simple_view.get("title") or f"{ticker} in plain English"))}</h3>'
-            f'{brief_html or f"<p>{fallback_intro}</p>"}'
-            '</section>',
-            unsafe_allow_html=True,
-        )
+        from ui.research_reference_components import executive_digest_html
+        st.markdown('<div data-atlas-qa="research-simple-brief">' + executive_digest_html(page) + '</div>', unsafe_allow_html=True)
         st.caption(
             "Verified-evidence fallback · External AI synthesis is not active. "
             "Source facts and the certified ATLAS Action remain separate from this explanation."
@@ -1099,6 +1094,8 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
                 for evidence_id in evidence_ids:
                     st.code(evidence_id)
     with detailed_tab:
+        from ui.research_reference_components import comprehensive_analysis_html
+        st.markdown(comprehensive_analysis_html(page), unsafe_allow_html=True)
         st.markdown(f'### {detailed_view.get("title") or "Detailed evidence"}')
         st.write(detailed_view.get("message") or "Detailed evidence follows below.")
         st.markdown("**Certified ATLAS view**")
@@ -1147,6 +1144,7 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
         # customer-facing copy in a readable form.
         st.caption(f'Signal date: {_friendly_time(signal.get("signal_date"))}')
 
+    st.markdown('<div id="atlas-research-technicals"></div>', unsafe_allow_html=True)
     _marker("section", ticker, section_name="Technical & Trade State")
     st.markdown("## Technical & Trade State")
     st.markdown("### Price history")
@@ -1368,6 +1366,7 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
         st.info(pillars.get("message") or "Certified six-pillar evidence is unavailable.")
 
 
+    st.markdown('<div id="atlas-research-financials"></div>', unsafe_allow_html=True)
     _marker("section", ticker, section_name="Fundamentals & Valuation")
     st.markdown("## Fundamentals & Valuation")
     st.markdown("### ATLAS vs Wall Street")
@@ -1405,6 +1404,7 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
     _marker("risks", ticker)
     _marker("view-change-conditions", ticker)
     conditions_present = any((summary.get("watch_conditions") or {}).get(key) for key in ("strengthen", "weaken", "invalidate"))
+    st.markdown('<div id="atlas-research-risks"></div>', unsafe_allow_html=True)
     _marker("section", ticker, section_name="Risk & Evidence")
     if summary["risks"] or conditions_present:
         risk_items = list(summary["risks"])
@@ -1522,6 +1522,7 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
                                  key=f"research-financial-trend-{ticker}-{unit.lower()}")
         st.caption(_provenance_caption(financial_trend.get("provenance") or {}))
 
+    st.markdown('<div id="atlas-research-developments"></div>', unsafe_allow_html=True)
     _marker("section", ticker, section_name="Catalysts & Sentiment")
     _marker("catalysts", ticker, status=page["catalysts"]["status"])
     events = page["catalysts"].get("events") or []

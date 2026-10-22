@@ -1,0 +1,105 @@
+{
+  "status": "REVIEW_ONLY_NOT_PUBLISHED",
+  "base_main": "d2dd0f93e9a706634ccb7220e67e3811b1060589",
+  "provider_calls": 0,
+  "paid_ai_calls": 0,
+  "ledger_writes": 0,
+  "production_writes": 0,
+  "data_delivery_authorized": false,
+  "results": [
+    {
+      "ticker": "NVDA",
+      "artifact_id": 11315380823,
+      "archive_sha256": "e9c908ebfcac6ca6a8b36418f0919a46e06bb4ae8f81139a4d0f66469c534edc",
+      "payload_sha256": "ac4f15aac2d380754dadb2f5e942fc4faff276e956d1933c3caf1ed9f5e4c4a3",
+      "source_sha": "aa12ff9e89c1ac72e20aadad41decfba9a3d774d",
+      "evidence_id": "FINNHUB:HISTORICAL_OHLCV:NVDA:ae5199468a569f51f71d",
+      "bar_count": 274,
+      "first": "2025-09-02T00:00:00+00:00",
+      "last": "2026-10-02T00:00:00+00:00",
+      "adjustment_mode": "PROVIDER_ADJUSTED_COMPLETED_DAILY",
+      "adjustment_authority": "Exact published evaluation with matching source_sha and historical_ohlcv_evidence_id",
+      "source_checkpoint_present": false,
+      "retained_archive_integrity": "PASS",
+      "current_publication_lineage_match": "PASS",
+      "read_model_admission_simulation": "PASS_STALE_RETAINED",
+      "four_panel_calculation": "PASS",
+      "active_customer_adapter": "PASS_EXACT_SELECTED_CLOSE_VALUES",
+      "selected_range": "6M",
+      "selected_bar_count": 127,
+      "source_unchanged": true,
+      "proposed_display_bundle_record_sha256": "6b7b540e7667d4dfbd44048096e245100d54bb8e5d8c07f1af87c458f083a883",
+      "proposed_display_bundle_file_sha256": "c32038e543243acd3ec3b6c55b8968f9601b818a57e7fafdadb7423d0c16b0a6",
+      "calculation_digest": "103223f700b713273dc913ac7c6eb092ba3453d0dd2b2ffff7ef46a87d79585f"
+    },
+    {
+      "ticker": "MSFT",
+      "artifact_id": 11314442854,
+      "archive_sha256": "85be15e4b9cd02a5970e1f73322be5b3bec8b8d1b71400101f3438627bd6e425",
+      "payload_sha256": "e2b19073640816b74d3445fa7da4166da654f4f8940c48005114f2eb9b037f59",
+      "source_sha": "aa12ff9e89c1ac72e20aadad41decfba9a3d774d",
+      "evidence_id": "FINNHUB:HISTORICAL_OHLCV:MSFT:a01f2d66ff25ced7d1c5",
+      "bar_count": 274,
+      "first": "2025-09-02T00:00:00+00:00",
+      "last": "2026-10-02T00:00:00+00:00",
+      "adjustment_mode": "PROVIDER_ADJUSTED_COMPLETED_DAILY",
+      "adjustment_authority": "Exact published evaluation with matching source_sha and historical_ohlcv_evidence_id",
+      "source_checkpoint_present": false,
+      "retained_archive_integrity": "PASS",
+      "current_publication_lineage_match": "PASS",
+      "read_model_admission_simulation": "PASS_STALE_RETAINED",
+      "four_panel_calculation": "PASS",
+      "active_customer_adapter": "PASS_EXACT_SELECTED_CLOSE_VALUES",
+      "selected_range": "6M",
+      "selected_bar_count": 127,
+      "source_unchanged": true,
+      "proposed_display_bundle_record_sha256": "95f4f020b17072501a446b47af5c64669439d9f52386e265e757c15252e7087a",
+      "proposed_display_bundle_file_sha256": "fb262f39264baf9423e03691084c33d9776ff703a14096912c3465df6143bd4e",
+      "calculation_digest": "9e7bc8daff2d8192915c2802f2d23aeea5b38d13e0109c81db6117b6358b8a4f"
+    }
+  ],
+  "elapsed_seconds": 0.638,
+  "peak_rss_kib": 255148,
+  "limitations": [
+    "Historical through Oct2 only; not current market data",
+    "No original source checkpoints in these older archives; do not claim fresh certification",
+    "Production failure proves no admitted chart payload; production filesystem/settings not inspected",
+    "Raw payloads not committed/uploaded; proposed bundles existed only in temporary local directory and were removed"
+  ],
+  "approval_scope": {
+    "status": "PREPARED_NOT_AUTHORIZED",
+    "tickers": [
+      "NVDA",
+      "MSFT"
+    ],
+    "purpose": "Historical chart display candidate only; no production or public publication authorized; no current snapshot, scoring or Report Card observations",
+    "source_run": 37216506983,
+    "source_sha": "aa12ff9e89c1ac72e20aadad41decfba9a3d774d",
+    "total_bars": 548,
+    "first": "2025-09-02",
+    "last": "2026-10-02",
+    "existing_consumer": "services.research_market_read_model.load_research_market_context",
+    "runtime_bindings": [
+      "ATLAS_RESEARCH_MARKET_DATA_ROOT",
+      "ATLAS_RESEARCH_MARKET_EXPECTED_SOURCE_SHA",
+      "ATLAS_RESEARCH_MARKET_EXPECTED_BUNDLE_ID"
+    ],
+    "delivery_blocker": "Approved private runtime data delivery channel/location and reviewed execution path not established; never commit raw licensed JSON to public repository",
+    "preserve": [
+      "No acquisition or paid AI",
+      "No source or production ledger mutation",
+      "No scoring/rating/valuation changes",
+      "Public Report Card OFF",
+      "Keep raw machine-readable redistribution disallowed",
+      "Stale history disclosure",
+      "Run exact-SHA authenticated QA after separately authorized delivery"
+    ],
+    "not_authorized": [
+      "Private runtime delivery",
+      "Settings changes",
+      "New infrastructure",
+      "Publication",
+      "Ledger writes"
+    ]
+  }
+}

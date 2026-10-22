@@ -1351,7 +1351,7 @@ def _compact_card_narrative(card: Mapping[str, Any]) -> tuple[str, str | None]:
     return thesis, risk
 
 
-def _compact_opportunity_card(card: Mapping[str, Any], *, key: str, first: bool = False) -> None:
+def _compact_opportunity_card(card: Mapping[str, Any], *, key: str, first: bool = False, summary_only: bool = False) -> None:
     ticker = str(card.get("ticker") or "UNKNOWN")
     state = _customer_state(card)
     potential = card.get("live_implied_upside_pct")
@@ -1370,8 +1370,24 @@ def _compact_opportunity_card(card: Mapping[str, Any], *, key: str, first: bool 
         (f'<p class="atlas-home-compact-thesis"><b>Why it stands out</b> {html.escape(thesis)}</p>' if thesis_available else '')
         + (f'<p class="atlas-home-compact-risk"><b>Main concern</b> {html.escape(risk)}</p>' if risk else '')
     )
+    if summary_only:
+        st.markdown(
+            '<article class="atlas-home-compact-card atlas-home-shortlist-row" '
+            'data-atlas-qa="home-actionable-card" data-atlas-first="false" '
+            f'data-atlas-ticker="{html.escape(ticker)}" data-atlas-guidance="{html.escape(state)}" '
+            f'data-atlas-evidence-status="{html.escape(evidence)}">'
+            f'<header><h3>{html.escape(identity)}</h3><small>{html.escape(_display(state))}</small></header>'
+            '<div class="atlas-home-compact-values">'
+            f'<span><small>{html.escape(str(card.get("display_price_label") or "Dated price"))}</small><b>{html.escape(_money(card.get("display_price")))}</b></span>'
+            f'<span><small>ATLAS Fair Value</small><b>{html.escape(_money(card.get("atlas_fair_value")))}</b></span>'
+            f'<span><small>Potential</small><b>{html.escape(_score(potential, suffix="%"))}</b></span></div>'
+            f'<footer>{html.escape(evidence)} · Certified {_timestamp(card.get("decision_as_of"))}</footer></article>',
+            unsafe_allow_html=True,
+        )
+        _open_research(ticker, f"home_top_idea_{key}_{ticker}", compact=True)
+        return
     st.markdown(
-        f'<article class="atlas-home-compact-card{ " atlas-home-featured-case" if first else ""}" data-atlas-qa="home-actionable-card" '
+        f'<article class="atlas-home-compact-card{ " atlas-home-featured-case" if first else ""}{ " atlas-home-shortlist-row" if summary_only else ""}" data-atlas-qa="home-actionable-card" '
         f'data-atlas-first="{str(first).lower()}" data-atlas-ticker="{html.escape(ticker)}" '
         f'data-atlas-guidance="{html.escape(state)}" data-atlas-evidence-status="{html.escape(evidence)}">'
         f'<header><div><small>{html.escape(_display(state))}</small><h3>{html.escape(identity)}</h3></div>'
@@ -1419,6 +1435,7 @@ def _render_groups(story: Mapping[str, Any], *, emit_interactive) -> None:
     total = _governed_buy_now_inventory(story)
     featured_cards = actionable[:3]
     visible = len(featured_cards)
+    st.markdown('<div id="atlas-opportunities"></div>', unsafe_allow_html=True)
     st.markdown("## Strongest Opportunities")
     st.caption(
         f"Showing {visible} featured idea{'s' if visible != 1 else ''} from {total} total certified BUY NOW "
@@ -1428,19 +1445,25 @@ def _render_groups(story: Mapping[str, Any], *, emit_interactive) -> None:
     if not actionable:
         empty = story.get("home_opportunity_empty_state") if isinstance(story.get("home_opportunity_empty_state"), Mapping) else {}
         st.info(str(empty.get("message") or "ATLAS found no stocks meeting the strongest certified opportunity threshold for this snapshot."))
+    featured_column, comparison_column = st.columns([1.12, 1], gap="large")
     if actionable:
-        st.markdown('<div class="atlas-home-section-kicker">01 / FEATURED INVESTMENT CASE</div>', unsafe_allow_html=True)
-        with st.container(key="home_top_idea_position_1"):
-            _compact_opportunity_card(actionable[0], key="actionable_0", first=True)
-        emit_interactive()
+        with featured_column:
+            st.markdown('<div class="atlas-home-section-kicker">01 / FEATURED INVESTMENT CASE</div>', unsafe_allow_html=True)
+            with st.container(key="home_top_idea_position_1"):
+                _compact_opportunity_card(actionable[0], key="actionable_0", first=True)
+            emit_interactive()
     if len(actionable) > 1:
-        st.markdown('<div class="atlas-home-section-kicker">02 / COMPARE THE SHORTLIST</div>', unsafe_allow_html=True)
-        st.caption("Compare dated valuation and confidence; a high potential estimate is not a forecast return.")
-        columns = st.columns(2)
+        with comparison_column:
+            st.markdown('<div class="atlas-home-section-kicker">02 / COMPARE THE SHORTLIST</div>', unsafe_allow_html=True)
+            from ui.home_reference_components import opportunity_table_html
+            st.markdown(opportunity_table_html(all_actionable[:5], money=_money, score=_score), unsafe_allow_html=True)
+            st.caption("Published BUY NOW order · dated closes · estimates are not forecast returns.")
+    if len(featured_cards) > 1:
+        supporting_columns = st.columns(len(featured_cards[1:]), gap="medium")
         for index, card in enumerate(featured_cards[1:], start=1):
-            with columns[index - 1]:
+            with supporting_columns[index - 1]:
                 with st.container(key=f"home_top_idea_position_{index + 1}"):
-                    _compact_opportunity_card(card, key=f"actionable_{index}")
+                    _compact_opportunity_card(card, key=f"actionable_{index}", summary_only=True)
     if len(all_actionable) > 3:
         remaining = all_actionable[3:]
         with st.expander(f"View all {len(all_actionable)} BUY NOW opportunities", expanded=False):
@@ -1771,18 +1794,22 @@ def _render_daily_brief(story: Mapping[str, Any]) -> None:
         if market_read else
         "<strong>Market context:</strong> Current governed context is unavailable, so ATLAS is not inferring a backdrop."
     )
+    from ui.home_reference_components import market_cards_html
+    market_cards = market_cards_html(market, money=_money, timestamp=_timestamp)
     st.markdown(
-        '<section class="atlas-daily-brief atlas-ai-insight-panel atlas-editorial-brief" data-atlas-qa="daily-intelligence-brief" '
-        'data-atlas-explanation-source="DETERMINISTIC_CERTIFIED_PROJECTION" '
-        'data-atlas-model-status="NOT_INVOKED">'
-        '<header><small>ATLAS / INVESTMENT COMMAND CENTER</small><h1>Clarity before conviction.</h1>'
-        '<p class="atlas-editorial-subtitle">Daily Intelligence Brief</p><p>Actionable opportunities from the latest certified evaluation.</p></header>'
-        '<div class="atlas-editorial-columns"><article><small>THE MARKET / WHAT IT MEANS</small>'
-        f'<p>{context_copy}</p></article>'
-        '<article><small>THE OPPORTUNITY / WHERE TO LOOK</small>'
-        f'<p>{lead_copy}</p></article></div>'
-        '<footer><b>Two evidence clocks.</b> Market context is dated separately below. Investment decisions use '
+        '<section class="atlas-daily-brief atlas-ai-insight-panel atlas-editorial-brief atlas-reference-command" data-atlas-qa="daily-intelligence-brief" '
+        'data-atlas-explanation-source="DETERMINISTIC_CERTIFIED_PROJECTION" data-atlas-model-status="NOT_INVOKED">'
+        '<div class="atlas-reference-brand"><small>ATLAS AI / MARKET COMMAND CENTER</small>'
+        '<h1>Smarter investing<br>with ATLAS.</h1><p>Real evidence. Clear context.<br>A focused view of what matters now.</p>'
+        '<a class="atlas-reference-explore" href="#atlas-opportunities">Explore opportunities →</a>'
+        '<div class="atlas-brand-orbit" aria-hidden="true"></div></div>'
+        '<div class="atlas-reference-intelligence">' + market_cards +
+        '<article class="atlas-reference-brief"><small>Daily Intelligence Brief</small>'
+        f'<p>{context_copy}</p><details><summary>Certified snapshot focus</summary><p>{lead_copy}</p></details>'
+        '</article></div>'
+        '<footer><b>Two evidence clocks.</b> Market context is dated separately above. Investment decisions use '
         f'the retained certified snapshot: {html.escape(_timestamp(story.get("scan_timestamp")))}. '
+        'Actionable opportunities from the latest certified evaluation. '
         'DETERMINISTIC CERTIFIED SUMMARY · AI model not invoked · No live reranking.</footer></section>',
         unsafe_allow_html=True,
     )
@@ -2023,7 +2050,8 @@ def render_home_guidance_vnext(story: Mapping[str, Any], *, emit_interactive=Non
         unsafe_allow_html=True,
     )
     _render_daily_brief(story)
-    _render_market_strip(story)
+    with st.expander("Market reference details", expanded=False):
+        _render_market_strip(story)
     _render_command_deck(story)
     _section_marker("atlas_action_summary")
     st.markdown("## ATLAS Action Summary")

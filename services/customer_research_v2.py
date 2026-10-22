@@ -1132,6 +1132,8 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
         "feature_flags": {"wall_street": wall_street_enabled, "customer_report_card": False,
                           "customer_position_management": False, "trim_exit": False},
     }
+    from services.research_investment_digest import build_investment_digest
+    result["investment_digest"] = build_investment_digest(result)
     result["institutional_report"] = build_institutional_research_report(result)
     return result
 
