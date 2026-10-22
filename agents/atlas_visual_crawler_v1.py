@@ -2825,6 +2825,9 @@ class AtlasVisualCrawler:
                 plot = plots.nth(index)
                 if not await plot.locator('.y4title').count():
                     continue
+                legend = await plot.locator('.legendtext').all_text_contents()
+                if not any(label in {f"{ticker} OHLC", f"{ticker} verified close"} for label in legend):
+                    continue
                 await plot.scroll_into_view_if_needed(timeout=5000)
                 if not await plot.is_visible():
                     continue

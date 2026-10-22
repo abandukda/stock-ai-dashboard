@@ -214,7 +214,7 @@
     "root_cause": "PR116 upgraded legacy ui/research_report_v2.py; actual customer renderer ui/customer_research_v2.py remained on line chart. No customer chart upgrade accepted.",
     "repair": "Wire shared reviewed chart into active renderer AFTER existing ownership gate; preserve ticker/date/range and separateFairValue; add actual active marker plus REQUIRED NVDA/MSFTdesktop/mobile four-panel SVG/chart screenshots in read-only production QA.",
     "additional_integrity_fix": "Missing sourcehigh/low remainNone rather than copiedfromclose; candlesticks cannot be fabricated.",
-    "tests": "163localPASS; existing three-ticker actualrenderer test now intercepts activechartadapter and preserves exactprice identities.",
+    "tests": "164localPASS; existing three-ticker actualrenderer test now intercepts activechartadapter and preserves exactprice identities.",
     "merged": false,
     "deployed": false,
     "live_verified": false,

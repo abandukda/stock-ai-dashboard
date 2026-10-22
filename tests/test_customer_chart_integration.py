@@ -44,3 +44,22 @@ def test_new_live_chart_gate_fails_required_when_active_renderer_marker_absent()
     record=crawler._record.call_args.kwargs
     assert record['required'] is True and record['passed'] is False
     assert record['screenshots']==('',)
+
+
+def test_live_gate_rejects_wrong_ticker_plot_even_with_expected_marker():
+    class Marker:
+        last=property(lambda self:self)
+        async def count(self): return 1
+        async def get_attribute(self,key): return 'AVAILABLE' if key=='data-atlas-status' else '4'
+    class Plot:
+        def locator(self,key):
+            return SimpleNamespace(count=AsyncMock(return_value=1),all_text_contents=AsyncMock(return_value=['OTHER verified close']))
+    class Plots:
+        async def count(self):return 1
+        def nth(self,index):return Plot()
+    scope=SimpleNamespace(locator=lambda selector:Marker() if 'data-atlas-qa' in selector else Plots())
+    crawler=object.__new__(AtlasVisualCrawler);crawler._record=AsyncMock();crawler._shot_locator=AsyncMock()
+    with patch('agents.atlas_visual_crawler_v1._scopes',return_value=[scope]):
+        assert asyncio.run(crawler._annotated_chart_evidence(object(),'NVDA','desktop')) is False
+    crawler._shot_locator.assert_not_awaited()
+    assert crawler._record.call_args.kwargs['passed'] is False
