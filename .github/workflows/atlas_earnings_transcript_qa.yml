@@ -68,6 +68,7 @@ jobs:
           tests/test_beta_product_foundation.py
           tests/test_authentication_roles.py
           tests/test_transcript_provider_contract.py
+          tests/test_transcript_evidence_store.py
           tests/test_transcript_intelligence_runtime.py
           tests/test_earnings_transcript_workflow.py
           tests/test_atlas_vnext_earnings.py
