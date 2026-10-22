@@ -29,7 +29,8 @@ cards=[{'ticker':'TEST'+chr(65+i),'company':'Generated test company','guidance':
 render_home_guidance_vnext({'cards':cards,'home_featured_cards':cards,'scan_timestamp':'2026-10-04T16:21:00Z',
 'home_runtime_contract':{'runtime_ready':True,'inventory_authority':{'publishable_buy_now_count':11}}},emit_interactive=lambda:None)
 st.markdown('<span data-fixture-complete="true">Fixture complete</span>',unsafe_allow_html=True)
-st.markdown('<span data-fixture-selected-ticker="'+str(st.session_state.get('active_research_ticker',''))+'"></span>',unsafe_allow_html=True)
+selected = str(st.session_state.get('active_research_ticker',''))
+st.markdown('<span data-fixture-selected-ticker="'+selected+'">Selected Research ticker: '+selected+'</span>',unsafe_allow_html=True)
 '''
         env = dict(os.environ, PYTHONPATH=str(Path.cwd()), ATLAS_QA_PROVIDER_CALLS_ALLOWED='0',
                    ATLAS_ALLOW_EXTERNAL_AI='false', ATLAS_CUSTOMER_REPORT_CARD_ENABLED='false')
@@ -63,7 +64,9 @@ st.markdown('<span data-fixture-selected-ticker="'+str(st.session_state.get('act
                                 self.assertLessEqual(page.evaluate('document.documentElement.scrollWidth'),width+1)
                                 capture_complete_streamlit(page,target/f'GENERATED_RETAINED_HOME_{width}.png')
                                 page.locator('.st-key-home_top_idea_position_1').get_by_role('button',name='View Research →',exact=True).click()
-                                page.wait_for_selector('[data-fixture-selected-ticker="TESTA"]',timeout=15000)
+                                selected = page.locator('[data-fixture-selected-ticker="TESTA"]')
+                                selected.wait_for(state='visible', timeout=15000)
+                                self.assertEqual(selected.inner_text(), 'Selected Research ticker: TESTA')
                             except Exception:
                                 page.screenshot(path=str(target/f'FAILED_RETAINED_HOME_{width}.png'), full_page=True)
                                 (target/f'FAILED_RETAINED_HOME_{width}_DOM.html').write_text(page.content())

@@ -16,7 +16,7 @@ from test_premium_home_render import capture_complete_streamlit
 FIXTURE = r'''
 from datetime import datetime, timezone
 from pathlib import Path
-import os, socket
+import os, socket, hashlib
 import streamlit as st
 from services.transcript_cache_reader import ReadOnlyTranscriptCache
 from services.transcript_evidence_store import TranscriptEvidenceStore
@@ -29,7 +29,7 @@ st.warning('GENERATED FIXTURE — NOT PRODUCTION OR REAL TRANSCRIPT INTELLIGENCE
 now=datetime(2026,10,23,tzinfo=timezone.utc)
 end=datetime(2026,12,31,tzinfo=timezone.utc)
 mode=str(st.query_params.get('mode','pending'))
-if mode not in {'pending','missing','default'}: st.stop()
+if mode not in {'pending','missing','default','available'}: st.stop()
 class Response:
     status_code=200
     def json(self):
@@ -42,8 +42,16 @@ p=ConfiguredTranscriptProvider(api_key='GENERATED_PRIVATE_KEY_NEVER_DISPLAY',
 root=Path(os.environ['ATLAS_GENERATED_CACHE_ROOT'])/mode
 if mode!='default' and not (root/'transcript_cache.sqlite3').exists():
     store=TranscriptEvidenceStore(root,retention_until=end,clock=lambda:now)
-    if mode=='pending':
-        store.run('NVDA',year=2026,quarter=2,provider=p,acquisition_authorized=True)
+    if mode in {'pending','available'}:
+        def generated_summary(_payload):
+            claim='Revenue grew 10%.'
+            return {'management_summary':{'claim':claim,'source_excerpt':claim,
+                'source_excerpt_hash':hashlib.sha256(claim.encode()).hexdigest(),
+                'claim_type':'PERFORMANCE'}}, 'GENERATED_MOCK_MODEL', 'v1'
+        store.run('NVDA',year=2026,quarter=2,provider=p,acquisition_authorized=True,
+            summary_authorized=mode=='available',
+            summarizer=generated_summary if mode=='available' else None,
+            summary_revision='GENERATED_APPROVED_POLICY')
 def forbidden(*args,**kwargs): raise AssertionError('Customer provider/model callback forbidden')
 p.transcript=p.available_periods=forbidden
 ConfiguredTranscriptProvider.transcript=ConfiguredTranscriptProvider.available_periods=forbidden
@@ -83,7 +91,7 @@ class PremiumEarningsCacheRender(unittest.TestCase):
                     with sync_playwright() as pw:
                         browser=pw.chromium.launch(headless=True)
                         try:
-                            for mode in ('pending','missing','default'):
+                            for mode in ('pending','missing','default','available'):
                                 for width in (360,768,1440):
                                     context=browser.new_context(viewport={'width':width,'height':1000})
                                     external=[]
@@ -105,10 +113,15 @@ class PremiumEarningsCacheRender(unittest.TestCase):
                                             self.assertIn('Transcript availability: not connected · AI summary availability: pending',page.inner_text('body'))
                                         else:
                                             check.click()
-                                            if mode=='pending':
+                                            if mode in {'pending','available'}:
                                                 page.get_by_role('button',name='Load verified call insights',exact=True).click()
-                                                page.get_by_text('The transcript is cached; a separately approved source-grounded AI summary is still pending.',exact=True).wait_for()
-                                                self.assertIn('Transcript availability: AVAILABLE · AI summary availability: PENDING',page.inner_text('body'))
+                                                if mode=='pending':
+                                                    page.get_by_text('The transcript is cached; a separately approved source-grounded AI summary is still pending.',exact=True).wait_for()
+                                                    self.assertIn('Transcript availability: AVAILABLE · AI summary availability: PENDING',page.inner_text('body'))
+                                                else:
+                                                    page.get_by_text('Revenue grew 10%.',exact=True).wait_for()
+                                                    self.assertIn('Transcript availability: AVAILABLE · AI summary availability: AVAILABLE',page.inner_text('body'))
+                                                    self.assertIn('Transcript evidence:',page.inner_text('body'))
                                                 marker=page.locator('[data-atlas-transcript-provider-calls]')
                                                 self.assertEqual(marker.get_attribute('data-atlas-transcript-provider-calls'),'0')
                                             else:

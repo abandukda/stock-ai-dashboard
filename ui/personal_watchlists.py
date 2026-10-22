@@ -52,8 +52,8 @@ def render_personal_watchlists(*, controller: PersonalWatchlistController | None
     .atlas-personal-watchlist-head h1{font-size:clamp(1.6rem,4vw,2.3rem);margin:.2rem 0}
     [class*="st-key-atlas_personal_watchlists"] button{min-height:44px}
     @media(max-width:700px){.atlas-personal-watchlist-head{padding:.85rem}}
-    </style><section class="atlas-personal-watchlist-head"><small>Your research workspace</small>
-    <h1>Personal watchlists</h1><p>Save companies, organize your research and return to the evidence.</p></section>''', unsafe_allow_html=True)
+    </style>
+<section class="atlas-personal-watchlist-head"><small>Your research workspace</small><h1>Personal watchlists</h1><p>Save companies, organize your research and return to the evidence.</p></section>''', unsafe_allow_html=True)
     if controller is None:
         return _pending()
     try:

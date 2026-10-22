@@ -109,3 +109,23 @@ not enable a daily refresh or establish its operational execution receipt. Repor
 public activation remains OFF. No licensed provider call, paid external model call,
 production ledger write, financial publication, protected migration, routing change or
 infrastructure operation is authorized or executed by this review candidate.
+
+## Browser-discovered repairs before readiness
+
+Initial exact-head Home run `39846567296` failed: 113 offline checks passed,
+13 render tests ran with two errors; only 39 raw PNGs were produced. Saved DOM
+proved Home selected the correct ticker but the test's empty marker had no visible
+box. The fixture now displays and asserts the selected Research ticker explicitly.
+Watchlist creation also succeeded; Streamlit's accessible name included the selected
+list, so the browser now locates the labelled combobox and asserts the owned name.
+Actual screenshots exposed a real hero defect: indented HTML became a Markdown code
+block. The heading markup is now unindented and browser QA requires the real visible
+heading and absence of a code block. No financial or isolation assertion was removed.
+
+The original nine Earnings captures correctly covered disconnected, uncached and
+cached-transcript/summary-pending states. An additional generated cached-summary mode
+now exercises a mock-grounded analysis through the real read-only reader at all three
+widths; it is explicitly not external AI or real transcript evidence. A local actual
+Streamlit interaction verified its displayed claim, availability and private-source
+exclusion. The 27 affected personal/Home offline tests passed after these repairs;
+fresh exact-head hosted browser/CI acceptance is still required.

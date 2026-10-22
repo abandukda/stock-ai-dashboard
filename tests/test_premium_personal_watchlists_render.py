@@ -1,5 +1,6 @@
 """Actual browser review of GENERATED personal workspace; no production acceptance."""
 import os
+import re
 from pathlib import Path
 import socket
 import subprocess
@@ -87,7 +88,13 @@ class PremiumPersonalWatchlistsRender(unittest.TestCase):
                                         name.wait_for()
                                         name.fill('Owned research workspace')
                                         page.get_by_role('button', name='Create watchlist', exact=True).click()
-                                    page.get_by_label('Choose watchlist', exact=True).wait_for()
+                                    heading = page.locator('.atlas-personal-watchlist-head h1')
+                                    heading.wait_for(state='visible')
+                                    self.assertEqual(heading.inner_text(), 'Personal watchlists')
+                                    self.assertEqual(page.locator('[data-testid="stMarkdownPre"]').count(), 0)
+                                    owned_list = page.get_by_role('combobox', name=re.compile(r'Choose watchlist$'))
+                                    owned_list.wait_for(state='visible')
+                                    self.assertIn('Owned research workspace', owned_list.get_attribute('aria-label'))
                                     page.get_by_label('Find a ticker or company', exact=True).fill('nvda')
                                     page.get_by_label('Find a ticker or company', exact=True).press('Enter')
                                     page.get_by_role('button', name='Add ticker', exact=True).click()
