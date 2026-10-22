@@ -1,6 +1,6 @@
 # ATLAS master requirements and dependencies
 
-Current main: `d2dd0f93e9a706634ccb7220e67e3811b1060589` (owner merged PR118/119). Tracker: Issue78. Consolidated owner directive October22 is the program baseline. Only scope-specific functional and visual Streamlit production verification earns completion credit. A passing fixture, CI or merge does not establish product acceptance.
+Current main: `ea95b844f0dd3a34f2921c283efab3ee6e6e302e` (owner merged PR120). Tracker: Issue78. Consolidated owner directive October22 is the program baseline. Only scope-specific functional and visual Streamlit production verification earns completion credit. A passing fixture, CI or merge does not establish product acceptance.
 
 ## Production truth
 
@@ -10,7 +10,7 @@ Authenticated production run39708451001 passed83/83checks and71/71screenshots, w
 
 | Workstream / train | BUILT | TESTED | MERGED | DEPLOYED | LIVE VERIFIED | Exact next dependency |
 |---|---|---|---|---|---|---|
-| Premium product / A | Partial; reference-aligned Home and source-grounded Research digest in PR120 | Generated review CI; fresh final candidate pending; production39715967275 failed required chart |117d48e356;119d2dd0f9;120NOTMERGED |119d2dd Home desktop observed | Partial desktop only; premium acceptance OPEN | Exact-head review; approved private history delivery; full authenticated NVDA/MSFT/META/ANET and original20 RC desktop/tablet/mobile |
+| Premium product / A |120increment;121presentation compatibility repair in review |120generated CI PASS; actual39721714350 FAIL16/18;121443local+8subtests |120ea95b84;121NO |120exactea95source observed | Partial desktop only; styles/digest/history defects; premium acceptance OPEN | Exact-head121review; approved private history delivery; complete authenticated responsive customer/private20QA |
 | Certified data / B | Bounded aggregate verifier118, retained readiness |86archive hashes/82shards; NVDA/MSFT274bars each locally validated;70 safety regressions |118aa37d73 | No new snapshot | NO | Original-host logs/current primary/WAL/independent backup; separately approved oversized archive verification and protected certification |
 | Genuine Report Card / C | Readiness bundle; atomic-backup repair | Synthetic safety tests; historical20/0 receipt39543861590 only |111merged | No new observation | Current original20/private production OPEN | Current chain/backup integrity, AMZN/MPC/VLO/SPY evidence, prospective-entry decision; separate acquisition/append authority |
 | Daily intelligence / D | Provider-free6PM trading-calendar coordinator and fail-closed receipts |39705613734 blocked missing contiguous boundary |112foundation merged | Governed plan only | No successful financial refresh cycle | Certified contiguous boundary, reviewed certification/promoter bridge, explicit standing acquisition/AI/publication authority;3 authorized cycles |
@@ -22,7 +22,8 @@ Authenticated production run39708451001 passed83/83checks and71/71screenshots, w
 -117 merged d48e356e40d8258b5c0f0f308f7d2cf0e9689b94: active four-panel chart and unchanged required production chart assertions.
 -118 merged aa37d735dfae8b8506732745b69c96162fc6b776: bounded aggregate verifier. The actual two archives remain NOT EXECUTED; merge is not execution authorization.
 -119 merged d2dd0f93e9a706634ccb7220e67e3811b1060589: editorial Home. Authenticated production39715967275 matched SHA, then failed missing NVDA history. No complete premium visual acceptance.
--120 codex/reference-aligned-premium-home: consolidated original-reference recovery, Home layout, deterministic Research executive/comprehensive summaries, full generated four-ticker responsive render QA. Review only; no merge/deploy authorized. Final exact head and runs belong in the PR/Issue78 evidence receipt.
+-120 merged ea95b844f0dd3a34f2921c283efab3ee6e6e302e, exact tested tree c33b3f4dde6591fa87468d79f9aa914d45b97f5e. Production39721714350 exactsource/authPASS,16/18checks15screens; required chart FAIL. Actual Home reference styles and Research executive digest missing. Not visually accepted.
+-121 codex/runtime-presentation-compatibility: bounded source-bound stateless presentation dependencies, legacy-page digest compatibility, required actual-style/nonempty-digest assertions.443local regressions+8subtests PASS; hosted exact-head review required; no merge/deploy authorized.
 
 ## Unresolved material design and source gaps
 
@@ -56,3 +57,10 @@ Owner supplied the multi-surface ATLAS AI Investment Dashboard Mockup(1).png as 
 ## Expanded consolidated directive October22
 
 Research scope includes company/business facts, ATLAS versus Wall Street, analyst consensus/ranges, statements, earnings/guidance/permitted transcripts, attributed dated news, technical panels, catalysts/risks/evidence confidence, Simple/Advanced same financial authority, and NVDA/MSFT/META/ANET responsive journeys. Short executive digest and comprehensive six-question deterministic analysis are built on review branch; paid AI remains separately gated. Missing evidence is not filled with concept numbers. Full composition and source/module availability remain OPEN. Original-host integrity, session continuity, original20/private charts, prospective evidence and6PM daily readiness continue independently.
+
+
+## Fresh production and retained availability recheck
+
+Run39721714350 source READY on first attempt for expected ea95b844; viewer authenticated, required NVDA chart failed with no rendered exception or authority mismatch. Artifact12401626456 SHA25673225b93b57b0fd8a1bde360fdd44cc9ab5bf71f45a4458087a6eb9a3309c73a (9,071,602bytes) downloaded/hashverified. Real desktop before/after120 captured; current mobile/tablet/private original20 still missing. Screenshots expose missing digest and unstyled Home reference additions, so121repairs reproduced warm-import/legacy-projection mechanisms without claiming direct inspection of the runtime cache origin. No acceptance from SHA/CI alone.
+
+Retained artifact11318542723 remains available/unexpired, registered ZIP SHA9612c6b9fa02c74de710c7af0c9e644c5976392e2e9efa0c47b20522316d7c1e;11456584757 available/unexpired SHAecf66bcd49a72bbd85f76365b9005a43622f87494b2aa4468f3a1ef3c0bcf4f1. NVDA/MSFT shard11315380823/11314442854 also available. This is fresh metadata evidence only; no new oversized-content certification, production ledger verification, data transfer or protected workload execution.
