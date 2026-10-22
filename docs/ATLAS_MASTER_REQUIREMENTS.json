@@ -181,7 +181,7 @@
       "last_updated": "2026-10-22T00:55:00Z"
     }
   ],
-  "current_main_sha": "4d0a11e188e1529531cbac1ace1b0a2c74a4df32",
+  "current_main_sha": "d48e356e40d8258b5c0f0f308f7d2cf0e9689b94",
   "latest_execution": {
     "current_main_sha": "7cf867cee761c16a5f91153edd83d0deff7c155d",
     "verified_customer_sha": "7cf867cee761c16a5f91153edd83d0deff7c155d",
@@ -218,7 +218,7 @@
     "artifact_id": 12396192859,
     "artifact_sha256": "8160c124bbf3f20d46b1ff038dc7bae1438d6710464e4ff74c0de1f417a7cf99",
     "scope_limitations": [
-      "active chart integration unmerged",
+      "Historical baseline predates merged active chart; fresh production QA required",
       "premium design acceptance open",
       "private original20 not production certified",
       "current certified data unavailable"
@@ -255,9 +255,10 @@
         39709282485,
         39709282506
       ],
-      "merged": false,
+      "merged": true,
       "deployed": false,
-      "live_verified": false
+      "live_verified": false,
+      "merge_sha": "d48e356e40d8258b5c0f0f308f7d2cf0e9689b94"
     },
     "118": {
       "head": "c0931e272d67c6ab51f2f36841690896800ef9d4",
@@ -284,5 +285,17 @@
       "original_mockup_parity": false
     }
   },
-  "owner_directive": "2026-10-22 MASTER CONSOLIDATED EXECUTION DIRECTIVE"
+  "owner_directive": "2026-10-22 MASTER CONSOLIDATED EXECUTION DIRECTIVE",
+  "active_chart_integration": {
+    "root_cause": "PR116 upgraded legacy ui/research_report_v2.py; actual customer renderer ui/customer_research_v2.py remained on line chart. No customer chart upgrade accepted.",
+    "repair": "Wire shared reviewed chart into active renderer AFTER existing ownership gate; preserve ticker/date/range and separateFairValue; add actual active marker plus REQUIRED NVDA/MSFTdesktop/mobile four-panel SVG/chart screenshots in read-only production QA.",
+    "additional_integrity_fix": "Missing sourcehigh/low remainNone rather than copiedfromclose; candlesticks cannot be fabricated.",
+    "tests": "164localPASS; existing three-ticker actualrenderer test now intercepts activechartadapter and preserves exactprice identities.",
+    "merged": true,
+    "deployed": false,
+    "live_verified": false,
+    "latest_production_run": 39708451001,
+    "latest_production_status": "POST_MERGE_LIVE_QA_REQUIRED",
+    "merge_sha": "d48e356e40d8258b5c0f0f308f7d2cf0e9689b94"
+  }
 }

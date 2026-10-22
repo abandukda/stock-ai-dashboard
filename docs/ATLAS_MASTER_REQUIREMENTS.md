@@ -1,10 +1,10 @@
 # ATLAS master requirements and dependencies
 
-Current main: `4d0a11e188e1529531cbac1ace1b0a2c74a4df32` (owner merged PR116). Tracker: Issue78. Consolidated owner directive October22 is the program baseline. Only scope-specific functional and visual Streamlit production verification earns completion credit. A passing fixture, CI or merge does not establish product acceptance.
+Current main: `d48e356e40d8258b5c0f0f308f7d2cf0e9689b94` (owner merged PR117). Tracker: Issue78. Consolidated owner directive October22 is the program baseline. Only scope-specific functional and visual Streamlit production verification earns completion credit. A passing fixture, CI or merge does not establish product acceptance.
 
 ## Production truth
 
-Authenticated production run39708451001 passed83/83checks and71/71screenshots, with expected/deployed source4d0a11e. Artifact12396192859 SHA256`8160c124bbf3f20d46b1ff038dc7bae1438d6710464e4ff74c0de1f417a7cf99` was downloaded/hash-verified. Desktop/mobile/768px Home screenshots were inspected. This verifies the baseline journeys only: active enhanced Research chart integration is still PR117; premium design, current certified data and original20 private Report Card are not accepted by these counts.
+Authenticated production run39708451001 passed83/83checks and71/71screenshots, with expected/deployed source4d0a11e. Artifact12396192859 SHA256`8160c124bbf3f20d46b1ff038dc7bae1438d6710464e4ff74c0de1f417a7cf99` was downloaded/hash-verified. Desktop/mobile/768px Home screenshots were inspected. This verifies the baseline journeys only: active enhanced Research chart integration merged through PR117 but requires fresh production QA; premium design, current certified data and original20 private Report Card are not accepted by these counts.
 
 ## Five release trains, six continuing workstreams
 
@@ -19,7 +19,7 @@ Authenticated production run39708451001 passed83/83checks and71/71screenshots, w
 
 ## Current review candidates
 
-- PR117 exacthead `170d715a41d5465f4cf1a0e98b6aea0565d8e61f`, tree`0796b99369de972cc63d9aa42c0e79e52e56872d`: active customer four-panel Research chart, preserved source prices/ticker gate and required actual live chart evidence. CI39709282554/39709282485/39709282506 passed. No merge authority yet; no live claim.
+- PR117 exacthead `170d715a41d5465f4cf1a0e98b6aea0565d8e61f`, tree`0796b99369de972cc63d9aa42c0e79e52e56872d`: active customer four-panel Research chart, preserved source prices/ticker gate and required actual live chart evidence. CI39709282554/39709282485/39709282506 passed. Merged as d48e356; post-merge live chart QA required; no new live claim.
 - PR118 exacthead `c0931e272d67c6ab51f2f36841690896800ef9d4`, tree`96d2cedfc091b5cd69b1d41ce595ab12ac8fc9b3`: streaming retained aggregate verifier with memory bounds, immutable pins and redacted receipts. CI39711446462/39711446215/39711446296/39711446265 passed. Actual two-archive verification NOT EXECUTED. Merge and actual execution are separate approvals.
 - PR119 branch`codex/premium-home-command-center`: NEW editorial target, not recovered-mockup parity. One featured case, comparative supporting cards, market context above inventory, separate evidence clocks.94 local tests passed. Require latest exact-head hosted Streamlit/Chromium evidence and visual review; draft until resolved. No production after screenshot exists yet.
 
@@ -36,3 +36,7 @@ The exact10-request missing-evidence manifest is PREPARED, NOT AUTHORIZED/EXECUT
 Review-only/read-only/provider-free work is authorized. No production merge/deploy, licensed acquisition, paid AI, protected migration, infrastructure or credential changes, ledger writes, financial publication or new unattended schedule activation without separate approval. Public Report Card OFF. Preserve last certified snapshot on failure. Do not turn a missing boundary into a guessed one or weaken browser/source/security assertions.
 
 Release acceptance: exact reviewed head and governed CI; explicit owner approval; deployed SHA match; authenticated desktop/tablet/mobile journeys; actual screenshots inspected against target; financial provenance/freshness and role isolation; immutable ledger proof for private Report Card. Current CI run IDs and review findings belong in Issue78 and the PR receipt. This file is the coherent current matrix; machine-readable requirements preserve the original requirement inventory and historical pins.
+
+## Preserved merged Research contract
+
+PR117 corrects the active ui/customer_research_v2.py path after its existing ticker-ownership gate, retains exact selected prices/date/range and separate Fair Value, and requires real NVDA/MSFT desktop/mobile four-panel SVG/chart screenshots. Missing source high/low stay None rather than copying close. All implementation and QA files from current main are retained unchanged by this Home reconciliation. Original owner chart reference and legacy label-repair evidence remain in the machine matrix; no historical fixture or production baseline is promoted to new active-chart acceptance.
