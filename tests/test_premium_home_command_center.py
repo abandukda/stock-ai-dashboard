@@ -43,3 +43,16 @@ def test_missing_evidence_stays_unavailable_and_unsafe_copy_is_escaped(monkeypat
     body=''.join(output)
     assert '<script>' not in body and '&lt;script&gt;' in body
     assert 'Unavailable' in body and '$0.00' not in body
+
+
+def test_full_inventory_search_preserves_authority_and_order():
+    from ui.home_guidance_vnext import _filter_published_opportunities
+    cards=[{'ticker':'FIRST','company':'Alpha Works','production_rank':1,'display_price':12.5},
+           {'ticker':'LAST','company':'Beta Works','production_rank':9,'display_price':None}]
+    original=deepcopy(cards)
+    assert _filter_published_opportunities(cards,'') == cards
+    assert _filter_published_opportunities(cards,' FIRST ') == [cards[0]]
+    assert _filter_published_opportunities(cards,'works') == cards
+    assert _filter_published_opportunities(cards,'beta') == [cards[1]]
+    assert _filter_published_opportunities(cards,'not found') == []
+    assert cards == original

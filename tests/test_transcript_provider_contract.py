@@ -220,3 +220,52 @@ def test_earningscall_period_index_contains_metadata_without_raw_text():
     assert [item["fiscal_quarter"] for item in record.payload["periods"]] == [1, 4]
     assert "must not leak" not in str(record.payload)
     assert record.provenance.endpoint_or_source_family == "EARNINGS_TRANSCRIPT_INDEX"
+
+
+def test_earningscall_http_failures_do_not_discover_or_substitute_another_call():
+    for status in (401, 403, 429, 500, 503):
+        calls = []
+        def get(url, **kwargs):
+            calls.append(url)
+            response = EarningsCallResponse({})
+            response.status_code = status
+            return response
+        record = ConfiguredTranscriptProvider(
+            api_key="secret", base_url="https://v2.api.earningscall.biz",
+            provider_name="earningscall", get=get,
+        ).transcript("AAPL", year=2026, quarter=2)
+        assert len(calls) == 1, (status, calls)
+        assert not record.payload.get("raw_content")
+        expected = "ENTITLEMENT_UNAVAILABLE" if status in (401, 403) else f"PROVIDER_HTTP_ERROR:{status}"
+        assert record.payload["reason"] == expected
+
+
+def test_optional_event_metadata_failure_preserves_available_transcript_without_invented_date():
+    calls = []
+    def get(url, **kwargs):
+        calls.append(url)
+        if url.endswith("/events"):
+            raise TimeoutError("private request details must not escape")
+        return EarningsCallResponse({"text": "Management discussed margin risk."})
+    record = ConfiguredTranscriptProvider(
+        api_key="secret", base_url="https://v2.api.earningscall.biz",
+        provider_name="earningscall", get=get,
+    ).transcript("AAPL", year=2026, quarter=2)
+    assert len(calls) == 2
+    assert record.payload["raw_content_hash"]
+    assert record.payload["call_date"] is None
+    assert record.provenance.source_timestamp is None
+    assert "private request" not in str(record.as_dict())
+
+
+def test_empty_transcript_index_does_not_retry_the_same_requested_period():
+    calls = []
+    def get(url, **kwargs):
+        calls.append(url)
+        return EarningsCallResponse({"events": [{"year": 2026, "quarter": 2}]} if url.endswith("/events") else {})
+    record = ConfiguredTranscriptProvider(
+        api_key="secret", base_url="https://v2.api.earningscall.biz",
+        provider_name="earningscall", get=get,
+    ).transcript("AAPL", year=2026, quarter=2)
+    assert len(calls) == 2
+    assert record.payload["reason"] == "TRANSCRIPT_DATA_UNAVAILABLE"

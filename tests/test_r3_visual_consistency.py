@@ -93,7 +93,8 @@ def test_home_command_center_is_responsive_at_required_mobile_widths():
     assert "featured_cards = actionable[:3]" in home
     assert '_compact_opportunity_card(actionable[0], key="actionable_0", first=True)' in home
     assert 'enumerate(featured_cards[1:], start=1)' in home
-    assert "remaining = all_actionable[3:]" in home
+    assert "matches = _filter_published_opportunities(all_actionable, query)" in home
+    assert "remaining = all_actionable[3:]" not in home
     assert "View all {len(all_actionable)} BUY NOW opportunities" in home
     assert "render_customer_report_card_preview" in home
 

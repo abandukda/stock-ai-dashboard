@@ -67,3 +67,26 @@ def test_horizon_coverage_preserves_pending_counts_and_escapes_labels():
     assert '&lt;unsafe&gt;' in view and '<unsafe>' not in view
     assert 'pending is not a measured return' in view
     assert '0%' not in view and '$0' not in view
+
+
+def test_registration_is_distinct_from_signal_and_reference_dates():
+    from ui.report_card_overview import signal_directory_html
+    view = signal_directory_html([dict(signal_id='synthetic', ticker='AAA',
+        registered_at='2026-10-07T23:20:18-04:00',
+        signal_timestamp='2026-10-06T00:00:00Z', reference_price=100,
+        reference_price_timestamp='2026-10-05T20:00:00Z')])
+    assert 'Oct 08, 2026 03:20:18 UTC' in view
+    assert 'Oct 06, 2026' in view and 'Oct 05, 2026' in view
+    assert 'Original signal date' in view
+    assert 'not proof of customer publication' in view
+    assert 'do not establish an executable entry' in view
+
+
+def test_missing_or_naive_registration_never_falls_back_to_original_signal_date():
+    from ui.report_card_overview import signal_directory_html
+    for value in (None, '2026-10-08T03:20:18', 'invalid'):
+        view = signal_directory_html([dict(signal_id='synthetic', ticker='AAA',
+            registered_at=value, signal_timestamp='2026-10-06T00:00:00Z')])
+        assert 'Registration unavailable' in view
+        assert 'Oct 06, 2026' in view
+        assert 'Oct 08, 2026' not in view

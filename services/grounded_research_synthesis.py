@@ -110,7 +110,7 @@ def validate_synthesis(candidate: Mapping[str, Any], packet: Mapping[str, Any]) 
     violations: list[str] = []
     assertions: list[dict[str, Any]] = []
     for section in SECTIONS:
-        values = candidate.get(section, [])
+        values = candidate.get(section)
         if not isinstance(values, list):
             violations.append(f"INVALID_SECTION:{section}")
             continue
@@ -119,7 +119,11 @@ def validate_synthesis(candidate: Mapping[str, Any], packet: Mapping[str, Any]) 
                 violations.append(f"INVALID_ASSERTION:{section}:{index}")
                 continue
             text = " ".join(str(value.get("text") or "").split())
-            ids = tuple(str(x) for x in value.get("evidence_ids") or ())
+            raw_ids = value.get("evidence_ids")
+            if not isinstance(raw_ids, list) or not all(isinstance(x, str) and x for x in raw_ids):
+                violations.append(f"INVALID_CITATIONS:{section}:{index}")
+                continue
+            ids = tuple(raw_ids)
             missing = sorted(set(ids) - set(registry))
             if not text or not ids:
                 violations.append(f"UNGROUNDED_ASSERTION:{section}:{index}")
@@ -144,6 +148,9 @@ def validate_synthesis(candidate: Mapping[str, Any], packet: Mapping[str, Any]) 
                 violations.append(f"UNSUPPORTED_PROSE:{section}:{index}")
             assertions.append({"section": section, "text": text, "evidence_ids": list(ids)})
 
+    if not assertions:
+        violations.append("EMPTY_SYNTHESIS")
+
     # Exact opposite directional claims cited to the same evidence are contradictory.
     directional: dict[tuple[str, ...], set[str]] = {}
     for item in assertions:
@@ -167,7 +174,7 @@ class SynthesisCache:
             value = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             return None
-        return value if value.get("identity") == identity and value.get("schema_version") == SCHEMA_VERSION else None
+        return value if isinstance(value, Mapping) and value.get("identity") == identity and value.get("schema_version") == SCHEMA_VERSION else None
 
     def write(self, identity: str, value: Mapping[str, Any]) -> None:
         self.root.mkdir(parents=True, exist_ok=True)
@@ -209,7 +216,15 @@ def synthesize_research(
     if cache:
         hit = cache.read(identity)
         if hit:
-            return {**hit, "cache_status": "HIT"}
+            sections = hit.get("sections")
+            validation = validate_synthesis(sections, packet) if isinstance(sections, Mapping) else {"valid": False}
+            if (hit.get("ticker") != packet["ticker"]
+                    or hit.get("evidence_identity") != packet["evidence_identity"]
+                    or hit.get("status") != "AVAILABLE"
+                    or hit.get("source") != f"MODEL_VALIDATED:{getattr(adapter, 'provider', 'none')}:{getattr(adapter, 'model', 'none')}"
+                    or not validation["valid"]):
+                return _fallback(packet, reason="CACHED_MODEL_OUTPUT_REJECTED")
+            return {**hit, "validation": validation, "cache_status": "HIT"}
     enabled = os.getenv("ATLAS_RESEARCH_MODEL_ENABLED", "").lower() == "true"
     if adapter is None or not provider_authorized or not enabled:
         return _fallback(packet, reason="PROVIDER_NOT_AUTHORIZED_OR_CONFIGURED")

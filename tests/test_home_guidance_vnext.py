@@ -101,11 +101,12 @@ def test_home_inventory_uses_governed_count_not_ten_card_feature_limit():
     assert _governed_buy_now_inventory(story) == 11
 
 
-def test_home_uses_three_feature_cards_and_compact_remainder_without_reranking():
+def test_home_uses_three_feature_cards_and_complete_searchable_inventory_without_reranking():
     source = Path("ui/home_guidance_vnext.py").read_text(encoding="utf-8")
     groups = source[source.index("def _render_groups"):source.index("def _action_counts")]
     assert "actionable[:3]" in groups
-    assert "remaining = all_actionable[3:]" in groups
+    assert "matches = _filter_published_opportunities(all_actionable, query)" in groups
+    assert "remaining = all_actionable[3:]" not in groups
     assert '"Rank": int(card.get("production_rank")' in groups
     assert 'st.dataframe(' in groups
     assert 'st.selectbox("Open complete Research"' in groups

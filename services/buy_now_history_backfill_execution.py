@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
-from services.buy_now_history_continuity import validate_backfill_observation_set
+from services.buy_now_history_continuity import validate_backfill_observation_set, validate_ohlcv_bar
 
 CLAIM_SCHEMA = "ATLAS_BUY_NOW_HISTORY_BACKFILL_CLAIM_V1"
 ALLOWED_ENDPOINTS = ("/stock/candle", "/stock/split", "/stock/dividend")
@@ -297,6 +297,10 @@ class BackfillExecutor:
                 raise RuntimeError("BACKFILL_CANDLE_VOLUME_OR_LENGTH_INVALID")
             if body["t"] != sorted(set(body["t"])):
                 raise RuntimeError("BACKFILL_CANDLE_SESSIONS_DUPLICATE_OR_UNORDERED")
+            for index in range(len(body["t"])):
+                validate_ohlcv_bar({field: body[key][index] for field, key in
+                                    (("open", "o"), ("high", "h"), ("low", "l"),
+                                     ("close", "c"), ("volume", "v"))})
         elif endpoint in ("/stock/split", "/stock/dividend"):
             if not isinstance(body, list):
                 raise RuntimeError("BACKFILL_CORPORATE_ACTION_SCHEMA_INVALID")

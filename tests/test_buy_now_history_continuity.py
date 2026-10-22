@@ -130,3 +130,26 @@ def test_small_governed_incremental_plan_recovers_exact_membership(tmp_path):
     path.write_text(json.dumps(plan))
     with pytest.raises(ValueError, match="SOURCE_PLAN_INVALID"):
         membership_from_incremental_plan(path)
+
+
+@pytest.mark.parametrize("change", [
+    {"raw_response_sha256": "not-a-digest"},
+    {"raw_response_sha256": "z" * 64},
+    {"corporate_action_status": "UNKNOWN"},
+    {"corporate_action_status": True},
+])
+def test_certification_rejects_unverified_lineage_and_action_states(change):
+    plan = {"missing_sessions": ["2026-10-06"], "request_keys": ["AAA:historical_ohlcv:x"]}
+    row = {"session": "2026-10-06", "open": 1, "high": 2, "low": 1,
+           "close": 2, "volume": 0, "raw_response_sha256": "a" * 64,
+           "corporate_action_status": "NONE", **change}
+    with pytest.raises(ValueError, match="LINEAGE_INCOMPLETE"):
+        validate_backfill_observation_set(plan=plan, observations={"AAA": [row]})
+
+
+def test_certification_accepts_valid_zero_volume_and_equal_price_bounds():
+    plan = {"missing_sessions": ["2026-10-06"], "request_keys": ["AAA:historical_ohlcv:x"]}
+    row = {"session": "2026-10-06", "open": 1, "high": 1, "low": 1,
+           "close": 1, "volume": 0, "raw_response_sha256": "a" * 64,
+           "corporate_action_status": "NONE"}
+    assert validate_backfill_observation_set(plan=plan, observations={"AAA": [row]})["status"] == "COMPLETE"

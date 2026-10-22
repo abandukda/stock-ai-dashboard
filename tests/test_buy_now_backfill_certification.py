@@ -3,6 +3,8 @@ from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 
+import pytest
+
 from services.buy_now_backfill_certification import (
     build_certification_inputs, combine_backfill_observations,
 )
@@ -94,7 +96,6 @@ def test_unexpected_candle_session_still_fails_closed(tmp_path):
         body = ({"s": "ok", "t": [unexpected], "o": [1], "h": [2], "l": [1],
                  "c": [2], "v": [10]} if request["endpoint"] == "/stock/candle" else [])
         _write(root, request, body)
-    import pytest
     with pytest.raises(ValueError, match="BACKFILL_COMBINED_SESSION_SET_INVALID:AAA"):
         combine_backfill_observations(
             plan=plan, original_raw_dir=original, recovery_raw_dir=recovery,
@@ -126,3 +127,31 @@ def test_certification_inputs_append_sessions_and_withhold_no_data():
     assert by_symbol["QRVO"]["blockers"] == ["BACKFILL_TERMINAL_FINNHUB_NO_DATA"]
     assert len(checkpoint["receipts"]) == 4
     assert cert_plan["session"] == "2026-10-06"
+
+
+# These bodies have valid request/body hashes and complete ordered sessions.
+# Their rejection must therefore come from financial value validation, not a
+# convenient checksum mismatch or missing fixture field.
+
+@pytest.mark.parametrize("field,value", [
+    ("o", True), ("c", "2"), ("c", float("nan")),
+    ("h", float("inf")), ("l", 0), ("o", -1), ("v", -1),
+    ("o", 4), ("c", .5), ("l", 3),
+])
+def test_combined_hash_valid_envelopes_reject_invalid_candles(tmp_path, field, value):
+    plan = _plan(); original = tmp_path / "original"; recovery = tmp_path / "recovery"
+    timestamps = [int(datetime.fromisoformat(s).replace(tzinfo=timezone.utc).timestamp())
+                  for s in plan["missing_sessions"]]
+    for request in plan["requests"]:
+        body = []
+        if request["endpoint"] == "/stock/candle":
+            body = {"s": "ok", "t": timestamps, "o": [1, 2], "h": [2, 3],
+                    "l": [1, 2], "c": [2, 3], "v": [0, 11]}
+            if request["ticker"] == "AAA":
+                body[field][0] = value
+        _write(original if request["ordinal"] <= 3 else recovery, request, body)
+    before = {str(p): p.read_bytes() for p in tmp_path.rglob("*.json")}
+    with pytest.raises(ValueError, match="BUY_NOW_BACKFILL_OHLCV"):
+        combine_backfill_observations(
+            plan=plan, original_raw_dir=original, recovery_raw_dir=recovery)
+    assert before == {str(p): p.read_bytes() for p in tmp_path.rglob("*.json")}

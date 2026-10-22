@@ -108,15 +108,24 @@ def test_app_exposes_report_card_only_behind_admin_env_gate():
     assert 'render_internal_report_card' in source
 
 
-def test_home_vnext_contract_is_distinct_from_performance_report_card():
+def test_home_vnext_contract_is_distinct_from_performance_report_card(monkeypatch):
     source = Path("ui/home_guidance_vnext.py").read_text()
-    assert "ATLAS Morning View" in source
+    assert "Your investment<br>command center." in source
+    assert "Daily Intelligence Brief" in source
     assert "Strongest Opportunities" in source
     assert "Showing {visible} featured idea" in source
     assert 'data-atlas-report-card="false"' in source
-    for destination in ("Recovery", "Earnings Intelligence", "ETFs", "Watchlist Intelligence",
-                        "Political Intelligence", "Research Any Ticker"):
-        assert destination in source
+    from ui import home_guidance_vnext as home
+    from services.customer_navigation_contract import CUSTOMER_ROUTES
+    labels=[]
+    class Column:
+        def button(self,label,**kwargs):
+            labels.append(label)
+            return False
+    monkeypatch.setattr(home.st,'columns',lambda count:[Column() for _ in range(count)])
+    monkeypatch.setattr(home.st,'markdown',lambda *args,**kwargs:None)
+    home._render_footer_navigation()
+    assert labels == [route for route in CUSTOMER_ROUTES if route != "Home"]
 
 
 def test_home_report_card_exposes_nonblank_governed_performance_contract_and_overview_cta():
@@ -127,3 +136,20 @@ def test_home_report_card_exposes_nonblank_governed_performance_contract_and_ove
     assert 'performance_attribute = "PENDING"' in home
     assert 'performance_attribute = performance_label = "UNAVAILABLE"' in home
     assert 'on_click=_open_report_card_overview' in home
+
+
+def test_registration_uses_envelope_not_earlier_signal_or_payload_claim(tmp_path):
+    import hashlib
+    item = ProspectiveLedger(tmp_path / "synthetic.sqlite3")
+    item.append("SIGNAL", "synthetic-original", {
+        "ticker": "AAA", "first_seen_at": "2026-10-06T00:00:00Z",
+        "registered_at": "2026-10-06T00:00:00Z", "reference_price": 100,
+        "canonical_recommendation": "BUY_NOW",
+    }, created_at=datetime(2026, 10, 8, 3, 20, 18, tzinfo=timezone.utc))
+    before = hashlib.sha256(item.path.read_bytes()).hexdigest()
+    report = build_internal_report_card(item.path, authorized=True)
+    signal = report["signals"][0]
+    assert signal["registered_at"] == "2026-10-08T03:20:18+00:00"
+    assert signal["signal_timestamp"] == "2026-10-06T00:00:00Z"
+    assert report["observation_count"] == 0
+    assert hashlib.sha256(item.path.read_bytes()).hexdigest() == before

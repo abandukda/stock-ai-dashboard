@@ -130,9 +130,9 @@ class ConfiguredTranscriptProvider:
                 response = self._earningscall_transcript(ticker, year, quarter)
                 status = int(getattr(response, "status_code", 0) or 0)
                 payload = response.json() if status == 200 else {}
-                if not _transcript_text(payload):
+                if status == 200 and not _transcript_text(payload):
                     event = self._latest_earningscall_event(ticker)
-                    if event:
+                    if event and (int(event["year"]), int(event["quarter"])) != (year, quarter):
                         resolved_year, resolved_quarter = int(event["year"]), int(event["quarter"])
                         response = self._earningscall_transcript(ticker, resolved_year, resolved_quarter)
             else:
@@ -148,11 +148,19 @@ class ConfiguredTranscriptProvider:
         if status in {401, 403}:
             return self._unavailable(ticker, year, quarter, captured, "ENTITLEMENT_UNAVAILABLE",
                                      CertificationStatus.ENTITLEMENT_UNAVAILABLE)
+        if status != 200:
+            return self._unavailable(ticker, year, quarter, captured, f"PROVIDER_HTTP_ERROR:{status}")
         content = _transcript_text(payload)
         if not isinstance(content, str) or not content.strip():
             return self._unavailable(ticker, year, quarter, captured, "TRANSCRIPT_DATA_UNAVAILABLE")
         if self._provider == "EARNINGSCALL" and not (payload.get("call_date") or payload.get("conference_date")):
-            event = self._earningscall_event(ticker, resolved_year, resolved_quarter)
+            # Optional date enrichment must not discard a successfully acquired
+            # transcript or expose transport exception details. Missing source
+            # time remains explicit and cannot certify financial currentness.
+            try:
+                event = self._earningscall_event(ticker, resolved_year, resolved_quarter)
+            except Exception:
+                event = None
             if event:
                 payload = {
                     **dict(payload),
