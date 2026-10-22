@@ -190,7 +190,9 @@ class ProspectiveLedger:
             db.execute("COMMIT")
         return True
 
-    def append_many(self, records: Sequence[tuple[str, str, Mapping[str, Any], datetime, str | None]]) -> int:
+    def append_many(self, records: Sequence[tuple[str, str, Mapping[str, Any], datetime, str | None]],
+                    *, expected_tip: str | None = None,
+                    before_commit: Callable[[sqlite3.Connection], None] | None = None) -> int:
         """Append a prevalidated record set in one transaction or not at all."""
         self.initialize()
         inserted = 0
@@ -198,6 +200,8 @@ class ProspectiveLedger:
             db.execute("BEGIN IMMEDIATE")
             previous = db.execute("SELECT record_digest FROM records ORDER BY sequence DESC LIMIT 1").fetchone()
             previous_digest = str(previous[0]) if previous else "GENESIS"
+            if expected_tip is not None and previous_digest != expected_tip:
+                raise ValueError("LEDGER_TIP_CHANGED_BEFORE_APPEND")
             for record_type, record_id, payload, created_at, parent_id in records:
                 encoded = _canonical(payload)
                 existing = db.execute(
@@ -217,6 +221,8 @@ class ProspectiveLedger:
                 )
                 previous_digest = digest
                 inserted += 1
+            if before_commit is not None:
+                before_commit(db)
             db.execute("COMMIT")
         return inserted
 
@@ -417,7 +423,9 @@ def append_observation(ledger: ProspectiveLedger, *, signal_id: str, horizon: in
 
 
 def append_observations_atomic(ledger: ProspectiveLedger, *, horizon: int,
-                               observations: Sequence[tuple[str, Mapping[str, Any]]], now: datetime) -> tuple[int, int]:
+                               observations: Sequence[tuple[str, Mapping[str, Any]]], now: datetime,
+                               expected_tip: str | None = None,
+                               before_commit: Callable[[sqlite3.Connection], None] | None = None) -> tuple[int, int]:
     """Validate the full horizon first, then append it in one SQLite transaction."""
     prepared = []
     for signal_id, observation in observations:
@@ -425,7 +433,7 @@ def append_observations_atomic(ledger: ProspectiveLedger, *, horizon: int,
             ledger, signal_id=signal_id, horizon=horizon, observation=observation, now=now,
         )
         prepared.append(("OBSERVATION", observation_id, payload, now, signal_id))
-    inserted = ledger.append_many(prepared)
+    inserted = ledger.append_many(prepared, expected_tip=expected_tip, before_commit=before_commit)
     return inserted, len(prepared) - inserted
 
 

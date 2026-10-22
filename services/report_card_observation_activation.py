@@ -4,11 +4,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-import shutil
+import hashlib
+import json
+import os
+import sqlite3
 import tempfile
+from contextlib import closing
 from typing import Any, Mapping, Sequence
 
-from services.prospective_report_card import ProspectiveLedger, _utc, append_observations_atomic
+from services.prospective_report_card import ProspectiveLedger, _utc, _digest, append_observations_atomic
 
 
 BUNDLE_SCHEMA = "ATLAS_REPORT_CARD_OBSERVATION_BUNDLE_V1"
@@ -27,6 +31,90 @@ class ObservationResult:
     session_date: str
     ledger_tip: str
     backup_path: str
+
+
+
+# Serialization is bounded independently of host RAM. No production invocation
+# is authorized by this helper or by its disposable-ledger tests.
+MAX_TRANSACTION_BACKUP_BYTES = 64 * 1024 * 1024
+
+
+def _verify_transaction_snapshot(path: Path, db: sqlite3.Connection) -> str:
+    """Read only the complete serialized database, without creating WAL/SHM."""
+    expected_tip = db.execute("SELECT record_digest FROM records ORDER BY sequence DESC LIMIT 1").fetchone()[0]
+    expected_count = db.execute("SELECT COUNT(*) FROM records").fetchone()[0]
+    expected_metadata = [tuple(row) for row in db.execute("SELECT key,value FROM metadata ORDER BY key")]
+    with closing(sqlite3.connect(path.resolve().as_uri() + "?mode=ro&immutable=1", uri=True)) as restored:
+        restored.row_factory = sqlite3.Row
+        if restored.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
+            raise ValueError("OBSERVATION_BACKUP_SQLITE_INTEGRITY_FAILURE")
+        if [tuple(row) for row in restored.execute("SELECT key,value FROM metadata ORDER BY key")] != expected_metadata:
+            raise ValueError("OBSERVATION_BACKUP_METADATA_MISMATCH")
+        previous, count = "GENESIS", 0
+        for row in restored.execute("SELECT * FROM records ORDER BY sequence"):
+            payload = json.loads(row["payload_json"])
+            expected = _digest({"type": row["record_type"], "id": row["record_id"], "parent": row["parent_id"],
+                                "created_at": row["created_at"], "payload": payload, "previous_digest": previous})
+            if row["previous_digest"] != previous or row["record_digest"] != expected:
+                raise ValueError("OBSERVATION_BACKUP_RESTORE_FAILED")
+            previous = expected
+            count += 1
+        if previous != expected_tip or count != expected_count:
+            raise ValueError("OBSERVATION_BACKUP_RESTORE_FAILED")
+    return str(expected_tip)
+
+
+def _write_verified_transaction_backup(*, ledger: ProspectiveLedger, db: sqlite3.Connection,
+                                       backup_root: Path, now: datetime) -> Path:
+    """Durably verify post-append state BEFORE primary transaction commit.
+
+    A snapshot left by a rolled-back attempt is not promotion authority: its tip
+    must equal a separately verified primary tip. Existing backup files are never
+    overwritten. This does not establish an independent physical backup domain.
+    """
+    root = Path(backup_root).resolve()
+    if root == ledger.path.parent or root.is_relative_to(ledger.path.parent):
+        raise ValueError("BACKUP_MUST_USE_SEPARATE_DURABLE_ROOT")
+    byte_count = db.execute("PRAGMA page_count").fetchone()[0] * db.execute("PRAGMA page_size").fetchone()[0]
+    if byte_count > MAX_TRANSACTION_BACKUP_BYTES:
+        raise ValueError("OBSERVATION_TRANSACTION_BACKUP_MEMORY_LIMIT")
+    root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    pending = None
+    try:
+        with tempfile.NamedTemporaryFile(prefix=".observation-pending-", suffix=".sqlite3", dir=root, delete=False) as stream:
+            pending = Path(stream.name)
+            stream.write(db.serialize())
+            stream.flush()
+            os.fsync(stream.fileno())
+        tip = _verify_transaction_snapshot(pending, db)
+        digest = hashlib.sha256(pending.read_bytes()).hexdigest()
+        target = root / f"report-card-{now.astimezone(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}-{tip[:16]}.sqlite3"
+        try:
+            os.link(pending, target)
+        except FileExistsError:
+            if target.is_symlink():
+                raise ValueError("OBSERVATION_IMMUTABLE_BACKUP_CONFLICT")
+            _verify_transaction_snapshot(target, db)
+            digest = hashlib.sha256(target.read_bytes()).hexdigest()
+        sidecar = target.with_suffix(target.suffix + ".sha256")
+        try:
+            with sidecar.open("x", encoding="utf-8") as stream:
+                os.chmod(sidecar, 0o600)
+                stream.write(digest + "\n")
+                stream.flush()
+                os.fsync(stream.fileno())
+        except FileExistsError:
+            if sidecar.is_symlink() or sidecar.read_text().strip() != digest:
+                raise ValueError("OBSERVATION_BACKUP_DIGEST_CONFLICT")
+        directory = os.open(root, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
+        return target
+    finally:
+        if pending is not None:
+            pending.unlink(missing_ok=True)
 
 
 def apply_observation_bundle(*, ledger: ProspectiveLedger, backup_root: Path,
@@ -93,18 +181,18 @@ def apply_observation_bundle(*, ledger: ProspectiveLedger, backup_root: Path,
             raise ValueError("OBSERVATION_UNAVAILABLE_REASON_REQUIRED")
         prepared.append((signal_id, observation))
 
+    backups: list[Path] = []
+    def verified_backup_before_commit(db: sqlite3.Connection) -> None:
+        backups.append(_write_verified_transaction_backup(
+            ledger=ledger, db=db, backup_root=backup_root, now=current,
+        ))
+
     appended, idempotent = append_observations_atomic(
         ledger, horizon=horizon, observations=prepared, now=current,
+        expected_tip=str(bundle["ledger_tip_before"]), before_commit=verified_backup_before_commit,
     )
-
     tip = ledger.verify()
-    backup = ledger.backup(backup_root, now=current)
-    with tempfile.TemporaryDirectory(prefix="atlas-report-card-restore-") as directory:
-        restored_path = Path(directory) / "restored.sqlite3"
-        shutil.copy2(backup, restored_path)
-        restored = ProspectiveLedger(restored_path)
-        if restored.verify() != tip or len(restored.rows()) != len(ledger.rows()):
-            raise ValueError("OBSERVATION_BACKUP_RESTORE_FAILED")
+    backup = backups[0]
     return ObservationResult("OBSERVATIONS_RECORDED", appended, idempotent, len(signals), horizon,
                              session_date, tip, str(backup))
 
