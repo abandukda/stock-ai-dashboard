@@ -1,0 +1,66 @@
+import asyncio
+import tempfile
+from pathlib import Path
+import unittest
+import yaml
+from scripts.wait_for_production_source import decision, wait
+
+A, B, C = 'a'*40, 'b'*40, 'c'*40
+class PostMergeVerification(unittest.TestCase):
+    def test_only_known_prior_sha_may_retry(self):
+        for sha, classification, expected in [(A,'PASS','READY'),(B,'DEPLOYMENT_NOT_READY','PROPAGATING'),(C,'DEPLOYMENT_NOT_READY','SOURCE_OR_APPLICATION_ERROR'),('UNKNOWN','IN_PROGRESS','SOURCE_OR_APPLICATION_ERROR'),(A,'DEPLOYMENT_DEFECT','SOURCE_OR_APPLICATION_ERROR')]:
+            self.assertEqual(decision({'deployed_source_sha':sha,'classification':classification},A,B),expected)
+        self.assertEqual(decision({'fatal_exception':True},A,B),'APPLICATION_ERROR')
+        self.assertEqual(decision({},'invalid',B),'INVALID_EXPECTED_SOURCE')
+    def test_retry_bound_and_no_retry_after_error(self):
+        async def run(states, attempts=3):
+            calls=[]; pauses=[]
+            async def probe():
+                value=states[min(len(calls),len(states)-1)];calls.append(value);return value
+            async def pause(seconds): pauses.append(seconds)
+            with tempfile.TemporaryDirectory() as tmp:
+                try: await wait(A,B,Path(tmp)/'receipt.json',probe=probe,pause=pause,attempts=attempts)
+                except RuntimeError as error: return str(error),len(calls),len(pauses)
+            return 'PASS',len(calls),len(pauses)
+        old={'deployed_source_sha':B,'classification':'DEPLOYMENT_NOT_READY'}
+        ready={'deployed_source_sha':A,'classification':'PASS'}
+        self.assertEqual(asyncio.run(run([old,ready])),('PASS',2,1))
+        self.assertEqual(asyncio.run(run([old])),('PROPAGATION_TIMEOUT',3,2))
+        self.assertEqual(asyncio.run(run([{'fatal_exception':True}])),('APPLICATION_ERROR',1,0))
+    def test_workflow_is_push_only_hosted_and_separates_issue_token(self):
+        root=Path(__file__).resolve().parents[1]
+        doc=yaml.load((root/'.github/workflows/atlas_post_merge_production_verify.yml').read_text(),Loader=yaml.BaseLoader)
+        self.assertEqual(set(doc['on']),{'push'})
+        self.assertEqual(doc['on']['push']['branches'],['main'])
+        verify=doc['jobs']['verify'];report=doc['jobs']['report']
+        self.assertEqual(verify['permissions'],{'contents':'read'})
+        self.assertEqual(report['permissions'],{'issues':'write'})
+        self.assertNotIn('checkout',str(report))
+        self.assertNotIn('self-hosted',str(doc))
+        self.assertNotIn('continue-on-error',str(doc))
+        self.assertNotIn('ADMIN',str(doc))
+        self.assertEqual(verify['env']['ATLAS_VISUAL_CRAWL_CUSTOMER_ONLY'],'true')
+
+    def test_scheduled_production_uses_viewer_readonly_contract(self):
+        root=Path(__file__).resolve().parents[1]
+        doc=yaml.load((root/'.github/workflows/atlas-runtime-qa-v3.yml').read_text(),Loader=yaml.BaseLoader)
+        steps=doc['jobs']['runtime-qa']['steps']
+        required=next(s for s in steps if s.get('name')=='Run required production certification')
+        self.assertEqual(required['env']['ATLAS_VISUAL_CRAWL_CUSTOMER_ONLY'],'true')
+        self.assertIn('--phase all',required['run'])
+        supplementary=next(s for s in steps if s.get('id')=='supplementary_certification')
+        self.assertIn("inputs.mode == 'targeted_preflight'",supplementary['if'])
+
+    def test_worker_shutdown_is_not_automatically_oom(self):
+        from scripts.classify_worker_shutdown import classify
+        self.assertEqual(classify('The runner has received a shutdown signal.')['cause'],'SHUTDOWN_INITIATOR_UNPROVEN')
+        self.assertEqual(classify('Out of memory: Killed process 123 (python3)')['cause'],'HOST_OOM_RECORDED')
+        self.assertEqual(classify('operation canceled')['cause'],'INSUFFICIENT_EVIDENCE')
+
+    def test_mobile_navigation_scopes_customer_grid_without_role_changes(self):
+        from services.customer_navigation_contract import customer_mobile_navigation_css
+        css=customer_mobile_navigation_css()
+        self.assertIn('grid-template-columns:repeat(2,minmax(0,1fr))!important',css)
+        self.assertIn('@media(max-width:420px)',css)
+        app=(Path(__file__).resolve().parents[1]/'app.py').read_text()
+        self.assertIn('if tuple(pages) == ("Home", "Research", "Watchlist", "Ask ATLAS"):',app)

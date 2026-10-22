@@ -1,0 +1,80 @@
+name: ATLAS Post-merge Production Verification
+on:
+  push:
+    branches: [main]
+permissions: {}
+concurrency:
+  group: atlas-post-merge-production-verification
+  cancel-in-progress: false
+jobs:
+  verify:
+    if: github.repository == 'abandukda/stock-ai-dashboard'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    env:
+      ATLAS_PRODUCTION_URL: https://stock-ai-dashboard.streamlit.app/
+      ATLAS_EXPECTED_DEPLOYED_SOURCE_SHA: ${{ github.sha }}
+      ATLAS_VISUAL_CRAWL_CUSTOMER_ONLY: 'true'
+      ATLAS_QA_PROVIDER_CALLS_ALLOWED: '0'
+      ATLAS_ALLOW_EXTERNAL_AI: 'false'
+      ATLAS_CUSTOMER_REPORT_CARD_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -r requirements-runtime-qa.txt
+      - run: python -m playwright install --with-deps chromium
+      - name: Wait only for known prior-main deployment propagation
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+          PREVIOUS_SHA: ${{ github.event.before }}
+        run: python -m scripts.wait_for_production_source --expected "$EXPECTED_SHA" --previous "$PREVIOUS_SHA"
+      - name: Require viewer credential
+        env:
+          ATLAS_AUDIT_PASSWORD: ${{ secrets.ATLAS_AUDIT_PASSWORD }}
+        run: |
+          python - <<'PY'
+          import os
+          if not os.environ.get('ATLAS_AUDIT_PASSWORD', '').strip():
+              raise SystemExit('VIEWER_CREDENTIAL_MISSING')
+          PY
+      - name: Authenticated read-only customer production journeys
+        env:
+          ATLAS_AUDIT_PASSWORD: ${{ secrets.ATLAS_AUDIT_PASSWORD }}
+        run: python -u -m agents.atlas_visual_crawler_v1 --url "$ATLAS_PRODUCTION_URL" --output audit_results/post_merge/customer
+      - name: Upload source, authentication and screenshot evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: atlas-post-merge-production-${{ github.sha }}
+          path: audit_results/post_merge
+          if-no-files-found: error
+          retention-days: 14
+  report:
+    if: always() && github.repository == 'abandukda/stock-ai-dashboard'
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    permissions:
+      issues: write
+    steps:
+      - name: Record verification result in Issue 78
+        uses: actions/github-script@v7
+        env:
+          VERIFY_RESULT: ${{ needs.verify.result }}
+          EXPECTED_SHA: ${{ github.sha }}
+        with:
+          script: |
+            const result = process.env.VERIFY_RESULT;
+            const sha = process.env.EXPECTED_SHA;
+            const url = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            await github.rest.issues.createComment({
+              ...context.repo, issue_number: 78,
+              body: `Production verification **${result.toUpperCase()}** for expected source \`${sha}\`. [Run and screenshot evidence](${url}). Customer viewer read-only scope only; private original-ledger/admin certification and visual design acceptance remain separate. No provider acquisition, publication or ledger writes authorized.`
+            });

@@ -97,18 +97,19 @@ jobs:
         env:
           ATLAS_AUDIT_PASSWORD: ${{ secrets.ATLAS_AUDIT_PASSWORD }}
           ATLAS_QA_MODE: required_production_certification
+          ATLAS_VISUAL_CRAWL_CUSTOMER_ONLY: "true"
           PYTHONUNBUFFERED: "1"
         run: |
           mkdir -p audit_results/required_production_certification
           python -u -m agents.atlas_visual_crawler_v1 \
             --url "$ATLAS_PRODUCTION_URL" \
             --output audit_results/required_production_certification \
-            --phase required
+            --phase all
 
       - name: Run Atlas Runtime QA supplementary certification
         id: supplementary_certification
         continue-on-error: true
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.mode != 'visual_crawl' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'targeted_preflight' }}
         env:
           ATLAS_AUDIT_PASSWORD: ${{ secrets.ATLAS_AUDIT_PASSWORD }}
           ATLAS_QA_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'full' }}
@@ -120,7 +121,7 @@ jobs:
             --mode "$ATLAS_QA_MODE"
 
       - name: Record supplementary certification status
-        if: ${{ always() && (github.event_name != 'workflow_dispatch' || inputs.mode != 'visual_crawl') }}
+        if: ${{ always() && (github.event_name == 'workflow_dispatch' && inputs.mode == 'targeted_preflight') }}
         run: |
           echo "Supplementary Runtime QA outcome: ${{ steps.supplementary_certification.outcome }}"
           echo "Required Phase A remains the promotion authority; supplementary defects remain visible in the uploaded artifact."
