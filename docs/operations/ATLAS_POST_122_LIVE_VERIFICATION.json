@@ -1,0 +1,32 @@
+{
+  "main": "b0bbe4738296582d1823fb1ee7d477dfe08b726e",
+  "merged_pr": 122,
+  "merged_head": "b66f7b5480c5e17d55f85b033bf7df2751d9a9a5",
+  "production_run": 39796610458,
+  "artifact_id": 12433737306,
+  "artifact_sha256": "643dce94a97134614ca912a386571b94af1185d3bde97018f912b7ebce023b8b",
+  "authentication_success": true,
+  "deployed_source_exact": true,
+  "propagation_attempts": 1,
+  "checks": {
+    "attempted": 20,
+    "passed": 18,
+    "failed": 2
+  },
+  "screenshots": 15,
+  "live_repaired": [
+    "Home style source hash and grid",
+    "NVDA/MSFT/CODA desktop Home drilldowns exact ticker",
+    "Customer copy raw ISO timestamp check",
+    "Visible Research digest and six answers"
+  ],
+  "remaining_required_failure": "NVDA four-panel price history unavailable under governed display contract",
+  "responsive_current_production": "NOT_REACHED_BEFORE_REQUIRED_FAILURE",
+  "original_twenty_private_report_card": "NOT_CERTIFIED_BY_CUSTOMER_VIEWER_RUN",
+  "chart_delivery_authority": "PREPARED_NOT_AUTHORIZED; retained historical candidate only, no approved private delivery channel",
+  "provider_calls_observed": 0,
+  "new_data_acquisition": false,
+  "ledger_writes": false,
+  "public_report_card_activation": false,
+  "followup": "Bound supplemental existing-state captures after isolated chart failure, preserving original failure and fail-closed source/role guards"
+}

@@ -3916,6 +3916,84 @@ class AtlasVisualCrawler:
             elif page_name == "Portfolio Intelligence":
                 await self._position_management_contract(page, viewport="mobile")
 
+    def _chart_failure_evidence_allowed(self, category: str, *, customer_only: bool) -> bool:
+        """Only an isolated chart assertion may enter supplemental capture."""
+        if not customer_only or not self.authentication or category not in {
+            f"REQUIRED_RESEARCH_FAILED_{ticker}" for ticker in REQUIRED_RESEARCH_TICKERS
+        }:
+            return False
+        failures = [row for row in self.results if row.status == "FAIL"]
+        if not failures or {row.category for row in failures} != {"RESEARCH_CHART", "RESEARCH"}:
+            return False
+        required_guards = {
+            ("GLOBAL", "customer-navigation-authority"),
+            ("GLOBAL", "role-isolation-customer_viewer"),
+            ("RESEARCH_SUBMISSION_BOUNDARY", "submit-event-and-rerun"),
+            ("RESEARCH_ARCHITECTURE", "vnext-five-section-contract"),
+            ("UX", "customer-copy-contract"),
+        }
+        passed = {(row.category, row.interaction) for row in self.results if row.status == "PASS"}
+        if not required_guards <= passed:
+            return False
+        for row in failures:
+            if row.category != "RESEARCH":
+                continue
+            try:
+                completion, _ = json.JSONDecoder().raw_decode(row.observed.removeprefix("completion="))
+            except (ValueError, TypeError):
+                return False
+            if not isinstance(completion, dict) or not all(completion.get(key) is True for key in (
+                "complete", "ticker", "no_stale_ticker", "provider_boundary_zero",
+                "certified_fields_reconciled", "lifecycle_complete",
+            )) or completion.get("provider_calls") != 0 or completion.get("rendered_exception") is not False:
+                return False
+        return True
+
+    async def _capture_chart_failure_views(self, page: Page) -> None:
+        """Capture existing Home/Research only; no submits, retries or certification."""
+        for viewport_name, viewport in (("mobile_360", {"width": 360, "height": 900}), ("tablet_768", NARROW_TABLET)):
+            await page.set_viewport_size(viewport)
+            for page_name in ("Home", "Research Any Ticker"):
+                await self._customer_navigation_contract(page)
+                await self._role_isolation_contract(page, expected_role="customer_viewer")
+                navigated, _, _ = await asyncio.wait_for(_navigate(page, page_name), timeout=15)
+                if not navigated:
+                    raise GlobalCrawlFailure("DIAGNOSTIC_NAVIGATION_FAILED")
+                if not await asyncio.wait_for(_page_render_complete(page, page_name), timeout=15):
+                    raise GlobalCrawlFailure("DIAGNOSTIC_RENDER_INCOMPLETE")
+                # Recheck source and role after each navigation before saving content.
+                await self._customer_navigation_contract(page)
+                await self._role_isolation_contract(page, expected_role="customer_viewer")
+                shot = await self._shot(
+                    page, page_name=page_name, interaction="post-chart-failure-diagnostic",
+                    state="diagnostic-only-not-acceptance", viewport=viewport_name,
+                    complete_surface=True,
+                )
+                await self._record(
+                    category="FAILURE_DIAGNOSTIC", page_name=page_name,
+                    interaction="post-chart-failure-diagnostic",
+                    expected="Supplemental read-only screenshot; original required failure remains fatal",
+                    observed="Existing state only; no ticker submit, chart retry, credential retry or acceptance",
+                    passed=bool(shot), elapsed=0.0, viewport=viewport_name,
+                    screenshots=(shot,), required=False,
+                )
+
+    async def _preserve_failure_with_evidence(self, page: Page, failure: GlobalCrawlFailure, *, customer_only: bool) -> None:
+        if not self._chart_failure_evidence_allowed(failure.category, customer_only=customer_only):
+            raise failure
+        self.post_failure_diagnostic = {"original_failure": failure.category,
+            "scope": "EXISTING_HOME_RESEARCH_MOBILE_TABLET_ONLY", "acceptance": False,
+            "timeout_seconds": 120, "status": "STARTED"}
+        try:
+            await asyncio.wait_for(self._capture_chart_failure_views(page), timeout=120)
+            self.post_failure_diagnostic["status"] = "CAPTURED_NOT_ACCEPTED"
+        except (Exception, asyncio.TimeoutError) as exc:
+            self.post_failure_diagnostic["status"] = "STOPPED"
+            self.post_failure_diagnostic["error_category"] = (
+                exc.category if isinstance(exc, GlobalCrawlFailure) else type(exc).__name__)
+        # Never replace the initiating failure or turn supplemental images into a pass.
+        raise failure
+
     async def run(self, *, phase: str = "all") -> dict[str, Any]:
         self.enforce_required_authority = phase in {"required", "all"}
         customer_visual_audit = (
@@ -3995,6 +4073,8 @@ class AtlasVisualCrawler:
                 if phase in {"supplementary", "all"} and not customer_visual_audit:
                     await self._supplementary_desktop(page)
                     await self._supplementary_mobile(page)
+            except GlobalCrawlFailure as failure:
+                await self._preserve_failure_with_evidence(page, failure, customer_only=customer_visual_audit)
             finally:
                 await context.close()
                 await browser.close()
@@ -4022,6 +4102,7 @@ class AtlasVisualCrawler:
                 "ceiling_seconds": REQUIRED_PHASE_TIMEOUT_SECONDS,
             },
             "authentication_success": bool(self.authentication),
+            "post_failure_diagnostic": getattr(self, "post_failure_diagnostic", None),
             "required_completeness": self._required_completeness(),
             "capture_efficiency": {
                 "deduplicated_screenshot_count": self.screenshot_calls_avoided,
