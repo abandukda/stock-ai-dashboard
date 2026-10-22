@@ -28,22 +28,35 @@ class PremiumResearchRender(unittest.TestCase):
                         for ticker in ('NVDA','MSFT','META','ANET'):
                             for width in (360,768,1440):
                                 page=browser.new_page(viewport={'width':width,'height':1000})
-                                page.goto(f'http://127.0.0.1:{port}/?ticker={ticker}')
-                                page.wait_for_selector('[data-fixture-complete="true"]',timeout=30000)
-                                self.assertEqual(page.locator('[data-testid="stException"]').count(),0)
-                                self.assertTrue(page.locator('[data-atlas-qa="research-executive-digest"]').is_visible())
-                                self.assertEqual(page.locator('[data-atlas-qa="research-v2-annotated-chart"]').get_attribute('data-atlas-ticker'),ticker)
-                                # Streamlit mounts Plotly lazily when the chart enters the viewport.
-                                page.locator('[data-testid="stPlotlyChart"]').first.scroll_into_view_if_needed()
-                                page.wait_for_selector('.y4title',state='attached',timeout=30000)
-                                self.assertTrue(page.locator('.y4title').count())
-                                self.assertLessEqual(page.evaluate('document.documentElement.scrollWidth'),width+1)
-                                capture_complete_streamlit(page,target/f'GENERATED_{ticker}_{width}_SIMPLE.png')
-                                page.get_by_role('tab',name='Detailed View',exact=True).click()
-                                self.assertEqual(page.locator('[data-atlas-qa="research-comprehensive-analysis"] article').count(),6)
-                                self.assertTrue(page.locator('[data-atlas-qa="research-comprehensive-analysis"]').is_visible())
-                                capture_complete_streamlit(page,target/f'GENERATED_{ticker}_{width}_DETAILED.png')
-                                page.close()
+                                try:
+                                    page.goto(f'http://127.0.0.1:{port}/?ticker={ticker}')
+                                    page.wait_for_selector('[data-fixture-complete="true"]',timeout=30000)
+                                    self.assertEqual(page.locator('[data-testid="stException"]').count(),0)
+                                    self.assertTrue(page.locator('[data-atlas-qa="research-executive-digest"]').is_visible())
+                                    navigation=page.get_by_role('navigation',name='Research sections')
+                                    navigation.get_by_role('link',name='Chart & technicals',exact=True).click()
+                                    self.assertIn('#atlas-research-technicals',page.url)
+                                    self.assertIn('ticker='+ticker,page.url)
+                                    self.assertEqual(page.locator('[data-atlas-qa="research-production-authority"]').get_attribute('data-atlas-ticker'),ticker)
+                                    navigation.get_by_role('link',name='Overview',exact=True).click()
+                                    self.assertIn('#atlas-research-overview',page.url)
+                                    self.assertEqual(page.locator('[data-atlas-qa="research-v2-annotated-chart"]').get_attribute('data-atlas-ticker'),ticker)
+                                    # Streamlit mounts Plotly lazily when the chart enters the viewport.
+                                    page.locator('[data-testid="stPlotlyChart"]').first.scroll_into_view_if_needed()
+                                    page.wait_for_selector('.y4title',state='attached',timeout=30000)
+                                    self.assertTrue(page.locator('.y4title').count())
+                                    self.assertLessEqual(page.evaluate('document.documentElement.scrollWidth'),width+1)
+                                    capture_complete_streamlit(page,target/f'GENERATED_{ticker}_{width}_SIMPLE.png')
+                                    page.get_by_role('tab',name='Detailed View',exact=True).click()
+                                    self.assertEqual(page.locator('[data-atlas-qa="research-comprehensive-analysis"] article').count(),6)
+                                    self.assertTrue(page.locator('[data-atlas-qa="research-comprehensive-analysis"]').is_visible())
+                                    capture_complete_streamlit(page,target/f'GENERATED_{ticker}_{width}_DETAILED.png')
+                                    page.close()
+                                except Exception:
+                                    page.screenshot(path=str(target/f'FAILED_{ticker}_{width}.png'),full_page=True)
+                                    (target/f'FAILED_{ticker}_{width}_DOM.html').write_text(page.content())
+                                    raise
+
                     finally: browser.close()
             finally:
                 process.terminate()
