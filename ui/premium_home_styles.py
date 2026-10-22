@@ -24,5 +24,7 @@ PREMIUM_HOME_CSS = r"""
 .atlas-home-compact-card:not(.atlas-home-featured-case){padding:1rem;border:1px solid #2b3b50;border-radius:16px;background:#101c2c;height:auto}
 .atlas-home-compact-card footer{opacity:1!important;color:#a2b2c7!important;line-height:1.5}
 @media(max-width:800px){.atlas-editorial-columns{grid-template-columns:1fr;gap:.6rem}.atlas-editorial-brief header{margin-bottom:1rem}.atlas-home-featured-case.atlas-home-compact-card{padding:1rem}.atlas-home-featured-case .atlas-home-compact-values{grid-template-columns:repeat(2,minmax(0,1fr));gap:.5rem}.atlas-home-featured-case .atlas-home-compact-values b{font-size:1.15rem}.atlas-home-featured-case h3{font-size:1.3rem!important}.atlas-home-market-strip{display:block!important}.atlas-home-market-strip p{margin-top:.4rem!important}}
+div[data-testid="stElementContainer"]:has([data-atlas-qa="home-guidance-section"]),div[data-testid="stElementContainer"]:has([data-atlas-qa="home-top-ideas"]),div[data-testid="stElementContainer"]:has([data-atlas-qa="home-opportunity-spotlight"]){display:none}
+@media(max-width:900px){[data-testid="stHorizontalBlock"]:has(.st-key-home_top_idea_position_2){flex-direction:column}[data-testid="stHorizontalBlock"]:has(.st-key-home_top_idea_position_2)>[data-testid="stColumn"]{width:100%!important;flex:1 1 100%!important}}
 @media(prefers-reduced-motion:reduce){.atlas-editorial-brief{scroll-behavior:auto}}
 """

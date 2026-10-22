@@ -12,6 +12,8 @@ from playwright.sync_api import sync_playwright
 
 def capture_complete_streamlit(page,path):
     # Capture the actual inner scrolling surface, preserving observed offsets.
+    # Hide only Streamlit chrome during evidence capture; never customer content.
+    page.add_style_tag(content='[data-testid="stHeader"], [data-testid="stToolbar"] {display:none!important}')
     geometry=page.evaluate("""() => {
       const nodes=[document.scrollingElement,...document.querySelectorAll('*')].filter(e=>e && e.clientHeight>0 && e.scrollHeight>=e.clientHeight);
       const node=nodes.sort((a,b)=>(b.scrollHeight-b.clientHeight)-(a.scrollHeight-a.clientHeight))[0];
