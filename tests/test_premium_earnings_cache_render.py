@@ -142,6 +142,11 @@ class PremiumEarningsCacheRender(unittest.TestCase):
                                                 else:
                                                     page.get_by_text('Revenue grew 10%.',exact=True).wait_for()
                                                     self.assertIn('Transcript availability: AVAILABLE · AI summary availability: AVAILABLE',page.inner_text('body'))
+                                                    self.assertIn('No transcript analysis is attached to this reported-quarter snapshot.',page.inner_text('body'))
+                                                    self.assertNotIn('Transcript analysis unavailable',page.inner_text('body'))
+                                                    self.assertIn('Selected call: Q2 2026',page.inner_text('body'))
+                                                    self.assertIn('Analysis generated:',page.inner_text('body'))
+                                                    self.assertIn('GENERATED_MOCK_MODEL',page.inner_text('body'))
                                                     evidence_marker = page.locator('[data-atlas-transcript-evidence-id]')
                                                     evidence_marker.wait_for(state='attached')
                                                     evidence_id = evidence_marker.get_attribute('data-atlas-transcript-evidence-id')
