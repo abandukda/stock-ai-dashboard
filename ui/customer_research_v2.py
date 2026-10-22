@@ -10,7 +10,7 @@ import math
 
 import pandas as pd
 import streamlit as st
-from ui.research_learning import build_learning_guide, build_valuation_guide
+from ui.research_learning import build_learning_guide, build_valuation_guide, build_earnings_comparison
 
 from services.customer_research_view import Availability, build_customer_research_view
 from services.customer_metric_format import (
@@ -211,6 +211,40 @@ def _render_valuation_guide(page: Mapping[str, Any]) -> None:
         )
 
 
+def _render_earnings_comparison(page: Mapping[str, Any]) -> None:
+    comparison = build_earnings_comparison(page)
+    st.markdown("**What changed in the retained annual results?**")
+    if comparison["status"] != "AVAILABLE":
+        st.info("Annual comparison unavailable: this guide needs two consecutive, ordered annual periods, matching units, and retained evidence references.")
+        return
+    previous_period, latest_period = comparison["periods"]
+    st.caption(f"Earlier annual period: {previous_period} · Later annual period: {latest_period}")
+    for row in comparison["rows"]:
+        previous = _financial_value(row["previous"], row["unit"])
+        latest = _financial_value(row["latest"], row["unit"])
+        st.markdown(_escape_markdown_currency(
+            f'**{row["metric"]}: {previous} → {latest} ({row["direction"].lower()})**'
+        ))
+        st.write(row["explanation"])
+    provenance = comparison["provenance"]
+    st.caption(
+        f'Source: {provenance.get("source") or provenance.get("provider") or "Unavailable"} · '
+        f'Evidence captured: {_financial_period(provenance.get("capture_timestamp") or provenance.get("as_of"))} · '
+        f'Evidence references (comparison bundle): {", ".join(comparison["evidence_ids"])}'
+    )
+    st.write(
+        "Higher and lower describe the numbers, not whether the stock is a better investment. "
+        "A loss becoming less negative is still a loss. Compare sales with profit and cash: "
+        "if they move in different directions, check costs, payment timing, and investment spending in the filings. "
+        "These observations alone do not explain why a change happened."
+    )
+    st.caption(
+        "Go deeper: annual labels do not establish identical accounting definitions, restatement treatment, "
+        "or exact fiscal-year length. Check the source filings before drawing a like-for-like growth conclusion. "
+        "Capture dates are not earnings-release dates. No growth rate, earnings surprise, or rating change is inferred."
+    )
+
+
 def _render_learning_guide(page: Mapping[str, Any], *, ticker: str) -> None:
     guide = build_learning_guide(page)
     if guide["status"] != "AVAILABLE":
@@ -240,6 +274,7 @@ def _render_learning_guide(page: Mapping[str, Any], *, ticker: str) -> None:
             "That matched comparison is unavailable in this guide. Management guidance and transcript commentary are also unavailable here. "
             "A single snapshot cannot establish an improving trend."
         )
+        _render_earnings_comparison(page)
         st.markdown("**Go deeper: compare earnings fairly**")
         st.write(
             "Use the financial statements below to compare the same fiscal quarter with the prior year's quarter, "

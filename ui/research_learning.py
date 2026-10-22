@@ -6,6 +6,9 @@ No provider calls, financial forecasts, or investment authority live here.
 from __future__ import annotations
 
 import math
+import re
+from copy import deepcopy
+from datetime import date
 from typing import Any, Mapping
 
 
@@ -25,6 +28,73 @@ def _mapping(value: Any) -> Mapping[str, Any]:
 
 def _finite(value: Any) -> bool:
     return not isinstance(value, bool) and isinstance(value, (int, float)) and math.isfinite(value)
+
+
+def build_earnings_comparison(page: Mapping[str, Any]) -> dict[str, Any]:
+    """Compare retained annual observations, never forecasts or certified scores.
+
+    Do not sort, interpolate missing years, or turn a change into a claim of
+    business improvement. Source capture time is not a financial release date.
+    """
+    unavailable = {"status": "UNAVAILABLE", "rows": ()}
+    trend = _mapping(page.get("financial_trend"))
+    if (page.get("status") != "AVAILABLE" or trend.get("status") != "AVAILABLE"
+            or trend.get("periodicity") != "ANNUAL"):
+        return unavailable
+    periods = trend.get("periods")
+    if not isinstance(periods, (list, tuple)) or len(periods) < 2:
+        return unavailable
+    # Require one unambiguous period format throughout and ascending years.
+    def period_key(value: Any) -> tuple[str, int] | None:
+        if not isinstance(value, str):
+            return None
+        if re.fullmatch(r"FY\d{4}", value):
+            return ("FY", int(value[2:]))
+        if re.fullmatch(r"\d{4}", value):
+            return ("YEAR", int(value))
+        try:
+            return ("DATE", date.fromisoformat(value).toordinal())
+        except ValueError:
+            return None
+    keys = [period_key(value) for value in periods]
+    if (any(key is None for key in keys) or len({key[0] for key in keys}) != 1
+            or any(left[1] >= right[1] for left, right in zip(keys, keys[1:]))):
+        return unavailable
+    gap = keys[-1][1] - keys[-2][1]
+    if not (350 <= gap <= 380 if keys[-1][0] == "DATE" else gap == 1):
+        return unavailable
+    provenance = _mapping(trend.get("provenance"))
+    ids = provenance.get("evidence_ids")
+    evidence_ids = tuple(item for item in ids if isinstance(item, str) and item.strip()) if isinstance(ids, (list, tuple)) else ()
+    raw_id = provenance.get("raw_evidence_id")
+    if isinstance(raw_id, str) and raw_id.strip():
+        evidence_ids = tuple(dict.fromkeys((raw_id, *evidence_ids)))
+    if not evidence_ids:
+        return unavailable
+    definitions = {
+        "Revenue": ("USD", EARNINGS_FIELDS["latest_revenue"][1]),
+        "Net Income": ("USD", EARNINGS_FIELDS["net_income"][1]),
+        "Operating Cash Flow": ("USD", EARNINGS_FIELDS["operating_cash_flow"][1]),
+        "Free Cash Flow": ("USD", EARNINGS_FIELDS["free_cash_flow"][1]),
+        "Operating Margin": ("PERCENT", EARNINGS_FIELDS["operating_margin_pct"][1]),
+        "EPS": ("USD_PER_SHARE", "EPS is profit per share. Buybacks or new shares can change EPS even when total company profit moves differently."),
+    }
+    series = _mapping(trend.get("series"))
+    units = _mapping(trend.get("units"))
+    rows = []
+    for label, (unit, explanation) in definitions.items():
+        values = series.get(label)
+        if (units.get(label) != unit or not isinstance(values, (list, tuple))
+                or len(values) != len(periods) or not all(_finite(value) for value in values[-2:])):
+            continue
+        previous, latest = values[-2:]
+        rows.append({"metric": label, "unit": unit, "previous": previous,
+                     "latest": latest, "direction": "Higher" if latest > previous else "Lower" if latest < previous else "Unchanged",
+                     "explanation": explanation})
+    if not rows:
+        return unavailable
+    return {"status": "AVAILABLE", "rows": tuple(rows), "periods": tuple(periods[-2:]),
+            "provenance": deepcopy(dict(provenance)), "evidence_ids": evidence_ids}
 
 
 def build_valuation_guide(page: Mapping[str, Any]) -> dict[str, Any]:

@@ -7,7 +7,7 @@ from typing import Mapping, Any
 import unittest
 from unittest.mock import Mock
 
-from ui.research_learning import build_learning_guide, build_valuation_guide
+from ui.research_learning import build_learning_guide, build_valuation_guide, build_earnings_comparison
 
 
 def fact(field="net_income", value=0, **extra):
@@ -21,6 +21,94 @@ def page(*items):
 
 
 class ResearchLearningTests(unittest.TestCase):
+    def annual_page(self):
+        return {**page(), "financial_trend": {
+            "status": "AVAILABLE", "periodicity": "ANNUAL",
+            "periods": ["FY2024", "FY2025"],
+            "series": {"Revenue": [100, 120], "Net Income": [-12, -3],
+                       "Operating Cash Flow": [10, 0], "Operating Margin": [0, 0]},
+            "units": {"Revenue": "USD", "Net Income": "USD",
+                      "Operating Cash Flow": "USD", "Operating Margin": "PERCENT"},
+            "provenance": {"raw_evidence_id": "annual:1", "source": "Retained filing",
+                           "capture_timestamp": "2026-02-01", "detail": {"retained": True}},
+        }}
+
+    def test_annual_comparison_preserves_values_dates_and_provenance(self):
+        source = self.annual_page()
+        before = deepcopy(source)
+        result = build_earnings_comparison(source)
+        self.assertEqual(result["periods"], ("FY2024", "FY2025"))
+        self.assertEqual([row["direction"] for row in result["rows"]],
+                         ["Higher", "Higher", "Lower", "Unchanged"])
+        self.assertEqual(result["rows"][1]["latest"], -3)
+        self.assertEqual(result["rows"][2]["latest"], 0)
+        self.assertEqual(result["evidence_ids"], ("annual:1",))
+        self.assertEqual(result["provenance"], before["financial_trend"]["provenance"])
+        result["provenance"]["detail"]["retained"] = False
+        self.assertEqual(source, before)
+
+    def test_annual_comparison_fails_closed_for_ambiguous_periods_and_lanes(self):
+        changes = [
+            {"status": "UNAVAILABLE"}, {"periodicity": "QUARTERLY"},
+            {"periodicity": "UNAVAILABLE"}, {"periods": ["FY2025", "FY2024"]},
+            {"periods": ["FY2025", "FY2025"]}, {"periods": ["FY2023", "FY2025"]},
+            {"periods": ["2024-Q1", "2025-Q1"]}, {"periods": ["2024", "FY2025"]},
+            {"periods": [None, "FY2025"]}, {"periods": ["FY2025"]},
+            {"provenance": {}}, {"provenance": {"evidence_ids": "not-a-list"}},
+        ]
+        for change in changes:
+            with self.subTest(change=change):
+                source = self.annual_page()
+                source["financial_trend"].update(change)
+                self.assertEqual(build_earnings_comparison(source), {"status": "UNAVAILABLE", "rows": ()})
+        source = self.annual_page()
+        source["status"] = "RATING_NOT_PUBLISHED"
+        self.assertEqual(build_earnings_comparison(source)["rows"], ())
+
+    def test_annual_comparison_rejects_invalid_values_units_and_estimates(self):
+        for values in ([1, True], [1, "2"], [1, None], [1, float("nan")],
+                       [1, float("inf")], [1], [1, 2, 3]):
+            source = self.annual_page()
+            source["financial_trend"]["series"] = {"Revenue": values}
+            self.assertEqual(build_earnings_comparison(source)["rows"], ())
+        source = self.annual_page()
+        source["financial_trend"]["series"] = {"Revenue": [1, 2], "Forward EPS": [3, 4]}
+        source["financial_trend"]["units"]["Revenue"] = "USD_MILLIONS"
+        self.assertEqual(build_earnings_comparison(source)["rows"], ())
+
+    def test_annual_dates_and_missing_source_metadata_are_preserved(self):
+        source = self.annual_page()
+        source["financial_trend"]["periods"] = ["2024-01-28", "2025-01-26"]
+        source["financial_trend"]["provenance"] = {"evidence_ids": ["annual:2"]}
+        result = build_earnings_comparison(source)
+        self.assertEqual(result["status"], "AVAILABLE")
+        self.assertEqual(result["provenance"], {"evidence_ids": ["annual:2"]})
+
+    def test_annual_renderer_shows_evidence_and_limits_offline(self):
+        tree = ast.parse((Path(__file__).parents[1] / "customer_research_v2.py").read_text())
+        function = next(node for node in tree.body if isinstance(node, ast.FunctionDef)
+                        and node.name == "_render_earnings_comparison")
+        streamlit = Mock()
+        namespace = dict(st=streamlit, Mapping=Mapping, Any=Any,
+                         build_earnings_comparison=build_earnings_comparison,
+                         _financial_value=lambda value, unit: str(value),
+                         _escape_markdown_currency=str, _financial_period=lambda value: value or "Unavailable")
+        exec(compile(ast.Module(body=[function], type_ignores=[]), "annual_renderer", "exec"), namespace)
+        render = namespace["_render_earnings_comparison"]
+        render(self.annual_page())
+        captions = " ".join(str(call.args[0]) for call in streamlit.caption.call_args_list)
+        self.assertIn("FY2024", captions)
+        self.assertIn("2026-02-01", captions)
+        self.assertIn("annual:1", captions)
+        self.assertIn("No growth rate", captions)
+        text = " ".join(str(call.args[0]) for call in streamlit.write.call_args_list)
+        self.assertIn("still a loss", text)
+        streamlit.info.assert_not_called()
+        streamlit.reset_mock()
+        render(page())
+        streamlit.info.assert_called_once()
+        streamlit.write.assert_not_called()
+
     def test_valuation_preserves_separate_dates_sources_and_missing_dates(self):
         close = dict(fact_name="Last Certified Close", value=12, source="Retained close",
                      source_timestamp="2025-12-31", evidence_ids=("close:1",),
