@@ -87,8 +87,16 @@ def main():
         output=verify_archive(args.archive,expected_sha256=item['archive_sha256'],expected_size=item['archive_size_bytes'],required_file_sha256=item['required_file_sha256'])
         output.update({'artifact_id':item['artifact_id'],'source_run_id':item['run_id'],'source_sha':item['source_sha']})
         result=0
-    except Exception:
-        result=1 # no raw exception text, paths or source content in failure reports
+    except Exception as exc:
+        # Controlled error codes retain actionable diagnostics without serializing
+        # arbitrary exception text, host paths, credentials or source contents.
+        if isinstance(exc, ValueError) and re.fullmatch(r'ARCHIVE_[A-Z0-9_]+', str(exc)):
+            output['error']=str(exc)
+        elif isinstance(exc,zipfile.BadZipFile): output['error']='ARCHIVE_ZIP_CRC_OR_STRUCTURE_INVALID'
+        elif isinstance(exc,MemoryError): output['error']='ARCHIVE_MEMORY_LIMIT'
+        elif isinstance(exc,StopIteration): output['error']='ARCHIVE_ID_NOT_REGISTERED'
+        elif isinstance(exc,OSError): output['error']='ARCHIVE_IO_FAILED'
+        result=1
     args.output.parent.mkdir(parents=True,exist_ok=True);args.output.write_text(json.dumps(output,indent=2,sort_keys=True)+'\n')
     print(json.dumps({k:output[k] for k in ('status','provider_calls','ledger_access','production_writes')}))
     return result

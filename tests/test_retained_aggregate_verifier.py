@@ -89,6 +89,7 @@ def test_cli_failure_saves_sanitized_receipt_without_opening_database(tmp_path):
     assert result.returncode==1
     receipt=json.loads(output.read_text())
     assert receipt['status']=='FAILED' and not receipt['ledger_access']
+    assert receipt['error']=='ARCHIVE_INPUT_MUST_BE_ZIP'
     assert 'PRIVATE_DO_NOT_OPEN' not in json.dumps(receipt)+result.stdout+result.stderr
 
 
