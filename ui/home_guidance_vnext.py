@@ -70,8 +70,8 @@ def _time_et(value: Any) -> str:
 
 def _open_research(ticker: str, key: str, *, compact: bool = False) -> None:
     contract = research_interaction_contract(ticker, key)
-    control_key = f"compact_cta_{key}" if compact else key
-    target = st.container(key=control_key) if compact else st
+    control_key = f"compact_cta_{key}" if compact else f"research_cta_{key}"
+    target = st.container(key=control_key)
     target.markdown(
         f'<span data-atlas-qa="home-guidance-research-cta" data-atlas-ticker="{html.escape(ticker)}" '
         f'data-atlas-interaction-id="{html.escape(contract["interaction_id"])}" '
