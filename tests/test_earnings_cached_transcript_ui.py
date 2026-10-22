@@ -80,3 +80,46 @@ def test_unsigned_legacy_cache_has_explicit_pending_revalidation(surface):
             raise TranscriptCacheReadError('TRANSCRIPT_CACHE_ACCOUNT_BINDING_REVALIDATION_REQUIRED')
     ui._render_transcript_intelligence({'ticker':'NVDA'},suffix='test',cache_reader=Legacy())
     assert any('pending offline account-binding revalidation' in line for line in surface.output)
+
+
+def test_snapshot_unavailability_is_scoped_and_does_not_contradict_selected_call(surface):
+    story = {'ticker': 'NVDA', 'event_identity': {'fiscal_period': 'Q3 2026',
+             'report_date': '2026-10-20'}}
+    ui._render_transcript_intelligence(story, suffix='separate-periods', cache_reader=Cache('AVAILABLE'))
+    text = ' '.join(surface.output)
+    assert 'Snapshot period: Q3 2026' in text
+    assert 'Selected call: Q2 2026' in text
+    assert 'No transcript analysis is attached to this reported-quarter snapshot.' in text
+    assert 'Transcript analysis unavailable' not in text
+    assert 'Approved cached analysis.' in text
+    assert 'availability for one period does not establish availability for another' in text
+
+
+def test_cached_analysis_provenance_uses_only_returned_metadata(surface):
+    class DatedCache(Cache):
+        def read(self, *args, **kwargs):
+            value = super().read(*args, **kwargs)
+            value.update(provider='EARNINGSCALL', capture_timestamp='2026-07-21T12:00:00Z')
+            value['customer_projection'].update(generation_timestamp='2026-07-22T12:00:00Z',
+                model_provider='GENERATED_MOCK_MODEL', model_version='review-v1')
+            return value
+    ui._render_transcript_intelligence({'ticker':'NVDA'}, suffix='dated', cache_reader=DatedCache('AVAILABLE'))
+    text = ' '.join(surface.output)
+    assert 'Source: EARNINGSCALL' in text
+    assert 'Captured: Jul 21, 2026' in text
+    assert 'Analysis generated: Jul 22, 2026' in text
+    assert 'Model: GENERATED_MOCK_MODEL' in text and 'Version: review-v1' in text
+
+
+def test_earnings_customer_changes_trigger_provider_free_browser_capture():
+    from pathlib import Path
+    import yaml
+    root = Path(__file__).resolve().parents[1]
+    workflow = yaml.load((root/'.github/workflows/atlas_premium_home_review.yml').read_text(), Loader=yaml.BaseLoader)
+    paths = workflow['on']['pull_request']['paths']
+    assert {'ui/earnings_vnext.py', 'tests/test_earnings_cached_transcript_ui.py',
+            'tests/test_premium_earnings_cache_render.py'} <= set(paths)
+    job = workflow['jobs']['provider-free-home-review']
+    assert job['env']['ATLAS_QA_PROVIDER_CALLS_ALLOWED'] == '0'
+    assert job['env']['ATLAS_ALLOW_EXTERNAL_AI'] == 'false'
+    assert any('test_premium_*render.py' in step.get('run','') for step in job['steps'])

@@ -235,10 +235,14 @@ def _render_transcript_intelligence(story: Mapping[str, Any], *, suffix: str,
     summary = build_earnings_summary(story)
     st.markdown('<span data-atlas-qa="earnings-ai-summary" data-atlas-classification="contextual-non-scoring" '
                 'style="display:none">earnings-ai-summary</span>', unsafe_allow_html=True)
-    st.markdown("#### AI Earnings Summary")
-    st.caption("Transcript context · contextual/non-scoring · cannot change the certified ATLAS Action")
+    st.markdown("#### Reported-quarter transcript analysis")
+    event = story.get("event_identity") or {}
+    st.caption("Snapshot period: " + _display(event.get("fiscal_period"))
+               + " · Reported: " + _customer_date(event.get("report_date")))
+    st.caption("Snapshot transcript context · contextual/non-scoring · cannot change the certified ATLAS Action")
     if summary["status"] != "AVAILABLE":
-        st.info("Transcript analysis unavailable")
+        st.info("No transcript analysis is attached to this reported-quarter snapshot. "
+                "Retained calls below have their own transcript and summary availability.")
     else:
         for label, items in summary["sections"].items():
             st.markdown(f"**{label}**")
@@ -268,6 +272,8 @@ def _render_transcript_intelligence(story: Mapping[str, Any], *, suffix: str,
     runtime_index_key = f"earnings-transcript-index-{ticker}"
     runtime_result_key = f"earnings-transcript-result-{ticker}"
     st.markdown("#### Retained earnings-call insights")
+    st.caption("Selected-call evidence is separate from the reported-quarter snapshot above; "
+               "availability for one period does not establish availability for another.")
     st.caption("This view reads approved retained evidence only. It does not request new transcripts or generate AI analysis.")
     if cache_reader is None:
         st.info("Transcript availability: not connected · AI summary availability: pending")
@@ -307,9 +313,14 @@ def _render_transcript_intelligence(story: Mapping[str, Any], *, suffix: str,
     status = result.get("ai_summary_status")
     st.caption(f"Transcript availability: {_display(result.get('transcript_status'))} · AI summary availability: {_display(status)}")
     st.caption(f"Selected call: Q{quarter} {year} · Call date: {_customer_date(result.get('call_date'))} · Retained evidence; not proof of the latest release")
+    st.caption("Source: " + _display(result.get("provider"))
+               + " · Captured: " + _customer_date(result.get("capture_timestamp")))
     projection = result.get("customer_projection") or {}
     if status == "AVAILABLE" and projection.get("semantic_status") == "AVAILABLE":
         st.info("Cached AI summary of source-grounded earnings-call evidence")
+        st.caption("Analysis generated: " + _customer_date(projection.get("generation_timestamp"))
+                   + " · Model: " + _display(projection.get("model_provider"))
+                   + " · Version: " + _display(projection.get("model_version")))
         summary = projection.get("management_summary")
         if isinstance(summary, Mapping) and summary.get("claim"):
             st.write(summary["claim"])
