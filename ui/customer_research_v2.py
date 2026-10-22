@@ -971,7 +971,7 @@ def _annotated_customer_price_chart(price_frame, *, rows, date_key, close_key, t
         return
     _marker("annotated-chart", ticker, status="AVAILABLE", panels="4", classification="EDUCATIONAL_NON_SCORING", fingerprint=evidence["evidence_digest"])
     st.plotly_chart(fig, use_container_width=True, key=key, config={"responsive": True, "displaylogo": False})
-    st.caption(evidence["outlook"])
+    st.caption(_escape_markdown_currency(evidence["outlook"]))
     if not evidence["candles"]:
         st.caption("Close-only history: complete verified OHLC bars are unavailable, so candles are not inferred.")
     if not evidence["volume_available"]:
@@ -1207,6 +1207,9 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
         return False
     header = page["header"]
     chart = page["chart"]
+    from services.research_market_read_model import public_admission_marker_values
+    market_context = page.get("market_context") if isinstance(page.get("market_context"), Mapping) else {}
+    _marker("market-admission", ticker, **public_admission_marker_values(market_context.get("admission_receipt")))
     ask_cta(report)
 
     from services.presentation_source import presentation_module

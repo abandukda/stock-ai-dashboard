@@ -200,8 +200,13 @@ class RehearsalResult:
     provider_calls: int = 0
 
 
-def rehearse(plan: Mapping[str, Any], *, durable_root: Path) -> RehearsalResult:
-    """Exercise raw-first durable state with deterministic simulated envelopes."""
+def validate_execution_plan(plan: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    """Validate compiled consistency without transport, directories or mutation.
+
+    These hashes detect mismatch; they do not grant acquisition authority.
+    """
+    if not isinstance(plan, Mapping):
+        raise ValueError("RESEARCH_REFRESH_REHEARSAL_PLAN_INVALID")
     if plan.get("schema") != SCHEMA or plan.get("mode") != "REHEARSAL_TRANSPORT_DISABLED":
         raise ValueError("RESEARCH_REFRESH_REHEARSAL_PLAN_INVALID")
     if plan.get("provider_calls") != 0 or plan.get("recommendation_authority") != "UNCHANGED":
@@ -228,6 +233,13 @@ def rehearse(plan: Mapping[str, Any], *, durable_root: Path) -> RehearsalResult:
         supplied = identity.pop("request_sha256", None)
         if type(request.get("ordinal")) is not int or request["ordinal"] != ordinal or supplied != _digest(identity):
             raise ValueError("RESEARCH_REFRESH_REHEARSAL_REQUEST_DIGEST_INVALID")
+    return requests
+
+
+def rehearse(plan: Mapping[str, Any], *, durable_root: Path) -> RehearsalResult:
+    """Exercise raw-first durable state with deterministic simulated envelopes."""
+    requests = validate_execution_plan(plan)
+    package = str(plan["package_sha256"])
     run = Path(durable_root) / package
     intents, envelopes, receipts = run / "intents", run / "envelopes", run / "receipts"
     for directory in (intents, envelopes, receipts):
@@ -285,4 +297,4 @@ def execute_live(*_: Any, **__: Any) -> None:
 
 
 __all__ = ["CAPABILITY_PRIORITY", "MAX_REQUESTS", "RehearsalResult", "SCHEMA",
-           "compile_execution_plan", "execute_live", "rehearse", "request_parameters"]
+           "compile_execution_plan", "execute_live", "rehearse", "request_parameters", "validate_execution_plan"]
