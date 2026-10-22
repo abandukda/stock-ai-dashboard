@@ -182,5 +182,22 @@
       "approval": "Exact-head merge; separate unattended monitor activation; owner-reviewed PR path without broadening Actions permissions",
       "last_updated": "2026-10-22T00:55:00Z"
     }
-  ]
+  ],
+  "current_main_sha": "3126e5e13048c496765e1a9b08ada65e78765921",
+  "latest_execution": {
+    "baseline_sha": "3126e5e13048c496765e1a9b08ada65e78765921",
+    "merged_prs": [
+      110,
+      111,
+      112
+    ],
+    "production_qa_run": 39703905220,
+    "production_qa_result": "FAIL: post-login ImportError in v784_top_nav",
+    "source_gate": "PASS exact4f5e7bb35f72c0feb66ec04673d4c5487203519a",
+    "artifact_id": 12393668703,
+    "artifact_sha256": "fff356c37f300bb7b1bccf4e0fdb2bc24b6f210a4ac08ed4c59350bc00f2dbe7",
+    "root_cause_limit": "ImportError confirmed. Stale module reproduced locally; host sys.modules not directly inspected.",
+    "repair": "Independent presentation module; actual navigation tested with legacy contract cached",
+    "live_verified": false
+  }
 }
