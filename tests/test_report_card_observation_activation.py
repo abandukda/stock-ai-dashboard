@@ -126,3 +126,118 @@ def test_finnhub_workflow_uses_only_governed_post_close_wakeups():
     assert "provider-free-end-to-end" in source
     assert "run_finnhub_full_universe.py" not in source
     assert "  schedule:" not in legacy
+
+
+def test_backup_write_failure_rolls_back_entire_observation_batch(tmp_path, monkeypatch):
+    import services.report_card_observation_activation as activation
+    ledger = ledger_with_signals(tmp_path / "primary/ledger.sqlite3")
+    original = ledger.verify()
+    def failure(**_kwargs):
+        raise OSError("INJECTED_BACKUP_FAILURE")
+    monkeypatch.setattr(activation, "_write_verified_transaction_backup", failure)
+    with pytest.raises(OSError, match="INJECTED_BACKUP_FAILURE"):
+        apply_observation_bundle(ledger=ledger, backup_root=tmp_path / "backup",
+                                 bundle=bundle(ledger), now=CLOSE + timedelta(minutes=4))
+    assert ledger.verify() == original
+    assert ledger.rows("OBSERVATION") == []
+
+
+@pytest.mark.parametrize("failure_stage", ["file_fsync", "restore_verify", "directory_fsync"])
+def test_snapshot_persistence_failures_cannot_commit_primary(tmp_path, monkeypatch, failure_stage):
+    import services.report_card_observation_activation as activation
+    import os
+    import stat
+    ledger = ledger_with_signals(tmp_path / "primary/ledger.sqlite3")
+    original = ledger.verify()
+    if failure_stage == "restore_verify":
+        def failure(*args, **kwargs): raise ValueError("INJECTED_RESTORE_FAILURE")
+        monkeypatch.setattr(activation, "_verify_transaction_snapshot", failure)
+    else:
+        real = os.fsync
+        def failure(descriptor):
+            directory = stat.S_ISDIR(os.fstat(descriptor).st_mode)
+            if directory == (failure_stage == "directory_fsync"):
+                raise OSError("INJECTED_FSYNC_FAILURE")
+            real(descriptor)
+        monkeypatch.setattr(activation.os, "fsync", failure)
+    with pytest.raises((OSError, ValueError), match="INJECTED"):
+        apply_observation_bundle(ledger=ledger, backup_root=tmp_path / "backup",
+                                 bundle=bundle(ledger), now=CLOSE + timedelta(minutes=4))
+    assert ledger.verify() == original and ledger.rows("OBSERVATION") == []
+
+
+def test_identical_now_idempotent_replay_reuses_verified_backup(tmp_path):
+    ledger = ledger_with_signals(tmp_path / "primary/ledger.sqlite3")
+    now = CLOSE + timedelta(minutes=4)
+    payload = bundle(ledger)
+    first = apply_observation_bundle(ledger=ledger, backup_root=tmp_path / "backup", bundle=payload, now=now)
+    before_bytes = Path(first.backup_path).read_bytes()
+    payload["ledger_tip_before"] = ledger.verify()
+    second = apply_observation_bundle(ledger=ledger, backup_root=tmp_path / "backup", bundle=payload, now=now)
+    assert second.appended == 0 and second.idempotent == 2
+    assert first.backup_path == second.backup_path
+    assert Path(first.backup_path).read_bytes() == before_bytes
+
+
+def test_locked_tip_guard_rejects_intervening_writer(tmp_path, monkeypatch):
+    ledger = ledger_with_signals(tmp_path / "primary/ledger.sqlite3")
+    payload = bundle(ledger)
+    real = ledger.append_many
+    def concurrent(records, **kwargs):
+        ledger.append("AMENDMENT", "concurrent-writer", {"reason": "fixture"}, created_at=CLOSE)
+        return real(records, **kwargs)
+    monkeypatch.setattr(ledger, "append_many", concurrent)
+    with pytest.raises(ValueError, match="LEDGER_TIP_CHANGED_BEFORE_APPEND"):
+        apply_observation_bundle(ledger=ledger, backup_root=tmp_path / "backup", bundle=payload,
+                                 now=CLOSE + timedelta(minutes=4))
+    assert ledger.rows("OBSERVATION") == []
+
+
+def test_snapshot_memory_limit_rejects_without_primary_append(tmp_path, monkeypatch):
+    import services.report_card_observation_activation as activation
+    ledger = ledger_with_signals(tmp_path / "primary/ledger.sqlite3")
+    before = ledger.verify()
+    monkeypatch.setattr(activation, "MAX_TRANSACTION_BACKUP_BYTES", 0)
+    with pytest.raises(ValueError, match="OBSERVATION_TRANSACTION_BACKUP_MEMORY_LIMIT"):
+        apply_observation_bundle(ledger=ledger, backup_root=tmp_path / "backup", bundle=bundle(ledger),
+                                 now=CLOSE + timedelta(minutes=4))
+    assert ledger.verify() == before and ledger.rows("OBSERVATION") == []
+
+
+def test_sqlite_commit_failure_leaves_primary_unchanged(tmp_path, monkeypatch):
+    import sqlite3
+    ledger = ledger_with_signals(tmp_path / "primary/ledger.sqlite3")
+    before = ledger.verify()
+    class CommitFailure(sqlite3.Connection):
+        def execute(self, statement, parameters=()):
+            if statement == "COMMIT":
+                raise sqlite3.OperationalError("INJECTED_COMMIT_FAILURE")
+            return super().execute(statement, parameters)
+    def connect():
+        db = sqlite3.connect(ledger.path, isolation_level=None, factory=CommitFailure)
+        db.row_factory = sqlite3.Row
+        db.execute("PRAGMA journal_mode=WAL")
+        db.execute("PRAGMA synchronous=FULL")
+        db.execute("PRAGMA foreign_keys=ON")
+        return db
+    monkeypatch.setattr(ledger, "_connect", connect)
+    with pytest.raises(sqlite3.OperationalError, match="INJECTED_COMMIT_FAILURE"):
+        apply_observation_bundle(ledger=ledger, backup_root=tmp_path / "backup", bundle=bundle(ledger),
+                                 now=CLOSE + timedelta(minutes=4))
+    assert ledger.verify() == before and ledger.rows("OBSERVATION") == []
+
+
+def test_corrupt_serialized_snapshot_rejected_before_commit(tmp_path, monkeypatch):
+    import sqlite3
+    import services.report_card_observation_activation as activation
+    ledger = ledger_with_signals(tmp_path / "primary/ledger.sqlite3")
+    before = ledger.verify()
+    real = activation._verify_transaction_snapshot
+    def corrupt(path, db):
+        path.write_bytes(b"CORRUPTED_DISPOSABLE_FIXTURE")
+        return real(path, db)
+    monkeypatch.setattr(activation, "_verify_transaction_snapshot", corrupt)
+    with pytest.raises(sqlite3.DatabaseError):
+        apply_observation_bundle(ledger=ledger, backup_root=tmp_path / "backup", bundle=bundle(ledger),
+                                 now=CLOSE + timedelta(minutes=4))
+    assert ledger.verify() == before and ledger.rows("OBSERVATION") == []
