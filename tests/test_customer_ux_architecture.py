@@ -64,7 +64,9 @@ def test_research_trust_tiers_and_collapsed_context_are_explicit():
 def test_mobile_keeps_actionable_cards_before_watching():
     source = (ROOT / "ui" / "home_guidance_vnext.py").read_text(encoding="utf-8")
     group = source[source.index("def _render_groups"):source.index("def _action_counts")]
-    assert group.index("for index, card in enumerate(actionable[:3])") < group.index('with st.expander(f"Worth Watching')
+    assert 'featured_cards = actionable[:3]' in group
+    assert group.index('_compact_opportunity_card(actionable[0]') < group.index('with st.expander(f"Worth Watching')
+    assert group.index('enumerate(featured_cards[1:], start=1)') < group.index('with st.expander(f"Worth Watching')
     assert group.index("remaining = all_actionable[3:]") < group.index('with st.expander(f"Worth Watching')
     assert "@media(max-width:700px)" in source
 
@@ -73,7 +75,11 @@ def test_home_restores_concise_market_read_without_legacy_market_bulk():
     source = (ROOT / "ui" / "home_guidance_vnext.py").read_text(encoding="utf-8")
     active = source[source.index("def render_home_guidance_vnext"):]
     assert active.index("ATLAS Action Summary") < active.index("_render_groups(story")
-    assert active.index("_render_groups(story") < active.index("_render_market_strip(story)")
+    # The owner's consolidated command-center target promotes dated market
+    # context above inventory; deep market detail remains after opportunities.
+    assert active.index("_render_daily_brief(story)") < active.index("_render_market_strip(story)")
+    assert active.index("_render_market_strip(story)") < active.index("_render_groups(story")
+    assert active.index("_render_groups(story") < active.index("_render_market_read(story)")
     assert active.index("_render_market_strip(story)") < active.index("_render_market_read(story)")
     assert "_render_market_today(story)" not in active
     assert "ATLAS Market Read" in source
