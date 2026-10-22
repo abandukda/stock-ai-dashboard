@@ -1,123 +1,48 @@
 # ATLAS master requirements and dependencies
 
-P0 AGGREGATE REVIEW: streaming verification tool and owner-onlymanual GitHub-hosted workflow prepared for fixed final ZIPs11318542723/11456584757.17localtestsPASS;96MiBgeneratedmember stayed below12MiBPythonallocation; two already-downloadedshards tested compatibility withoutsourcechanges. Earlier14-test resourceprofile36,564KiBRSS/0.879s. Actualfinalaggregatebytes NOTverified, workflowNOTdispatched, no standingauthority. Separate exactheadmerge and exactmergedmain ownerdispatch approval required. No sourceextraction/upload, productionledger, provider, paidAI, SSH, Contabo orprotectedworkload use. Reviewrunbook: operations/ATLAS_AGGREGATE_INTEGRITY_REVIEW.md; detailedvalidationJSON alongside.117customer-chart integration merged as d48e356e40d8258b5c0f0f308f7d2cf0e9689b94; post-merge live chart QA required; current4d0a11e baseline39708451001 passed83/83checks/71screens but activechartupgrade notaccepted.
+Current main: `d48e356e40d8258b5c0f0f308f7d2cf0e9689b94` (owner merged PR117). Tracker: Issue78. Consolidated owner directive October22 is the program baseline. Only scope-specific functional and visual Streamlit production verification earns completion credit. A passing fixture, CI or merge does not establish product acceptance.
 
-ACTIVE PATH CORRECTION: PR116 merged as4d0a11e, but its Research work reached the legacy renderer. Active customer component ui/customer_research_v2.py still used a line chart; no activecustomer redesign acceptance claimed. Integration review wires the shared four-panel builder AFTER existing tickerownership gate and adds REQUIRED real NVDA/MSFTdesktop/mobile SVG/chart captures to authenticated QA. Missing sourcehigh/low stayNone, nevercopiedfromclose.164localtestsPASS. Run39708451001 for4d0a11e inprogress; current/privatefinancialgates unchanged.
+## Production truth
 
-CHART REVIEW: owner reference `download.png` retrieved and visually inspected. Report Card labels were created then lost by replacing layout.annotations; review preserves them and adds explicit price ranges. Research is upgraded from price/volume to four educational panels (candles when supplied, rolling20/50/200-bar averages, descriptiveOLS, volume, RSI14 andMACD). No scoring/source/ledger changes.93localtestsPASS; hosted generated-fixture360/768/1440rendering required. NOT merged/deployed/live verified. Full production NVDA/MSFT/historicalAMZN chart journeys and original Home/Research/ReportCard mockups remain outstanding. Currentmain7cf867c production39707089991 SUCCESS83/83checks,71screens,8Researchsubmissions; exact expected/deployedsource verified. Artifact12395354845 SHA2567157a1c03b06a772ac9230e2bf47fefc0efdb05a5025e0856edad2c1e32474cc. Hosted generated-fixture render39707857728 passed360/768/1440; artifact12395513110 SHA25608778af7218f449aaedbdfebf84321afea562cf5643a0a5a0f1c1df1b89add30 downloaded/hash-verified and360/1440screens inspected. Follow-up explicitly labels incomplete moving-average/RSI lookbacks pending; exact-head rerun required.
+Authenticated production run39708451001 passed83/83checks and71/71screenshots, with expected/deployed source4d0a11e. Artifact12396192859 SHA256`8160c124bbf3f20d46b1ff038dc7bae1438d6710464e4ff74c0de1f417a7cf99` was downloaded/hash-verified. Desktop/mobile/768px Home screenshots were inspected. This verifies the baseline journeys only: active enhanced Research chart integration merged through PR117 but requires fresh production QA; premium design, current certified data and original20 private Report Card are not accepted by these counts.
 
-CURRENT RECEIPT — October21 evening Eastern: customer production041ded97 run39705466623 SUCCESS83/83checks,71screens,8desktop/mobileResearchsubmissions,26pages; artifact12394333956 SHA256`2c0cbbca024a176a6bef7c4b91b6f6546cad798f76ef7ecfa0d2b3c3376d31cc`. Actual NVDA/MSFTmobile andtabletHome inspected; original mockup parity/private original20/current certified market data NOT accepted. Currentmaincbcf044 run39706426002 FAILED before authentication: correctSHA withIN_PROGRESS shell marker. Artifact12395437046 SHA256`6bd2151683c020fa6b4c92b3c2e2b781950f70df36d1138cbf8194187e040ed4`. Review repair waits for nonfatal incomplete exactSHA shell only within existing45second bound; terminal errors and wrongSHA remain fail-closed. Daily39705613734 now correctly saves sanitized missing-boundary failure receipt (artifact12394478714 SHA256`a7b98caf07d95178e6d8d00b46d94d4dcc5493647097b6f655be7dff8b45022a`); no protected execution or guessed boundary. Entries below are historical checkpoints, not current acceptance.
+## Five release trains, six continuing workstreams
 
-Latest follow-up: PR113 merged as `041ded97b71307f90c763cfc491153bca6a35f91`; run39705466623 in progress. Run39703996717 authenticated,82/83checks and71screens; failed MSFT Home drilldown (saved report screenshot remains Home). Run39704178633 authenticated,74/74required and79/79attempted checks,62screens, but FAILED on tablet navigation20second timeout; summary unfinished. Both artifacts downloaded/hash-verified; see machine matrix for exact hashes. Review repair strengthens selected-route proof and records bounded tablet timeout evidence without retry or deadline increase. Current financial/private-ledger blockers unchanged.
+| Workstream / train | BUILT | TESTED | MERGED | DEPLOYED | LIVE VERIFIED | Exact next dependency |
+|---|---|---|---|---|---|---|
+| Premium product / A | Partial; new editorial Home119 and active charts117 | Home94 local; chart164 local and governed CI | Baseline116 only;117/119 pending | Baseline4d only | Baseline journeys; premium acceptance OPEN | Inspect generated Home three-viewport renders; exact-head owner merge approval then authenticated live comparisons; NVDA/MSFT/META Research |
+| Certified data / B | Retained readiness and bounded aggregate118 tooling | 86 small archive hashes,82 shards,2,835,352bars;41 chart checkpoints;118 local17/CI PASS | Aggregate118 pending | No new snapshot | NO | Original-host read-only collector; current raw/independent backup; separately approved aggregate execution/protected certification |
+| Genuine Report Card / C | Readiness-only bundle and atomic-backup repair | Synthetic safety proof; historical20/0 receipt | Backup repair111 merged | No observation appended | Current original20/private production OPEN | Current primary/WAL/backup chain proof; AMZN/MPC/VLO/SPY missing evidence; entry-methodology decision; separate append authority |
+| Daily intelligence / D | Provider-free6PM coordinator/receipt foundation | Fail-closed missing-boundary receipt39705613734 | Foundation112 merged | Governed plan only | No successful financial refresh cycle | Certified contiguous boundary, certification/promoter bridge, licensed/AI/publication standing authority;3 consecutive authorized sessions |
+| Contabo / B | Existing runner and generated rehearsal | Smoke39647746218 SUCCESS; hosted generated rehearsal only | Existing safeguards merged | Staging isolation retained | Actual Contabo certification rehearsal NOT RUN | Verify offline/stale queue; authorized one-job synthetic window; separately approve protected migration |
+| Operations, Autopilot / E | Postmerge verifier and manual monitor foundation | Baseline production evidence; fail-closed regression proofs | Verifier/shell/routing repairs merged | Postmerge QA active | Source-bound baseline QA PASS; autonomous release/watchdog OPEN | Durable dedup/stall/runner/approval/data adapters; security-reviewed policy and separate activation approval |
 
-Latest execution, October21 evening Eastern: PR110/111/112 merged; currentmain `3126e5e13048c496765e1a9b08ada65e78765921`. Historical train entries below retain prior scope-specific evidence. Post-merge QA39703905220 FAILED after matching deployed4f5e7bb: `ImportError` in customer navigation. Artifact12393668703 SHA256`fff356c37f300bb7b1bccf4e0fdb2bc24b6f210a4ac08ed4c59350bc00f2dbe7`. No new customer live acceptance. Stale contract-module condition reproduces the ImportError locally; repair imports presentation from a new independent module, preserving route/role APIs and exact four-route scope. Host module-cache state has not been directly inspected. Later QA39703996717 running;39704178633 queued at investigation time.
+## Current review candidates
 
-Machine-readable authority: [ATLAS_MASTER_REQUIREMENTS.json](ATLAS_MASTER_REQUIREMENTS.json). Updated 2026-10-22. Baseline `c45b9da52d6a58df3289d53e74f4583b20b38aa9`. Every train is partial; no whole-program completion percentage is claimed. Source SHA denotes the evidence baseline, not an undeployed repair. PR110/111/112 are now merged; their earlier review-state entries below are historical.
+- PR117 exacthead `170d715a41d5465f4cf1a0e98b6aea0565d8e61f`, tree`0796b99369de972cc63d9aa42c0e79e52e56872d`: active customer four-panel Research chart, preserved source prices/ticker gate and required actual live chart evidence. CI39709282554/39709282485/39709282506 passed. Merged as d48e356; post-merge live chart QA required; no new live claim.
+- PR118 exacthead `c0931e272d67c6ab51f2f36841690896800ef9d4`, tree`96d2cedfc091b5cd69b1d41ce595ab12ac8fc9b3`: streaming retained aggregate verifier with memory bounds, immutable pins and redacted receipts. CI39711446462/39711446215/39711446296/39711446265 passed. Actual two-archive verification NOT EXECUTED. Merge and actual execution are separate approvals.
+- PR119 branch`codex/premium-home-command-center`: NEW editorial target, not recovered-mockup parity. One featured case, comparative supporting cards, market context above inventory, separate evidence clocks.94 local tests passed. Require latest exact-head hosted Streamlit/Chromium evidence and visual review; draft until resolved. No production after screenshot exists yet.
 
-## data — P0
+## Unresolved material design and source gaps
 
-Current certified market data
+Original Home mockups unavailable; owner authorized a clearly identified new target instead of waiting. Full Top15 scan/filter experience, unified platform system, richer governed market/sector/event narrative, real approved AI brief, complete NVDA/MSFT/META Research and original20 private Report Card acceptance remain OPEN. Missing sourced narrative remains unavailable. Candles require genuine OHLC; technical levels must retain source/calculation authority. Generated fixture records are never certified financial facts.
 
-- **current stage**: RETAINED_INTEGRITY_TESTED
-- **stages**: {"built": "PARTIAL", "tested": "PARTIAL", "merged": false, "deployed": false, "live_verified": false}
-- **source sha**: c45b9da52d6a58df3289d53e74f4583b20b38aa9
-- **test evidence**: 86 archive hashes; 82 shards; 2,835,352 bars; 41 chart checkpoints; 12.199s / 79,484KiB RSS
-- **workflow ids**: ["37216506983", "37553164176", "39543861590"]
-- **artifact**: {"readiness_sha256": "a8d7f7c16a3dbcca4f39da231a3da4e878547071ff89c613c71d593764ad4b25", "production_artifact_id": 12391655430, "production_artifact_sha256": "ba66e6723b8e0d7745a8c917a0a6f60189eba0d40975e44dd98aa8d8e1403917"}
-- **data freshness**: 13 sessions after Oct2; 17-ticker receipt through Oct15
-- **blocker**: Host shutdown initiator/current raw/backups unknown; two final archives exceed connector cap
-- **next action**: Execute reviewed read-only original-host collector; certify on separately approved stable environment
-- **approval**: Host evidence access; protected execution approval; separate acquisition/publication authority
-- **last updated**: 2026-10-22T00:55:00Z
+Retained membership evidence endsOct2; chart shards extendOct6. The versioned XNYS reconciliation at Oct21 close found13 missing sessions afterOct2.17-ticker raw receipt throughOct15 is VALIDATED_NOT_GOVERNED_CERTIFIED and has not been freshly verified on the source host. Latest worker shutdown initiator remains unproven; log39544587581 says shutdown signal at04:57:30.7245467UTC, not demonstrated OOM. Two oversized aggregate archives remain unverified. Current primary/WAL and independent backup readiness require source-host evidence; original historical20signals/0observations must not be described as current verification.
 
-## daily — P0
+The exact10-request missing-evidence manifest is PREPARED, NOT AUTHORIZED/EXECUTABLE; current-source checks and an appropriately scoped executor remain required. Frozen reference versus prospective executable entry is unresolved. Existing licensing attestation is retained; acquisition and publication are separate gates. Official META Oct21 result verification does not imply ingestion, licensed transcript availability or live Research coverage.
 
-Approximately 6PM America/New_York every NYSE trading day; missing-only authorized acquisition, certification, recalculation, risk/grounded summaries and atomic promotion
+## Authorization and acceptance
 
-- **current stage**: REVIEW_BRANCH
-- **stages**: {"built": "PARTIAL", "tested": "PARTIAL", "merged": false, "deployed": false, "live_verified": false}
-- **source sha**: c45b9da52d6a58df3289d53e74f4583b20b38aa9
-- **test evidence**: 18 local operations/calendar tests; DST, holiday, early close, duplicate-session and fail-closed receipt checks
-- **workflow ids**: ["39700493693 failure"]
-- **artifact**: {"readiness_sha256": "a8d7f7c16a3dbcca4f39da231a3da4e878547071ff89c613c71d593764ad4b25", "production_artifact_id": 12391655430, "production_artifact_sha256": "ba66e6723b8e0d7745a8c917a0a6f60189eba0d40975e44dd98aa8d8e1403917"}
-- **data freshness**: No new certified session
-- **blocker**: Certified contiguous boundary absent; live certification/promoter bridge disabled; standing authority absent
-- **next action**: Review receipt repair; implement full staged bridge and three authorized consecutive trading-cycle acceptance
-- **approval**: Exact-head merge; separate standing acquisition/publication authority; Report Card separately governed
-- **last updated**: 2026-10-22T00:55:00Z
+Review-only/read-only/provider-free work is authorized. No production merge/deploy, licensed acquisition, paid AI, protected migration, infrastructure or credential changes, ledger writes, financial publication or new unattended schedule activation without separate approval. Public Report Card OFF. Preserve last certified snapshot on failure. Do not turn a missing boundary into a guessed one or weaken browser/source/security assertions.
 
-## report-card — P0
+Release acceptance: exact reviewed head and governed CI; explicit owner approval; deployed SHA match; authenticated desktop/tablet/mobile journeys; actual screenshots inspected against target; financial provenance/freshness and role isolation; immutable ledger proof for private Report Card. Current CI run IDs and review findings belong in Issue78 and the PR receipt. This file is the coherent current matrix; machine-readable requirements preserve the original requirement inventory and historical pins.
 
-Private original20 charts and genuine prospective observations; immutable registration and benchmark alignment
+## Preserved merged Research contract
 
-- **current stage**: REPAIR_TESTED
-- **stages**: {"built": "PARTIAL", "tested": "PARTIAL", "merged": false, "deployed": false, "live_verified": false}
-- **source sha**: c45b9da52d6a58df3289d53e74f4583b20b38aa9
-- **test evidence**: Historical 20 desktop +20 mobile charts; ledger20/0; PR111135 fixture tests
-- **workflow ids**: ["39539040950", "39543861590", "39700720270"]
-- **artifact**: {"readiness_sha256": "a8d7f7c16a3dbcca4f39da231a3da4e878547071ff89c613c71d593764ad4b25", "production_artifact_id": 12391655430, "production_artifact_sha256": "ba66e6723b8e0d7745a8c917a0a6f60189eba0d40975e44dd98aa8d8e1403917"}
-- **data freshness**: 17-ticker evidence Oct5-15; missing AMZN/MPC/VLO/SPY later evidence
-- **blocker**: Current primary/WAL/independent backup unverified; main backup-before-commit defect; entry methodology unresolved
-- **next action**: Review PR11188aadd37081543d077f6a5e5a553aed4b6621469; source rehash; withhold observation bundle
-- **approval**: Exact-head merge; exact10-request acquisition if needed; separate reviewed ledger append; public activation OFF
-- **last updated**: 2026-10-22T00:55:00Z
+PR117 corrects the active ui/customer_research_v2.py path after its existing ticker-ownership gate, retains exact selected prices/date/range and separate Fair Value, and requires real NVDA/MSFT desktop/mobile four-panel SVG/chart screenshots. Missing source high/low stay None rather than copying close. All implementation and QA files from current main are retained unchanged by this Home reconciliation. Original owner chart reference and legacy label-repair evidence remain in the machine matrix; no historical fixture or production baseline is promoted to new active-chart acceptance.
 
-## product — P1
+## Retained aggregate verification controls preserved
 
-Premium Home and beginner/institutional Research; briefing/Top15/risk; annotated charts; NVDA/MSFT/META; permitted transcripts and grounded AI
+PR118 verifies only fixed retained ZIPs11318542723/11456584757 and required canonical member pins. Streaming1MiB chunks,512MiB address-space bound,25minute job limit,1024 entries,16GiB/member and32GiB total expanded limits,8GiB temporary disk preflight. Reject unsafe names, links, encrypted/protected data and checksum/CRC mismatches. No extraction/source upload, SSH, Contabo, credentials, providers, production ledger or protected-workload migration.17 local tests and two already-downloaded compatibility probes passed previously; actual final archive execution remains NOT DISPATCHED/NOT AUTHORIZED. Exact-head merge and separate exact-merged-main owner dispatch authorization are distinct. Review runbook: operations/ATLAS_AGGREGATE_INTEGRITY_REVIEW.md.
 
-- **current stage**: PARTIAL_LIVE_VERIFIED
-- **stages**: {"built": "PARTIAL", "tested": "PARTIAL", "merged": true, "deployed": true, "live_verified": "PARTIAL: CUSTOMER BASELINE ONLY"}
-- **source sha**: c45b9da52d6a58df3289d53e74f4583b20b38aa9
-- **test evidence**: Production83/83checks;71screens; clipped mobile nav repaired only in PR110
-- **workflow ids**: ["39695810692", "39696841098", "39696841071"]
-- **artifact**: {"readiness_sha256": "a8d7f7c16a3dbcca4f39da231a3da4e878547071ff89c613c71d593764ad4b25", "production_artifact_id": 12391655430, "production_artifact_sha256": "ba66e6723b8e0d7745a8c917a0a6f60189eba0d40975e44dd98aa8d8e1403917"}
-- **data freshness**: Retained Oct4 snapshot / history Oct2; META absent
-- **blocker**: No current briefing; original mockups unavailable; Support/Resistance labels and comprehensive tablet journeys incomplete; transcript rights not certified
-- **next action**: Review PR1108c33d99aa5cd3f2f72d06f21f7f76dffd50d107d; implement deterministic labels without scoring changes; screenshot NVDA/MSFT/historicalAMZN at desktop/tablet/mobile
-- **approval**: Exact-head merge; original approved mockups; separate paidAI/publication approval if needed
-- **last updated**: 2026-10-22T00:55:00Z
-
-## execution — P0
-
-Stable isolated certification worker, independent backup restore, bounded Contabo rehearsal and controlled migration
-
-- **current stage**: SMOKE_LIVE_VERIFIED
-- **stages**: {"built": "PARTIAL", "tested": "PARTIAL", "merged": "SMOKE ONLY", "deployed": false, "live_verified": false}
-- **source sha**: c45b9da52d6a58df3289d53e74f4583b20b38aa9
-- **test evidence**: Contabo smoke39647746218 success; hosted generated-only rehearsal21,388KiBRSS; actual financial certification NOT executed
-- **workflow ids**: ["39647746218", "39666895836", "39544587581"]
-- **artifact**: {"readiness_sha256": "a8d7f7c16a3dbcca4f39da231a3da4e878547071ff89c613c71d593764ad4b25", "production_artifact_id": 12391655430, "production_artifact_sha256": "ba66e6723b8e0d7745a8c917a0a6f60189eba0d40975e44dd98aa8d8e1403917"}
-- **data freshness**: No certified financial snapshot promoted
-- **blocker**: ID21/23 last observed Offline; shutdown04:57:30Zinitiator unknown; no host journals; stale old-source protected queue
-- **next action**: Obtain read-only host receipts; reverify runner Offline before separately authorized generated rehearsal
-- **approval**: Exact rehearsal window; separate protected migration/infrastructure authority
-- **last updated**: 2026-10-22T00:55:00Z
-
-## operations — P1
-
-Post-merge source-bound production QA; GitHub-native ~5minute material-change monitoring; secure owner-reviewed Autopilot PR creation
-
-- **current stage**: REVIEW_BRANCH
-- **stages**: {"built": "PARTIAL", "tested": "PARTIAL", "merged": false, "deployed": false, "live_verified": false}
-- **source sha**: c45b9da52d6a58df3289d53e74f4583b20b38aa9
-- **test evidence**: PR110 CI green; manual monitor normalization tests and actionlint pass; no schedule activated
-- **workflow ids**: ["39696841098", "39696841071"]
-- **artifact**: {"readiness_sha256": "a8d7f7c16a3dbcca4f39da231a3da4e878547071ff89c613c71d593764ad4b25", "production_artifact_id": 12391655430, "production_artifact_sha256": "ba66e6723b8e0d7745a8c917a0a6f60189eba0d40975e44dd98aa8d8e1403917"}
-- **data freshness**: Live source last verified c45b9da
-- **blocker**: Monitor foundation lacks runner/approval/live/data authority adapters, durable baseline and notifications; Autopilot draft PR permission denied
-- **next action**: Review operations PR; implement adapters/durable dedup/isolated issue reporter; keep schedules absent pending approval
-- **approval**: Exact-head merge; separate unattended monitor activation; owner-reviewed PR path without broadening Actions permissions
-- **last updated**: 2026-10-22T00:55:00Z
-
-## Acceptance gates
-
-Daily: three authorized consecutive real NYSE trading cycles, source/entitlement/corporate-action certification, deterministic recalculation, failed-stage rollback preserving prior snapshot, freshness receipts and separate publication authority. Simulations do not satisfy this gate.
-
-Charts: explicit Support/Resistance text using existing certified deterministic levels, MA periods, exact signal markers, RSI/MACD/volume, toggles/hover, source and calculation timestamps, grounded technical outlook; NVDA/MSFT/historical AMZN desktop/tablet/mobile screenshots. No price invention or scoring/history changes.
-
-Monitor: reviewed five-minute proposal only. The manual-only foundation has no schedule or notification writes. Complete durable baseline, authoritative approvals/runner/live-source/data adapters, stalled detection and material-only isolated reporter before requesting activation. Unavailable evidence fails closed.
-
-Private Report Card: administrator/viewer isolation, original20 chart authority, current read-only ledger20/0 proof, independent backup logical restore, prospective entry methodology, aligned split/dividend/benchmark evidence; separately approved append with rollback/idempotency. Public activation remains OFF.
-
-UI: before/after real production screenshots and source SHA verification; original approved mockups required for design parity. Existing71screens are baseline evidence, not redesigned-after evidence.
+Conflict reconciliation joins the complete aggregate controls, premium Home target and merged Research contract. Both review branches carry identical shared documents so approving one does not immediately conflict with the other. Original implementation/test/workflow inventories remain unchanged; no blanket side selection was used.
