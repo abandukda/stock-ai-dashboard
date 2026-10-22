@@ -1370,6 +1370,22 @@ def _compact_opportunity_card(card: Mapping[str, Any], *, key: str, first: bool 
         (f'<p class="atlas-home-compact-thesis"><b>Why it stands out</b> {html.escape(thesis)}</p>' if thesis_available else '')
         + (f'<p class="atlas-home-compact-risk"><b>Main concern</b> {html.escape(risk)}</p>' if risk else '')
     )
+    if summary_only:
+        st.markdown(
+            '<article class="atlas-home-compact-card atlas-home-shortlist-row" '
+            'data-atlas-qa="home-actionable-card" data-atlas-first="false" '
+            f'data-atlas-ticker="{html.escape(ticker)}" data-atlas-guidance="{html.escape(state)}" '
+            f'data-atlas-evidence-status="{html.escape(evidence)}">'
+            f'<header><h3>{html.escape(identity)}</h3><small>{html.escape(_display(state))}</small></header>'
+            '<div class="atlas-home-compact-values">'
+            f'<span><small>{html.escape(str(card.get("display_price_label") or "Dated price"))}</small><b>{html.escape(_money(card.get("display_price")))}</b></span>'
+            f'<span><small>ATLAS Fair Value</small><b>{html.escape(_money(card.get("atlas_fair_value")))}</b></span>'
+            f'<span><small>Potential</small><b>{html.escape(_score(potential, suffix="%"))}</b></span></div>'
+            f'<footer>{html.escape(evidence)} · Certified {_timestamp(card.get("decision_as_of"))}</footer></article>',
+            unsafe_allow_html=True,
+        )
+        _open_research(ticker, f"home_top_idea_{key}_{ticker}", compact=True)
+        return
     st.markdown(
         f'<article class="atlas-home-compact-card{ " atlas-home-featured-case" if first else ""}{ " atlas-home-shortlist-row" if summary_only else ""}" data-atlas-qa="home-actionable-card" '
         f'data-atlas-first="{str(first).lower()}" data-atlas-ticker="{html.escape(ticker)}" '
@@ -2031,7 +2047,8 @@ def render_home_guidance_vnext(story: Mapping[str, Any], *, emit_interactive=Non
         unsafe_allow_html=True,
     )
     _render_daily_brief(story)
-    _render_market_strip(story)
+    with st.expander("Market reference details", expanded=False):
+        _render_market_strip(story)
     _render_command_deck(story)
     _section_marker("atlas_action_summary")
     st.markdown("## ATLAS Action Summary")
