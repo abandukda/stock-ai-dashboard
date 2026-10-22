@@ -977,6 +977,12 @@ def test_real_renderer_binds_certified_fair_value_to_each_ticker_chart(monkeypat
         pass
 
     class Column:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
         def metric(self, *_args, **_kwargs):
             return None
 
@@ -1003,8 +1009,8 @@ def test_real_renderer_binds_certified_fair_value_to_each_ticker_chart(monkeypat
             return None
 
         @staticmethod
-        def columns(count):
-            return [Column() for _ in range(count)]
+        def columns(count, **_kwargs):
+            return [Column() for _ in range(count if isinstance(count, int) else len(count))]
 
         @staticmethod
         def tabs(labels):

@@ -27,6 +27,11 @@ RESEARCH_REFERENCE_CSS = r'''<style>
 [id^="atlas-research-"]{scroll-margin-top:1rem}.atlas-research-section-nav{overscroll-behavior-x:contain}.atlas-research-section-nav:focus-within{outline-offset:3px}
 @media(max-width:1000px){.atlas-r2-head .atlas-r2-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:700px){body:has([data-atlas-qa="research-v2-root"]) [data-testid="stMainBlockContainer"]{padding-left:.75rem!important;padding-right:.75rem!important}.atlas-r2-head .atlas-r2-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.atlas-r2-head .atlas-r2-metrics strong{font-size:1.2rem}.atlas-r2-head .atlas-r2-metrics .atlas-r2-metric:last-child{grid-column:1/-1}}
+.atlas-research-insight-rail .atlas-research-digest{grid-template-columns:1fr;margin:0}.atlas-research-insight-rail .atlas-research-digest article{padding:1rem}.atlas-research-insight-rail .atlas-research-digest h3{font-size:1.08rem!important}.atlas-research-insight-rail .atlas-research-digest p{font-size:.88rem;line-height:1.55}
+.atlas-research-fundamentals{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.75rem;margin:.75rem 0 1.2rem}.atlas-research-fundamentals article{min-width:0;border:1px solid #21425a;border-radius:12px;background:linear-gradient(135deg,#102638,#0a1828);padding:1rem}.atlas-research-fundamentals small{display:block;color:#9ab3ca;font-size:.78rem;margin-bottom:.5rem}.atlas-research-fundamentals strong{display:block;color:#edf5ff;font-size:1.4rem;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+body:has([data-atlas-qa="research-v2-root"]) [data-testid="stHorizontalBlock"]:has([data-atlas-qa="research-chart-workspace"]){align-items:flex-start}
+@media(max-width:1100px){body:has([data-atlas-qa="research-v2-root"]) [data-testid="stHorizontalBlock"]:has([data-atlas-qa="research-chart-workspace"]){flex-direction:column}body:has([data-atlas-qa="research-v2-root"]) [data-testid="stHorizontalBlock"]:has([data-atlas-qa="research-chart-workspace"])>[data-testid="stColumn"]{width:100%!important;flex:1 1 100%!important}.atlas-research-insight-rail .atlas-research-digest{grid-template-columns:1.35fr 1fr}}
+@media(max-width:700px){.atlas-research-insight-rail .atlas-research-digest{grid-template-columns:1fr}.atlas-research-fundamentals{grid-template-columns:repeat(2,minmax(0,1fr));gap:.5rem}.atlas-research-fundamentals article{padding:.8rem}.atlas-research-fundamentals strong{font-size:1.15rem}}
 </style>'''
 
 
@@ -64,3 +69,12 @@ def comprehensive_analysis_html(page):
     if digest.get('status') != 'AVAILABLE': return ''
     return (RESEARCH_REFERENCE_CSS+'<section class="atlas-research-analysis" data-atlas-qa="research-comprehensive-analysis">'+''.join(
         '<article data-atlas-question="'+escape(str(a['key']))+'"><h4>'+escape(str(a['question']))+'</h4><p>'+escape(_readable(a['answer']))+'</p></article>' for a in digest.get('answers') or ())+'</section>')
+
+
+def fundamentals_cards_html(facts):
+    """Display admitted labels/values verbatim; perform no financial inference."""
+    return ('<section class="atlas-research-fundamentals" aria-label="Fundamentals snapshot" '
+            'data-atlas-qa="research-fundamental-cards">' + ''.join(
+                '<article><small>' + escape(str(fact["fact_name"])) + '</small><strong>'
+                + escape(str(fact["display_value"])) + '</strong></article>'
+                for fact in facts) + '</section>')
