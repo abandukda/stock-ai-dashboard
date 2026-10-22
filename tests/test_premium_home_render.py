@@ -30,7 +30,8 @@ class PremiumHomeRender(unittest.TestCase):
                         for width in (360,768,1440):
                             page=browser.new_page(viewport={'width':width,'height':1000})
                             page.goto(f'http://127.0.0.1:{port}')
-                            page.wait_for_selector('[data-fixture-ready="true"]',timeout=30000)
+                            page.wait_for_selector('[data-fixture-complete="true"]',timeout=30000)
+                            page.screenshot(path=str(target/f'GENERATED_HOME_{width}.png'),full_page=True)
                             self.assertEqual(page.locator('[data-atlas-qa="home-actionable-card"]').count(),3)
                             self.assertEqual(page.locator('.atlas-home-featured-case').count(),1)
                             self.assertLessEqual(page.evaluate('document.documentElement.scrollWidth'),width+1)

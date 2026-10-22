@@ -16,3 +16,5 @@ render_home_guidance_vnext({'cards':cards,'home_featured_cards':cards,'scan_time
     'home_runtime_contract':{'runtime_ready':True,'inventory_authority':{'publishable_buy_now_count':4}},
     'market_today':{'status':'DATA_UNAVAILABLE','interpretation':'No current governed market context is supplied to this generated fixture.'}},
     emit_interactive=lambda: st.markdown('<span data-fixture-ready="true">Fixture ready</span>',unsafe_allow_html=True))
+
+st.markdown('<span data-fixture-complete="true">Fixture complete</span>',unsafe_allow_html=True)
