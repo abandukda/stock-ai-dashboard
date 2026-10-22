@@ -21,6 +21,20 @@ class RetainedHomeBrowser(unittest.TestCase):
         fixture = '''
 import streamlit as st
 from ui.home_guidance_vnext import render_home_guidance_vnext
+import ui.home_reference_components as reference
+import ui.research_reference_components as shared
+# Simulate a warm process importing the old pure helper before deployment.
+def old_market_cards(context, *, money, timestamp):
+    return 'STALE_HOME_MARKETS'
+reference.market_cards_html = old_market_cards
+reference.opportunity_table_html = lambda *a, **k: 'STALE_HOME_SHORTLIST'
+if hasattr(reference, 'published_inventory_html'):
+    del reference.published_inventory_html
+for name in ('market_cards_html', 'opportunity_table_html', 'published_inventory_html'):
+    if hasattr(shared, name):
+        delattr(shared, name)
+if hasattr(shared, '__atlas_presentation_source_sha256__'):
+    del shared.__atlas_presentation_source_sha256__
 st.set_page_config(layout='wide')
 st.warning('GENERATED FIXTURE — NOT MARKET DATA OR PRODUCTION VERIFICATION')
 cards=[{'ticker':'TEST'+chr(65+i),'company':'Generated test company','guidance':'BUY_NOW',
@@ -57,6 +71,7 @@ st.markdown('<span data-fixture-selected-ticker="'+selected+'">Selected Research
                                 page.goto(f'http://127.0.0.1:{port}')
                                 page.wait_for_selector('[data-fixture-complete="true"]', timeout=30000)
                                 self.assertEqual(page.locator('[data-testid="stException"]').count(),0)
+                                self.assertNotIn('STALE_HOME_', page.inner_text('body'))
                                 note = page.locator('[data-atlas-qa="home-published-inventory-note"]')
                                 self.assertIn('11 published BUY NOW opportunities', note.inner_text())
                                 self.assertIn('Not a live refresh', note.inner_text())
