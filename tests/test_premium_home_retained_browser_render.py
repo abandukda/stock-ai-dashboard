@@ -7,7 +7,7 @@ import sys
 import tempfile
 import time
 import unittest
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, expect
 from test_premium_home_render import capture_complete_streamlit
 
 
@@ -60,7 +60,7 @@ st.markdown('<span data-fixture-selected-ticker="'+selected+'">Selected Research
                                 note = page.locator('[data-atlas-qa="home-published-inventory-note"]')
                                 self.assertIn('11 published BUY NOW opportunities', note.inner_text())
                                 self.assertIn('Not a live refresh', note.inner_text())
-                                self.assertEqual(page.locator('[data-atlas-qa="home-actionable-card"]').count(),3)
+                                expect(page.locator('[data-atlas-qa="home-actionable-card"]')).to_have_count(3, timeout=15000)
                                 self.assertLessEqual(page.evaluate('document.documentElement.scrollWidth'),width+1)
                                 capture_complete_streamlit(page,target/f'GENERATED_RETAINED_HOME_{width}.png')
                                 page.locator('.st-key-home_top_idea_position_1').get_by_role('button',name='View Research →',exact=True).click()

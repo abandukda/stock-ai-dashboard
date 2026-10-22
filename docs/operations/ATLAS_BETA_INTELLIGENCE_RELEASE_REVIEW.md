@@ -129,3 +129,13 @@ widths; it is explicitly not external AI or real transcript evidence. A local ac
 Streamlit interaction verified its displayed claim, availability and private-source
 exclusion. The 27 affected personal/Home offline tests passed after these repairs;
 fresh exact-head hosted browser/CI acceptance is still required.
+
+A second browser run `39847824987` passed all personal-workspace journeys and
+confirmed the repaired hero visually, but remained failed overall. Home's immediate
+card count raced pending Streamlit deltas (the saved DOM contained all three); it now
+waits boundedly for the identical exact count. Earnings' later available mode attempted
+mock setup after a previous mode had installed the class guard. Synthetic caches now
+seed before the UI server starts; provider/model guards remain and a cache-writer
+constructor guard additionally protects customer interaction. The actual guarded
+read-only AppTest passed against that preseeded available summary. Fresh hosted
+acceptance remains required; partial screenshots are not full acceptance.

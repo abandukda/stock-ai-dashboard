@@ -40,21 +40,10 @@ p=ConfiguredTranscriptProvider(api_key='GENERATED_PRIVATE_KEY_NEVER_DISPLAY',
     base_url='https://v2.api.earningscall.biz',provider_name='earningscall',
     license_state='COMMERCIAL_LICENSE_CONFIRMED',get=fixture_get)
 root=Path(os.environ['ATLAS_GENERATED_CACHE_ROOT'])/mode
-if mode!='default' and not (root/'transcript_cache.sqlite3').exists():
-    store=TranscriptEvidenceStore(root,retention_until=end,clock=lambda:now)
-    if mode in {'pending','available'}:
-        def generated_summary(_payload):
-            claim='Revenue grew 10%.'
-            return {'management_summary':{'claim':claim,'source_excerpt':claim,
-                'source_excerpt_hash':hashlib.sha256(claim.encode()).hexdigest(),
-                'claim_type':'PERFORMANCE'}}, 'GENERATED_MOCK_MODEL', 'v1'
-        store.run('NVDA',year=2026,quarter=2,provider=p,acquisition_authorized=True,
-            summary_authorized=mode=='available',
-            summarizer=generated_summary if mode=='available' else None,
-            summary_revision='GENERATED_APPROVED_POLICY')
 def forbidden(*args,**kwargs): raise AssertionError('Customer provider/model callback forbidden')
 p.transcript=p.available_periods=forbidden
 ConfiguredTranscriptProvider.transcript=ConfiguredTranscriptProvider.available_periods=forbidden
+TranscriptEvidenceStore.__init__=forbidden
 runtime.retrieve_and_summarize_transcript=forbidden
 # Reject outbound sockets in fixture execution as well as browser external requests.
 socket.socket.connect=forbidden
@@ -66,6 +55,36 @@ st.markdown('<span data-fixture-complete="true">Generated cache fixture complete
 '''
 
 
+def _seed_generated_cache(root):
+    """Create synthetic retained evidence before starting the read-only UI server."""
+    from datetime import datetime, timezone
+    import hashlib
+    from services.transcript_evidence_store import TranscriptEvidenceStore
+    from services.transcript_provider import ConfiguredTranscriptProvider
+    class Response:
+        status_code = 200
+        def json(self):
+            return {'id':'GENERATED:CALL','conference_date':'2026-07-20',
+                    'text':'PRIVATE GENERATED SOURCE: Revenue grew 10%. Margin pressure remains a risk.'}
+    provider = ConfiguredTranscriptProvider(api_key='GENERATED_PRIVATE_KEY_NEVER_DISPLAY',
+        base_url='https://v2.api.earningscall.biz', provider_name='earningscall',
+        license_state='COMMERCIAL_LICENSE_CONFIRMED', get=lambda *a, **k: Response())
+    def generated_summary(_payload):
+        claim='Revenue grew 10%.'
+        return {'management_summary':{'claim':claim,'source_excerpt':claim,
+            'source_excerpt_hash':hashlib.sha256(claim.encode()).hexdigest(),
+            'claim_type':'PERFORMANCE'}}, 'GENERATED_MOCK_MODEL', 'v1'
+    for mode in ('pending', 'missing', 'available'):
+        store = TranscriptEvidenceStore(root/mode,
+            retention_until=datetime(2026,12,31,tzinfo=timezone.utc),
+            clock=lambda:datetime(2026,10,23,tzinfo=timezone.utc))
+        if mode != 'missing':
+            store.run('NVDA',year=2026,quarter=2,provider=provider,
+                acquisition_authorized=True,summary_authorized=mode=='available',
+                summarizer=generated_summary if mode=='available' else None,
+                summary_revision='GENERATED_APPROVED_POLICY')
+
+
 class PremiumEarningsCacheRender(unittest.TestCase):
     def test_generated_retained_availability_at_three_viewports(self):
         with socket.socket() as sock:
@@ -73,6 +92,7 @@ class PremiumEarningsCacheRender(unittest.TestCase):
         target=Path('audit_results/premium_home/earnings_cache'); target.mkdir(parents=True,exist_ok=True)
         with tempfile.TemporaryDirectory(prefix='atlas-generated-earnings-') as temporary:
             root=Path(temporary); script=root/'fixture.py'; script.write_text(FIXTURE)
+            _seed_generated_cache(root/'private')
             env=dict(os.environ,PYTHONPATH=os.pathsep.join(filter(None,[str(Path.cwd()),os.environ.get('PYTHONPATH')])),
                      ATLAS_GENERATED_CACHE_ROOT=str(root/'private'),ATLAS_QA_PROVIDER_CALLS_ALLOWED='0',
                      ATLAS_ALLOW_EXTERNAL_AI='false',ATLAS_CUSTOMER_REPORT_CARD_ENABLED='false')
