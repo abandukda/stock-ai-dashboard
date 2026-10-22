@@ -70,6 +70,10 @@ class PremiumHomeRender(unittest.TestCase):
                                 self.assertGreaterEqual(box['x'],0);self.assertLessEqual(box['x']+box['width'],width+1)
                             self.assertTrue(page.get_by_text('Public activation OFF',exact=False).count())
                             capture_complete_streamlit(page,target/f'GENERATED_HOME_{width}.png')
+                            page.get_by_text('View all 4 BUY NOW opportunities',exact=True).click()
+                            owned=page.locator('[class~="st-key-compact_cta_home_governed_quick_CODA"]')
+                            owned.get_by_role('button',name='View Research →',exact=True).click()
+                            page.wait_for_selector('[data-fixture-selected-ticker="CODA"]',state='attached',timeout=30000)
                             page.close()
                     finally: browser.close()
             finally:

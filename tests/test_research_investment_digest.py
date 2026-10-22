@@ -35,3 +35,14 @@ def test_unavailable_evidence_does_not_invent_recent_news_or_raise_for_invalid_t
     assert build_investment_digest({'status':'WITHHELD'})['answers']==()
     escaped=executive_digest_html({'company':'<script>bad()</script>','investment_digest':d})
     assert '<script>' not in escaped and '&lt;script&gt;' in escaped
+
+
+def test_rendered_dates_are_readable_while_exact_source_timestamps_are_unchanged():
+    from copy import deepcopy
+    page={'company':'Generated company','investment_digest':{'status':'AVAILABLE','as_of':'2026-10-02T00:00:00+00:00',
+          'executive_digest':['Dated update 2026-10-15T20:00:00Z'],
+          'answers':[{'key':'changes','question':'What changed?','answer':'Updated 2026-10-15T20:00:00Z'}]}}
+    before=deepcopy(page);body=executive_digest_html(page)+comprehensive_analysis_html(page)
+    assert 'Oct 02, 2026' in body and 'Oct 15, 2026, 04:00 PM EDT' in body
+    assert '2026-10-02T' not in body and '2026-10-15T' not in body
+    assert page==before

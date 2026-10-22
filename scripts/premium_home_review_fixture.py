@@ -10,7 +10,7 @@ stale_styles.PREMIUM_HOME_CSS='/* GENERATED STALE IMPORT CASE */'
 if hasattr(stale_styles,'__atlas_presentation_source_sha256__'):
     del stale_styles.__atlas_presentation_source_sha256__
 cards=[]
-for rank,ticker in enumerate(('FIXTURE_A','FIXTURE_B','FIXTURE_C','FIXTURE_D'),start=1):
+for rank,ticker in enumerate(('FIXTURE_A','FIXTURE_B','FIXTURE_C','CODA'),start=1):
     cards.append({'ticker':ticker,'company':'Generated company '+str(rank),'guidance':'BUY_NOW',
         'production_rank':rank,'display_price':100+rank,'display_price_label':'Dated fixture price',
         'atlas_fair_value':120+rank,'atlas_expected_return':19.8,'opportunity':80-rank,
@@ -23,3 +23,5 @@ render_home_guidance_vnext({'cards':cards,'home_featured_cards':cards,'scan_time
     emit_interactive=lambda: st.markdown('<span data-fixture-ready="true">Fixture ready</span>',unsafe_allow_html=True))
 
 st.markdown('<span data-fixture-complete="true">Fixture complete</span>',unsafe_allow_html=True)
+
+st.markdown('<span data-fixture-selected-ticker="'+str(st.session_state.get('active_research_ticker',''))+'"></span>',unsafe_allow_html=True)

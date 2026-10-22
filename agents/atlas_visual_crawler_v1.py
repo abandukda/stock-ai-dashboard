@@ -3295,17 +3295,32 @@ class AtlasVisualCrawler:
             f'[data-atlas-interaction-id="{preferred_id}"]',
             f'[data-atlas-expected-ticker="{ticker}"][data-atlas-expected-page="research-any-ticker"]',
         ]
+        declared_owner_seen = False
         for selector in selectors:
             for scope in _scopes(page):
                 try:
                     markers = scope.locator(selector)
                     for index in range(await markers.count()):
                         marker = markers.nth(index)
+                        control_key = await marker.get_attribute("data-atlas-control-key")
+                        if control_key:
+                            declared_owner_seen = True
+                            if not re.fullmatch(r"[A-Za-z0-9_.-]+", control_key):
+                                continue
+                            container = scope.locator(f'[class~="st-key-{control_key}"]')
+                            button = container.get_by_role("button", name=re.compile(r"^(?:View Research →|View Full Investment Case — .+)$"))
+                            if await button.count() == 1 and await button.is_visible():
+                                return marker, button
+                            # A declared control owner must never fall through
+                            # to a nearby unrelated ticker's button.
+                            continue
                         button = marker.locator("xpath=following::button[1]").first
                         if await button.count() and await button.is_visible():
                             return marker, button
                 except Exception:
                     continue
+        if declared_owner_seen:
+            return None, None
         exact_ticker = re.compile(rf"(?<![A-Z0-9]){re.escape(ticker)}(?![A-Z0-9])", re.I)
         for scope in _scopes(page):
             try:
