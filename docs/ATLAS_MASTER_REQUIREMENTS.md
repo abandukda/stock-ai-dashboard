@@ -1,6 +1,6 @@
 # ATLAS master requirements and dependencies
 
-Current main: `d48e356e40d8258b5c0f0f308f7d2cf0e9689b94` (owner merged PR117). Tracker: Issue78. Consolidated owner directive October22 is the program baseline. Only scope-specific functional and visual Streamlit production verification earns completion credit. A passing fixture, CI or merge does not establish product acceptance.
+Current main: `d2dd0f93e9a706634ccb7220e67e3811b1060589` (owner merged PR118/119). Tracker: Issue78. Consolidated owner directive October22 is the program baseline. Only scope-specific functional and visual Streamlit production verification earns completion credit. A passing fixture, CI or merge does not establish product acceptance.
 
 ## Production truth
 
@@ -46,3 +46,7 @@ PR117 corrects the active ui/customer_research_v2.py path after its existing tic
 PR118 verifies only fixed retained ZIPs11318542723/11456584757 and required canonical member pins. Streaming1MiB chunks,512MiB address-space bound,25minute job limit,1024 entries,16GiB/member and32GiB total expanded limits,8GiB temporary disk preflight. Reject unsafe names, links, encrypted/protected data and checksum/CRC mismatches. No extraction/source upload, SSH, Contabo, credentials, providers, production ledger or protected-workload migration.17 local tests and two already-downloaded compatibility probes passed previously; actual final archive execution remains NOT DISPATCHED/NOT AUTHORIZED. Exact-head merge and separate exact-merged-main owner dispatch authorization are distinct. Review runbook: operations/ATLAS_AGGREGATE_INTEGRITY_REVIEW.md.
 
 Conflict reconciliation joins the complete aggregate controls, premium Home target and merged Research contract. Both review branches carry identical shared documents so approving one does not immediately conflict with the other. Original implementation/test/workflow inventories remain unchanged; no blanket side selection was used.
+
+## Current design-reference and live-QA reconciliation
+
+Owner supplied the multi-surface ATLAS AI Investment Dashboard Mockup(1).png as primary visual target. Original Report Card image, other dashboard concept, prior UX reviews and QA packs recovered; inventory and direct comparison in operations/ATLAS_ORIGINAL_DESIGN_REFERENCE_RECONCILIATION.md. No original parity accepted.119 merged; follow-up reference-aligned Home remains review-only. ExactSHA d2dd production39715967275 authenticated and captured15screens, but failed requiredNVDAchart16/18checks; desktopHome visually inspected, fullmobile/tablet/customer acceptance OPEN. No admitted history reaches chart; locally verified NVDA/MSFT274bars each match published lineage and pass existing readmodel/activeadapter withstale disclosure. No private runtime data delivery authorized; no raw licensed data committed. Current market certification and original20/private/prospective ReportCard gates remain separate.

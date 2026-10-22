@@ -4,6 +4,8 @@ on:
     paths:
       - 'ui/home_guidance_vnext.py'
       - 'ui/premium_home_styles.py'
+      - 'ui/home_reference_components.py'
+      - 'tests/test_home_reference_components.py'
       - 'tests/test_premium_home*'
       - 'scripts/premium_home_review_fixture.py'
       - '.github/workflows/atlas_premium_home_review.yml'
@@ -26,7 +28,7 @@ jobs:
           python-version: '3.11'
       - run: python -m pip install -r requirements.txt playwright==1.52.0
       - run: python -m playwright install --with-deps chromium
-      - run: python -m pytest -q tests/test_home_guidance_vnext.py tests/test_premium_home_command_center.py
+      - run: python -m pytest -q tests/test_home_guidance_vnext.py tests/test_premium_home_command_center.py tests/test_home_reference_components.py
       - run: python -m unittest discover -s tests -p test_premium_home_render.py -v
       - uses: actions/upload-artifact@v4
         if: always()

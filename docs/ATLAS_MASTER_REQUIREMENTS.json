@@ -181,7 +181,7 @@
       "last_updated": "2026-10-22T00:55:00Z"
     }
   ],
-  "current_main_sha": "d48e356e40d8258b5c0f0f308f7d2cf0e9689b94",
+  "current_main_sha": "d2dd0f93e9a706634ccb7220e67e3811b1060589",
   "latest_execution": {
     "current_main_sha": "7cf867cee761c16a5f91153edd83d0deff7c155d",
     "verified_customer_sha": "7cf867cee761c16a5f91153edd83d0deff7c155d",
@@ -319,5 +319,26 @@
       "docs/ATLAS_MASTER_REQUIREMENTS.json"
     ],
     "strategy": "Semantic union of Research117, aggregate118 and premiumHome119 requirements. Identical shared documents on both review branches prevent sequential-merge conflicts. No implementation/security/financial assertions discarded."
+  },
+  "original_design_reference_recovery": {
+    "primary": "Owner supplied ATLAS AI Investment Dashboard Mockup(1).png",
+    "inventory": "operations/ATLAS_DESIGN_REFERENCE_INVENTORY.json",
+    "comparison": "operations/ATLAS_ORIGINAL_DESIGN_REFERENCE_RECONCILIATION.md",
+    "prior_report_card_original_recovered": true,
+    "historical_home_original_before_current_concepts": "NOT_RECOVERED",
+    "parity": "NOT_ACCEPTED",
+    "branch": "codex/reference-aligned-premium-home"
+  },
+  "latest_production_qa": {
+    "run": 39715967275,
+    "expected_deployed_sha": "d2dd0f93e9a706634ccb7220e67e3811b1060589",
+    "authentication": true,
+    "checks_passed": 16,
+    "checks_attempted": 18,
+    "screenshots": 15,
+    "status": "REQUIRED_RESEARCH_FAILED_NVDA",
+    "root_cause": "No governed price history admitted to active chart; optional private runtime filesystem/settings uninspected",
+    "artifact": 12399665371,
+    "artifact_sha256": "5398d9c8df75dcea105878ebe4f3fcc4042fd4fb66222dd616beda0f4301bcee"
   }
 }

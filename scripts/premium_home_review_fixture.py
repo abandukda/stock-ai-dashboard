@@ -14,7 +14,7 @@ for rank,ticker in enumerate(('FIXTURE_A','FIXTURE_B','FIXTURE_C','FIXTURE_D'),s
             'primary_risk':'Generated valuation assumptions could prove too optimistic'}})
 render_home_guidance_vnext({'cards':cards,'home_featured_cards':cards,'scan_timestamp':'2026-10-04T16:21:00Z',
     'home_runtime_contract':{'runtime_ready':True,'inventory_authority':{'publishable_buy_now_count':4}},
-    'market_today':{'status':'DATA_UNAVAILABLE','interpretation':'No current governed market context is supplied to this generated fixture.'}},
+    'market_today':{'status':'GENERATED_FIXTURE','as_of':'2026-10-15T20:00:00Z','instruments':[{'symbol':'FIXTURE_'+str(i),'price':100+i,'change_pct':.25*i} for i in range(1,5)],'interpretation':'Generated illustrative market context, not current market evidence.'}},
     emit_interactive=lambda: st.markdown('<span data-fixture-ready="true">Fixture ready</span>',unsafe_allow_html=True))
 
 st.markdown('<span data-fixture-complete="true">Fixture complete</span>',unsafe_allow_html=True)
