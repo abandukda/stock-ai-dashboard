@@ -189,7 +189,7 @@ def build_chart_projection(rows: Iterable[Mapping[str, Any]], provenance: Mappin
     source = provenance.get("source") or provenance.get("provider")
     evidence = provenance.get("evidence_ids") or provenance.get("raw_evidence_id")
     if not source or not evidence:
-        return {"status": "UNAVAILABLE", "message": "Price history is unavailable under the governed display contract."}
+        return {"status": "UNAVAILABLE", "message": "Verified price-history source evidence is unavailable."}
     if provenance.get("adjustment") not in {"SPLIT_ADJUSTED", "ADJUSTED", "NONE_NO_SPLITS"}:
         return {"status": "INCOMPLETE", "message": "Corporate-action adjustment provenance is incomplete."}
     if provenance.get("unhandled_split_discontinuity"):

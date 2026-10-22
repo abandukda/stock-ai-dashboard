@@ -1250,3 +1250,15 @@ def test_research_calendar_dates_do_not_inherit_worker_timezone(monkeypatch, wor
         else:
             monkeypatch.setenv('TZ', previous)
         time.tzset()
+
+
+def test_missing_chart_evidence_does_not_imply_a_display_rights_denial():
+    from services.customer_research_v2 import _chart_projection
+    source = report()
+    before = deepcopy(source)
+    chart = _chart_projection(source, {}, {})
+    assert chart['status'] == 'UNAVAILABLE'
+    assert 'verified price history' in chart['message'].lower()
+    assert 'contract' not in chart['message'].lower()
+    assert source == before
+    assert not chart.get('bars')
