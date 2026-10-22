@@ -1054,134 +1054,9 @@ def render_customer_research_first_screen(report: Mapping[str, Any]) -> dict[str
     return page
 
 
-def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[[Mapping[str, Any]], None]) -> bool:
-    customer_view = build_customer_research_view(report)
-    page = customer_view.as_mapping()
-    ticker = str(page.get("ticker") or "UNKNOWN")
-    first_screen_rendered = st.session_state.pop("_atlas_research_first_screen_rendered", "") == ticker
-    if page.get("status") != "AVAILABLE":
-        if not first_screen_rendered:
-            render_customer_research_first_screen(report)
-        return True
-    if not first_screen_rendered:
-        page = render_customer_research_first_screen(report)
-    if not _render_production_authority_marker(page):
-        st.error("Certified Research identity could not be reconciled for this ticker.")
-        return False
+def _render_research_price_evidence(page: Mapping[str, Any], report: Mapping[str, Any], *, ticker: str) -> bool:
+    """Render the admitted chart unchanged; reject mixed-ticker evidence before any series."""
     header = page["header"]
-    ask_cta(report)
-
-    from services.presentation_source import presentation_module
-    reference = presentation_module("ui.research_reference_components")
-    st.markdown(reference.RESEARCH_REFERENCE_CSS + reference.research_section_navigation_html(), unsafe_allow_html=True)
-    summary = page["summary"]
-    st.markdown('<div id="atlas-research-overview"></div>', unsafe_allow_html=True)
-    _marker("section", ticker, section_name="Decision")
-    st.markdown("## ATLAS Investment Summary")
-    reading_views = page.get("reading_views") if isinstance(page.get("reading_views"), Mapping) else {}
-    simple_view = reading_views.get("simple_view") if isinstance(reading_views.get("simple_view"), Mapping) else {}
-    detailed_view = reading_views.get("detailed_view") if isinstance(reading_views.get("detailed_view"), Mapping) else {}
-    simple_tab, detailed_tab = st.tabs(["Simple View · 2 min", "Detailed View"])
-    with simple_tab:
-        _marker(
-            "plain-english-summary", ticker, status=reading_views.get("status") or "UNAVAILABLE",
-            mode=reading_views.get("mode") or "UNAVAILABLE",
-            external_model_active=str(bool(reading_views.get("external_model_active"))).lower(),
-        )
-        st.markdown("""<style>
-        .atlas-research-brief{border:1px solid rgba(45,212,191,.24);border-radius:16px;padding:1rem 1.1rem;background:linear-gradient(145deg,rgba(15,23,42,.9),rgba(11,29,39,.76));margin:.35rem 0 .7rem}
-        .atlas-research-brief h3{margin:0 0 .35rem;font-size:1.16rem}.atlas-research-brief p{margin:.35rem 0;color:#dbe5f1;line-height:1.55}
-        .atlas-research-highlights{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.65rem;margin:.7rem 0}
-        .atlas-research-highlight{border:1px solid rgba(148,163,184,.18);border-radius:13px;padding:.78rem;background:rgba(15,23,42,.58)}
-        .atlas-research-highlight small{display:block;color:#8fa4bd;font-size:.65rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;margin-bottom:.3rem}
-        .atlas-research-highlight p{margin:0;color:#e5edf6;font-size:.9rem;line-height:1.45}
-        body:has([data-atlas-qa="research-vnext"]) [data-testid="stExpander"] summary{background:#111e32!important;color:#f2f6fc!important}
-        body:has([data-atlas-qa="research-vnext"]) [data-testid="stExpander"] summary:hover{background:#17263d!important}
-        @media(max-width:700px){.atlas-research-brief{padding:.8rem}.atlas-research-highlights{grid-template-columns:1fr}.atlas-research-highlight{padding:.7rem}}
-        </style>""", unsafe_allow_html=True)
-        from services.presentation_source import presentation_module
-        reference = presentation_module("ui.research_reference_components")
-        # Rebuild presentation only from the same admitted page. Older cached
-        # projections lack the new digest field; never show an empty summary.
-        digest_builder = presentation_module("services.research_investment_digest")
-        digest_page = {**page, "investment_digest": digest_builder.build_investment_digest(page)}
-        st.markdown('<div data-atlas-qa="research-simple-brief">' + reference.executive_digest_html(digest_page) + '</div>', unsafe_allow_html=True)
-        st.caption(
-            "Verified-evidence fallback · External AI synthesis is not active. "
-            "Source facts and the certified ATLAS Action remain separate from this explanation."
-        )
-        highlights = simple_view.get("highlights") if isinstance(simple_view.get("highlights"), Mapping) else {}
-        highlight_cards = (
-            ("What is encouraging", highlights.get("encouraging")),
-            ("Main risk", highlights.get("risk")),
-            ("What to watch next", highlights.get("watch_next")),
-        )
-        st.markdown(
-            '<div class="atlas-research-highlights">' + "".join(
-                f'<article class="atlas-research-highlight"><small>{escape(label)}</small>'
-                f'<p>{escape(str(value or "Verified evidence is unavailable."))}</p></article>'
-                for label, value in highlight_cards
-            ) + '</div>',
-            unsafe_allow_html=True,
-        )
-        if simple_view.get("data_notice"):
-            st.warning(str(simple_view["data_notice"]))
-        _render_learning_guide(page, ticker=ticker)
-        evidence_ids = tuple(str(item) for item in reading_views.get("evidence_ids") or () if str(item).strip())
-        if evidence_ids:
-            with st.expander("Sources for this plain-English guide", expanded=False):
-                for evidence_id in evidence_ids:
-                    st.code(evidence_id)
-    with detailed_tab:
-        st.markdown(reference.comprehensive_analysis_html(digest_page), unsafe_allow_html=True)
-        st.markdown(f'### {detailed_view.get("title") or "Detailed evidence"}')
-        st.write(detailed_view.get("message") or "Detailed evidence follows below.")
-        st.markdown("**Certified ATLAS view**")
-        st.write(summary["verdict"])
-        if summary["why_rating"]:
-            st.markdown("**Why the stock may be attractive**")
-            _list(summary["why_rating"])
-        if summary["risks"]:
-            st.markdown("**Biggest verified risks**")
-            _list(summary["risks"])
-        with st.expander("Eight questions this research answers", expanded=False):
-            for item in simple_view.get("questions") or ():
-                if isinstance(item, Mapping):
-                    st.markdown(f'**{item.get("question") or "Research question"}**')
-                    st.write(item.get("answer") or "Verified evidence is unavailable.")
-        _render_institutional_overview(page.get("institutional_report") or {}, ticker=ticker)
-    st.markdown(
-        '<style>.atlas-research-101{margin:.55rem 0 1rem;padding:.7rem .8rem;border:1px solid #243244;'
-        'border-radius:12px;background:#0b1525;color:#cbd5e1}.atlas-research-101 summary{cursor:pointer;'
-        'font-weight:750;color:#f8fafc}.atlas-research-101 li{margin:.35rem 0;line-height:1.45}'
-        '@media(max-width:420px){.atlas-research-101{padding:.65rem;font-size:.9rem}.atlas-research-101 ul{padding-left:1.15rem}}</style>'
-        '<div class="atlas-research-101" data-atlas-qa="research-101"><strong>Research 101 — what these numbers mean</strong>'
-        '<div style="margin-top:.35rem">Start with the published Action and dated price, then compare Fair Value, evidence confidence, and the risks that could weaken the case.</div>'
-        '<details style="margin-top:.45rem"><summary>What each number means</summary>'
-        '<ul><li><strong>Action</strong> is the published ATLAS decision for this certified snapshot.</li>'
-        '<li><strong>Last Certified Close</strong> is the price and date used by that decision; it is not a live quote.</li>'
-        '<li><strong>Fair Value</strong> is an evidence-based estimate, not a guaranteed future price.</li>'
-        '<li><strong>Opportunity</strong> compares relative attractiveness inside the certified ATLAS method.</li>'
-        '<li><strong>Evidence Confidence</strong> measures evidence completeness and consistency, not the chance the stock will rise.</li>'
-        '<li><strong>Annual and quarterly statements</strong> are reported filing history, not forecasts. Quarterly flow values may be cumulative year-to-date; missing values stay Unavailable and never mean zero.</li>'
-        '</ul></details></div>',
-        unsafe_allow_html=True,
-    )
-    st.caption("Continue below for the full evidence, calculations, charts, assumptions, and provenance.")
-    _marker("since-signal", ticker, status=page["signal"]["status"])
-    signal = page["signal"]
-    if signal["status"] == "AVAILABLE":
-        st.markdown("### Since ATLAS Flagged It")
-        s = st.columns(5)
-        s[0].metric("Action at issuance", signal["action"])
-        s[1].metric("Reference price", _money(signal["reference_price"]))
-        s[2].metric("Return since signal", _pct(signal["stock_return"], signed=True))
-        s[3].metric("SPY same period", _pct(signal["spy_return"], signed=True))
-        s[4].metric("Excess vs SPY", _pct(signal["excess_return"], signed=True))
-        # Preserve the canonical timestamp in the projection while rendering
-        # customer-facing copy in a readable form.
-        st.caption(f'Signal date: {_friendly_time(signal.get("signal_date"))}')
-
     st.markdown('<div id="atlas-research-technicals"></div>', unsafe_allow_html=True)
     _marker("section", ticker, section_name="Technical & Trade State")
     st.markdown("## Technical & Trade State")
@@ -1208,7 +1083,7 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
     _marker("chart-ownership", ticker, status="PASS" if ownership_valid else "FAIL", **ownership)
     if not ownership_valid:
         st.error("Research chart ownership could not be certified for this ticker.")
-        return
+        return False
     if chart["status"] != "AVAILABLE":
         st.info(chart["message"])
     else:
@@ -1312,6 +1187,141 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
                 st.caption("Certified technical indicator history is unavailable for this evidence bundle; no series was inferred.")
         else:
             st.info("Verified price history has not been loaded for this ticker. No chart or return is inferred.")
+
+    return True
+
+
+def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[[Mapping[str, Any]], None]) -> bool:
+    customer_view = build_customer_research_view(report)
+    page = customer_view.as_mapping()
+    ticker = str(page.get("ticker") or "UNKNOWN")
+    first_screen_rendered = st.session_state.pop("_atlas_research_first_screen_rendered", "") == ticker
+    if page.get("status") != "AVAILABLE":
+        if not first_screen_rendered:
+            render_customer_research_first_screen(report)
+        return True
+    if not first_screen_rendered:
+        page = render_customer_research_first_screen(report)
+    if not _render_production_authority_marker(page):
+        st.error("Certified Research identity could not be reconciled for this ticker.")
+        return False
+    header = page["header"]
+    chart = page["chart"]
+    ask_cta(report)
+
+    from services.presentation_source import presentation_module
+    reference = presentation_module("ui.research_reference_components")
+    st.markdown(reference.RESEARCH_REFERENCE_CSS + reference.research_section_navigation_html(), unsafe_allow_html=True)
+    summary = page["summary"]
+    st.markdown('<div id="atlas-research-overview"></div>', unsafe_allow_html=True)
+    _marker("section", ticker, section_name="Decision")
+    # One admitted projection supplies both the chart workspace and reading modes.
+    digest_builder = presentation_module("services.research_investment_digest")
+    digest_page = {**page, "investment_digest": digest_builder.build_investment_digest(page)}
+    st.markdown("## Research workspace")
+    chart_column, insight_column = st.columns([2, 1], gap="large")
+    with chart_column:
+        st.markdown('<span data-atlas-qa="research-chart-workspace"></span>', unsafe_allow_html=True)
+        if not _render_research_price_evidence(page, report, ticker=ticker):
+            return False
+    with insight_column:
+        st.markdown('<div class="atlas-research-insight-rail" data-atlas-qa="research-insight-rail">'
+                    + reference.executive_digest_html(digest_page) + '</div>', unsafe_allow_html=True)
+        st.caption("Verified-evidence fallback · External AI synthesis is not active. "
+                   "Source facts and the certified ATLAS Action remain separate from this explanation.")
+    st.markdown("## Understand the investment case")
+    reading_views = page.get("reading_views") if isinstance(page.get("reading_views"), Mapping) else {}
+    simple_view = reading_views.get("simple_view") if isinstance(reading_views.get("simple_view"), Mapping) else {}
+    detailed_view = reading_views.get("detailed_view") if isinstance(reading_views.get("detailed_view"), Mapping) else {}
+    simple_tab, detailed_tab = st.tabs(["Simple View · 2 min", "Detailed View"])
+    with simple_tab:
+        _marker(
+            "plain-english-summary", ticker, status=reading_views.get("status") or "UNAVAILABLE",
+            mode=reading_views.get("mode") or "UNAVAILABLE",
+            external_model_active=str(bool(reading_views.get("external_model_active"))).lower(),
+        )
+        st.markdown("""<style>
+        .atlas-research-brief{border:1px solid rgba(45,212,191,.24);border-radius:16px;padding:1rem 1.1rem;background:linear-gradient(145deg,rgba(15,23,42,.9),rgba(11,29,39,.76));margin:.35rem 0 .7rem}
+        .atlas-research-brief h3{margin:0 0 .35rem;font-size:1.16rem}.atlas-research-brief p{margin:.35rem 0;color:#dbe5f1;line-height:1.55}
+        .atlas-research-highlights{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.65rem;margin:.7rem 0}
+        .atlas-research-highlight{border:1px solid rgba(148,163,184,.18);border-radius:13px;padding:.78rem;background:rgba(15,23,42,.58)}
+        .atlas-research-highlight small{display:block;color:#8fa4bd;font-size:.65rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;margin-bottom:.3rem}
+        .atlas-research-highlight p{margin:0;color:#e5edf6;font-size:.9rem;line-height:1.45}
+        body:has([data-atlas-qa="research-vnext"]) [data-testid="stExpander"] summary{background:#111e32!important;color:#f2f6fc!important}
+        body:has([data-atlas-qa="research-vnext"]) [data-testid="stExpander"] summary:hover{background:#17263d!important}
+        @media(max-width:700px){.atlas-research-brief{padding:.8rem}.atlas-research-highlights{grid-template-columns:1fr}.atlas-research-highlight{padding:.7rem}}
+        </style>""", unsafe_allow_html=True)
+        highlights = simple_view.get("highlights") if isinstance(simple_view.get("highlights"), Mapping) else {}
+        highlight_cards = (
+            ("What is encouraging", highlights.get("encouraging")),
+            ("Main risk", highlights.get("risk")),
+            ("What to watch next", highlights.get("watch_next")),
+        )
+        st.markdown(
+            '<div data-atlas-qa="research-simple-brief" class="atlas-research-highlights">' + "".join(
+                f'<article class="atlas-research-highlight"><small>{escape(label)}</small>'
+                f'<p>{escape(str(value or "Verified evidence is unavailable."))}</p></article>'
+                for label, value in highlight_cards
+            ) + '</div>',
+            unsafe_allow_html=True,
+        )
+        if simple_view.get("data_notice"):
+            st.warning(str(simple_view["data_notice"]))
+        _render_learning_guide(page, ticker=ticker)
+        evidence_ids = tuple(str(item) for item in reading_views.get("evidence_ids") or () if str(item).strip())
+        if evidence_ids:
+            with st.expander("Sources for this plain-English guide", expanded=False):
+                for evidence_id in evidence_ids:
+                    st.code(evidence_id)
+    with detailed_tab:
+        st.markdown(reference.comprehensive_analysis_html(digest_page), unsafe_allow_html=True)
+        st.markdown(f'### {detailed_view.get("title") or "Detailed evidence"}')
+        st.write(detailed_view.get("message") or "Detailed evidence follows below.")
+        st.markdown("**Certified ATLAS view**")
+        st.write(summary["verdict"])
+        if summary["why_rating"]:
+            st.markdown("**Why the stock may be attractive**")
+            _list(summary["why_rating"])
+        if summary["risks"]:
+            st.markdown("**Biggest verified risks**")
+            _list(summary["risks"])
+        with st.expander("Eight questions this research answers", expanded=False):
+            for item in simple_view.get("questions") or ():
+                if isinstance(item, Mapping):
+                    st.markdown(f'**{item.get("question") or "Research question"}**')
+                    st.write(item.get("answer") or "Verified evidence is unavailable.")
+        _render_institutional_overview(page.get("institutional_report") or {}, ticker=ticker)
+    st.markdown(
+        '<style>.atlas-research-101{margin:.55rem 0 1rem;padding:.7rem .8rem;border:1px solid #243244;'
+        'border-radius:12px;background:#0b1525;color:#cbd5e1}.atlas-research-101 summary{cursor:pointer;'
+        'font-weight:750;color:#f8fafc}.atlas-research-101 li{margin:.35rem 0;line-height:1.45}'
+        '@media(max-width:420px){.atlas-research-101{padding:.65rem;font-size:.9rem}.atlas-research-101 ul{padding-left:1.15rem}}</style>'
+        '<div class="atlas-research-101" data-atlas-qa="research-101"><strong>Research 101 — what these numbers mean</strong>'
+        '<div style="margin-top:.35rem">Start with the published Action and dated price, then compare Fair Value, evidence confidence, and the risks that could weaken the case.</div>'
+        '<details style="margin-top:.45rem"><summary>What each number means</summary>'
+        '<ul><li><strong>Action</strong> is the published ATLAS decision for this certified snapshot.</li>'
+        '<li><strong>Last Certified Close</strong> is the price and date used by that decision; it is not a live quote.</li>'
+        '<li><strong>Fair Value</strong> is an evidence-based estimate, not a guaranteed future price.</li>'
+        '<li><strong>Opportunity</strong> compares relative attractiveness inside the certified ATLAS method.</li>'
+        '<li><strong>Evidence Confidence</strong> measures evidence completeness and consistency, not the chance the stock will rise.</li>'
+        '<li><strong>Annual and quarterly statements</strong> are reported filing history, not forecasts. Quarterly flow values may be cumulative year-to-date; missing values stay Unavailable and never mean zero.</li>'
+        '</ul></details></div>',
+        unsafe_allow_html=True,
+    )
+    st.caption("Continue below for the full evidence, calculations, charts, assumptions, and provenance.")
+    _marker("since-signal", ticker, status=page["signal"]["status"])
+    signal = page["signal"]
+    if signal["status"] == "AVAILABLE":
+        st.markdown("### Since ATLAS Flagged It")
+        s = st.columns(5)
+        s[0].metric("Action at issuance", signal["action"])
+        s[1].metric("Reference price", _money(signal["reference_price"]))
+        s[2].metric("Return since signal", _pct(signal["stock_return"], signed=True))
+        s[3].metric("SPY same period", _pct(signal["spy_return"], signed=True))
+        s[4].metric("Excess vs SPY", _pct(signal["excess_return"], signed=True))
+        # Preserve the canonical timestamp in the projection while rendering
+        # customer-facing copy in a readable form.
+        st.caption(f'Signal date: {_friendly_time(signal.get("signal_date"))}')
 
     _marker("summary", ticker, classification="CERTIFIED_ATLAS")
     weakest = summary.get("weakest_pillar") or {}
@@ -1477,8 +1487,7 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
     st.markdown("## Fundamentals Snapshot")
     _marker("fundamentals", ticker, count=len(page["fundamentals"]))
     if page["fundamentals"]:
-        for fact in page["fundamentals"][:6]:
-            st.metric(fact["fact_name"], fact["display_value"])
+        st.markdown(reference.fundamentals_cards_html(page["fundamentals"][:6]), unsafe_allow_html=True)
     else:
         fundamentals = page.get("qa_fundamentals") or {}
         metrics = [
