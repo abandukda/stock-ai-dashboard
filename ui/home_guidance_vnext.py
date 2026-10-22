@@ -1990,8 +1990,14 @@ def _inject_css() -> None:
 
 
 def _inject_editorial_css() -> None:
-    from ui.premium_home_styles import PREMIUM_HOME_CSS
-    st.markdown(f"<style>{PREMIUM_HOME_CSS}</style>", unsafe_allow_html=True)
+    from services.presentation_source import presentation_module
+    styles = presentation_module("ui.premium_home_styles")
+    st.markdown(f"<style>{styles.PREMIUM_HOME_CSS}</style>", unsafe_allow_html=True)
+    st.markdown(
+        '<span data-atlas-qa="home-reference-style" data-atlas-source-sha256="'
+        + styles.__atlas_presentation_source_sha256__ + '" aria-hidden="true" style="display:none"></span>',
+        unsafe_allow_html=True,
+    )
 
 
 def render_home_guidance_vnext(story: Mapping[str, Any], *, emit_interactive=None, authorized_internal: bool = False) -> None:

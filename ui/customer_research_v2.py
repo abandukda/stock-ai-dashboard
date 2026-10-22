@@ -980,8 +980,9 @@ def render_customer_research_first_screen(report: Mapping[str, Any]) -> dict[str
             unsafe_allow_html=True,
         )
         return page
-    from ui.research_reference_components import RESEARCH_REFERENCE_CSS
-    st.markdown(RESEARCH_REFERENCE_CSS, unsafe_allow_html=True)
+    from services.presentation_source import presentation_module
+    reference = presentation_module("ui.research_reference_components")
+    st.markdown(reference.RESEARCH_REFERENCE_CSS, unsafe_allow_html=True)
     h = page["header"]
     confidence_score = customer_confidence(h["confidence"])
     _marker("root", ticker, version=page["version"], authority="certified_customer_evaluation", section_count=5)
@@ -1065,8 +1066,13 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
         body:has([data-atlas-qa="research-vnext"]) [data-testid="stExpander"] summary:hover{background:#17263d!important}
         @media(max-width:700px){.atlas-research-brief{padding:.8rem}.atlas-research-highlights{grid-template-columns:1fr}.atlas-research-highlight{padding:.7rem}}
         </style>""", unsafe_allow_html=True)
-        from ui.research_reference_components import executive_digest_html
-        st.markdown('<div data-atlas-qa="research-simple-brief">' + executive_digest_html(page) + '</div>', unsafe_allow_html=True)
+        from services.presentation_source import presentation_module
+        reference = presentation_module("ui.research_reference_components")
+        # Rebuild presentation only from the same admitted page. Older cached
+        # projections lack the new digest field; never show an empty summary.
+        digest_builder = presentation_module("services.research_investment_digest")
+        digest_page = {**page, "investment_digest": digest_builder.build_investment_digest(page)}
+        st.markdown('<div data-atlas-qa="research-simple-brief">' + reference.executive_digest_html(digest_page) + '</div>', unsafe_allow_html=True)
         st.caption(
             "Verified-evidence fallback · External AI synthesis is not active. "
             "Source facts and the certified ATLAS Action remain separate from this explanation."
@@ -1094,8 +1100,7 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
                 for evidence_id in evidence_ids:
                     st.code(evidence_id)
     with detailed_tab:
-        from ui.research_reference_components import comprehensive_analysis_html
-        st.markdown(comprehensive_analysis_html(page), unsafe_allow_html=True)
+        st.markdown(reference.comprehensive_analysis_html(digest_page), unsafe_allow_html=True)
         st.markdown(f'### {detailed_view.get("title") or "Detailed evidence"}')
         st.write(detailed_view.get("message") or "Detailed evidence follows below.")
         st.markdown("**Certified ATLAS view**")

@@ -31,5 +31,15 @@ report={'ticker':ticker,'company':ticker+' · Generated demonstration company','
         'intelligence':{'why_atlas_supports_it':['Generated retained valuation support.'], 'key_risks':['Generated execution risk.']},
         'guidance_summary':{'thesis_change_conditions':{'invalidate':['Generated cash flow evidence weakens.']}},
         'sections':{'technical':{'history':rows,'history_provenance':{'source':'GENERATED_FIXTURE','evidence_ids':['generated:'+ticker+':history']}}}}
+# Exercise the actual missing-field compatibility case in all hosted captures.
+from dataclasses import replace
+from types import MappingProxyType
+import ui.customer_research_v2 as renderer
+if not hasattr(renderer,'_fixture_original_customer_view'):
+    renderer._fixture_original_customer_view=renderer.build_customer_research_view
+def legacy_projection(value):
+    view=renderer._fixture_original_customer_view(value)
+    return replace(view,payload=MappingProxyType({k:v for k,v in view.as_mapping().items() if k!='investment_digest'}))
+renderer.build_customer_research_view=legacy_projection
 render_customer_research_v2(report,ask_cta=lambda _:None)
 st.markdown('<span data-fixture-complete="true">Generated Research fixture complete</span>',unsafe_allow_html=True)
