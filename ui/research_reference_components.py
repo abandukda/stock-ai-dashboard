@@ -6,7 +6,7 @@ RESEARCH_REFERENCE_CSS = r'''<style>
 @media(max-width:800px){.atlas-research-digest,.atlas-research-analysis{grid-template-columns:1fr}.atlas-research-digest article{padding:.85rem}}
 .atlas-r2-head .atlas-r2-metrics{grid-template-columns:repeat(5,minmax(0,1fr));margin:.8rem 0 0;gap:.5rem}.atlas-r2-head .atlas-r2-metrics .atlas-r2-metric{padding:.75rem}.atlas-r2-head .atlas-r2-metrics strong{font-size:1.25rem;font-variant-numeric:tabular-nums}.atlas-r2-head .atlas-r2-metric p{font-size:.7rem;line-height:1.45;color:#9eb4c9;margin:.45rem 0 0}.atlas-research-section-nav{display:flex;gap:.45rem;overflow-x:auto;padding:.4rem 0 .7rem;margin:.3rem 0;scrollbar-width:thin}.atlas-research-section-nav a{white-space:nowrap;padding:.55rem .8rem;border:1px solid #21425a;border-radius:8px;background:#0a1e31;color:#bbddf6;text-decoration:none;font-size:.8rem}.atlas-research-section-nav a:hover,.atlas-research-section-nav a:focus-visible{background:#123957;color:white;outline:2px solid #56aef3}
 @media(max-width:1000px){.atlas-r2-head .atlas-r2-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}}
-@media(max-width:700px){.atlas-r2-head .atlas-r2-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.atlas-r2-head .atlas-r2-metrics strong{font-size:1.2rem}.atlas-r2-head .atlas-r2-metrics .atlas-r2-metric:last-child{grid-column:1/-1}}
+@media(max-width:700px){body:has([data-atlas-qa="research-v2-root"]) [data-testid="stMainBlockContainer"]{padding-left:.75rem!important;padding-right:.75rem!important}.atlas-r2-head .atlas-r2-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.atlas-r2-head .atlas-r2-metrics strong{font-size:1.2rem}.atlas-r2-head .atlas-r2-metrics .atlas-r2-metric:last-child{grid-column:1/-1}}
 </style>'''
 
 
