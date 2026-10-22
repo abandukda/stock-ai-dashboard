@@ -40,3 +40,9 @@ Release acceptance: exact reviewed head and governed CI; explicit owner approval
 ## Preserved merged Research contract
 
 PR117 corrects the active ui/customer_research_v2.py path after its existing ticker-ownership gate, retains exact selected prices/date/range and separate Fair Value, and requires real NVDA/MSFT desktop/mobile four-panel SVG/chart screenshots. Missing source high/low stay None rather than copying close. All implementation and QA files from current main are retained unchanged by this Home reconciliation. Original owner chart reference and legacy label-repair evidence remain in the machine matrix; no historical fixture or production baseline is promoted to new active-chart acceptance.
+
+## Retained aggregate verification controls preserved
+
+PR118 verifies only fixed retained ZIPs11318542723/11456584757 and required canonical member pins. Streaming1MiB chunks,512MiB address-space bound,25minute job limit,1024 entries,16GiB/member and32GiB total expanded limits,8GiB temporary disk preflight. Reject unsafe names, links, encrypted/protected data and checksum/CRC mismatches. No extraction/source upload, SSH, Contabo, credentials, providers, production ledger or protected-workload migration.17 local tests and two already-downloaded compatibility probes passed previously; actual final archive execution remains NOT DISPATCHED/NOT AUTHORIZED. Exact-head merge and separate exact-merged-main owner dispatch authorization are distinct. Review runbook: operations/ATLAS_AGGREGATE_INTEGRITY_REVIEW.md.
+
+Conflict reconciliation joins the complete aggregate controls, premium Home target and merged Research contract. Both review branches carry identical shared documents so approving one does not immediately conflict with the other. Original implementation/test/workflow inventories remain unchanged; no blanket side selection was used.

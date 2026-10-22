@@ -297,5 +297,27 @@
     "latest_production_run": 39708451001,
     "latest_production_status": "POST_MERGE_LIVE_QA_REQUIRED",
     "merge_sha": "d48e356e40d8258b5c0f0f308f7d2cf0e9689b94"
+  },
+  "aggregate_integrity_review": {
+    "scope": "Two fixed retained final ZIPs; archive+member+canonical-file integrity only",
+    "built": true,
+    "tested": "17localtestsPASS;96MiBgeneratedmember;14-testprofile36,564KiBRSS/0.879s;twoalreadydownloadedshardcompatibilityprobesPASS,sourceunchanged",
+    "merged": false,
+    "deployed": false,
+    "live_verified": false,
+    "actual_final_aggregate_execution": "NOT_DISPATCHED_NOT_AUTHORIZED",
+    "workflow": "atlas_retained_aggregate_verify.yml",
+    "resource_limits": "1MiBchunk;512MiBaddressspace;25min;1024entries;16GiBmember/32GiBtotal;8GiBfreetempdisk",
+    "data_scope": "11318542723+11456584757 only; no extraction/sourceupload/productionledger/SSH/Contabo/protectedmigration/providers/paidAI/publication",
+    "approval": "Exact-headmerge plus separate exact-merged-main ownerdispatch authorization for ephemeral hosted retained-artifact verification",
+    "remaining_blockers": "Actuallargearchivebytes/canonicalpins stillnotverified;originalDOhost/currentraw-checkpoint/independentbackup/ledgerWAL evidence stillrequired"
+  },
+  "conflict_reconciliation": {
+    "base_main": "d48e356e40d8258b5c0f0f308f7d2cf0e9689b94",
+    "conflicting_files": [
+      "docs/ATLAS_MASTER_REQUIREMENTS.md",
+      "docs/ATLAS_MASTER_REQUIREMENTS.json"
+    ],
+    "strategy": "Semantic union of Research117, aggregate118 and premiumHome119 requirements. Identical shared documents on both review branches prevent sequential-merge conflicts. No implementation/security/financial assertions discarded."
   }
 }
