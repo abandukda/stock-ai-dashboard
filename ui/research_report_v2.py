@@ -681,6 +681,8 @@ def _render_price_chart(report: Mapping[str, Any]) -> None:
     st.markdown("#### Reading this chart")
     st.write(chart_evidence["outlook"])
     st.caption("Click a legend item to hide a series; double-click to isolate it. Hover to inspect the supplied bar.")
+    if chart_evidence["pending_lookbacks"]:
+        st.caption("Awaiting complete lookback: " + ", ".join(chart_evidence["pending_lookbacks"]))
     st.caption(chart_evidence["methodology"])
     st.caption(f"Presentation calculated {datetime.now(timezone.utc).isoformat()} · This does not refresh the source price date.")
     st.caption(f"Calculation evidence: {chart_evidence['evidence_digest']} · Educational indicators only; certified ratings and signal history are unchanged.")

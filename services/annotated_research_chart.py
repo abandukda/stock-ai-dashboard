@@ -49,7 +49,10 @@ def build_annotated_research_chart(bars: list[dict[str, Any]], *, ticker: str, l
         fig.add_trace(go.Scatter(x=dates,y=closes,name=f'{ticker} verified close',mode='lines',
                                  line={'color':'#5eead4','width':2}),row=1,col=1)
     indicators['sma200'] = _sma(closes, 200)
+    pending=[]
     for key,name,color in [('sma20','SMA (20 bars)','#22d3ee'),('sma50','SMA (50 bars)','#fbbf24'),('sma200','SMA (200 bars)','#fb7185')]:
+        if not any(value is not None for value in indicators[key]):
+            pending.append(name);name += ' · pending'
         fig.add_trace(go.Scatter(x=dates,y=indicators[key],name=name,mode='lines',line={'color':color,'width':1.5}),row=1,col=1)
     trend = _linear_trend([{'close':c} for c in closes])
     if trend:
@@ -64,6 +67,8 @@ def build_annotated_research_chart(bars: list[dict[str, Any]], *, ticker: str, l
                       annotation_text=f'{label} · ${value:,.2f}',annotation_position='top left',
                       annotation_font_color=color,annotation_bgcolor='#0f1c2e')
     fig.add_trace(go.Bar(x=dates,y=volume,name='Volume',marker_color='rgba(94,234,212,.55)'),row=2,col=1)
+    if not any(value is not None for value in indicators['rsi14']):
+        pending.append('RSI (14 bars)')
     fig.add_trace(go.Scatter(x=dates,y=indicators['rsi14'],name='RSI (14 bars)',mode='lines',line={'color':'#22d3ee'}),row=3,col=1)
     for value,color in [(70,'#fb7185'),(30,'#34d399')]:
         fig.add_hline(y=value,row=3,col=1,line_dash='dot',line_color=color)
@@ -81,7 +86,7 @@ def build_annotated_research_chart(bars: list[dict[str, Any]], *, ticker: str, l
                                    sort_keys=True,default=str,separators=(',',':')).encode()).hexdigest()
     average=indicators['sma20'][-1]
     outlook=(f'Latest supplied close ${closes[-1]:,.2f} is '+('above' if closes[-1]>average else 'below' if closes[-1]<average else 'at')+f' the 20-bar average (${average:,.2f}).' if average is not None else 'Fewer than20bars: the 20-bar average is pending.')
-    return fig, {'outlook':outlook,'candles':candles,'bars':len(bars),'evidence_digest':digest,
+    return fig, {'pending_lookbacks':pending,'outlook':outlook,'candles':candles,'bars':len(bars),'evidence_digest':digest,
                  'classification':'EDUCATIONAL_NON_SCORING',
                  'volume_available':any(v is not None for v in volume),
                  'methodology':'SMA20/50/200 and Wilder RSI14 use bars of the selected interval. MACD uses EMA12/26, signal9, seeded from the first supplied close. Trend is descriptive OLS; no forecast or rating change.'}

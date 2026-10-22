@@ -31,6 +31,7 @@ def test_incomplete_ohlc_or_volume_is_honest_and_short_lookback_not_fabricated()
     assert fig.data[0].type=='scatter'
     assert all(y is None for t in fig.data if t.name.startswith('SMA') or t.name.startswith('RSI') for y in t.y)
     assert 'pending' in meta['outlook']
+    assert set(meta['pending_lookbacks'])=={'SMA (20 bars)','SMA (50 bars)','SMA (200 bars)','RSI (14 bars)'}
 
 
 @pytest.mark.parametrize('bad', ['duplicate','reversed','negative','nonfinite','badvolume'])
