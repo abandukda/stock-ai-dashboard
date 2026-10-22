@@ -2374,12 +2374,13 @@ class AtlasVisualCrawler:
         for scope in _scopes(page):
             try:
                 radio = scope.get_by_role("radio", name=customer_label, exact=True)
-                if await radio.count() and await radio.first.is_checked():
-                    return True
+                if await radio.count():
+                    # An existing unchecked destination is positive evidence that
+                    # navigation has NOT completed. Never match its menu text.
+                    return bool(await radio.first.is_checked())
             except Exception:
                 continue
-        text = await _visible_text(page)
-        return customer_label.lower() in text.lower()
+        return False
 
     async def _research_route_owned(self, page: Page) -> bool:
         """Prove the live primary DOM belongs to the selected Research route."""
@@ -3768,9 +3769,26 @@ class AtlasVisualCrawler:
         for viewport_name, viewport in (("tablet_1024", TABLET), ("tablet_768", NARROW_TABLET)):
             await page.set_viewport_size(viewport)
             for page_name in ("Home", "Research Any Ticker", "Watchlist Intelligence", "Ask AI"):
-                if not await asyncio.wait_for(
-                    self._page_visit(page, page_name, viewport=viewport_name), timeout=20,
-                ):
+                started = time.monotonic()
+                try:
+                    passed = await asyncio.wait_for(
+                        self._page_visit(page, page_name, viewport=viewport_name), timeout=20,
+                    )
+                except asyncio.TimeoutError as exc:
+                    shot = await self._shot(
+                        page, page_name=page_name, interaction="tablet-navigation-timeout",
+                        state="failure", viewport=viewport_name,
+                    )
+                    await self._record(
+                        category="TABLET_NAVIGATION", page_name=page_name,
+                        interaction="tablet-navigation-timeout",
+                        expected="Destination page renders within the existing 20-second bound",
+                        observed="TimeoutError; destination acceptance withheld", passed=False,
+                        elapsed=time.monotonic() - started, viewport=viewport_name,
+                        screenshots=(shot,), severity="P1",
+                    )
+                    raise GlobalCrawlFailure("TABLET_NAVIGATION_TIMEOUT") from exc
+                if not passed:
                     raise GlobalCrawlFailure(
                         f"CUSTOMER_ROLE_{page_name.upper().replace(' ', '_')}_FAILED_{viewport_name.upper()}"
                     )

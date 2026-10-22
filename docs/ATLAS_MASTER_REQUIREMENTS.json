@@ -183,7 +183,7 @@
       "last_updated": "2026-10-22T00:55:00Z"
     }
   ],
-  "current_main_sha": "3126e5e13048c496765e1a9b08ada65e78765921",
+  "current_main_sha": "041ded97b71307f90c763cfc491153bca6a35f91",
   "latest_execution": {
     "baseline_sha": "3126e5e13048c496765e1a9b08ada65e78765921",
     "merged_prs": [
@@ -198,6 +198,17 @@
     "artifact_sha256": "fff356c37f300bb7b1bccf4e0fdb2bc24b6f210a4ac08ed4c59350bc00f2dbe7",
     "root_cause_limit": "ImportError confirmed. Stale module reproduced locally; host sys.modules not directly inspected.",
     "repair": "Independent presentation module; actual navigation tested with legacy contract cached",
-    "live_verified": false
+    "live_verified": false,
+    "repair_merged_sha": "041ded97b71307f90c763cfc491153bca6a35f91",
+    "followup": {
+      "run39703996717": "FAIL82/83; MSFT Home drilldown remained Home;71screens",
+      "artifact12393224722_sha256": "47831d7101ede06db915cb4a7ad9a259241de0200b2c1e38103a0bfdfe35d828",
+      "run39704178633": "FAIL:74/74required;79/79attempted;62screens;tablet navigation20second timeout, unfinished summary",
+      "artifact12394916179_sha256": "1b34c4b2e99c7eafb0ec428c8cf7064a9d9903ee288e5371099922deb49d868b",
+      "latest_run": 39705466623,
+      "latest_result": "IN_PROGRESS; no live acceptance claimed",
+      "review_repair": "Require checked destination radio; preserve20secondtablet bound and record timeout screenshot/defect before fatal finalization",
+      "local_regressions": "82PASS"
+    }
   }
 }
