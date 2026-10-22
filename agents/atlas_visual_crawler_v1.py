@@ -2809,6 +2809,37 @@ class AtlasVisualCrawler:
                 passed=False, elapsed=time.monotonic() - started, ticker=ticker,
                 viewport=viewport, screenshots=(before, after), severity="P1",
             )
+    async def _annotated_chart_evidence(self, page: Page, ticker: str, viewport: str) -> bool:
+        """Require the actual active customer chart, not a legacy renderer/JSON token."""
+        started = time.monotonic()
+        passed = False
+        shot = ""
+        for scope in _scopes(page):
+            marker = scope.locator(f'[data-atlas-qa="research-v2-annotated-chart"][data-atlas-ticker="{ticker}"]')
+            if not await marker.count():
+                continue
+            if (await marker.last.get_attribute("data-atlas-status")) != "AVAILABLE":
+                continue
+            plots = scope.locator('[data-testid="stPlotlyChart"]')
+            for index in range(await plots.count()):
+                plot = plots.nth(index)
+                if not await plot.locator('.y4title').count():
+                    continue
+                await plot.scroll_into_view_if_needed(timeout=5000)
+                if not await plot.is_visible():
+                    continue
+                shot = await self._shot_locator(plot, page_name="Research Any Ticker", interaction=f"annotated-chart-{ticker}", state="rendered", viewport=viewport, ticker=ticker)
+                passed = bool(shot) and await marker.last.get_attribute("data-atlas-panels") == "4"
+                break
+            if passed:
+                break
+        await self._record(category="RESEARCH_CHART", page_name="Research Any Ticker", interaction="active-four-panel-chart",
+                           expected="Exact ticker-owned active customer chart visibly renders four panels",
+                           observed=f"ticker={ticker}; four_panels={passed}; actual_chart_screenshot={bool(shot)}",
+                           passed=passed, elapsed=time.monotonic()-started, ticker=ticker, viewport=viewport,
+                           screenshots=(shot,), severity="P1", required=True)
+        return passed
+
     async def _submit_research(self, page: Page, ticker: str, *, tabs: bool, viewport: str = "desktop") -> bool:
         started = time.monotonic()
         route_ready = await self._page_visit(page, "Research Any Ticker", viewport=viewport)
@@ -2954,6 +2985,8 @@ class AtlasVisualCrawler:
             after = await self._shot(page, page_name="Research Any Ticker", interaction=f"submit-{ticker}", state="after", viewport=viewport, ticker=ticker, complete_surface=ticker != "INVALID123")
             if passed and architecture.get("version") == RESEARCH_V2_VERSION:
                 await self._research_v2_section_screenshots(page, ticker, viewport)
+            if passed and ticker in {"NVDA", "MSFT"} and os.getenv("ATLAS_VISUAL_CRAWL_CUSTOMER_ONLY", "").lower() in {"true", "1", "yes"}:
+                passed = await self._annotated_chart_evidence(page, ticker, viewport)
             for entry in reversed(self.manifest):
                 if entry.get("path") == after:
                     entry["research_terminal_state"] = completion.get("research_terminal_state")

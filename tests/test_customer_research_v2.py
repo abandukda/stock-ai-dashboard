@@ -1058,7 +1058,7 @@ def test_real_renderer_binds_certified_fair_value_to_each_ticker_chart(monkeypat
             captured["key"] = kwargs["key"]
             raise StopAfterPriceChart
 
-        monkeypatch.setattr(renderer, "_dark_line_chart", capture_chart)
+        monkeypatch.setattr(renderer, "_annotated_customer_price_chart", capture_chart)
         with __import__("pytest").raises(StopAfterPriceChart):
             renderer.render_customer_research_v2(source, ask_cta=lambda _report: None)
 

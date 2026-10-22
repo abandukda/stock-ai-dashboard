@@ -181,7 +181,7 @@
       "last_updated": "2026-10-22T00:55:00Z"
     }
   ],
-  "current_main_sha": "7cf867cee761c16a5f91153edd83d0deff7c155d",
+  "current_main_sha": "4d0a11e188e1529531cbac1ace1b0a2c74a4df32",
   "latest_execution": {
     "current_main_sha": "7cf867cee761c16a5f91153edd83d0deff7c155d",
     "verified_customer_sha": "7cf867cee761c16a5f91153edd83d0deff7c155d",
@@ -209,5 +209,16 @@
     "deployed": false,
     "live_verified": false,
     "remaining_acceptance": "Actual NVDA/MSFT/historicalAMZN desktop/tablet/mobile production chart screenshots after separately approved merge; full original Home/Research/ReportCard mockups unavailable."
+  },
+  "active_chart_integration": {
+    "root_cause": "PR116 upgraded legacy ui/research_report_v2.py; actual customer renderer ui/customer_research_v2.py remained on line chart. No customer chart upgrade accepted.",
+    "repair": "Wire shared reviewed chart into active renderer AFTER existing ownership gate; preserve ticker/date/range and separateFairValue; add actual active marker plus REQUIRED NVDA/MSFTdesktop/mobile four-panel SVG/chart screenshots in read-only production QA.",
+    "additional_integrity_fix": "Missing sourcehigh/low remainNone rather than copiedfromclose; candlesticks cannot be fabricated.",
+    "tests": "163localPASS; existing three-ticker actualrenderer test now intercepts activechartadapter and preserves exactprice identities.",
+    "merged": false,
+    "deployed": false,
+    "live_verified": false,
+    "latest_production_run": 39708451001,
+    "latest_production_status": "IN_PROGRESS; no newchartacceptance"
   }
 }
