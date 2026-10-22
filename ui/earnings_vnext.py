@@ -11,10 +11,7 @@ import streamlit as st
 
 from engines.earnings_decision_story import build_earnings_decision_story
 from services.session_stability import emit_page_interactive
-from services.transcript_intelligence_runtime import (
-    retrieve_and_summarize_transcript, transcript_period_index,
-)
-from services.transcript_provider import ConfiguredTranscriptProvider
+from services.transcript_cache_reader import ReadOnlyTranscriptCache, TranscriptCacheReadError
 
 
 EARNINGS_VNEXT_VERSION: Final = "ATLAS_EARNINGS_VNEXT_V1"
@@ -229,8 +226,9 @@ def _open_button(story: Mapping[str, Any], open_research: Callable[[str], Any], 
         open_research(ticker)
 
 
-def _render_transcript_intelligence(story: Mapping[str, Any], *, suffix: str) -> None:
-    """Render/load derived transcript evidence without exposing transcript bodies."""
+def _render_transcript_intelligence(story: Mapping[str, Any], *, suffix: str,
+                                    cache_reader: ReadOnlyTranscriptCache | None = None) -> None:
+    """Render approved cached insights; customer buttons never acquire or generate."""
     transcript = story.get("transcript_intelligence") or {}
     data = transcript.get("data") if isinstance(transcript.get("data"), Mapping) else transcript
     from services.customer_ai_summary import build_earnings_summary
@@ -267,87 +265,82 @@ def _render_transcript_intelligence(story: Mapping[str, Any], *, suffix: str) ->
         st.caption("Transcript commentary unavailable for this quarter.")
 
     ticker = str(story.get("ticker") or "").upper()
-    index = story.get("transcript_index") or {}
     runtime_index_key = f"earnings-transcript-index-{ticker}"
     runtime_result_key = f"earnings-transcript-result-{ticker}"
-    if isinstance(st.session_state.get(runtime_index_key), Mapping):
-        index = st.session_state[runtime_index_key]
-    periods = ((index.get("data") or {}).get("periods") or []) if isinstance(index.get("data"), Mapping) else []
-    periods = [item for item in periods if isinstance(item, Mapping) and item.get("fiscal_year") and item.get("fiscal_quarter")]
-    if not periods:
-        st.caption("Earnings-call transcript evidence is unavailable for this snapshot.")
-        if st.button("Check available earnings calls", key=f"load-transcript-index-{suffix}"):
-            with st.spinner("Checking verified earnings-call periods…"):
-                st.session_state[runtime_index_key] = transcript_period_index(ConfiguredTranscriptProvider(), ticker)
-            st.rerun()
-    else:
+    st.markdown("#### Retained earnings-call insights")
+    st.caption("This view reads approved retained evidence only. It does not request new transcripts or generate AI analysis.")
+    if cache_reader is None:
+        st.info("Transcript availability: not connected · AI summary availability: pending")
+    check = st.button("Check available earnings calls", key=f"load-transcript-index-{suffix}",
+                      disabled=cache_reader is None)
+    if cache_reader is None:
+        return
+    if check:
+        st.session_state[runtime_index_key] = True
+    if not st.session_state.get(runtime_index_key):
+        st.caption("Check retained calls to see transcript and AI-summary availability separately.")
+        return
+    try:
+        # Revalidate on each render against the current backend account/license;
+        # never reuse another account's old session-cached projection.
+        index = cache_reader.period_index(ticker)
+        periods = index.get("data", {}).get("periods") or []
+        if not periods:
+            st.info("Transcript availability: not cached · AI summary availability: pending")
+            return
         labels = [f"Q{int(item['fiscal_quarter'])} {int(item['fiscal_year'])}" for item in periods]
         selected = st.selectbox("Earnings-call period", labels, key=f"earnings-transcript-period-{suffix}")
         period = periods[labels.index(selected)]
+        year, quarter = int(period["fiscal_year"]), int(period["fiscal_quarter"])
         if st.button("Load verified call insights", key=f"load-transcript-{suffix}"):
-            with st.spinner("Retrieving governed transcript evidence…"):
-                st.session_state[runtime_result_key] = retrieve_and_summarize_transcript(
-                    ticker, year=int(period["fiscal_year"]), quarter=int(period["fiscal_quarter"]),
-                )
-        result = st.session_state.get(runtime_result_key)
-        if result is not None:
-            operation = result.operation_metadata
-            requested, resolved = operation.get("requested_period"), operation.get("resolved_period")
-            st.caption(
-                f"Transcript period: {_display(resolved or requested)} · "
-                f"Call date: {_customer_date(operation.get('call_date'))} · Verified evidence captured"
-            )
-            if requested and resolved and requested != resolved:
-                st.warning(f"Requested {requested}; the latest available governed evidence resolved to {resolved}.")
-            projection = result.customer_projection
-            if projection.get("semantic_status") == "AVAILABLE":
-                st.info("AI summary of verified earnings-call evidence")
-                summary = projection.get("management_summary")
-                if isinstance(summary, Mapping) and summary.get("claim"):
-                    st.write(summary["claim"])
-                for label, key in (
-                    ("Key themes", "management_themes"), ("Guidance", "verified_guidance_statements"),
-                    ("Opportunities", "supported_opportunities"), ("Risks", "supported_risks"),
-                    ("Analyst Q&A themes", "analyst_question_themes"),
-                    ("What ATLAS is watching next", "monitoring_items"),
-                ):
-                    claims = projection.get(key) or []
-                    if claims:
-                        st.markdown(f"**{label}**")
-                        for claim in claims[:4]:
-                            st.markdown(f"- {_display(claim.get('claim') if isinstance(claim, Mapping) else claim)}")
-            else:
-                license_state = str(operation.get("license_state") or "")
-                if license_state == "DEVELOPMENT_PRECOMMERCIAL":
-                    st.info("Transcript evidence is available for internal validation but is not licensed for customer display.")
-                else:
-                    st.caption(_display(projection.get("status_detail"), "AI summary unavailable."))
-            st.caption("Transcript insights are contextual and do not independently change ATLAS's rating.")
-            st.markdown(
-                '<span data-atlas-transcript-year="{year}" data-atlas-transcript-quarter="{quarter}" '
-                'data-atlas-transcript-cache-status="{status}" data-atlas-transcript-provider-calls="{calls}" '
-                'data-atlas-transcript-evidence-id="{evidence}" style="display:none"></span>'.format(
-                    year=escape(_display(period.get("fiscal_year"), "")),
-                    quarter=escape(_display(period.get("fiscal_quarter"), "")),
-                    status=escape(_display(operation.get("cache_status"), "UNAVAILABLE")),
-                    calls=escape(_display(operation.get("provider_call_count"), "0")),
-                    evidence=escape(_display(operation.get("transcript_evidence_id"), "")),
-                ), unsafe_allow_html=True,
-            )
-    operation = transcript.get("operation_metadata") if isinstance(transcript, Mapping) else {}
-    if isinstance(operation, Mapping) and operation:
-        st.markdown(
-            '<span data-atlas-transcript-year="{year}" data-atlas-transcript-quarter="{quarter}" '
-            'data-atlas-transcript-cache-status="{status}" data-atlas-transcript-provider-calls="{calls}" '
-            'data-atlas-transcript-evidence-id="{evidence}" style="display:none"></span>'.format(
-                year=_display(operation.get("selected_year"), ""), quarter=_display(operation.get("selected_quarter"), ""),
-                status=_display(operation.get("cache_status"), "UNAVAILABLE"), calls=_display(operation.get("provider_call_count"), "0"),
-                evidence=_display(operation.get("transcript_evidence_id"), ""),
-            ), unsafe_allow_html=True,
-        )
+            st.session_state[runtime_result_key] = (year, quarter)
+        if st.session_state.get(runtime_result_key) != (year, quarter):
+            st.caption("Transcript availability: cached · AI summary availability: not checked")
+            return
+        result = cache_reader.read(ticker, year=year, quarter=quarter)
+    except TranscriptCacheReadError as error:
+        if str(error) == "TRANSCRIPT_CACHE_ACCOUNT_BINDING_REVALIDATION_REQUIRED":
+            st.info("Retained earnings-call evidence is pending offline account-binding revalidation; no new acquisition was requested.")
+        else:
+            st.warning("Cached earnings-call evidence could not be verified. It remains unavailable.")
+        return
+    status = result.get("ai_summary_status")
+    st.caption(f"Transcript availability: {_display(result.get('transcript_status'))} · AI summary availability: {_display(status)}")
+    st.caption(f"Selected call: Q{quarter} {year} · Call date: {_customer_date(result.get('call_date'))} · Retained evidence; not proof of the latest release")
+    projection = result.get("customer_projection") or {}
+    if status == "AVAILABLE" and projection.get("semantic_status") == "AVAILABLE":
+        st.info("Cached AI summary of source-grounded earnings-call evidence")
+        summary = projection.get("management_summary")
+        if isinstance(summary, Mapping) and summary.get("claim"):
+            st.write(summary["claim"])
+        for label, key in (
+            ("Key themes", "management_themes"), ("Guidance", "verified_guidance_statements"),
+            ("Opportunities", "supported_opportunities"), ("Risks", "supported_risks"),
+            ("Analyst Q&A themes", "analyst_question_themes"), ("What ATLAS is watching next", "monitoring_items"),
+        ):
+            claims = projection.get(key) or []
+            if claims:
+                st.markdown(f"**{label}**")
+                for claim in claims[:4]:
+                    st.markdown(f"- {_display(claim.get('claim') if isinstance(claim, Mapping) else claim)}")
+        st.caption("Transcript evidence: " + ", ".join(str(value) for value in projection.get("source_evidence_ids", []) if value))
+    elif status == "DISPLAY_NOT_PERMITTED":
+        st.info("The retained transcript's current permission does not allow a customer AI-summary display.")
+    else:
+        st.info("The transcript is cached; a separately approved source-grounded AI summary is still pending.")
+    st.caption("Transcript insights are contextual and do not independently change ATLAS's rating.")
+    st.markdown(
+        '<span data-atlas-transcript-year="{year}" data-atlas-transcript-quarter="{quarter}" '
+        'data-atlas-transcript-cache-status="{status}" data-atlas-transcript-provider-calls="0" '
+        'data-atlas-transcript-evidence-id="{evidence}" style="display:none"></span>'.format(
+            year=year, quarter=quarter, status=escape(_display(result.get("cache_status"))),
+            evidence=escape(_display(result.get("transcript_evidence_id"), "")),
+        ), unsafe_allow_html=True,
+    )
 
 
-def _reported_card(story: Mapping[str, Any], open_research: Callable[[str], Any], index: int) -> None:
+def _reported_card(story: Mapping[str, Any], open_research: Callable[[str], Any], index: int,
+                   *, cache_reader: ReadOnlyTranscriptCache | None = None) -> None:
     latest = story.get("latest_quarter") or {}
     st.markdown('<span class="atlas-earnings-card-anchor" aria-hidden="true"></span>', unsafe_allow_html=True)
     st.markdown(f"### {story['ticker']} · {_display(story.get('company'))}")
@@ -378,7 +371,7 @@ def _reported_card(story: Mapping[str, Any], open_research: Callable[[str], Any]
     st.markdown("#### Why It Matters")
     for item in story.get("why_it_matters") or ["No additional grounded implication is available."]:
         st.markdown(f"- {item}")
-    _render_transcript_intelligence(story, suffix=f"reported-{index}-{story['ticker']}")
+    _render_transcript_intelligence(story, suffix=f"reported-{index}-{story['ticker']}", cache_reader=cache_reader)
     with st.expander("Guidance & Estimate Changes"):
         guidance = story.get("management_guidance") or {}
         st.write(guidance.get("status_detail") if guidance.get("semantic_status") != "AVAILABLE" else guidance)
@@ -489,7 +482,8 @@ def _upcoming_card(story: Mapping[str, Any], open_research: Callable[[str], Any]
     _open_button(story, open_research, f"upcoming-{index}")
 
 
-def render_earnings_vnext(full_df: Any, *, open_research: Callable[[str], Any]) -> None:
+def render_earnings_vnext(full_df: Any, *, open_research: Callable[[str], Any],
+                          transcript_cache_reader: ReadOnlyTranscriptCache | None = None) -> None:
     st.markdown('<span data-atlas-earnings-version="ATLAS_EARNINGS_VNEXT_V1" style="display:none">earnings-vnext</span>', unsafe_allow_html=True)
     _inject_earnings_css()
     st.markdown('<div class="atlas-kicker">Executive evidence review</div>', unsafe_allow_html=True)
@@ -506,11 +500,11 @@ def render_earnings_vnext(full_df: Any, *, open_research: Callable[[str], Any]) 
         )
     for index, story in enumerate(reported[:8]):
         with st.container(border=True):
-            _reported_card(story, open_research, index)
+            _reported_card(story, open_research, index, cache_reader=transcript_cache_reader)
     if len(reported) > 8:
         with st.expander(f"More recently reported companies ({len(reported) - 8})"):
             for index, story in enumerate(reported[8:20], 8):
-                _reported_card(story, open_research, index)
+                _reported_card(story, open_research, index, cache_reader=transcript_cache_reader)
     st.markdown("## Upcoming Earnings")
     if not upcoming:
         st.markdown(

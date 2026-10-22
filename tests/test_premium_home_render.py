@@ -21,6 +21,13 @@ def capture_complete_streamlit(page,path):
       return {height:node.scrollHeight,step:node.clientHeight};
     }""")
     if geometry['height']>20000: raise AssertionError('Unexpected fixture page height')
+    # A short inner content node is not the screenshot's coordinate system.
+    # Preserve the full viewport instead of cropping it at that node's height.
+    viewport_height = page.evaluate('window.innerHeight')
+    if geometry['height'] <= viewport_height:
+        page.screenshot(path=str(path), full_page=True)
+        page.evaluate("()=>{const n=document.querySelector('[data-review-scroll]');n.scrollTop=0;n.removeAttribute('data-review-scroll')}")
+        return
     canvas=None
     for top in range(0,geometry['height'],geometry['step']):
         actual=page.evaluate("top=>{const n=document.querySelector('[data-review-scroll]');n.scrollTop=top;return n.scrollTop}",top)
