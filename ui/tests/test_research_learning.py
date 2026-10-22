@@ -7,7 +7,7 @@ from typing import Mapping, Any
 import unittest
 from unittest.mock import Mock
 
-from ui.research_learning import build_learning_guide, build_valuation_guide, build_annual_earnings_comparison
+from ui.research_learning import build_learning_guide, build_valuation_guide, build_annual_earnings_comparison, build_earnings_readout
 
 
 def fact(field="net_income", value=0, **extra):
@@ -211,6 +211,88 @@ class AnnualEarningsComparisonTests(unittest.TestCase):
         render({"status": "RATING_NOT_PUBLISHED"})
         streamlit.info.assert_called_once()
         streamlit.caption.assert_not_called()
+
+
+class EarningsReadoutTests(unittest.TestCase):
+    def fixture(self, profit=(8, 10), cash=(6, 12), free_cash=(-2, 5)):
+        source = AnnualEarningsComparisonTests().fixture()
+        trend = source["financial_trend"]
+        trend["series"].update({"Net Income": list(profit), "Operating Cash Flow": list(cash),
+                                "Free Cash Flow": list(free_cash)})
+        trend["units"].update({"Operating Cash Flow": "USD", "Free Cash Flow": "USD"})
+        return source
+
+    def test_diverging_results_cash_and_investment_preserve_evidence(self):
+        source = self.fixture()
+        before = deepcopy(source)
+        result = build_earnings_readout(source)
+        self.assertEqual(source, before)
+        self.assertEqual(result["current_period"], "2025-12-31")
+        self.assertEqual(result["evidence_ids"], ("filing:1",))
+        self.assertIsNone(result["as_of"])
+        sales, cash, investment = result["cards"]
+        self.assertIn("Sales rose; profit fell", sales["observation"])
+        self.assertIn("Sales changed +20.0%", sales["observation"])
+        self.assertIn("Profit changed -20.0%", sales["observation"])
+        self.assertIn("below reported profit", cash["observation"])
+        self.assertIn("negative", investment["observation"])
+        self.assertIn("decreased", investment["observation"])
+
+    def test_loss_zero_and_recovery_never_receive_profit_growth_rates(self):
+        for values, expected in (((-2, -10), "still recorded a loss"),
+                                 ((0, -10), "zero net income"),
+                                 ((2, -10), "profitable after"), ((2, 0), "profitable after")):
+            with self.subTest(values=values):
+                card = build_earnings_readout(self.fixture(profit=values))["cards"][0]
+                self.assertIn(expected, card["observation"])
+                self.assertNotIn("Profit changed", card["observation"])
+
+    def test_cash_signs_and_equal_values(self):
+        for value, phrase in ((-1, "used cash"), (0, "no net cash"), (1, "positive net cash")):
+            cards = build_earnings_readout(self.fixture(profit=(value, 10), cash=(value, 10),
+                                                      free_cash=(value, value)))["cards"]
+            self.assertIn("equal to", cards[1]["observation"])
+            self.assertIn(phrase, cards[1]["observation"])
+            self.assertIn("unchanged", cards[2]["observation"])
+
+    def test_missing_series_are_explicit_and_never_filled_from_snapshot(self):
+        source = self.fixture()
+        del source["financial_trend"]["series"]["Net Income"]
+        source["financial_trend"]["units"]["Free Cash Flow"] = "EUR"
+        source["financial_snapshot"] = page(fact())["financial_snapshot"]
+        cards = build_earnings_readout(source)["cards"]
+        self.assertTrue(all(card["status"] == "UNAVAILABLE" for card in cards))
+        self.assertTrue(all(card["observation"] is None for card in cards))
+        self.assertEqual(cards[0]["missing"], ("Profit",))
+
+    def test_withheld_or_unmatched_periods_have_no_readout(self):
+        for change in ({"status": "RATING_NOT_PUBLISHED"}, {"financial_trend": {}},
+                       {"financial_trend": {"status": "AVAILABLE", "periodicity": "QUARTERLY"}}):
+            self.assertEqual(build_earnings_readout({**self.fixture(), **change}),
+                             {"status": "UNAVAILABLE", "cards": ()})
+
+    def test_renderer_shows_observations_sources_and_missing_evidence(self):
+        tree = ast.parse((Path(__file__).parents[1] / "customer_research_v2.py").read_text())
+        function = next(node for node in tree.body if isinstance(node, ast.FunctionDef)
+                        and node.name == "_render_earnings_readout")
+        streamlit = Mock()
+        namespace = dict(st=streamlit, Mapping=Mapping, Any=Any,
+                         build_earnings_readout=build_earnings_readout,
+                         _financial_period=lambda value: value or "Unavailable")
+        exec(compile(ast.Module(body=[function], type_ignores=[]), "readout_renderer", "exec"), namespace)
+        source = self.fixture()
+        del source["financial_trend"]["series"]["Free Cash Flow"]
+        namespace["_render_earnings_readout"](source)
+        captions = " ".join(str(call.args[0]) for call in streamlit.caption.call_args_list)
+        self.assertIn("filing:1", captions)
+        self.assertIn("Evidence as of: Unavailable", captions)
+        self.assertIn("Missing comparable annual evidence: Cash after investment", captions)
+        written = " ".join(str(call.args[0]) for call in streamlit.write.call_args_list)
+        self.assertIn("Sales rose; profit fell", written)
+        streamlit.reset_mock()
+        namespace["_render_earnings_readout"]({"status": "RATING_NOT_PUBLISHED"})
+        streamlit.info.assert_called_once()
+        streamlit.write.assert_not_called()
 
 
 if __name__ == "__main__":

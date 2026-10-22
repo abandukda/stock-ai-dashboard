@@ -153,3 +153,76 @@ def build_annual_earnings_comparison(page: Mapping[str, Any]) -> dict[str, Any]:
     return dict(status="AVAILABLE", rows=tuple(rows), prior_period=periods[earlier],
                 current_period=periods[latest], source=source, evidence_ids=evidence_ids,
                 as_of=provenance.get("capture_timestamp") or provenance.get("as_of"))
+
+
+def build_earnings_readout(page: Mapping[str, Any]) -> dict[str, Any]:
+    """Teach relationships in the admitted annual pair without inferring causes.
+
+    Every observation uses the same dated comparison. No forward estimates,
+    snapshot facts, news, or model outputs may fill a missing annual series.
+    Percentage growth is meaningful here only with a positive starting value.
+    """
+    comparison = build_annual_earnings_comparison(page)
+    if comparison["status"] != "AVAILABLE":
+        return {"status": "UNAVAILABLE", "cards": ()}
+    rows = {row["label"]: row for row in comparison["rows"]}
+    cards = []
+
+    def add(title, labels, observation, meaning, check):
+        missing = tuple(label for label in labels if label not in rows)
+        cards.append(dict(title=title, status="UNAVAILABLE" if missing else "AVAILABLE",
+                          missing=missing, observation=None if missing else observation,
+                          meaning=meaning, check=check, inputs=tuple(labels)))
+
+    sales, profit = rows.get("Sales"), rows.get("Profit")
+    observation = None
+    if sales and profit:
+        def direction(row):
+            return "rose" if row["change"] > 0 else "fell" if row["change"] < 0 else "did not change"
+
+        observation = f'Sales {direction(sales)}; profit {direction(profit)}.'
+        if profit["current"] < 0:
+            observation += " The latest full year still recorded a loss."
+        elif profit["current"] == 0:
+            observation += " The latest full year recorded zero net income."
+        elif profit["prior"] <= 0:
+            observation += " The latest full year was profitable after a prior loss or break-even result."
+        # Do not describe loss reduction as earnings growth or divide by zero.
+        for label, row in (("Sales", sales), ("Profit", profit)):
+            if row["prior"] > 0 and row["current"] >= 0:
+                growth = row["change"] / row["prior"] * 100
+                if _finite(growth):
+                    observation += f" {label} changed {growth:+.1f}% from the earlier year."
+    add("Did sales translate into profit?", ("Sales", "Profit"), observation,
+        "Sales measure customer spending with the company; profit is what remains after expenses and taxes. Their directions can differ.",
+        "Check pricing, costs, acquisitions, taxes, and one-time items in the filings before explaining the difference.")
+
+    cash = rows.get("Cash from operations")
+    observation = None
+    if cash and profit:
+        relation = "above" if cash["current"] > profit["current"] else "below" if cash["current"] < profit["current"] else "equal to"
+        observation = f"Cash from operations was {relation} reported profit in the latest full year."
+        if cash["current"] < 0:
+            observation += " Operations used cash overall."
+        elif cash["current"] == 0:
+            observation += " Operations generated no net cash."
+        else:
+            observation += " Operations generated positive net cash."
+    add("Did reported profit come with cash?", ("Profit", "Cash from operations"), observation,
+        "Profit and operating cash measure different things. Cash above profit does not by itself prove high earnings quality; cash below profit does not prove accounting trouble.",
+        "Check customer payments, inventory, supplier bills, and non-cash expenses. The figures here do not identify the cause.")
+
+    free_cash = rows.get("Cash after investment")
+    observation = None
+    if free_cash:
+        value = free_cash["current"]
+        observation = ("Reported free cash flow was positive in the latest full year." if value > 0 else
+                       "Reported free cash flow was negative in the latest full year." if value < 0 else
+                       "Reported free cash flow was zero in the latest full year.")
+        observation += (" It increased from the earlier year." if free_cash["change"] > 0 else
+                        " It decreased from the earlier year." if free_cash["change"] < 0 else
+                        " It was unchanged from the earlier year.")
+    add("Was cash left after investment?", ("Cash after investment",), observation,
+        "Free cash flow generally measures operating cash after capital spending. It is not a promise of dividends or cash available after every obligation.",
+        "Check the source definition, spending timing, debt repayments, and whether investment was delayed. Negative free cash flow alone does not establish financial distress.")
+    return {**comparison, "cards": tuple(cards)}

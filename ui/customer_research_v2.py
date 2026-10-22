@@ -10,7 +10,7 @@ import math
 
 import pandas as pd
 import streamlit as st
-from ui.research_learning import build_learning_guide, build_valuation_guide, build_annual_earnings_comparison
+from ui.research_learning import build_learning_guide, build_valuation_guide, build_annual_earnings_comparison, build_earnings_readout
 
 from services.customer_research_view import Availability, build_customer_research_view
 from services.customer_metric_format import (
@@ -244,6 +244,33 @@ def _render_annual_earnings_comparison(page: Mapping[str, Any]) -> None:
     )
 
 
+def _render_earnings_readout(page: Mapping[str, Any]) -> None:
+    readout = build_earnings_readout(page)
+    st.markdown("**Put the annual results together**")
+    if readout["status"] != "AVAILABLE":
+        st.info("An earnings interpretation is unavailable without a source-bound pair of consecutive full years.")
+        return
+    st.caption(
+        f'Reported full years: {readout["prior_period"]} → {readout["current_period"]} · '
+        f'Source: {readout["source"]} · Evidence as of: {_financial_period(readout.get("as_of"))} · '
+        f'Evidence IDs: {", ".join(readout["evidence_ids"])}'
+    )
+    for card in readout["cards"]:
+        st.markdown(f'**{card["title"]}**')
+        if card["status"] == "AVAILABLE":
+            st.write(card["observation"])
+            st.caption("Uses the annual figures above: " + ", ".join(card["inputs"]) + ".")
+            st.write(card["meaning"])
+            st.caption("Investigate next: " + card["check"])
+        else:
+            st.caption("Interpretation unavailable. Missing comparable annual evidence: " + ", ".join(card["missing"]) + ".")
+    st.caption(
+        "These observations describe retained results, not current trading conditions or a new investment thesis. "
+        "Growth rates use a positive earlier-year value and a non-negative latest value; losses and zero bases are described without growth percentages. "
+        "Check accounting definitions and restatements before drawing conclusions. Causes and management explanations are unavailable here."
+    )
+
+
 def _render_learning_guide(page: Mapping[str, Any], *, ticker: str) -> None:
     guide = build_learning_guide(page)
     if guide["status"] != "AVAILABLE":
@@ -274,6 +301,7 @@ def _render_learning_guide(page: Mapping[str, Any], *, ticker: str) -> None:
             "A single snapshot cannot establish an improving trend."
         )
         _render_annual_earnings_comparison(page)
+        _render_earnings_readout(page)
         st.markdown("**Go deeper: compare earnings fairly**")
         st.write(
             "Use the financial statements below to compare the same fiscal quarter with the prior year's quarter, "
