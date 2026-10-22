@@ -35,8 +35,10 @@ class PremiumHomeRender(unittest.TestCase):
                             self.assertEqual(page.locator('[data-atlas-qa="home-actionable-card"]').count(),3)
                             self.assertEqual(page.locator('.atlas-home-featured-case').count(),1)
                             self.assertLessEqual(page.evaluate('document.documentElement.scrollWidth'),width+1)
-                            self.assertEqual(page.get_by_text('View Research →',exact=True).count(),3)
-                            for button in page.get_by_text('View Research →',exact=True).all():
+                            featured_actions=page.locator('[class*="st-key-home_top_idea_position_"]').get_by_role('button',name='View Research →',exact=True)
+                            self.assertEqual(featured_actions.count(),3)
+                            for button in featured_actions.all():
+                                self.assertTrue(button.is_visible())
                                 box=button.bounding_box();self.assertIsNotNone(box)
                                 self.assertGreaterEqual(box['x'],0);self.assertLessEqual(box['x']+box['width'],width+1)
                             self.assertTrue(page.get_by_text('Public activation OFF',exact=False).count())
