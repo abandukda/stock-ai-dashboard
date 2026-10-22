@@ -66,6 +66,7 @@ def test_diagnostic_navigation_failure_stops_without_retry_or_screenshot():
 def test_diagnostic_captures_existing_state_at_four_route_viewports_only():
     c=crawler();c._customer_navigation_contract=AsyncMock();c._role_isolation_contract=AsyncMock();c._shot=AsyncMock(return_value="actual.png");c._record=AsyncMock()
     c._submit_research=AsyncMock(side_effect=AssertionError("No ticker submit or chart retry"))
+    c._wait_diagnostic_route_ready=AsyncMock()
     page=SimpleNamespace(set_viewport_size=AsyncMock())
     with patch("agents.atlas_visual_crawler_v1._navigate",new=AsyncMock(return_value=(True,0,"ok"))) as nav,patch("agents.atlas_visual_crawler_v1._page_render_complete",new=AsyncMock(return_value=True)):
         asyncio.run(c._capture_chart_failure_views(page))
@@ -82,3 +83,20 @@ def test_malformed_completion_cannot_mask_original_failure(observed):
     with pytest.raises(GlobalCrawlFailure) as raised:
         asyncio.run(c._preserve_failure_with_evidence(object(),original,customer_only=True))
     assert raised.value is original and not hasattr(c,"post_failure_diagnostic")
+
+
+def test_delayed_completion_observes_same_route_without_navigation_retry():
+    c=crawler();c._current_route_visible=AsyncMock(return_value=True)
+    page=SimpleNamespace(wait_for_timeout=AsyncMock())
+    with patch("agents.atlas_visual_crawler_v1._has_rendered_exception",new=AsyncMock(return_value=False)),patch("agents.atlas_visual_crawler_v1._page_render_complete",new=AsyncMock(side_effect=[False,False,True])) as ready,patch("agents.atlas_visual_crawler_v1._navigate",new=AsyncMock()) as navigate:
+        asyncio.run(c._wait_diagnostic_route_ready(page,"Home"))
+    assert ready.await_count==3 and page.wait_for_timeout.await_count==2
+    navigate.assert_not_awaited()
+
+
+def test_exception_stops_before_accepting_even_a_ready_marker():
+    c=crawler();c._current_route_visible=AsyncMock(return_value=True)
+    with patch("agents.atlas_visual_crawler_v1._has_rendered_exception",new=AsyncMock(return_value=True)),patch("agents.atlas_visual_crawler_v1._page_render_complete",new=AsyncMock(return_value=True)) as ready:
+        with pytest.raises(GlobalCrawlFailure,match="DIAGNOSTIC_APPLICATION_EXCEPTION"):
+            asyncio.run(c._wait_diagnostic_route_ready(object(),"Home"))
+    ready.assert_not_awaited()
