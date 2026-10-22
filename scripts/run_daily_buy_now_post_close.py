@@ -24,16 +24,29 @@ def main() -> int:
     parser.add_argument("--root", type=Path, default=Path("."))
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-    now = datetime.fromisoformat(args.now.replace("Z", "+00:00"))
-    decision = schedule_decision(now=now, last_published_session=args.last_published_session)
-    boundary = args.last_contiguous_session or args.last_published_session
-    if not boundary:
-        raise ValueError("DAILY_BUY_NOW_CONTIGUOUS_BOUNDARY_REQUIRED")
-    continuity = continuity_decision(now=now, last_contiguous_session=boundary)
-    dry_run = validate_retained_publication(
-        root=args.root, output=args.output.parent / "provider_free_publication_validation.json"
-    )
-    payload = {"schedule": decision, "continuity": continuity, "dry_run": dry_run}
+    # Persist a sanitized fail-closed receipt even if configuration/calendar/input
+    # validation stops before a schedule is available. Never serialize exception
+    # text: provider/host errors may contain sensitive paths or values.
+    payload = {"status": "FAILED", "provider_calls": 0, "production_writes": 0,
+               "schedule": {"eligible": False}, "error": "COORDINATOR_VALIDATION_FAILED"}
+    try:
+        now = datetime.fromisoformat(args.now.replace("Z", "+00:00"))
+        boundary = args.last_contiguous_session or args.last_published_session
+        if not boundary:
+            payload["error"] = "DAILY_BUY_NOW_CONTIGUOUS_BOUNDARY_REQUIRED"
+            raise ValueError(payload["error"])
+        decision = schedule_decision(now=now, last_published_session=args.last_published_session)
+        continuity = continuity_decision(now=now, last_contiguous_session=boundary)
+        dry_run = validate_retained_publication(
+            root=args.root, output=args.output.parent / "provider_free_publication_validation.json"
+        )
+        payload = {"status": "PASS", "schedule": decision, "continuity": continuity,
+                   "dry_run": dry_run, "provider_calls": 0, "production_writes": 0}
+    except Exception:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+        print(json.dumps(payload, sort_keys=True))
+        return 1
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
     print(json.dumps(payload, sort_keys=True))

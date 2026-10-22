@@ -1,0 +1,28 @@
+name: ATLAS Operations Readiness Offline CI
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - scripts/run_daily_buy_now_post_close.py
+      - scripts/atlas_execution_monitor.py
+      - tests/test_daily_coordinator_receipts.py
+      - tests/test_atlas_execution_monitor.py
+      - docs/ATLAS_MASTER_REQUIREMENTS*
+      - .github/workflows/atlas_operations_readiness.yml
+      - .github/workflows/atlas_execution_monitor_review.yml
+      - .github/workflows/atlas_daily_incremental_buy_now.yml
+permissions:
+  contents: read
+jobs:
+  provider-free:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install pytest==9.1.1 exchange_calendars==4.13.2
+      - run: python -m pytest -q tests/test_daily_coordinator_receipts.py tests/test_daily_buy_now_post_close.py tests/test_atlas_execution_monitor.py
