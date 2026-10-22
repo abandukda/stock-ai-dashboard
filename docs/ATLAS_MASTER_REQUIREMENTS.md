@@ -1,6 +1,8 @@
 # ATLAS master requirements and dependencies
 
-Machine-readable authority: [ATLAS_MASTER_REQUIREMENTS.json](ATLAS_MASTER_REQUIREMENTS.json). Updated 2026-10-22. Baseline `c45b9da52d6a58df3289d53e74f4583b20b38aa9`. Every train is partial; no whole-program completion percentage is claimed. Source SHA denotes the evidence baseline, not an undeployed repair. PR110 and111 remain unmerged at the exact heads below.
+Latest execution, October21 evening Eastern: PR110/111/112 merged; currentmain `3126e5e13048c496765e1a9b08ada65e78765921`. Historical train entries below retain prior scope-specific evidence. Post-merge QA39703905220 FAILED after matching deployed4f5e7bb: `ImportError` in customer navigation. Artifact12393668703 SHA256`fff356c37f300bb7b1bccf4e0fdb2bc24b6f210a4ac08ed4c59350bc00f2dbe7`. No new customer live acceptance. Stale contract-module condition reproduces the ImportError locally; repair imports presentation from a new independent module, preserving route/role APIs and exact four-route scope. Host module-cache state has not been directly inspected. Later QA39703996717 running;39704178633 queued at investigation time.
+
+Machine-readable authority: [ATLAS_MASTER_REQUIREMENTS.json](ATLAS_MASTER_REQUIREMENTS.json). Updated 2026-10-22. Baseline `c45b9da52d6a58df3289d53e74f4583b20b38aa9`. Every train is partial; no whole-program completion percentage is claimed. Source SHA denotes the evidence baseline, not an undeployed repair. PR110/111/112 are now merged; their earlier review-state entries below are historical.
 
 ## data — P0
 

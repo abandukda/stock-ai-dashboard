@@ -26473,7 +26473,7 @@ def v784_top_nav(pages):
     }
     </style>""", unsafe_allow_html=True)
     if tuple(pages) == ("Home", "Research", "Watchlist", "Ask ATLAS"):
-        from services.customer_navigation_contract import customer_mobile_navigation_css
+        from services.customer_navigation_styles import customer_mobile_navigation_css
         st.markdown(customer_mobile_navigation_css(), unsafe_allow_html=True)
     selected = st.radio(
         "Navigate",

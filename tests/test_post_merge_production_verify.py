@@ -64,3 +64,32 @@ class PostMergeVerification(unittest.TestCase):
         self.assertIn('@media(max-width:420px)',css)
         app=(Path(__file__).resolve().parents[1]/'app.py').read_text()
         self.assertIn('if tuple(pages) == ("Home", "Research", "Watchlist", "Ask ATLAS"):',app)
+
+
+class WarmDeploymentNavigation(unittest.TestCase):
+    def test_actual_navigation_renders_when_old_contract_module_is_cached(self):
+        import ast
+        import sys
+        import types
+        from unittest.mock import patch
+        root=Path(__file__).resolve().parents[1]
+        source=ast.parse((root/'app.py').read_text())
+        function=next(n for n in source.body if isinstance(n,ast.FunctionDef) and n.name=='v784_top_nav')
+        legacy=types.ModuleType('services.customer_navigation_contract')
+        # A running pre-deployment interpreter has the original contract API,
+        # but cannot import a newly added symbol from that cached module.
+        legacy.CUSTOMER_ROUTES=('Home','Research','Watchlist','Ask ATLAS')
+        self.assertFalse(hasattr(legacy,'customer_mobile_navigation_css'))
+        class StreamlitStub:
+            def __init__(self): self.session_state={}; self.styles=[]
+            def markdown(self,value,**kwargs): self.styles.append(value)
+            def radio(self,label,pages,**kwargs): return pages[kwargs['index']]
+        st=StreamlitStub()
+        namespace={'st':st}
+        with patch.dict(sys.modules,{'services.customer_navigation_contract':legacy}):
+            exec(compile(ast.Module(body=[function],type_ignores=[]),'app.py','exec'),namespace)
+            self.assertEqual(namespace['v784_top_nav'](list(legacy.CUSTOMER_ROUTES)),'Home')
+            self.assertTrue(any('grid-template-columns:repeat(2,minmax(0,1fr))' in s for s in st.styles))
+            st.styles=[]
+            self.assertEqual(namespace['v784_top_nav'](['Home','Report Card']),'Home')
+            self.assertFalse(any('grid-template-columns' in s for s in st.styles))
