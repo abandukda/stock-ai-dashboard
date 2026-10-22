@@ -14,8 +14,9 @@ from services.transcript_provider import (
 )
 
 
-TRANSCRIPT_SUMMARY_PROMPT_VERSION = "ATLAS_TRANSCRIPT_SUMMARY_PROMPT_V2"
-TRANSCRIPT_SUMMARY_SCHEMA_VERSION = "ATLAS_TRANSCRIPT_SUMMARY_SCHEMA_V2"
+TRANSCRIPT_SUMMARY_PROMPT_VERSION = "ATLAS_TRANSCRIPT_SUMMARY_PROMPT_V3"
+TRANSCRIPT_SUMMARY_SCHEMA_VERSION = "ATLAS_TRANSCRIPT_SUMMARY_SCHEMA_V3"
+TRANSCRIPT_GROUNDING_POLICY = "ATLAS_TRANSCRIPT_ORDERED_TRACEABILITY_V1"
 SUMMARY_FIELDS = (
     "management_themes", "key_takeaways", "supported_opportunities", "supported_risks",
     "verified_guidance_statements", "capital_allocation_comments", "demand_comments",
@@ -135,6 +136,22 @@ def _words(text: str) -> set[str]:
     }
 
 
+_SCOPE_MARKERS = frozenset({
+    "not", "no", "never", "without", "cannot", "can't", "don't", "didn't", "doesn't",
+    "isn't", "wasn't", "weren't", "won't", "wouldn't", "shouldn't", "hasn't", "haven't",
+    "couldn't", "neither", "nor", "if", "unless", "assuming", "provided", "conditional",
+})
+
+
+def _ordered_terms(text: str) -> list[str]:
+    return re.findall(r"[a-z0-9]+(?:'[a-z]+)?", text.lower().replace("’", "'"))
+
+
+def _is_subsequence(terms: list[str], source_terms: list[str]) -> bool:
+    source = iter(source_terms)
+    return all(any(candidate == term for candidate in source) for term in terms)
+
+
 def _claim_diagnostic(claim: Any, source: str, *, field: str, index: int) -> dict[str, Any]:
     diagnostic: dict[str, Any] = {
         "field": field, "claim_index": index, "claim_type": None, "claim_text": None,
@@ -180,12 +197,23 @@ def _claim_diagnostic(claim: Any, source: str, *, field: str, index: int) -> dic
             failure_reason="PARAPHRASE_NOT_TRACEABLE",
         )
         return diagnostic
+    # A bag of words does not establish relationships or preserve qualifiers.
+    # These conservative necessary checks reject obvious reversals; passing them
+    # is traceability only, never a claim of general semantic entailment.
+    claim_terms, excerpt_terms = _ordered_terms(text), _ordered_terms(excerpt)
+    for marker in _SCOPE_MARKERS:
+        if claim_terms.count(marker) != excerpt_terms.count(marker):
+            diagnostic.update(match_reason="SOURCE_SCOPE_OR_NEGATION_CHANGED", failure_reason="UNSUPPORTED_CLAIM")
+            return diagnostic
+    if not _is_subsequence(claim_terms, excerpt_terms):
+        diagnostic.update(match_reason="SOURCE_TERM_ORDER_CHANGED", failure_reason="PARAPHRASE_NOT_TRACEABLE")
+        return diagnostic
     for markers, reason in ((_CAUSAL_MARKERS, "UNSUPPORTED_CAUSAL_STATEMENT"),
                             (_FORWARD_MARKERS, "UNSUPPORTED_FORWARD_STATEMENT")):
         if claim_words & markers and not excerpt_words & markers:
             diagnostic.update(match_reason=reason, failure_reason="UNSUPPORTED_CLAIM")
             return diagnostic
-    diagnostic.update(match_reason="VERBATIM_SPAN_HASH_NUMBERS_AND_MEANING_PASS", failure_reason=None)
+    diagnostic.update(match_reason="VERBATIM_SPAN_HASH_NUMBERS_ORDER_AND_SCOPE_PASS", failure_reason=None)
     return diagnostic
 
 
@@ -266,7 +294,7 @@ def _openai_summarizer(payload: Mapping[str, Any]) -> tuple[Mapping[str, Any] | 
                     "source_excerpt_hash, claim_type, and source_section. Select one supplied source_span_id and "
                     "copy its source_excerpt exactly; the selected span must contain every number and unit in claim. "
                     "source_excerpt_hash must be present as an empty string; ATLAS computes it deterministically. "
-                    "Use only material words found in the excerpt when writing a concise paraphrase. Do not add a "
+                    "Use only source words in their original order for a concise paraphrase; preserve all negation and conditional qualifiers. Do not add a "
                     "company name, fiscal year, cause, intent, or outlook unless it appears in that exact span. "
                     "Keep each claim no broader than its excerpt; omit unsupported claims and use empty lists when "
                     "evidence is absent. Never output the complete transcript."
@@ -378,6 +406,7 @@ def retrieve_and_summarize_transcript(
         "license_state": evidence.provenance.license_class,
         "transcript_status": "AVAILABLE" if isinstance(raw, str) and raw.strip() else "UNAVAILABLE",
         "grounding_status": grounding, "ai_summary_status": ai_status,
+        "grounding_policy": TRANSCRIPT_GROUNDING_POLICY, "semantic_entailment_verified": False,
         "grounding_violations": list(violations) if isinstance(raw, str) and raw.strip() else [],
         "claim_diagnostics": list(claim_diagnostics) if isinstance(raw, str) and raw.strip() else [],
         "model_provider_status": model_provider if isinstance(raw, str) and raw.strip() else None,

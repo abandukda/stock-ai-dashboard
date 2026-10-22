@@ -86,3 +86,47 @@ def test_actual_account_switch_clears_old_private_widgets(tmp_path, monkeypatch)
     assert not any('Alice confidential' in str(item.value) for item in app.markdown)
     assert not old_keys.intersection(app.session_state.filtered_state)
     assert by_label(app.text_input, 'Watchlist name').value == ''
+
+
+def test_personal_names_are_literal_without_changing_saved_content(tmp_path):
+    from services.customer.sqlite_repository import PrivateSQLiteCustomerRepository
+    script = app_source(tmp_path/'private')
+    name = '![private](https://example.invalid/pixel) <img src=x>'
+    app = AppTest.from_string(script).run()
+    by_label(app.text_input, 'Watchlist name').set_value(name)
+    by_label(app.button, 'Create watchlist').click().run()
+    assert not app.exception
+    heading = next(item.value for item in app.markdown if 'atlas-personal-watchlist-name' in item.value)
+    assert name.replace('<img src=x>', '&lt;img src=x&gt;') in heading
+    assert '<img src=x>' not in heading
+    repo = PrivateSQLiteCustomerRepository(tmp_path/'private')
+    user = repo.user_by_auth_subject('test:alice')[0]
+    assert repo.list_watchlists(user.user_id)[0].name == name
+
+
+def test_expired_or_revoked_session_clears_private_ui_on_next_render(tmp_path, monkeypatch):
+    import sys
+    from types import ModuleType
+    for mode in ('expired', 'revoked'):
+        state = ModuleType('_atlas_session_boundary_fixture')
+        state.mode = 'valid'
+        monkeypatch.setitem(sys.modules, state.__name__, state)
+        script = app_source(tmp_path/mode).replace(
+            "controller = PersonalWatchlistController",
+            "import _atlas_session_boundary_fixture as trusted_server\ncontroller = PersonalWatchlistController",
+        ).replace(
+            "VerifiedWatchlistSubject('test:alice', now+timedelta(hours=1))",
+            "VerifiedWatchlistSubject('test:alice', now+timedelta(hours=-1 if trusted_server.mode=='expired' else 1), revoked=trusted_server.mode=='revoked')",
+        )
+        app = AppTest.from_string(script).run()
+        by_label(app.text_input, 'Watchlist name').set_value('Private session list')
+        by_label(app.button, 'Create watchlist').click().run()
+        assert not app.exception
+        assert any('Private session list' in str(item.value) for item in app.markdown)
+        state.mode = mode
+        app.run()
+        assert not app.exception
+        assert not app.button and not app.selectbox
+        assert not any('Private session list' in str(item.value) for item in app.markdown)
+        assert not any(str(key).startswith('atlas_personal_watchlists:') for key in app.session_state.filtered_state)
+        assert any('individual account access' in item.value for item in app.info)

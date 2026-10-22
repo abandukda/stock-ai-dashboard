@@ -6,6 +6,7 @@ customer-facing Report Card.
 """
 from __future__ import annotations
 
+from contextlib import closing
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 import hashlib
@@ -251,13 +252,30 @@ class ProspectiveLedger:
             raise ValueError("BACKUP_MUST_USE_SEPARATE_DURABLE_ROOT")
         destination_root.mkdir(parents=True, exist_ok=True, mode=0o700)
         destination = destination_root / f"report-card-{now.astimezone(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.sqlite3"
-        with self._connect() as source, sqlite3.connect(destination) as target:
+        # sqlite3 connection context managers commit/rollback but do not close.
+        # Finalize the target before hashing; delayed WAL cleanup must never
+        # change a backup after its digest sidecar has been recorded.
+        expected_tip = self.verify()
+        with closing(self._connect()) as source, closing(sqlite3.connect(destination)) as target:
+            expected_metadata = [tuple(row) for row in source.execute("SELECT key,value FROM metadata ORDER BY key")]
             source.backup(target)
         os.chmod(destination, 0o600)
-        restored = ProspectiveLedger(destination)
-        if restored.verify() != self.verify():
-            destination.unlink(missing_ok=True)
-            raise ValueError("BACKUP_RESTORE_INTEGRITY_FAILURE")
+        uri = destination.resolve().as_uri() + "?mode=ro&immutable=1"
+        with closing(sqlite3.connect(uri, uri=True)) as restored:
+            restored.row_factory = sqlite3.Row
+            if (restored.execute("PRAGMA integrity_check").fetchone()[0] != "ok" or
+                    [tuple(row) for row in restored.execute("SELECT key,value FROM metadata ORDER BY key")] != expected_metadata):
+                raise ValueError("BACKUP_RESTORE_INTEGRITY_FAILURE")
+            previous = "GENESIS"
+            for row in restored.execute("SELECT * FROM records ORDER BY sequence"):
+                expected = _digest({"type": row["record_type"], "id": row["record_id"], "parent": row["parent_id"],
+                                    "created_at": row["created_at"], "payload": json.loads(row["payload_json"]),
+                                    "previous_digest": previous})
+                if row["previous_digest"] != previous or row["record_digest"] != expected:
+                    raise ValueError("BACKUP_RESTORE_INTEGRITY_FAILURE")
+                previous = expected
+            if previous != expected_tip:
+                raise ValueError("BACKUP_RESTORE_INTEGRITY_FAILURE")
         digest_path = destination.with_suffix(destination.suffix + ".sha256")
         digest_path.write_text(hashlib.sha256(destination.read_bytes()).hexdigest() + "\n", encoding="utf-8")
         os.chmod(digest_path, 0o600)

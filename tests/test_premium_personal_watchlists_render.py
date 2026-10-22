@@ -18,7 +18,7 @@ from test_premium_home_render import capture_complete_streamlit
 
 def _generated_source(root):
     source = app_source(root)
-    catalog = [{"ticker": "NVDA", "company": "Nvidia · GENERATED REVIEW EVIDENCE", "security_id": "nvda", "certified_customer_evaluation": {
+    catalog = [{"ticker": "NVDA", "company": "Nvidia [portal](https://example.invalid/portal) ![pixel](https://example.invalid/catalog-pixel) <img src=x>", "security_id": "nvda", "certified_customer_evaluation": {
         "ticker": "NVDA", "customer_publication_allowed": True,
         "decision": {"action": "HOLD", "opportunity": 0, "decision_confidence": 80},
         "fields": {"atlas_fair_value": {"value": 100, "certification_status": "CERTIFIED"}},
@@ -54,7 +54,7 @@ class PremiumPersonalWatchlistsRender(unittest.TestCase):
             with socket.socket() as sock:
                 sock.bind(('127.0.0.1', 0))
                 port = sock.getsockname()[1]
-            env = dict(os.environ, PYTHONPATH=str(Path.cwd()), ATLAS_QA_PROVIDER_CALLS_ALLOWED='0', ATLAS_ALLOW_EXTERNAL_AI='false', ATLAS_CUSTOMER_REPORT_CARD_ENABLED='false')
+            env = dict(os.environ, PYTHONPATH=os.pathsep.join(filter(None, (str(Path.cwd()), os.environ.get('PYTHONPATH', '')))), ATLAS_QA_PROVIDER_CALLS_ALLOWED='0', ATLAS_ALLOW_EXTERNAL_AI='false', ATLAS_CUSTOMER_REPORT_CARD_ENABLED='false')
             with (target/'fixture_server.log').open('w') as log:
                 process = subprocess.Popen([sys.executable, '-m', 'streamlit', 'run', str(fixture), '--server.address=127.0.0.1', f'--server.port={port}', '--server.headless=true', '--browser.gatherUsageStats=false', '--theme.base=dark'], env=env, stdout=log, stderr=subprocess.STDOUT)
                 try:
@@ -73,11 +73,13 @@ class PremiumPersonalWatchlistsRender(unittest.TestCase):
                         try:
                             for width in (360, 768, 1440):
                                 context = browser.new_context(viewport={'width': width, 'height': 1000})
+                                rejected_external = []
                                 def local_only(route):
                                     parsed = urlsplit(route.request.url)
                                     if parsed.hostname == '127.0.0.1' and parsed.port == port:
                                         route.continue_()
                                     else:
+                                        rejected_external.append(route.request.url)
                                         route.abort()
                                 context.route('**/*', local_only)
                                 page = context.new_page()
@@ -96,12 +98,36 @@ class PremiumPersonalWatchlistsRender(unittest.TestCase):
                                     owned_list = page.get_by_role('combobox', name=re.compile(r'Choose watchlist$'))
                                     owned_list.wait_for(state='visible')
                                     self.assertIn('Owned research workspace', owned_list.get_attribute('aria-label'))
+                                    # Names remain literal: no user-controlled image/link requests.
+                                    attack_name = '![private](https://example.invalid/pixel)'
+                                    rename = page.get_by_label('Rename watchlist', exact=True)
+                                    if not rename.is_visible():
+                                        page.get_by_text('Manage this watchlist', exact=True).click()
+                                    rename.fill(attack_name)
+                                    page.get_by_role('button', name='Save name', exact=True).click()
+                                    page.locator('.atlas-personal-watchlist-name').filter(has_text=attack_name).wait_for()
+                                    self.assertEqual(page.locator('.atlas-personal-watchlist-name').inner_text(), attack_name)
+                                    self.assertEqual(page.locator('img[src^="https://example.invalid/"]').count(), 0)
+                                    self.assertEqual(page.locator('a[href^="https://example.invalid/"]').count(), 0)
+                                    page.locator('.atlas-personal-watchlist-name').screenshot(path=str(target/f'GENERATED_LITERAL_NAME_COMPONENT_{width}.png'))
+                                    if not rename.is_visible():
+                                        page.get_by_text('Manage this watchlist', exact=True).click()
+                                    rename.fill('Owned research workspace')
+                                    page.get_by_role('button', name='Save name', exact=True).click()
+                                    page.locator('.atlas-personal-watchlist-name').filter(has_text='Owned research workspace').wait_for()
                                     page.get_by_label('Find a ticker or company', exact=True).fill('nvda')
                                     page.get_by_label('Find a ticker or company', exact=True).press('Enter')
                                     page.get_by_role('button', name='Add ticker', exact=True).click()
                                     research = page.get_by_role('button', name='Open Research — NVDA', exact=True)
                                     research.wait_for()
                                     self.assertTrue(research.is_enabled())
+                                    company = page.locator('.atlas-personal-watchlist-company')
+                                    self.assertIn('[portal](https://example.invalid/portal)', company.inner_text())
+                                    self.assertIn('<img src=x>', company.inner_text())
+                                    self.assertEqual(company.locator('a, img').count(), 0)
+                                    self.assertFalse(any('example.invalid' in url for url in rejected_external))
+                                    company.screenshot(path=str(target/f'GENERATED_LITERAL_COMPANY_COMPONENT_{width}.png'))
+
                                     research.click()
                                     page.wait_for_selector('[data-generated-research="NVDA"]', state='attached')
                                     page.reload()

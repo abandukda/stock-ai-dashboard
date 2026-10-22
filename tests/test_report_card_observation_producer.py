@@ -133,3 +133,41 @@ def test_nonfinite_boolean_or_nonpositive_source_prices_never_form_bundle(tmp_pa
     with pytest.raises(ValueError, match="OBSERVATION_PRICE_MISSING"):
         build_observation_bundle(ledger=ledger, evidence=evidence, horizon=1, certified_at=CERTIFIED)
     assert ledger.verify() == tip and ledger.rows("OBSERVATION") == []
+
+
+@pytest.mark.parametrize("target,field,value,error", [
+    ("SPY", "price_source", "LIVE_QUOTE", "PRICE_SOURCE_INVALID:SPY"),
+    ("SPY", "corporate_action_status", "UNVERIFIED", "CORPORATE_ACTION_STATUS_INVALID:SPY"),
+    ("SPY", "instrument", "QQQ", "PRICE_TICKER_OWNERSHIP_MISMATCH:SPY"),
+    ("SPY", "session_status", "OPEN", "PRICE_NOT_FINALIZED:SPY"),
+    ("SPY", "as_of", "2026-10-08T20:00:00Z", "PRICE_SESSION_TIMING_INVALID:SPY"),
+    ("SPY", "retrieved_at", "2026-10-09T20:16:00Z", "PRICE_SESSION_TIMING_INVALID:SPY"),
+    ("NVDA", "as_of", "2026-10-08T20:00:00Z", "PRICE_SESSION_TIMING_INVALID:NVDA"),
+    ("NVDA", "retrieved_at", "2026-10-09T19:59:00Z", "PRICE_SESSION_TIMING_INVALID:NVDA"),
+    ("NVDA", "currency", "EUR", "STOCK_BENCHMARK_CURRENCY_MISMATCH:NVDA"),
+])
+def test_stock_and_spy_authority_and_session_provenance_fail_closed(tmp_path, target, field, value, error):
+    ledger = _ledger(tmp_path / "synthetic" / "ledger.sqlite3")
+    evidence = _evidence()
+    instrument = evidence["instruments"][target]
+    (instrument if field in {"price_source", "corporate_action_status"} else instrument["price_provenance"])[field] = value
+    tip = ledger.verify()
+    with pytest.raises(ValueError, match=error):
+        build_observation_bundle(ledger=ledger, evidence=evidence, horizon=1, certified_at=CERTIFIED)
+    assert ledger.verify() == tip and ledger.rows("OBSERVATION") == []
+
+
+def test_same_day_benchmark_reference_cannot_look_ahead_of_executable_time(tmp_path):
+    ledger = _ledger(tmp_path / "synthetic" / "ledger.sqlite3")
+    evidence = _evidence()
+    evidence["benchmark_references"]["signal-nvda"]["as_of"] = "2026-10-08T21:01:00Z"
+    with pytest.raises(ValueError, match="BENCHMARK_REFERENCE_LOOKAHEAD:NVDA"):
+        build_observation_bundle(ledger=ledger, evidence=evidence, horizon=1, certified_at=CERTIFIED)
+
+
+def test_stale_spy_status_cannot_be_overridden_by_an_available_numeric_close(tmp_path):
+    ledger = _ledger(tmp_path / "synthetic" / "ledger.sqlite3")
+    evidence = _evidence()
+    evidence["instruments"]["SPY"]["data_status"] = "STALE_PRICE"
+    with pytest.raises(ValueError, match="SPY_BENCHMARK_NOT_AVAILABLE"):
+        build_observation_bundle(ledger=ledger, evidence=evidence, horizon=1, certified_at=CERTIFIED)

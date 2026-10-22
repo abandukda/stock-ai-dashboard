@@ -323,3 +323,102 @@ def test_backup_resolution_fails_closed_on_bad_or_ambiguous_identity(tmp_path):
     second = primary.backup(backup_root, now=NOW)
     with pytest.raises(RuntimeError, match="REPORT_CARD_BACKUP_IDENTITY_AMBIGUOUS"):
         resolve_verified_backup(backup_root=backup_root, primary_tip=primary.verify())
+
+
+
+def test_retained_mock_evidence_to_bundle_backup_and_idempotent_append_is_provider_free(tmp_path):
+    """Disposable synthetic state only; no original ledger or provider transport."""
+    from services.prospective_report_card import _digest
+    from services.report_card_observation_producer import build_observation_bundle
+    from services.report_card_observation_activation import apply_observation_bundle
+    item = ledger(tmp_path / "synthetic-primary" / "ledger.sqlite3")
+    retained = authorized_acquire(item=item, provider=Provider())
+    before = deepcopy(retained)
+    source_hash = _digest({k: v for k, v in retained.items() if k != "artifact_sha256"})
+    assert source_hash == retained["artifact_sha256"]
+    observation_bundle = build_observation_bundle(
+        ledger=item, evidence=retained, horizon=1, certified_at=NOW)
+    for record in observation_bundle["records"]:
+        observation = record["observation"]
+        assert observation["market_evidence_sha256"] == _digest(retained)
+        assert observation["benchmark_price_provenance"] == retained["instruments"]["SPY"]["price_provenance"]
+    result = apply_observation_bundle(ledger=item, backup_root=tmp_path / "synthetic-backup",
+                                      bundle=deepcopy(observation_bundle), now=NOW)
+    assert result.appended == 2
+    assert ProspectiveLedger(Path(result.backup_path)).verify() == item.verify()
+    replay = deepcopy(observation_bundle)
+    replay["ledger_tip_before"] = item.verify()
+    repeated = apply_observation_bundle(ledger=item, backup_root=tmp_path / "synthetic-backup-replay",
+                                        bundle=replay, now=NOW)
+    assert repeated.appended == 0 and repeated.idempotent == 2
+    rebuilt = build_observation_bundle(ledger=item, evidence=retained, horizon=1, certified_at=NOW)
+    assert rebuilt["records"] == observation_bundle["records"]
+    assert rebuilt["ledger_tip_before"] == item.verify()
+    assert retained == before
+
+
+@pytest.mark.parametrize("mutation,error", [
+    (lambda e: e["instruments"]["NVDA"]["closes"].update({"2026-10-09": 999}), "MARKET_EVIDENCE_ARTIFACT_DIGEST_MISMATCH"),
+    (lambda e: e.update(ledger_tip="a different registered cohort"), "MARKET_EVIDENCE_LEDGER_TIP_MISMATCH"),
+])
+def test_retained_acquisition_identity_cannot_be_discarded_by_producer(tmp_path, mutation, error):
+    from services.prospective_report_card import _digest
+    from services.report_card_observation_producer import build_observation_bundle
+    item = ledger(tmp_path / "synthetic-primary" / "ledger.sqlite3")
+    retained = authorized_acquire(item=item, provider=Provider())
+    mutation(retained)
+    if "ledger_tip" in error.lower():
+        retained["artifact_sha256"] = _digest({k: v for k, v in retained.items() if k != "artifact_sha256"})
+    tip = item.verify()
+    with pytest.raises(ValueError, match=error):
+        build_observation_bundle(ledger=item, evidence=retained, horizon=1, certified_at=NOW)
+    assert item.verify() == tip and item.rows("OBSERVATION") == []
+
+
+@pytest.mark.parametrize("field", ["artifact_sha256", "ledger_tip", "activation_timestamp"])
+def test_acquired_evidence_cannot_drop_its_binding_fields(tmp_path, field):
+    from services.report_card_observation_producer import build_observation_bundle
+    item = ledger(tmp_path / "synthetic-primary" / "ledger.sqlite3")
+    retained = authorized_acquire(item=item, provider=Provider())
+    retained.pop(field)
+    with pytest.raises(ValueError, match="MARKET_EVIDENCE_ACQUISITION_BINDING_REQUIRED"):
+        build_observation_bundle(ledger=item, evidence=retained, horizon=1, certified_at=NOW)
+    assert item.rows("OBSERVATION") == []
+
+
+@pytest.mark.parametrize('record_type', ['SIGNAL', 'AMENDMENT'])
+def test_retained_evidence_cannot_cross_later_signal_or_methodology_changes(tmp_path, record_type):
+    from services.report_card_observation_producer import build_observation_bundle
+    item = ledger(tmp_path / 'synthetic-primary' / 'ledger.sqlite3')
+    retained = authorized_acquire(item=item, provider=Provider())
+    item.append(record_type, 'synthetic-later-record', {'ticker': 'AAA'}, created_at=NOW)
+    tip = item.verify()
+    with pytest.raises(ValueError, match='MARKET_EVIDENCE_LEDGER_TIP_MISMATCH'):
+        build_observation_bundle(ledger=item, evidence=retained, horizon=1, certified_at=NOW)
+    assert item.verify() == tip and item.rows('OBSERVATION') == []
+
+
+
+def test_backup_hash_is_final_before_gc_and_never_needs_writable_verification(tmp_path):
+    """Reused snapshot names used to change after delayed SQLite connection GC."""
+    import gc
+    item = ledger(tmp_path / 'synthetic-primary' / 'ledger.sqlite3')
+    root = tmp_path / 'synthetic-backup'
+    was_enabled = gc.isenabled()
+    gc.disable()
+    try:
+        first = item.backup(root, now=ACTIVATED)
+        # Exercise the existing same-timestamp replacement path deliberately.
+        first = item.backup(root, now=ACTIVATED)
+        second = item.backup(root, now=NOW)
+        before = {p: p.read_bytes() for p in (first, second)}
+        for path in before:
+            assert hashlib.sha256(path.read_bytes()).hexdigest() == path.with_suffix('.sqlite3.sha256').read_text().strip()
+        gc.collect()
+        assert before == {p: p.read_bytes() for p in before}
+        assert not list(root.glob('*-wal')) and not list(root.glob('*-shm'))
+        with pytest.raises(RuntimeError, match='REPORT_CARD_BACKUP_IDENTITY_AMBIGUOUS'):
+            resolve_verified_backup(backup_root=root, primary_tip=item.verify())
+    finally:
+        if was_enabled:
+            gc.enable()

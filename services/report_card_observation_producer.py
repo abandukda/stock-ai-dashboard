@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Mapping, Sequence
 
-from services.prospective_report_card import ProspectiveLedger, _utc, _finite_observation_number
+from services.prospective_report_card import ProspectiveLedger, _utc, _finite_observation_number, _digest
 from services.report_card import HORIZONS
 from services.report_card_observation_activation import (
     ALLOWED_CORPORATE_ACTION_STATUS,
@@ -33,6 +33,30 @@ def _sessions_after(sessions: Sequence[str], timestamp: datetime) -> list[str]:
 def _close(instrument: Mapping[str, Any], session: str) -> float | None:
     value = (instrument.get("closes") or {}).get(session)
     return _finite_observation_number(value, positive=True)
+
+
+
+def _validated_price_provenance(instrument: Mapping[str, Any], ticker: str, *,
+                                closed: datetime, captured: datetime) -> dict[str, Any]:
+    """Validate stock and benchmark authority identically before price arithmetic."""
+    if str(instrument.get("price_source") or "") not in ALLOWED_PRICE_SOURCES:
+        raise ValueError(f"PRICE_SOURCE_INVALID:{ticker}")
+    if str(instrument.get("corporate_action_status") or "NONE") not in ALLOWED_CORPORATE_ACTION_STATUS:
+        raise ValueError(f"CORPORATE_ACTION_STATUS_INVALID:{ticker}")
+    provenance = instrument.get("price_provenance")
+    if not isinstance(provenance, Mapping):
+        raise ValueError(f"PRICE_PROVENANCE_INCOMPLETE:{ticker}")
+    if provenance.get("session_status") != FINALIZED_SESSION_STATUS:
+        raise ValueError(f"PRICE_NOT_FINALIZED:{ticker}")
+    if not all(provenance.get(key) for key in ("provider", "instrument", "as_of", "retrieved_at", "currency")):
+        raise ValueError(f"PRICE_PROVENANCE_INCOMPLETE:{ticker}")
+    if str(provenance.get("instrument") or "").upper() != ticker:
+        raise ValueError(f"PRICE_TICKER_OWNERSHIP_MISMATCH:{ticker}")
+    as_of = _utc(provenance["as_of"], "PRICE_AS_OF")
+    retrieved = _utc(provenance["retrieved_at"], "PRICE_RETRIEVED")
+    if as_of != closed or retrieved < closed or retrieved > captured:
+        raise ValueError(f"PRICE_SESSION_TIMING_INVALID:{ticker}")
+    return dict(provenance)
 
 
 def build_observation_bundle(
@@ -70,6 +94,27 @@ def build_observation_bundle(
     if not isinstance(benchmark, Mapping):
         raise ValueError("SPY_BENCHMARK_REQUIRED")
 
+    benchmark_provenance = _validated_price_provenance(
+        benchmark, "SPY", closed=closed, captured=captured,
+    )
+    # Acquired artifacts carry their own canonical hash and immutable ledger
+    # binding. Do not discard those checks when converting retained evidence.
+    if evidence.get("acquisition_version") and not all(
+            evidence.get(key) for key in ("artifact_sha256", "ledger_tip", "activation_timestamp")):
+        raise ValueError("MARKET_EVIDENCE_ACQUISITION_BINDING_REQUIRED")
+    if "activation_timestamp" in evidence and _utc(evidence["activation_timestamp"], "EVIDENCE_ACTIVATION") != ledger.activation_timestamp():
+        raise ValueError("MARKET_EVIDENCE_ACTIVATION_MISMATCH")
+    if "artifact_sha256" in evidence:
+        if evidence["artifact_sha256"] != _digest({k: v for k, v in evidence.items() if k != "artifact_sha256"}):
+            raise ValueError("MARKET_EVIDENCE_ARTIFACT_DIGEST_MISMATCH")
+    if "ledger_tip" in evidence:
+        ledger.verify()
+        retained_tip = evidence["ledger_tip"]
+        rows = ledger.rows()
+        indices = [index for index, row in enumerate(rows) if row["record_digest"] == retained_tip]
+        if len(indices) != 1 or any(row["record_type"] != "OBSERVATION" for row in rows[indices[0] + 1:]):
+            raise ValueError("MARKET_EVIDENCE_LEDGER_TIP_MISMATCH")
+
     records: list[dict[str, Any]] = []
     for row in ledger.rows("SIGNAL"):
         signal_id = str(row["record_id"])
@@ -99,14 +144,11 @@ def build_observation_bundle(
         price_source = str(instrument.get("price_source") or "")
         if price_source not in ALLOWED_PRICE_SOURCES:
             raise ValueError(f"PRICE_SOURCE_INVALID:{ticker}")
-        provenance = dict(instrument.get("price_provenance") or {})
-        if provenance.get("session_status") != FINALIZED_SESSION_STATUS:
-            raise ValueError(f"PRICE_NOT_FINALIZED:{ticker}")
-        required_provenance = ("provider", "instrument", "as_of", "retrieved_at", "currency")
-        if not all(provenance.get(key) for key in required_provenance):
-            raise ValueError(f"PRICE_PROVENANCE_INCOMPLETE:{ticker}")
-        if str(provenance.get("instrument") or "").upper() != ticker:
-            raise ValueError(f"PRICE_TICKER_OWNERSHIP_MISMATCH:{ticker}")
+        provenance = _validated_price_provenance(
+            instrument, ticker, closed=closed, captured=captured,
+        )
+        if provenance["currency"] != benchmark_provenance["currency"]:
+            raise ValueError(f"STOCK_BENCHMARK_CURRENCY_MISMATCH:{ticker}")
 
         observation: dict[str, Any] = {
             "trading_sessions": window,
@@ -117,10 +159,16 @@ def build_observation_bundle(
             "observed_price": None,
             "observed_at": closed.isoformat(),
             "benchmark_ticker": "SPY",
+            "benchmark_price_provenance": dict(benchmark_provenance),
+            "benchmark_price_source": benchmark["price_source"],
+            "benchmark_corporate_action_status": benchmark.get("corporate_action_status") or "NONE",
+            "market_evidence_sha256": _digest(evidence),
             "benchmark_return": None,
             "benchmark_observed_at": closed.isoformat(),
         }
         if data_status == "AVAILABLE":
+            if benchmark.get("data_status", "AVAILABLE") != "AVAILABLE":
+                raise ValueError("SPY_BENCHMARK_NOT_AVAILABLE")
             observed = _close(instrument, window[-1])
             benchmark_observed = _close(benchmark, window[-1])
             reference = references.get(signal_id)
@@ -131,7 +179,13 @@ def build_observation_bundle(
                 reference_session = datetime.fromisoformat(str((reference or {}).get("as_of"))).date()
             except (TypeError, ValueError) as exc:
                 raise ValueError(f"BENCHMARK_REFERENCE_INVALID:{ticker}") from exc
-            if reference_session > executable.date():
+            reference_value = str((reference or {}).get("as_of"))
+            # A full timestamp must not hide same-day lookahead behind date-only
+            # comparison. Date-only retained closes keep their explicit date.
+            reference_after_entry = reference_session > executable.date()
+            if "T" in reference_value or " " in reference_value:
+                reference_after_entry = _utc(reference_value, "BENCHMARK_REFERENCE") > executable
+            if reference_after_entry:
                 raise ValueError(f"BENCHMARK_REFERENCE_LOOKAHEAD:{ticker}")
             observation.update(
                 observed_price=observed,

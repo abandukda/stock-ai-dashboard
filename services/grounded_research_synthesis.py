@@ -20,6 +20,8 @@ SCHEMA_VERSION = "ATLAS_GROUNDED_RESEARCH_SYNTHESIS_V1"
 SECTIONS = ("thesis", "support", "risks", "watch_items")
 UNAVAILABLE = "MODEL_SYNTHESIS_UNAVAILABLE"
 MAX_OUTPUT_TOKENS = 900
+GROUNDING_POLICY = "ATLAS_RETAINED_FACT_SELECTION_V1"
+ANALYSIS_SCOPE = "Extractive organization of retained facts; not comprehensive AI investment analysis."
 
 
 def _canonical(value: Any) -> str:
@@ -83,11 +85,13 @@ class OpenAIResearchAdapter:
             raise RuntimeError("RESEARCH_MODEL_CREDENTIAL_UNAVAILABLE")
         from openai import OpenAI  # imported only after protected gates
         prompt = {
-            "task": "Return JSON only. Summarize retained evidence without calculation or inference.",
+            "task": "Return JSON only. Select and organize complete supplied retained facts without paraphrase, calculation or inference.",
+            "grounding_policy": GROUNDING_POLICY,
             "schema": {section: [{"text": "...", "evidence_ids": ["..."]}] for section in SECTIONS},
             "rules": [
                 "Every assertion must cite one or more supplied evidence_ids.",
-                "Use only words and numbers supportable by the cited facts.",
+                "Each text must copy one complete cited fact exactly, permitting whitespace normalization only.",
+                "Do not omit negation, qualifiers, dates or change subjects, attribution or numeric relationships.",
                 "Put materially conflicting facts in risks; never resolve them yourself.",
             ],
             "packet": packet,
@@ -131,6 +135,13 @@ def validate_synthesis(candidate: Mapping[str, Any], packet: Mapping[str, Any]) 
             if missing:
                 violations.append(f"UNKNOWN_EVIDENCE:{section}:{index}")
                 continue
+            # Word-set membership cannot prove meaning: reordered attribution or
+            # omitted negation can use only source words while reversing a fact.
+            # This interim admission policy therefore permits complete retained
+            # fact selection only, not free-form semantic synthesis. Deterministic
+            # fallback remains unchanged and no raw transcript is involved.
+            if text not in {registry[x]["fact"] for x in ids}:
+                violations.append(f"NON_EXTRACTIVE_ASSERTION:{section}:{index}")
             cited = " ".join(registry[x]["fact"] for x in ids)
             if not _numbers(text).issubset(_numbers(cited)):
                 violations.append(f"UNSUPPORTED_NUMBER:{section}:{index}")
@@ -161,7 +172,8 @@ def validate_synthesis(candidate: Mapping[str, Any], packet: Mapping[str, Any]) 
         directional.setdefault(tuple(sorted(item["evidence_ids"])), set()).add(direction)
     if any({"UP", "DOWN"}.issubset(states) for states in directional.values()):
         violations.append("CONTRADICTORY_ASSERTIONS")
-    return {"valid": not violations, "violations": sorted(set(violations)), "assertions": assertions}
+    return {"valid": not violations, "violations": sorted(set(violations)), "assertions": assertions,
+            "grounding_policy": GROUNDING_POLICY}
 
 
 @dataclass
@@ -212,19 +224,21 @@ def synthesize_research(
 ) -> dict[str, Any]:
     packet = build_evidence_packet(ticker, evidence)
     model_identity = f"{getattr(adapter, 'provider', 'none')}:{getattr(adapter, 'model', 'none')}"
-    identity = _digest({"evidence": packet["evidence_identity"], "model": model_identity, "schema": SCHEMA_VERSION})
+    identity = _digest({"evidence": packet["evidence_identity"], "model": model_identity,
+                        "schema": SCHEMA_VERSION, "grounding_policy": GROUNDING_POLICY})
     if cache:
         hit = cache.read(identity)
         if hit:
             sections = hit.get("sections")
             validation = validate_synthesis(sections, packet) if isinstance(sections, Mapping) else {"valid": False}
-            if (hit.get("ticker") != packet["ticker"]
+            if (hit.get("grounding_policy") != GROUNDING_POLICY
+                    or hit.get("ticker") != packet["ticker"]
                     or hit.get("evidence_identity") != packet["evidence_identity"]
                     or hit.get("status") != "AVAILABLE"
                     or hit.get("source") != f"MODEL_VALIDATED:{getattr(adapter, 'provider', 'none')}:{getattr(adapter, 'model', 'none')}"
                     or not validation["valid"]):
                 return _fallback(packet, reason="CACHED_MODEL_OUTPUT_REJECTED")
-            return {**hit, "validation": validation, "cache_status": "HIT"}
+            return {**hit, "validation": validation, "analysis_scope": ANALYSIS_SCOPE, "cache_status": "HIT"}
     enabled = os.getenv("ATLAS_RESEARCH_MODEL_ENABLED", "").lower() == "true"
     if adapter is None or not provider_authorized or not enabled:
         return _fallback(packet, reason="PROVIDER_NOT_AUTHORIZED_OR_CONFIGURED")
@@ -241,6 +255,8 @@ def synthesize_research(
     result = {
         "schema_version": SCHEMA_VERSION, "ticker": packet["ticker"], "identity": identity,
         "evidence_identity": packet["evidence_identity"], "status": "AVAILABLE",
+        "grounding_policy": GROUNDING_POLICY,
+        "analysis_scope": ANALYSIS_SCOPE,
         "source": f"MODEL_VALIDATED:{adapter.provider}:{adapter.model}", "sections": sections,
         "validation": validation, "cache_status": "MISS",
     }
@@ -260,6 +276,8 @@ def provider_activation_status() -> dict[str, Any]:
         "required_call_gate": "provider_authorized=True",
         "max_output_tokens_per_cache_miss": MAX_OUTPUT_TOKENS,
         "automatic_retries": 0,
+        "grounding_policy": GROUNDING_POLICY, "analysis_scope": ANALYSIS_SCOPE,
+        "semantic_entailment_verified": False,
         "cost_assumption": "one request per unique evidence/model identity cache miss; provider pricing is external configuration",
     }
 
@@ -267,4 +285,5 @@ def provider_activation_status() -> dict[str, Any]:
 __all__ = [
     "OpenAIResearchAdapter", "ResearchModelAdapter", "SCHEMA_VERSION", "SynthesisCache",
     "build_evidence_packet", "provider_activation_status", "synthesize_research", "validate_synthesis",
+    "GROUNDING_POLICY",
 ]

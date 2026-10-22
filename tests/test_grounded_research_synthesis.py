@@ -179,3 +179,79 @@ def test_cached_model_output_revalidated_without_provider_retry(tmp_path, monkey
 def test_nonobject_cache_file_does_not_crash(tmp_path):
     (tmp_path / 'example.json').write_text('[]')
     assert SynthesisCache(tmp_path).read('example') is None
+
+
+@pytest.mark.parametrize('fact,claim', [
+    ('NVDA did not increase revenue.', 'NVDA did increase revenue.'),
+    ('NVDA acquired ARM.', 'ARM acquired NVDA.'),
+    ('Revenue rose 10% while margin fell 2%.', 'Margin rose 10% while revenue fell 2%.'),
+    ('NVDA expects growth if demand improves.', 'NVDA expects growth.'),
+])
+def test_source_word_reuse_does_not_authorize_reversed_or_unqualified_meaning(fact, claim):
+    packet = build_evidence_packet('NVDA', [{'evidence_id': 'ev', 'fact': fact}])
+    candidate = {'thesis': [{'text': claim, 'evidence_ids': ['ev']}],
+                 'support': [], 'risks': [], 'watch_items': []}
+    result = validate_synthesis(candidate, packet)
+    assert not result['valid']
+    assert 'NON_EXTRACTIVE_ASSERTION:thesis:0' in result['violations']
+    assert result['grounding_policy'] == 'ATLAS_RETAINED_FACT_SELECTION_V1'
+
+
+def test_complete_fact_selection_allows_whitespace_without_claiming_semantic_entailment():
+    packet = build_evidence_packet('NVDA', [{'evidence_id': 'ev',
+        'fact': 'NVDA did not increase revenue.'}])
+    candidate = {'thesis': [{'text': ' NVDA  did not\n increase revenue. ', 'evidence_ids': ['ev']}],
+                 'support': [], 'risks': [], 'watch_items': []}
+    result = validate_synthesis(candidate, packet)
+    assert result['valid']
+    assert result['assertions'][0]['text'] == 'NVDA did not increase revenue.'
+
+
+def test_grounding_policy_separates_legacy_cache_and_rejects_unversioned_cached_authority(tmp_path, monkeypatch):
+    import hashlib, json
+    from services.grounded_research_synthesis import SCHEMA_VERSION, GROUNDING_POLICY
+    monkeypatch.setenv('ATLAS_RESEARCH_MODEL_ENABLED', 'true')
+    adapter = FakeAdapter()
+    cache = SynthesisCache(tmp_path)
+    packet = build_evidence_packet('NVDA', RETAINED['NVDA'])
+    old_key = hashlib.sha256(json.dumps({'evidence': packet['evidence_identity'],
+        'model': 'approved-test:grounded-v1', 'schema': SCHEMA_VERSION},
+        sort_keys=True, separators=(',', ':'), ensure_ascii=True).encode()).hexdigest()
+    # No provider call is authorized, even if a legacy cache advertises authority.
+    (tmp_path / (old_key + '.json')).write_text(json.dumps({'schema_version': SCHEMA_VERSION,
+        'identity': old_key, 'status': 'AVAILABLE'}))
+    result = synthesize_research('NVDA', RETAINED['NVDA'], adapter=adapter,
+        provider_authorized=False, cache=cache)
+    assert result['status'] == 'MODEL_SYNTHESIS_UNAVAILABLE' and adapter.calls == 0
+    fresh = synthesize_research('NVDA', RETAINED['NVDA'], adapter=adapter,
+        provider_authorized=True, cache=cache)
+    assert fresh['grounding_policy'] == GROUNDING_POLICY and fresh['identity'] != old_key
+    assert 'not comprehensive AI investment analysis' in fresh['analysis_scope']
+    path = tmp_path / (fresh['identity'] + '.json')
+    corrupted = json.loads(path.read_text())
+    corrupted.pop('grounding_policy')
+    path.write_text(json.dumps(corrupted))
+    before = path.read_bytes()
+    result = synthesize_research('NVDA', RETAINED['NVDA'], adapter=adapter,
+        provider_authorized=True, cache=cache)
+    assert result['reason'] == 'CACHED_MODEL_OUTPUT_REJECTED'
+    assert path.read_bytes() == before and adapter.calls == 1
+
+
+def test_cached_word_reordering_cannot_restore_model_authority(tmp_path, monkeypatch):
+    import json
+    monkeypatch.setenv('ATLAS_RESEARCH_MODEL_ENABLED', 'true')
+    evidence = [{'evidence_id': 'acquisition', 'fact': 'NVDA acquired ARM.'}]
+    adapter = FakeAdapter()
+    cache = SynthesisCache(tmp_path)
+    first = synthesize_research('NVDA', evidence, adapter=adapter, provider_authorized=True, cache=cache)
+    path = tmp_path / (first['identity'] + '.json')
+    value = json.loads(path.read_text())
+    value['sections']['thesis'][0]['text'] = 'ARM acquired NVDA.'
+    value['validation'] = {'valid': True}
+    path.write_text(json.dumps(value))
+    before = path.read_bytes()
+    result = synthesize_research('NVDA', evidence, adapter=adapter, provider_authorized=True, cache=cache)
+    assert result['reason'] == 'CACHED_MODEL_OUTPUT_REJECTED'
+    assert result['status'] == 'MODEL_SYNTHESIS_UNAVAILABLE'
+    assert adapter.calls == 1 and path.read_bytes() == before

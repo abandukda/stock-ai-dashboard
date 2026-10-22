@@ -4016,17 +4016,25 @@ class AtlasVisualCrawler:
                 if (await self._current_route_visible(page, page_name)
                         and await _page_render_complete(page, page_name)):
                     return
-                await page.wait_for_timeout(100)
+                # Native sleep cancels cleanly at the outer bound; a cancelled
+                # browser timer can otherwise leave a pending protocol future.
+                await asyncio.sleep(0.1)
         try:
             await asyncio.wait_for(observe(), timeout=timeout_seconds)
         except asyncio.TimeoutError as exc:
             raise GlobalCrawlFailure("DIAGNOSTIC_RENDER_INCOMPLETE") from exc
 
     async def _capture_chart_failure_views(self, page: Page) -> None:
-        """Capture existing Home/Research only; no submits, retries or certification."""
-        for viewport_name, viewport in (("mobile_360", {"width": 360, "height": 900}), ("tablet_768", NARROW_TABLET)):
+        """Observe independent viewer surfaces; no submits, edits or certification.
+
+        A chart failure must not hide unrelated route-render evidence. This pass
+        stays inside the authenticated four-route viewer contract; Earnings and
+        private Report Card require their own authorized role and workflow.
+        """
+        for viewport_name, viewport in (("desktop", DESKTOP),
+                ("mobile_360", {"width": 360, "height": 900}), ("tablet_768", NARROW_TABLET)):
             await page.set_viewport_size(viewport)
-            for page_name in ("Home", "Research Any Ticker"):
+            for page_name in ("Home", "Research Any Ticker", "Watchlist Intelligence", "Ask AI"):
                 await self._customer_navigation_contract(page)
                 await self._role_isolation_contract(page, expected_role="customer_viewer")
                 navigated, _, _ = await asyncio.wait_for(_navigate(page, page_name), timeout=15)
@@ -4045,7 +4053,7 @@ class AtlasVisualCrawler:
                     category="FAILURE_DIAGNOSTIC", page_name=page_name,
                     interaction="post-chart-failure-diagnostic",
                     expected="Supplemental read-only screenshot; original required failure remains fatal",
-                    observed="Existing state only; no ticker submit, chart retry, credential retry or acceptance",
+                    observed="Existing viewer state only; no ticker/question submit, watchlist edit, chart/credential retry or full-journey acceptance",
                     passed=bool(shot), elapsed=0.0, viewport=viewport_name,
                     screenshots=(shot,), required=False,
                 )
@@ -4054,7 +4062,7 @@ class AtlasVisualCrawler:
         if not self._chart_failure_evidence_allowed(failure.category, customer_only=customer_only):
             raise failure
         self.post_failure_diagnostic = {"original_failure": failure.category,
-            "scope": "EXISTING_HOME_RESEARCH_MOBILE_TABLET_ONLY", "acceptance": False,
+            "scope": "EXISTING_FOUR_VIEWER_ROUTES_DESKTOP_MOBILE_TABLET_ONLY", "acceptance": False,
             "timeout_seconds": 120, "status": "STARTED"}
         try:
             await asyncio.wait_for(self._capture_chart_failure_views(page), timeout=120)
