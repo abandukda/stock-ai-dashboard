@@ -43,10 +43,32 @@
       "sha256": "09b0a0d0233e203ca0cb9ee30a5e5d91d4abf9e75ca21086e169359aba655301",
       "bytes": 1575512,
       "classification": "RECOVERED_LAYOUT_REFERENCE"
+    },
+    {
+      "filename": "ATLAS AI Financial Research Dashboard(1).png",
+      "sha256": "112a784f6b78839ab8578f0116ecbfcba817f04a1d3a807ad1f68f9b55a7ca31",
+      "bytes": 2616339,
+      "classification": "OWNER_SUPPLIED_RESEARCH_TARGET"
+    },
+    {
+      "filename": "ATLAS AI Fintech Dashboard Montage(1).png",
+      "sha256": "b1d6ff7c0c9b5785574488360c8276283b1c1f53bfa2a6ff898afae7e9bb769e",
+      "bytes": 2761565,
+      "classification": "OWNER_SUPPLIED_RESEARCH_TARGET"
+    },
+    {
+      "filename": "Project Atlas Issues.docx",
+      "sha256": "2f3d65c89c476d2fb2bc2eb043e2c6591f1037bddb91e436dd6b06caa202fa4c",
+      "bytes": 30156960,
+      "classification": "HISTORICAL_UX_CRITIQUE_WITH_EMBEDDED_APPLICATION_SCREENSHOTS"
     }
   ],
   "history_search": "Library title inventory150 ATLAS matches plus exact mockup/design searches; repository all-ref tracked image/mockup/design/DOCX history inspected",
   "original_home_before_new_concepts": "NOT_RECOVERED",
   "new_concept_is_primary_owner_target": true,
-  "financial_numbers_in_images": "ILLUSTRATIVE_NEVER_IMPORTED"
+  "financial_numbers_in_images": "ILLUSTRATIVE_NEVER_IMPORTED",
+  "additional_reference_limitations": {
+    "robinhood_feature_images": "NOT_RECOVERED_IN_BOUNDED_SEARCH",
+    "separate_earlier_annotated_chart": "NOT_RECOVERED_AS_STANDALONE_IMAGE; current concepts and existing chart requirements preserved"
+  }
 }

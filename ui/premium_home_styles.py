@@ -57,3 +57,7 @@ PREMIUM_HOME_CSS += r"""
 @media(max-width:1000px) and (min-width:701px){.atlas-reference-command .atlas-reference-brand{min-height:0;padding:.2rem .5rem}.atlas-reference-command h1{font-size:1.65rem!important}.atlas-reference-brand>p{margin:.3rem 0!important}.atlas-brand-orbit{width:180px;height:180px}}
 @media(max-width:700px){.atlas-reference-intelligence:before{content:"ATLAS AI";display:block;color:#69caff;font-size:.75rem;font-weight:800;letter-spacing:.12em;margin-bottom:.6rem}.atlas-command-deck{grid-template-columns:1fr 1fr!important}.atlas-command-deck article{padding:.4rem .5rem!important}.atlas-command-deck b{font-size:.73rem!important}}
 """
+
+PREMIUM_HOME_CSS += r"""
+@media(max-width:900px){[data-testid="stHorizontalBlock"]:has(.st-key-home_top_idea_position_1){flex-direction:column}[data-testid="stHorizontalBlock"]:has(.st-key-home_top_idea_position_1)>[data-testid="stColumn"]{width:100%!important;flex:1 1 100%!important}}
+"""

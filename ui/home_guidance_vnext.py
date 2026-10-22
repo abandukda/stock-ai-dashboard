@@ -1458,7 +1458,10 @@ def _render_groups(story: Mapping[str, Any], *, emit_interactive) -> None:
             from ui.home_reference_components import opportunity_table_html
             st.markdown(opportunity_table_html(all_actionable[:5], money=_money, score=_score), unsafe_allow_html=True)
             st.caption("Published BUY NOW order · dated closes · estimates are not forecast returns.")
-            for index, card in enumerate(featured_cards[1:], start=1):
+    if len(featured_cards) > 1:
+        supporting_columns = st.columns(len(featured_cards[1:]), gap="medium")
+        for index, card in enumerate(featured_cards[1:], start=1):
+            with supporting_columns[index - 1]:
                 with st.container(key=f"home_top_idea_position_{index + 1}"):
                     _compact_opportunity_card(card, key=f"actionable_{index}", summary_only=True)
     if len(all_actionable) > 3:
