@@ -7,7 +7,7 @@ from typing import Mapping, Any
 import unittest
 from unittest.mock import Mock
 
-from ui.research_learning import build_learning_guide, build_valuation_guide
+from ui.research_learning import build_learning_guide, build_valuation_guide, build_annual_earnings_comparison
 
 
 def fact(field="net_income", value=0, **extra):
@@ -137,6 +137,80 @@ class ResearchLearningTests(unittest.TestCase):
         self.assertEqual(guide["bear_watch"], ())
         self.assertEqual(guide["risks"], ())
         self.assertIsNone(guide["snapshot"])
+
+
+class AnnualEarningsComparisonTests(unittest.TestCase):
+    def fixture(self):
+        return {"status": "AVAILABLE", "financial_trend": {
+            "status": "AVAILABLE", "periodicity": "ANNUAL",
+            "periods": ["2025-12-31", "2024-12-31"],
+            "series": {"Revenue": [120, 100], "Net Income": [0, -10],
+                       "Operating Margin": [12, 10], "EPS": [2, 1]},
+            "units": {"Revenue": "USD", "Net Income": "USD", "Operating Margin": "PERCENT", "EPS": "USD_PER_SHARE"},
+            "provenance": {"source": "Retained filing", "raw_evidence_id": "filing:1", "as_of": None}}}
+
+    def test_orders_periods_preserves_losses_zero_and_provenance(self):
+        source = self.fixture()
+        before = deepcopy(source)
+        result = build_annual_earnings_comparison(source)
+        self.assertEqual(source, before)
+        self.assertEqual(result["prior_period"], "2024-12-31")
+        self.assertEqual(result["current_period"], "2025-12-31")
+        self.assertEqual([row["change"] for row in result["rows"]], [20, 10, 2])
+        self.assertEqual(result["rows"][1]["current"], 0)
+        self.assertEqual(result["evidence_ids"], ("filing:1",))
+        self.assertIsNone(result["as_of"])
+
+    def test_withheld_and_ambiguous_periods_fail_closed(self):
+        for periods in (["2025-12-31"], ["2025-12-31", "2023-12-31"],
+                        ["2025-12-31", "2024-09-30"], ["2025-FY", "2024-FY"],
+                        ["2025-12-31", "2025-12-31"], [None, "2024-12-31"]):
+            source = self.fixture()
+            source["financial_trend"]["periods"] = periods
+            self.assertEqual(build_annual_earnings_comparison(source)["status"], "UNAVAILABLE")
+        for key, value in (("periodicity", "QUARTERLY"), ("periodicity", "UNAVAILABLE"),
+                           ("status", "UNAVAILABLE"), ("provenance", {})):
+            source = self.fixture()
+            source["financial_trend"][key] = value
+            self.assertEqual(build_annual_earnings_comparison(source)["rows"], ())
+        source = self.fixture()
+        source["status"] = "RATING_NOT_PUBLISHED"
+        self.assertEqual(build_annual_earnings_comparison(source)["rows"], ())
+
+    def test_invalid_values_units_and_lengths_do_not_hide_valid_rows(self):
+        for bad in (True, "120", None, float("nan"), float("inf")):
+            source = self.fixture()
+            source["financial_trend"]["series"]["Revenue"][0] = bad
+            result = build_annual_earnings_comparison(source)
+            self.assertEqual([row["label"] for row in result["rows"]], ["Profit", "Operating margin"])
+        source = self.fixture()
+        source["financial_trend"]["units"]["Revenue"] = "EUR"
+        source["financial_trend"]["series"]["Net Income"] = [1]
+        self.assertEqual(len(build_annual_earnings_comparison(source)["rows"]), 1)
+
+    def test_renderer_reports_percentage_points_missing_fields_and_sources(self):
+        tree = ast.parse((Path(__file__).parents[1] / "customer_research_v2.py").read_text())
+        function = next(node for node in tree.body if isinstance(node, ast.FunctionDef)
+                        and node.name == "_render_annual_earnings_comparison")
+        streamlit = Mock()
+        namespace = dict(st=streamlit, Mapping=Mapping, Any=Any,
+                         build_annual_earnings_comparison=build_annual_earnings_comparison,
+                         _financial_value=lambda value, unit: str(value),
+                         _escape_markdown_currency=str,
+                         _financial_period=lambda value: value or "Unavailable")
+        exec(compile(ast.Module(body=[function], type_ignores=[]), "annual_renderer", "exec"), namespace)
+        render = namespace["_render_annual_earnings_comparison"]
+        render(self.fixture())
+        text = " ".join(str(call.args[0]) for call in streamlit.markdown.call_args_list)
+        self.assertIn("+2.00 percentage points", text)
+        captions = " ".join(str(call.args[0]) for call in streamlit.caption.call_args_list)
+        self.assertIn("filing:1", captions)
+        self.assertIn("Evidence as of: Unavailable", captions)
+        self.assertIn("Cash from operations", captions)
+        streamlit.reset_mock()
+        render({"status": "RATING_NOT_PUBLISHED"})
+        streamlit.info.assert_called_once()
+        streamlit.caption.assert_not_called()
 
 
 if __name__ == "__main__":

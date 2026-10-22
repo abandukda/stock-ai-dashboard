@@ -118,3 +118,18 @@ def test_missing_and_delisted_are_explicit_not_zero(tmp_path):
     assert observation["data_status"] == "DELISTED"
     assert observation["unavailable_reason"] == "PROVIDER_CONFIRMED_DELISTED"
     assert observation["observed_price"] is None
+
+
+@pytest.mark.parametrize("invalid", [True, False, float("inf"), float("-inf"), float("nan"), 0, -1])
+@pytest.mark.parametrize("location", ["stock", "benchmark", "benchmark_reference"])
+def test_nonfinite_boolean_or_nonpositive_source_prices_never_form_bundle(tmp_path, invalid, location):
+    ledger = _ledger(tmp_path / "primary" / "report-card.sqlite3")
+    tip = ledger.verify()
+    evidence = _evidence()
+    if location == "benchmark_reference":
+        evidence["benchmark_references"]["signal-nvda"]["price"] = invalid
+    else:
+        evidence["instruments"]["NVDA" if location == "stock" else "SPY"]["closes"]["2026-10-09"] = invalid
+    with pytest.raises(ValueError, match="OBSERVATION_PRICE_MISSING"):
+        build_observation_bundle(ledger=ledger, evidence=evidence, horizon=1, certified_at=CERTIFIED)
+    assert ledger.verify() == tip and ledger.rows("OBSERVATION") == []

@@ -83,9 +83,9 @@ def test_unsafe_llm_monitor_is_rejected_for_unavailable_authority(monkeypatch):
     monkeypatch.setattr(
         ask_engine,
         "answer_ticker_question",
-        lambda _question, _context: "ATLAS rates MSFT Monitor and recommends watching the position.",
+        lambda _question, _context, **_kwargs: "ATLAS rates MSFT Monitor and recommends watching the position.",
     )
-    result = ask_engine.ask_atlas("Give me the generic view", report)
+    result = ask_engine.ask_atlas("Give me the generic view", report, allow_external_ai=True)
     assert result["answer_mode"] == "llm_fallback"
     assert result["authority_guard_passed"] is True
     assert re.search(r"\bmonitor\b", result["answer"], re.IGNORECASE) is None
@@ -98,12 +98,12 @@ def test_llm_context_neutralizes_legacy_monitor_for_unavailable(monkeypatch):
     captured = {}
     monkeypatch.setattr(ask_engine, "llm_is_configured", lambda: True)
 
-    def fake_answer(_question, context):
+    def fake_answer(_question, context, **_kwargs):
         captured.update(context)
         return "ATLAS does not currently publish an actionable recommendation for NVDA."
 
     monkeypatch.setattr(ask_engine, "answer_ticker_question", fake_answer)
-    result = ask_engine.ask_atlas("Give me the generic view", report)
+    result = ask_engine.ask_atlas("Give me the generic view", report, allow_external_ai=True)
     assert captured["canonical_semantic_status"] == "DATA_UNAVAILABLE"
     assert captured["canonical_recommendation"] is None
     assert captured["committee_conclusion"] is None

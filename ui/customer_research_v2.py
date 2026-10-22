@@ -10,7 +10,7 @@ import math
 
 import pandas as pd
 import streamlit as st
-from ui.research_learning import build_learning_guide, build_valuation_guide
+from ui.research_learning import build_learning_guide, build_valuation_guide, build_annual_earnings_comparison
 
 from services.customer_research_view import Availability, build_customer_research_view
 from services.customer_metric_format import (
@@ -211,6 +211,39 @@ def _render_valuation_guide(page: Mapping[str, Any]) -> None:
         )
 
 
+def _render_annual_earnings_comparison(page: Mapping[str, Any]) -> None:
+    comparison = build_annual_earnings_comparison(page)
+    st.markdown("**What changed in reported annual earnings?**")
+    if comparison["status"] != "AVAILABLE":
+        st.info("A source-bound comparison of two consecutive full years is unavailable. Quarterly, undated, and unmatched periods are not compared here.")
+        return
+    st.caption(
+        f'Full year ending {comparison["prior_period"]} → full year ending {comparison["current_period"]} · '
+        f'Source: {comparison["source"]} · Evidence as of: {_financial_period(comparison.get("as_of"))} · '
+        f'Evidence IDs: {", ".join(comparison["evidence_ids"])}'
+    )
+    for item in comparison["rows"]:
+        prior = _financial_value(item["prior"], item["unit"])
+        current = _financial_value(item["current"], item["unit"])
+        # Margin differences are percentage points, never percentage growth.
+        difference = (f'{item["change"]:+,.2f} percentage points' if item["unit"] == "PERCENT"
+                      else _financial_value(item["change"], item["unit"]))
+        st.markdown(_escape_markdown_currency(
+            f'**{item["label"]}**: {prior} → {current} · Change: {difference}'
+        ))
+        st.write(item["question"])
+    present = {item["label"] for item in comparison["rows"]}
+    missing = [label for label in ("Sales", "Profit", "Cash from operations", "Cash after investment", "Operating margin") if label not in present]
+    if missing:
+        st.caption("Annual comparison unavailable for: " + ", ".join(missing) + ".")
+    st.caption(
+        "Changes above are arithmetic from retained annual figures, not an earnings beat or miss. "
+        "A move from a loss toward zero is different from profitable growth. "
+        "Matching year-end dates do not establish matching accounting definitions; check restatements and filing notes. "
+        "Causes, management explanations, and comparable pre-release estimates are unavailable in this comparison."
+    )
+
+
 def _render_learning_guide(page: Mapping[str, Any], *, ticker: str) -> None:
     guide = build_learning_guide(page)
     if guide["status"] != "AVAILABLE":
@@ -240,6 +273,7 @@ def _render_learning_guide(page: Mapping[str, Any], *, ticker: str) -> None:
             "That matched comparison is unavailable in this guide. Management guidance and transcript commentary are also unavailable here. "
             "A single snapshot cannot establish an improving trend."
         )
+        _render_annual_earnings_comparison(page)
         st.markdown("**Go deeper: compare earnings fairly**")
         st.write(
             "Use the financial statements below to compare the same fiscal quarter with the prior year's quarter, "
@@ -1037,10 +1071,9 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
     header = page["header"]
     ask_cta(report)
 
-    st.markdown('<nav class="atlas-research-section-nav" aria-label="Research sections">'
-                '<a href="#atlas-research-overview">Overview</a><a href="#atlas-research-technicals">Chart &amp; technicals</a>'
-                '<a href="#atlas-research-financials">Financials &amp; valuation</a><a href="#atlas-research-risks">Risks &amp; evidence</a>'
-                '<a href="#atlas-research-developments">Developments</a></nav>', unsafe_allow_html=True)
+    from services.presentation_source import presentation_module
+    reference = presentation_module("ui.research_reference_components")
+    st.markdown(reference.RESEARCH_REFERENCE_CSS + reference.research_section_navigation_html(), unsafe_allow_html=True)
     summary = page["summary"]
     st.markdown('<div id="atlas-research-overview"></div>', unsafe_allow_html=True)
     _marker("section", ticker, section_name="Decision")
@@ -1278,7 +1311,7 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
                 _marker("technical-indicators-chart", ticker, status="UNAVAILABLE")
                 st.caption("Certified technical indicator history is unavailable for this evidence bundle; no series was inferred.")
         else:
-            st.info("Price history is unavailable under the governed display contract.")
+            st.info("Verified price history has not been loaded for this ticker. No chart or return is inferred.")
 
     _marker("summary", ticker, classification="CERTIFIED_ATLAS")
     weakest = summary.get("weakest_pillar") or {}
@@ -1429,13 +1462,18 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
             unsafe_allow_html=True,
         )
 
+    st.markdown('<div id="atlas-research-news"></div>', unsafe_allow_html=True)
     _marker("what-changed", ticker, status=page["recent_changes"]["status"])
     if page["recent_changes"]["items"]:
         st.markdown("## What Changed Recently")
         for item in page["recent_changes"]["items"]:
             st.markdown(f'**{item.get("headline") or "Company update"}**  ')
             st.caption(f'{item.get("article_publisher") or "Source unavailable"} · {_friendly_time(item.get("article_timestamp"))}')
+    else:
+        st.markdown("## Company news")
+        st.info("Verified recent company headlines are unavailable in this snapshot.")
 
+    st.markdown('<div id="atlas-research-statements"></div>', unsafe_allow_html=True)
     st.markdown("## Fundamentals Snapshot")
     _marker("fundamentals", ticker, count=len(page["fundamentals"]))
     if page["fundamentals"]:
@@ -1509,6 +1547,7 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
     if not _render_combined_statement_history(page.get("statement_history") or {}, ticker=ticker):
         _render_annual_financial_statements(page.get("annual_financial_statements") or {}, ticker=ticker)
 
+    st.markdown('<div id="atlas-research-earnings"></div>', unsafe_allow_html=True)
     financial_trend = page.get("financial_trend") or {}
     _marker("financial-trend-chart", ticker, status=financial_trend.get("status") or "UNAVAILABLE")
     if financial_trend.get("status") == "AVAILABLE":
@@ -1526,17 +1565,23 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
                 _dark_line_chart(trend_frame, height=280, y_title=title,
                                  key=f"research-financial-trend-{ticker}-{unit.lower()}")
         st.caption(_provenance_caption(financial_trend.get("provenance") or {}))
+    else:
+        st.markdown("### Earnings history")
+        st.info("Comparable reported earnings and financial trends are unavailable in this snapshot. Transcript analysis requires its own admitted evidence.")
 
     st.markdown('<div id="atlas-research-developments"></div>', unsafe_allow_html=True)
     _marker("section", ticker, section_name="Catalysts & Sentiment")
     _marker("catalysts", ticker, status=page["catalysts"]["status"])
     events = page["catalysts"].get("events") or []
+    st.markdown("## Catalysts & Sentiment")
     if events:
-        st.markdown("## Catalysts & Sentiment")
         st.markdown("### Verified next events")
         for item in events:
             st.write(f'**Upcoming earnings** · {item.get("date") or "Date unavailable"}')
+    else:
+        st.info("Verified upcoming earnings dates are unavailable in this snapshot.")
 
+    st.markdown('<div id="atlas-research-company"></div>', unsafe_allow_html=True)
     st.markdown("## About the Company")
     _marker("about-company", ticker, status=page["about"]["status"])
     profile = page["about"].get("profile") or {}

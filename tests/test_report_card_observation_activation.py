@@ -241,3 +241,33 @@ def test_corrupt_serialized_snapshot_rejected_before_commit(tmp_path, monkeypatc
         apply_observation_bundle(ledger=ledger, backup_root=tmp_path / "backup", bundle=bundle(ledger),
                                  now=CLOSE + timedelta(minutes=4))
     assert ledger.verify() == before and ledger.rows("OBSERVATION") == []
+
+
+@pytest.mark.parametrize("invalid", [True, False, float("inf"), float("-inf"), float("nan"), 0, -1])
+@pytest.mark.parametrize("field", ["observed_price", "benchmark_reference_price", "benchmark_observed_price"])
+def test_invalid_price_bundle_is_rejected_before_backup_or_append(tmp_path, invalid, field):
+    ledger = ledger_with_signals(tmp_path / "primary/ledger.sqlite3")
+    tip = ledger.verify()
+    payload = bundle(ledger)
+    payload["records"][0]["observation"][field] = invalid
+    backup = tmp_path / "backup"
+    with pytest.raises(ValueError, match="OBSERVATION_PRICE_INVALID"):
+        apply_observation_bundle(ledger=ledger, backup_root=backup, bundle=payload,
+                                 now=CLOSE + timedelta(minutes=4))
+    assert ledger.verify() == tip and ledger.rows("OBSERVATION") == []
+    assert not backup.exists()
+
+
+@pytest.mark.parametrize("invalid", [True, False, float("inf"), float("-inf"), float("nan")])
+@pytest.mark.parametrize("field", ["observed_price", "stock_return", "benchmark_return", "excess_return"])
+def test_direct_observation_append_cannot_bypass_numeric_boundary(tmp_path, invalid, field):
+    from services.prospective_report_card import append_observation
+    ledger = ledger_with_signals(tmp_path / "primary/ledger.sqlite3")
+    tip = ledger.verify()
+    observation = dict(bundle(ledger)["records"][0]["observation"])
+    observation.update(stock_return=0.1, benchmark_return=0.01, excess_return=0.09)
+    observation[field] = invalid
+    with pytest.raises(ValueError, match="OBSERVATION_(PRICE|RETURN)_INVALID"):
+        append_observation(ledger, signal_id="NVDA", horizon=1, observation=observation,
+                           now=CLOSE + timedelta(minutes=4))
+    assert ledger.verify() == tip and ledger.rows("OBSERVATION") == []

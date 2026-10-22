@@ -45,10 +45,10 @@ def _prompt(context: Mapping[str, Any]) -> list[dict[str, str]]:
     ]
 
 
-def synthesize_assumptions(context: Mapping[str, Any], *, caller: Callable[..., Any] | None = None) -> Mapping[str, Any] | None:
+def synthesize_assumptions(context: Mapping[str, Any], *, caller: Callable[..., Any] | None = None, allow_external_ai: bool = False) -> Mapping[str, Any] | None:
     if caller is not None:
         return caller(_prompt(context), _model_snapshot())
-    if not llm_is_configured():
+    if not allow_external_ai or not llm_is_configured():
         return None
     try:
         from openai import OpenAI
@@ -94,6 +94,7 @@ def get_ai_valuation_for_research(
     *,
     cache_dir: str | Path | None = None,
     synthesizer: Callable[[Mapping[str, Any]], Mapping[str, Any] | None] | None = None,
+    allow_external_ai: bool = False,
 ) -> dict[str, Any]:
     """Explicit Full-Research entrypoint; never called by scanner or Home."""
     inputs = normalize_ai_valuation_inputs(row)
@@ -114,11 +115,11 @@ def get_ai_valuation_for_research(
         refreshed["ai_provider_call_count"] = 0
         return attach_valuation_comparison(refreshed, row)
 
-    call = synthesizer or (lambda context: synthesize_assumptions(context))
+    call = synthesizer or (lambda context: synthesize_assumptions(context, allow_external_ai=allow_external_ai))
     started = time.perf_counter()
     result = build_ai_valuation(row, synthesizer=call, model_snapshot=model)
     result["ai_synthesis_seconds"] = round(time.perf_counter() - started, 6)
-    result["ai_provider_call_count"] = 1 if llm_is_configured() or synthesizer is not None else 0
+    result["ai_provider_call_count"] = 1 if (allow_external_ai and llm_is_configured()) or synthesizer is not None else 0
     result["ai_cache_status"] = "MISS"
     if result.get("ai_valuation_status") == "PUBLISHED":
         _save(path, result)

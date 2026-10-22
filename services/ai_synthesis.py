@@ -284,8 +284,8 @@ def _committee_prompt(context: Mapping[str, Any]) -> list[dict[str, str]]:
     ]
 
 
-def _call_llm(messages: list[dict[str, str]], fallback: str, max_tokens: int = 800) -> str:
-    if not llm_is_configured():
+def _call_llm(messages: list[dict[str, str]], fallback: str, max_tokens: int = 800, *, allow_external_ai: bool = False) -> str:
+    if not allow_external_ai or not llm_is_configured():
         return fallback
     try:
         from openai import OpenAI
@@ -303,16 +303,16 @@ def _call_llm(messages: list[dict[str, str]], fallback: str, max_tokens: int = 8
         return fallback
 
 
-def answer_ticker_question(question: str, context: Mapping[str, Any]) -> str:
-    """Answer using LLM if configured, otherwise use deterministic fallback."""
+def answer_ticker_question(question: str, context: Mapping[str, Any], *, allow_external_ai: bool = False) -> str:
+    """External synthesis requires explicit per-call approval as well as credentials."""
     fallback = deterministic_ticker_answer(question, context)
-    return _call_llm(_llm_prompt(question, context), fallback, max_tokens=700)
+    return _call_llm(_llm_prompt(question, context), fallback, max_tokens=700, allow_external_ai=allow_external_ai)
 
 
-def generate_investment_committee(context: Mapping[str, Any]) -> str:
+def generate_investment_committee(context: Mapping[str, Any], *, allow_external_ai: bool = False) -> str:
     """Generate a single CIO synthesis from deterministic agent outputs."""
     fallback = deterministic_committee_summary(context)
-    return _call_llm(_committee_prompt(context), fallback, max_tokens=900)
+    return _call_llm(_committee_prompt(context), fallback, max_tokens=900, allow_external_ai=allow_external_ai)
 
 
 V792_HOME_DECISION_SUMMARY_VERIFIED = True

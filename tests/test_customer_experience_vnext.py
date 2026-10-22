@@ -28,7 +28,8 @@ def test_research_summary_uses_certified_action_and_canonical_evidence():
     assert summary["status"] == "AVAILABLE"
     assert summary["sections"]["Investment view"] == "The certified ATLAS Action is BUY NOW."
     assert summary["evidence_ids"] == ["a", "b"]
-    assert summary["explanation"] == "AI_GENERATED_EXPLANATION"
+    assert summary["explanation"] == "DETERMINISTIC_EVIDENCE_SUMMARY"
+    assert summary["external_model_used"] is False
 
 
 def test_research_summary_never_calls_populated_statements_unavailable():
