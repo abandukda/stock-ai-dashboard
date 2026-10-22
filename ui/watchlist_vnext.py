@@ -123,6 +123,14 @@ def render_watchlist_vnext(
         unsafe_allow_html=True,
     )
     emit_page_interactive(st, "Watchlist Intelligence")
+    from services.watchlist_access import workspace_watchlist_allowed
+    if not workspace_watchlist_allowed(st.session_state):
+        st.markdown('<span data-atlas-qa="watchlist-access-pending" '
+                    'data-atlas-watchlist-access="denied" style="display:none">'
+                    'watchlist-access-pending</span>', unsafe_allow_html=True)
+        st.info("Personal watchlists are awaiting individual account access. Shared-password sessions cannot read or edit a saved watchlist.")
+        return
+    st.caption("Administrator workspace watchlist — this shared list is not a personal beta-user account.")
     controls = st.columns([3, 2, 2])
     query = controls[0].text_input("Search your watchlist", key="watchlist-vnext-search").strip().upper()
     sort_by = controls[1].selectbox("Sort", ("Ticker", "Opportunity", "Confidence"), key="watchlist-vnext-sort")

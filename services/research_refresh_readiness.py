@@ -33,6 +33,11 @@ ALLOWED_CAPABILITIES = (
 )
 
 
+# New endpoint families require explicit selection; defaults stay unchanged.
+SUPPORTED_CAPABILITIES = (*ALLOWED_CAPABILITIES, "live_quote", "company_profile",
+                          "revenue_estimates", "eps_estimates")
+
+
 def _canonical(value: Any) -> bytes:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")
 
@@ -68,9 +73,17 @@ def plan_research_refresh(
     source_sha: str,
     now: datetime,
     limits: ResearchRefreshLimits = ResearchRefreshLimits(),
+    capabilities: Iterable[str] | None = None,
 ) -> dict[str, Any]:
     """Return bounded request intents without importing or invoking transport."""
+    if not isinstance(now, datetime) or now.tzinfo is None:
+        raise ValueError("RESEARCH_REFRESH_TIMEZONE_REQUIRED")
     checked = now.astimezone(timezone.utc)
+    supplied = tuple(ALLOWED_CAPABILITIES if capabilities is None else capabilities)
+    if (not supplied or any(type(value) is not str or value not in SUPPORTED_CAPABILITIES for value in supplied)
+            or len(supplied) != len(set(supplied))):
+        raise ValueError("RESEARCH_REFRESH_CAPABILITY_INVALID")
+    selected = tuple(value for value in SUPPORTED_CAPABILITIES if value in supplied)
     symbols = sorted({_ticker(value) for value in tickers})
     if (
         not source_sha
@@ -95,7 +108,7 @@ def plan_research_refresh(
     unavailable: list[dict[str, str]] = []
     for symbol in symbols:
         cached = cache_index.get(symbol) if isinstance(cache_index.get(symbol), Mapping) else {}
-        for capability in ALLOWED_CAPABILITIES:
+        for capability in selected:
             authority = display_authority(capability)
             if authority is None or capability not in entitled:
                 unavailable.append({"ticker": symbol, "capability": capability, "reason": "NOT_ENTITLED"})
@@ -133,6 +146,7 @@ def plan_research_refresh(
             "retries": limits.retries,
         },
         "tickers": symbols,
+        "capabilities": list(selected),
         "requests": intents,
         "retained_fresh": retained,
         "unavailable": unavailable,
@@ -141,6 +155,7 @@ def plan_research_refresh(
     plan["scope_sha256"] = hashlib.sha256(_canonical({
         "source_sha": source_sha,
         "tickers": symbols,
+        "capabilities": list(selected),
         "requests": intents,
         "limits": plan["limits"],
         "contract_id": CONTRACT_ID,
@@ -163,7 +178,7 @@ def assert_zero_call_preflight(plan: Mapping[str, Any]) -> None:
 
 
 __all__ = [
-    "ABSOLUTE_MAX_REQUESTS", "ABSOLUTE_MAX_TICKERS", "ALLOWED_CAPABILITIES",
+    "ABSOLUTE_MAX_REQUESTS", "ABSOLUTE_MAX_TICKERS", "ALLOWED_CAPABILITIES", "SUPPORTED_CAPABILITIES",
     "ResearchRefreshLimits", "SCHEMA",
     "assert_zero_call_preflight", "plan_research_refresh",
 ]

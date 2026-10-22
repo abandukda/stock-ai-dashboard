@@ -27,6 +27,9 @@ FAMILY_MAX_AGE_SECONDS = {
     "stock_earnings": 8 * 3600,
     "earnings_calendar": 8 * 3600,
     "company_profile": 7 * 86400,
+    "live_quote": 60,
+    "revenue_estimates": 8 * 3600,
+    "eps_estimates": 8 * 3600,
     "recommendations": 4 * 3600,
     "price_targets": 4 * 3600,
     "analyst_actions": 4 * 3600,
@@ -55,11 +58,16 @@ def _safe_ticker(value: str) -> str:
 def _market_identity(payload: Any, *, captured: datetime, checked: datetime) -> dict[str, Any] | None:
     if not isinstance(payload, Mapping):
         return None
-    timestamps = list(payload.get("timestamps") or ())
-    closes = list(payload.get("close") or ())
-    flags = list(payload.get("completed_session_flags") or ())
     required = ("open", "high", "low", "volume")
-    arrays = {name: list(payload.get(name) or ()) for name in required}
+    all_fields = ("timestamps", "close", "completed_session_flags", *required)
+    if any(not isinstance(payload.get(name), (list, tuple)) for name in all_fields):
+        return None
+    timestamps = list(payload["timestamps"])
+    closes = list(payload["close"])
+    flags = list(payload["completed_session_flags"])
+    arrays = {name: list(payload[name]) for name in required}
+    if any(isinstance(value, bool) for name in ("timestamps", "close", *required) for value in payload[name]):
+        return None
     if (
         not timestamps
         or len(timestamps) != len(closes)
@@ -71,6 +79,8 @@ def _market_identity(payload: Any, *, captured: datetime, checked: datetime) -> 
         return None
     try:
         epoch_values = [float(value) for value in timestamps]
+        if any(not math.isfinite(value) for value in epoch_values):
+            return None
         parsed = [datetime.fromtimestamp(value, tz=timezone.utc) for value in epoch_values]
         sessions = [value.date().isoformat() for value in parsed]
         numeric = {
@@ -80,7 +90,7 @@ def _market_identity(payload: Any, *, captured: datetime, checked: datetime) -> 
             "close": [float(value) for value in closes],
             "volume": [float(value) for value in arrays["volume"]],
         }
-    except (TypeError, ValueError, OSError):
+    except (TypeError, ValueError, OSError, OverflowError):
         return None
     if epoch_values != sorted(epoch_values) or len(sessions) != len(set(sessions)):
         return None
@@ -175,6 +185,8 @@ def load_research_market_context(
             proposed = json.loads((Path(candidate) / f"{symbol}.json").read_text(encoding="utf-8"))
         except (OSError, ValueError, TypeError):
             continue
+        if not isinstance(proposed, dict) or not isinstance(proposed.get("families"), Mapping):
+            continue
         proposed_hash = str(proposed.pop("record_sha256", ""))
         lineage = {
             "ticker": proposed.get("ticker"), "source_sha": proposed.get("source_sha"),
@@ -207,6 +219,8 @@ def load_research_market_context(
     checked = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
     modules: dict[str, Any] = {}
     for key, envelope in (document.get("families") or {}).items():
+        if not isinstance(envelope, Mapping) or envelope.get("capability") != key:
+            continue
         verified = _family(envelope, ticker=symbol, now=checked)
         if verified:
             modules[str(key)] = verified

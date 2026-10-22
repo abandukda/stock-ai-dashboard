@@ -83,7 +83,7 @@ jobs:
             case "${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}" in codex/*) ;; *) exit 74 ;; esac
           fi
       - name: Offline autonomous QA self-tests
-        run: python3 -m pytest -q tests/test_customer_experience_autonomous_qa.py tests/test_customer_navigation_contract.py tests/test_customer_required_phase_orchestration.py tests/test_research_runtime.py ui/tests/test_research_learning.py tests/test_customer_research_v2.py tests/test_home_guidance_vnext.py tests/test_home_promotion_market_today.py tests/test_home_runtime_contract.py tests/test_customer_ux_architecture.py tests/test_atlas_visual_crawler_v1.py tests/test_visual_qa_failure_evidence.py tests/test_chart_failure_diagnostic.py tests/test_atlas_visual_crawler_workflow.py tests/test_customer_chart_integration.py tests/test_annotated_research_chart.py tests/test_report_card_chart.py tests/test_report_card_readonly_preflight.py tests/test_report_card_durable_readonly_certification.py tests/test_report_card_protected_readonly.py tests/test_r3_visual_consistency.py tests/test_atlas_visual_polish.py tests/test_customer_sqlite_repository.py tests/test_external_ai_execution_boundary.py tests/test_research_section_navigation.py tests/test_report_card_observation_activation.py tests/test_report_card_observation_producer.py tests/test_research_refresh_execution.py tests/test_atlas_vnext_ux3b_research_ask.py tests/test_customer_experience_vnext.py
+        run: python3 -m pytest -q tests/test_customer_experience_autonomous_qa.py tests/test_customer_navigation_contract.py tests/test_customer_required_phase_orchestration.py tests/test_research_runtime.py ui/tests/test_research_learning.py tests/test_customer_research_v2.py tests/test_home_guidance_vnext.py tests/test_home_promotion_market_today.py tests/test_home_runtime_contract.py tests/test_customer_ux_architecture.py tests/test_atlas_visual_crawler_v1.py tests/test_visual_qa_failure_evidence.py tests/test_chart_failure_diagnostic.py tests/test_atlas_visual_crawler_workflow.py tests/test_customer_chart_integration.py tests/test_annotated_research_chart.py tests/test_report_card_chart.py tests/test_report_card_readonly_preflight.py tests/test_report_card_durable_readonly_certification.py tests/test_report_card_protected_readonly.py tests/test_r3_visual_consistency.py tests/test_atlas_visual_polish.py tests/test_customer_sqlite_repository.py tests/test_external_ai_execution_boundary.py tests/test_research_section_navigation.py tests/test_report_card_observation_activation.py tests/test_report_card_observation_producer.py tests/test_research_refresh_execution.py tests/test_atlas_vnext_ux3b_research_ask.py tests/test_customer_experience_vnext.py tests/test_workspace_watchlist_boundary.py tests/test_runner_readonly_diagnostic.py tests/test_research_refresh_readiness.py tests/test_research_market_read_model.py
       - name: Install Chromium for provider-free render-settlement regression
         run: python -m playwright install --with-deps chromium
       - name: Observe actual delayed and rejected iframe render states
@@ -97,6 +97,19 @@ jobs:
           ATLAS_QA_PROVIDER_CALLS_ALLOWED: '0'
           ATLAS_ALLOW_EXTERNAL_AI: 'false'
         run: python -m unittest discover -s tests -p test_research_section_navigation_browser.py -v
+      - name: Verify shared-password watchlist containment without providers
+        env:
+          ATLAS_QA_PROVIDER_CALLS_ALLOWED: '0'
+          ATLAS_ALLOW_EXTERNAL_AI: 'false'
+        run: python -m unittest discover -s tests -p test_workspace_watchlist_boundary_browser.py -v
+      - name: Save generated watchlist boundary evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: atlas-generated-watchlist-boundary-${{ github.run_id }}
+          path: audit_results/watchlist_boundary
+          if-no-files-found: warn
+          retention-days: 14
       - name: Save generated component navigation evidence
         if: always()
         uses: actions/upload-artifact@v4

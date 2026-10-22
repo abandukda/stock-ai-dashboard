@@ -129,3 +129,15 @@ def test_internal_chart_wires_governed_price_volume_indicators_and_outcomes():
     assert "EDUCATIONAL_NON_SCORING" in source
     assert "not predictions, recommendations or inputs to ATLAS scoring" in source
 
+
+
+def test_missing_price_provenance_discloses_evidence_gap_not_licensing():
+    from copy import deepcopy
+    source = bars()
+    before = deepcopy(source)
+    chart = build_chart_projection(source, {})
+    assert chart['status'] == 'UNAVAILABLE'
+    assert 'source evidence' in chart['message'].lower()
+    assert 'contract' not in chart['message'].lower()
+    assert source == before
+    assert not chart.get('bars')

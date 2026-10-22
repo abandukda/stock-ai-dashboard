@@ -494,7 +494,7 @@ def _chart_projection(report: Mapping[str, Any], signal: Mapping[str, Any], enri
     governed = bool(rows and (provenance.get("source") or provenance.get("provider")) and
                     (provenance.get("evidence_ids") or provenance.get("raw_evidence_id")))
     if not governed:
-        return {"status": "UNAVAILABLE", "message": "Price history is unavailable under the governed display contract."}
+        return {"status": "UNAVAILABLE", "message": "Verified price history is unavailable for this stock."}
     spy_payload = _map(spy.get("payload"))
     spy_timestamps, spy_closes = _seq(spy_payload.get("timestamps")), _seq(spy_payload.get("close"))
     spy_complete = _seq(spy_payload.get("completed_session_flags"))

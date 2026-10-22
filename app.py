@@ -1218,6 +1218,8 @@ def latest_recovery():
 
 
 def latest_watchlist_scan():
+    if not _workspace_watchlist_access_allowed():
+        return pd.DataFrame()
     watch = load_file(WATCHLIST_SCAN_FILE)
     if not watch.empty:
         return watch
@@ -3995,7 +3997,14 @@ def render_market_summary(full_df):
 
 
 
+def _workspace_watchlist_access_allowed():
+    from services.watchlist_access import workspace_watchlist_allowed
+    return workspace_watchlist_allowed(st.session_state)
+
+
 def read_watchlist_symbols():
+    if not _workspace_watchlist_access_allowed():
+        return []
     try:
         data = read_json_file(WATCHLIST_FILE)
         if isinstance(data, dict):
@@ -4016,6 +4025,8 @@ def read_watchlist_symbols():
 
 
 def write_watchlist_symbols(symbols):
+    if not _workspace_watchlist_access_allowed():
+        return False
     cleaned = []
     for item in symbols:
         sym = safe_text(item, "").upper().strip()
@@ -4034,6 +4045,8 @@ def write_watchlist_symbols(symbols):
 
 
 def add_symbol_to_watchlist(symbol):
+    if not _workspace_watchlist_access_allowed():
+        return False
     symbol = safe_text(symbol, "").upper().strip()
     if not symbol:
         return False
@@ -4047,6 +4060,8 @@ def add_symbol_to_watchlist(symbol):
 
 
 def remove_symbol_from_watchlist(symbol):
+    if not _workspace_watchlist_access_allowed():
+        return False
     symbol = safe_text(symbol, "").upper().strip()
     symbols = read_watchlist_symbols()
     if symbol not in symbols:
@@ -27601,6 +27616,8 @@ def v8055_saved_ticker_record(ticker, *dfs):
     merged = {}
     sources = list(dfs)
     for path in [TOP_IDEAS_FILE, FULL_SCAN_FILE, WATCHLIST_SCAN_FILE, RECOVERY_SCAN_FILE, PRESCREEN_FILE, ETF_SCAN_FILE]:
+        if path == WATCHLIST_SCAN_FILE and not _workspace_watchlist_access_allowed():
+            continue
         try:
             sources.append(load_file(path))
         except Exception:
