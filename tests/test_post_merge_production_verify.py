@@ -93,3 +93,45 @@ class WarmDeploymentNavigation(unittest.TestCase):
             st.styles=[]
             self.assertEqual(namespace['v784_top_nav'](['Home','Report Card']),'Home')
             self.assertFalse(any('grid-template-columns' in s for s in st.styles))
+
+
+class InitialShellSettling(unittest.TestCase):
+    def execute(self, states, deadline=3):
+        from scripts.wait_for_production_source import settle_initial_shell
+        calls=[]; pauses=[]; clock=[0]
+        async def probe():
+            value=states[min(len(calls),len(states)-1)]; calls.append(value)
+            if isinstance(value,Exception): raise value
+            return value
+        async def pause(seconds): pauses.append(seconds);clock[0]+=seconds
+        result=asyncio.run(settle_initial_shell(probe,A,deadline=deadline,clock=lambda:clock[0],pause=pause))
+        return result,calls,pauses
+
+    def test_source_marker_can_precede_login_without_increasing_shared_bound(self):
+        pending={'deployed_source_sha':A,'classification':'IN_PROGRESS'}
+        ready={'deployed_source_sha':A,'classification':'PASS'}
+        result,calls,pauses=self.execute([{'deployed_source_sha':'UNKNOWN','classification':'IN_PROGRESS'},pending,ready])
+        self.assertEqual(result,ready);self.assertEqual(len(calls),3);self.assertEqual(pauses,[1,1])
+
+    def test_wrong_sha_fatal_and_security_errors_never_settle_or_retry(self):
+        for value in [
+            {'deployed_source_sha':C,'classification':'IN_PROGRESS'},
+            {'deployed_source_sha':A,'classification':'IN_PROGRESS','fatal_exception':True},
+            {'deployed_source_sha':A,'classification':'DEPLOYMENT_DEFECT'},
+            {'deployed_source_sha':'UNKNOWN','classification':'BROWSER_UNAVAILABLE'},
+            {'deployed_source_sha':A,'classification':'IN_PROGRESS','sha_mismatch':True},
+            {'deployed_source_sha':B,'classification':'DEPLOYMENT_NOT_READY'},
+        ]:
+            with self.subTest(value=value):
+                result,calls,pauses=self.execute([value])
+                self.assertEqual(result,value);self.assertEqual(len(calls),1);self.assertFalse(pauses)
+
+    def test_expired_shell_still_fails_closed(self):
+        pending={'deployed_source_sha':A,'classification':'IN_PROGRESS'}
+        result,calls,pauses=self.execute([pending],deadline=2)
+        self.assertEqual(pauses,[1,1]);self.assertEqual(len(calls),3)
+        self.assertEqual(decision(result,A,B),'SOURCE_OR_APPLICATION_ERROR')
+
+    def test_browser_exception_is_not_swallowed(self):
+        with self.assertRaisesRegex(RuntimeError,'browser unavailable'):
+            self.execute([RuntimeError('browser unavailable')])

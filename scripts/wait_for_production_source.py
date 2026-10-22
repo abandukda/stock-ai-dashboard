@@ -36,6 +36,28 @@ async def wait(expected, previous, output, *, probe, pause=asyncio.sleep, attemp
         await pause(20)
 
 
+async def settle_initial_shell(probe, expected, *, deadline, clock=time.monotonic, pause=asyncio.sleep):
+    """Wait only for a nonfatal incomplete shell within the existing shared bound.
+
+    A source marker can arrive before login readiness in the same Streamlit
+    render. No refresh, authentication, crawler retry or new deadline occurs.
+    All unrelated source identities and terminal errors return immediately to
+    the unchanged fail-closed decision gate.
+    """
+    while True:
+        result = await probe()
+        pending = (
+            re.fullmatch(r'[0-9a-f]{40}', expected) is not None
+            and not result.get('fatal_exception')
+            and not result.get('sha_mismatch')
+            and result.get('classification') == 'IN_PROGRESS'
+            and result.get('deployed_source_sha') in {'UNKNOWN', expected}
+        )
+        if not pending or clock() >= deadline:
+            return result
+        await pause(min(1, max(0, deadline - clock())))
+
+
 async def main(args):
     from playwright.async_api import async_playwright
     from agents.atlas_runtime_qa_v3 import _capture_deployed_readiness
@@ -47,13 +69,11 @@ async def main(args):
         page = await browser.new_page()
         await page.goto(PRODUCTION_ATLAS_URL, wait_until='domcontentloaded', timeout=45000)
         # Initial shell settling is bounded; no credential submission or page reload.
-        started = time.monotonic()
+        shell_deadline = time.monotonic() + 45
+        async def capture():
+            return await _capture_deployed_readiness(page, args.expected)
         async def probe():
-            while True:
-                result = await _capture_deployed_readiness(page, args.expected)
-                if result.get('fatal_exception') or result.get('deployed_source_sha') != 'UNKNOWN' or time.monotonic() - started >= 45:
-                    return result
-                await asyncio.sleep(1)
+            return await settle_initial_shell(capture, args.expected, deadline=shell_deadline)
         try:
             await wait(args.expected, args.previous, output / 'propagation.json', probe=probe)
         finally:
