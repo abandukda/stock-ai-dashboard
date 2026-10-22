@@ -482,8 +482,8 @@ def _chart_projection(report: Mapping[str, Any], signal: Mapping[str, Any], enri
             {
                 "timestamp": timestamp, "adjusted_close": close,
                 "open": opens[index] if index < len(opens) else None,
-                "high": highs[index] if index < len(highs) else close,
-                "low": lows[index] if index < len(lows) else close,
+                "high": highs[index] if index < len(highs) else None,
+                "low": lows[index] if index < len(lows) else None,
                 "volume": volumes[index] if index < len(volumes) else None,
                 "completed": True,
             }
