@@ -3328,7 +3328,597 @@ class AtlasVisualCrawler:
                     "button", name=re.compile(r"(?:Open Full Research|View Investment Case|View Research)", re.I)
                 )
                 for index in range(await buttons.count()):
-                    button = butt…8988 tokens truncated…  customer_visual_audit = (
+                    button = buttons.nth(index)
+                    if not await button.is_visible():
+                        continue
+                    for test_id in ("stHorizontalBlock", "stVerticalBlock"):
+                        card = button.locator(f"xpath=ancestor::*[@data-testid='{test_id}'][1]")
+                        if await card.count() and exact_ticker.search(await card.first.inner_text()):
+                            return card.first, button
+            except Exception:
+                continue
+        return None, None
+
+    async def _research_identity(self, page: Page, ticker: str) -> dict[str, str]:
+        identity = {"ticker": ticker, "context_digest": "", "decision_digest": "", "authority_digest": ""}
+        for scope in _scopes(page):
+            nodes = scope.locator('[data-atlas-qa="research-context-v1"][data-atlas-ticker]')
+            for index in range(await nodes.count()):
+                node = nodes.nth(index)
+                if (await node.get_attribute("data-atlas-ticker") or "").upper() == ticker.upper():
+                    identity["decision_digest"] = await node.get_attribute("data-atlas-decision-digest") or ""
+                    identity["authority_digest"] = await node.get_attribute("data-atlas-authority-digest") or ""
+                    summary = await node.get_attribute("data-atlas-context-summary") or ""
+                    identity["context_digest"] = stable_digest(decode_context_summary(summary)) if summary else ""
+                    return identity
+        return identity
+
+    async def _completed_ask_responses(self, page: Page) -> list[Any]:
+        """Find response evidence in both direct and Streamlit-framed apps."""
+        responses = []
+        for scope in _scopes(page):
+            responses.extend(await scope.locator(
+                '[data-atlas-qa="ask-ai-response"][data-atlas-status="complete"]'
+            ).all())
+        return responses
+
+    async def _ask(self, page: Page, *, viewport: str = "desktop", ticker: str = "NVDA") -> None:
+        ticker = ticker.strip().upper()
+        await self._page_visit(page, "Ask AI", viewport=viewport)
+        started = time.monotonic()
+        before = await self._shot(page, page_name="Ask AI", interaction="grounded-question", state="before", viewport=viewport, ticker=ticker)
+        try:
+            control = None; button = None
+            for scope in _scopes(page):
+                inputs = scope.locator('textarea:visible, input[type="text"]:visible')
+                submit_buttons = scope.get_by_role("button", name=re.compile(r"^Ask Atlas$", re.I))
+                if await inputs.count() and await submit_buttons.count():
+                    control, button = inputs.last, submit_buttons.first
+                    break
+            if control is None or button is None:
+                raise RuntimeError("ASK_CONTROLS_MISSING")
+            await control.fill(f"Why does ATLAS like {ticker}?")
+            await button.click()
+            await page.wait_for_timeout(800)
+            deadline = time.monotonic() + 30
+            response_marker = None
+            settled_text = ""
+            while time.monotonic() < deadline:
+                candidates = await self._completed_ask_responses(page)
+                if candidates:
+                    response_marker = None
+                    for candidate in reversed(candidates):
+                        evidence_metadata = False
+                        for key in ("evidence-used", "evidence-missing", "evidence-ids", "evidence-limitations"):
+                            if await candidate.get_attribute(f"data-atlas-{key}"):
+                                evidence_metadata = True
+                                break
+                        if all((
+                            await candidate.get_attribute("data-atlas-context-digest"),
+                            await candidate.get_attribute("data-atlas-authority-digest"),
+                            await candidate.get_attribute("data-atlas-decision-digest"),
+                            await candidate.get_attribute("data-atlas-response-length"),
+                            evidence_metadata,
+                        )):
+                            response_marker = candidate
+                            break
+                    settled_text = await _visible_text(page)
+                    lower_evidence_settled = bool(
+                        re.search(r"supporting evidence", settled_text, re.I) and
+                        re.search(r"missing evidence\s*&\s*limitations", settled_text, re.I)
+                    )
+                    if response_marker is not None and lower_evidence_settled:
+                        break
+                if await _has_rendered_exception(page):
+                    break
+                await page.wait_for_timeout(300)
+            text = settled_text or await _visible_text(page)
+            exception = await _has_rendered_exception(page)
+            metadata: dict[str, str] = {}
+            if response_marker is not None and await response_marker.count():
+                for key in (
+                    "ticker", "context-digest", "authority-digest", "decision-digest", "evidence-used",
+                    "evidence-missing", "evidence-ids", "evidence-limitations",
+                ):
+                    metadata[key] = await response_marker.get_attribute(f"data-atlas-{key}") or ""
+            performance = page.locator(f'[data-atlas-qa="ask-performance"][data-atlas-ticker="{ticker}"]')
+            if await performance.count() and not metadata.get("context-digest"):
+                metadata["context-digest"] = await performance.last.get_attribute("data-atlas-context-digest") or ""
+            ticker_match = metadata.get("ticker", "").upper() == ticker
+            research_identity = self.research_contexts.get(ticker, {})
+            digest_match = bool(
+                metadata.get("authority-digest") and research_identity.get("authority_digest") and
+                metadata.get("authority-digest") == research_identity.get("authority_digest")
+            )
+            metadata_present = bool(
+                digest_match and (metadata.get("decision-digest") or research_identity.get("decision_digest")) and
+                (metadata.get("evidence-used") or metadata.get("evidence-missing") or
+                 metadata.get("evidence-ids") or metadata.get("evidence-limitations"))
+            )
+            visible_evidence = bool(re.search(r"supporting evidence|evidence used|evidence missing|context digest|source|limitation", text, re.I))
+            grounded = ticker_match and visible_evidence
+            numeric_claims = bool(re.search(r"(?:\$\s*\d|\b\d+(?:\.\d+)?%)", text))
+            evidence_metadata = metadata_present and visible_evidence
+            unsupported_numeric = numeric_claims and not evidence_metadata
+            raw_large_number = bool(re.search(r"(?<![\d,])(?:\d{10,}|\d{1,3}(?:,\d{3}){3,})(?![\d,])", text))
+            after = await self._shot(page, page_name="Ask AI", interaction="grounded-question", state="answer-and-evidence", viewport=viewport, ticker=ticker, complete_surface=True)
+            await self._record(
+                category="ASK", page_name="Ask AI", interaction="grounded-question",
+                expected="NVDA-grounded answer with visible evidence/context metadata",
+                observed=f"ticker_context={ticker_match}; context_digest={bool(metadata.get('context-digest'))}; decision_digest={bool(metadata.get('decision-digest'))}; evidence_metadata={evidence_metadata}; unsupported_numeric={unsupported_numeric}; exception={exception}",
+                passed=grounded and not unsupported_numeric and not exception, elapsed=time.monotonic() - started,
+                ticker=ticker, viewport=viewport, screenshots=(before, after), severity="P1",
+                exception=await self._exception_identity(page) if exception else {},
+            )
+            digest_state = "PASS" if digest_match else "FAIL"
+            await self._record(
+                category="ASK_RECONCILIATION", page_name="Ask AI", interaction="context-digest",
+                expected="Ask authority digest equals the rendered canonical Research authority digest",
+                observed=(
+                    f"state={digest_state}; ask_authority_digest={metadata.get('authority-digest') or 'MISSING'}; "
+                    f"research_authority_digest={research_identity.get('authority_digest') or 'MISSING'}; "
+                    f"ask_presentation_digest={metadata.get('context-digest') or 'MISSING'}; "
+                    f"research_presentation_digest={research_identity.get('context_digest') or 'MISSING'}; "
+                    f"ticker={metadata.get('ticker') or 'MISSING'}"
+                ),
+                passed=digest_state == "PASS", elapsed=time.monotonic() - started,
+                ticker=ticker, viewport=viewport, screenshots=(after,), severity="P2",
+                status_override=digest_state,
+            )
+            await self._record(
+                category="UX", page_name="Ask AI", interaction="numeric-formatting",
+                expected="Large numeric evidence is customer-formatted",
+                observed=f"raw_large_numeric_value={raw_large_number}",
+                passed=not raw_large_number, elapsed=time.monotonic() - started,
+                ticker=ticker, viewport=viewport, screenshots=(after,), severity="P2",
+            )
+        except Exception as exc:
+            await self._record(
+                category="ASK", page_name="Ask AI", interaction="grounded-question",
+                expected="Ask control and grounded response", observed=type(exc).__name__,
+                passed=False, elapsed=time.monotonic() - started, ticker=ticker,
+                viewport=viewport, screenshots=(before,), severity="P1",
+            )
+
+    async def _required_desktop(
+        self, page: Page, *, home_timeout: int = 90, watchlist_edit: bool = True,
+    ) -> None:
+        await page.set_viewport_size(DESKTOP)
+        await asyncio.wait_for(self._home_cards(page), timeout=home_timeout)
+        for ticker in REQUIRED_RESEARCH_TICKERS:
+            passed = await self._submit_research(page, ticker, tabs=True)
+            if not passed:
+                raise GlobalCrawlFailure(f"REQUIRED_RESEARCH_FAILED_{ticker}")
+        if not await asyncio.wait_for(self._page_visit(page, "Watchlist Intelligence"), timeout=20):
+            raise GlobalCrawlFailure("REQUIRED_WATCHLIST_DESKTOP_FAILED")
+        if watchlist_edit:
+            await self._watchlist_edit_journey(page)
+        else:
+            await self._record(
+                category="AUDIT_SCOPE", page_name="Watchlist Intelligence",
+                interaction="read-only-visual-audit", required=False,
+                expected="Read-only visual coverage; edit persistence requires isolated functional certification",
+                observed="Watchlist mutations not attempted; existing account state preserved",
+                passed=True, elapsed=0.0, viewport="desktop",
+            )
+        await asyncio.wait_for(self._ask(page, viewport="desktop"), timeout=35)
+
+    async def _watchlist_edit_journey(self, page: Page) -> None:
+        """Prove add/search/sort/remove persistence without retaining QA state."""
+        supported_ticker = "NVDA"
+        missing_ticker = "AAAAQ"
+        started = time.monotonic()
+
+        async def card_order() -> list[str]:
+            values: list[str] = []
+            for scope in _scopes(page):
+                markers = scope.locator('[data-atlas-qa="watchlist-certified-authority"]')
+                # Resolve the live collection atomically.  Iterating Locator.all()
+                # leaves per-node locators that may disappear during a Streamlit
+                # rerun and then auto-wait for the default 30 seconds.
+                live_values = await markers.evaluate_all(
+                    "elements => elements.map(element => "
+                    "element.getAttribute('data-atlas-ticker') || '')"
+                )
+                for raw_value in live_values:
+                    value = str(raw_value or "").upper()
+                    if value and value not in values:
+                        values.append(value)
+            return values
+
+        async def add(ticker: str) -> bool:
+            for scope in _scopes(page):
+                field = scope.get_by_label("Add ticker", exact=True)
+                if await field.count() and await field.first.is_visible():
+                    await field.first.fill(ticker)
+                    await page.wait_for_timeout(200)
+                    for live_scope in _scopes(page):
+                        button = live_scope.get_by_role("button", name="Add", exact=True)
+                        if await button.count() and await button.first.is_visible():
+                            await button.first.click()
+                            for _ in range(16):
+                                if f"Remove {ticker}" in await _visible_text(page):
+                                    return True
+                                await page.wait_for_timeout(200)
+                            return False
+            return False
+
+        async def remove(ticker: str) -> bool:
+            for scope in _scopes(page):
+                button = scope.get_by_role("button", name=f"Remove {ticker}", exact=True)
+                if await button.count():
+                    await button.first.click()
+                    for _ in range(30):
+                        # Streamlit can leave the pre-rerun button text visible
+                        # briefly after the persisted mutation has completed.
+                        # Prove settlement against both the current ticker-bound
+                        # projection marker and the re-resolved live control.
+                        current_tickers = await card_order()
+                        remove_controls = page.get_by_role(
+                            "button", name=f"Remove {ticker}", exact=True
+                        )
+                        live_remove_visible = False
+                        for candidate in await remove_controls.all():
+                            if await candidate.is_visible():
+                                live_remove_visible = True
+                                break
+                        if ticker not in current_tickers and not live_remove_visible:
+                            return True
+                        await page.wait_for_timeout(200)
+            return False
+
+        async def set_search(query: str) -> dict[str, Any]:
+            for scope in _scopes(page):
+                search = scope.get_by_label("Search your watchlist", exact=True)
+                if await search.count() and await search.first.is_visible():
+                    await search.first.fill(query)
+                    await search.first.press("Enter")
+                    expected = query.strip().upper()
+                    for _ in range(30):
+                        for live_scope in _scopes(page):
+                            marker = live_scope.locator('[data-atlas-qa="watchlist-filter-state"]')
+                            if not await marker.count():
+                                continue
+                            current = marker.last
+                            committed = str(await current.get_attribute("data-atlas-query") or "")
+                            if committed == expected:
+                                count = int(await current.get_attribute("data-atlas-visible-count") or 0)
+                                tickers = [
+                                    value for value in str(
+                                        await current.get_attribute("data-atlas-visible-tickers") or ""
+                                    ).split(",") if value
+                                ]
+                                return {"committed": True, "count": count, "tickers": tickers}
+                        await page.wait_for_timeout(200)
+                    return {"committed": False, "count": -1, "tickers": []}
+            return {"committed": False, "count": -1, "tickers": []}
+
+        async def role_category() -> str:
+            marker = page.locator('[data-atlas-qa="customer-navigation-contract"]')
+            if not await marker.count():
+                return ""
+            return str(await marker.last.get_attribute("data-atlas-role-category") or "")
+
+        before = await self._shot(
+            page, page_name="Watchlist Intelligence", interaction="personal-watchlist-journey",
+            state="before", viewport="desktop",
+        )
+        initial_order = await card_order()
+        evidence: dict[str, Any] = {
+            "initial_order": initial_order,
+            "isolated_start": (
+                supported_ticker not in initial_order and missing_ticker not in initial_order
+            ),
+            "supported_added": False,
+            "missing_added": False,
+            "searched": False,
+            "search_positive": {},
+            "search_negative": {},
+            "search_cleared": {},
+            "sorted": False,
+            "ticker_order": [],
+            "opportunity_order": [],
+            "duplicates": -1,
+            "removed": False,
+            "reload_persisted": False,
+            "reload_route": False,
+            "initial_role": await role_category(),
+            "reload_role": "",
+            "role_preserved": False,
+            "final_order": [],
+            "unavailable_not_zero": False,
+        }
+        after = before
+        try:
+            if not evidence["isolated_start"]:
+                raise RuntimeError("Watchlist QA requires an isolated starting state")
+            evidence["supported_added"] = await add(supported_ticker)
+            evidence["missing_added"] = await add(missing_ticker)
+            text = await _visible_text(page)
+            if evidence["supported_added"] and evidence["missing_added"]:
+                evidence["unavailable_not_zero"] = "Unavailable" in text and "$0.00" not in text
+                evidence["search_positive"] = await set_search(supported_ticker)
+                evidence["search_negative"] = await set_search("NO_MATCH_QA")
+                evidence["search_cleared"] = await set_search("")
+                evidence["searched"] = (
+                    evidence["search_positive"] == {
+                        "committed": True, "count": 1, "tickers": [supported_ticker]
+                    }
+                    and evidence["search_negative"] == {
+                        "committed": True, "count": 0, "tickers": []
+                    }
+                    and evidence["search_cleared"].get("committed") is True
+                    and evidence["search_cleared"].get("count") == 2
+                    and set(evidence["search_cleared"].get("tickers") or [])
+                    == {supported_ticker, missing_ticker}
+                )
+                evidence["ticker_order"] = await card_order()
+                for scope in _scopes(page):
+                    sort = scope.get_by_role("combobox", name=re.compile(r"Sort$"))
+                    if await sort.count() and await sort.first.is_visible():
+                        await sort.first.click()
+                        option = page.get_by_role("option", name="Opportunity", exact=True)
+                        if await option.count():
+                            await option.first.click()
+                            for _ in range(12):
+                                evidence["opportunity_order"] = await card_order()
+                                if evidence["opportunity_order"] != evidence["ticker_order"]:
+                                    evidence["sorted"] = True
+                                    break
+                                await page.wait_for_timeout(200)
+                        break
+                order = await card_order()
+                evidence["duplicates"] = len(order) - len(set(order))
+            after = await self._shot(
+                page, page_name="Watchlist Intelligence", interaction="personal-watchlist-journey",
+                state="added-searched-sorted", viewport="desktop", ticker=supported_ticker,
+            )
+        finally:
+            missing_removed = (
+                await remove(missing_ticker) if missing_ticker not in initial_order else True
+            )
+            supported_removed = (
+                await remove(supported_ticker) if supported_ticker not in initial_order else True
+            )
+            evidence["removed"] = missing_removed and supported_removed
+            await page.reload(wait_until="domcontentloaded")
+            # The local governed app intentionally does not persist an admin
+            # login across a full document reload. Re-establish the same role
+            # through the supported authentication path before asserting route
+            # and Watchlist persistence. This is not a product route-persistence
+            # requirement and must not be inferred from the login screen.
+            if not await page.locator('[data-atlas-qa="customer-navigation-contract"]').count():
+                reload_auth_dir = self.output_dir / "watchlist-reload-auth"
+                reload_auth_dir.mkdir(parents=True, exist_ok=True)
+                await _open_and_authenticate(
+                    page, self.url, reload_auth_dir,
+                    expected_sha=self.expected_deployed_source_sha,
+                    allow_local_exact_candidate=(
+                        os.getenv("ATLAS_EXACT_CANDIDATE_QA", "").strip().lower()
+                        in {"1", "true", "yes"}
+                    ),
+                )
+            # A full Streamlit reload may legitimately restore its default route.
+            # Navigate back explicitly, then prove route and role before reading
+            # persisted state instead of assuming route persistence.
+            try:
+                evidence["reload_route"] = bool(await asyncio.wait_for(
+                    self._page_visit(page, "Watchlist Intelligence"), timeout=20
+                ))
+            except (asyncio.TimeoutError, RuntimeError):
+                evidence["reload_route"] = False
+            evidence["reload_role"] = await role_category()
+            evidence["role_preserved"] = bool(
+                evidence["initial_role"]
+                and evidence["reload_role"] == evidence["initial_role"]
+            )
+            for _ in range(16):
+                evidence["final_order"] = await card_order()
+                if evidence["final_order"] == initial_order:
+                    evidence["reload_persisted"] = True
+                    break
+                await page.wait_for_timeout(200)
+        passed = watchlist_journey_proven(evidence)
+        await self._record(
+            category="WATCHLIST", page_name="Watchlist Intelligence",
+            interaction="add-search-sort-remove-persistence",
+            expected="Isolated customer can add supported/missing-price symbols, search, reorder, remove and reload to the original state",
+            observed=json.dumps(evidence, sort_keys=True), passed=passed,
+            elapsed=time.monotonic() - started, ticker=supported_ticker, viewport="desktop",
+            screenshots=(before, after), severity="P1",
+        )
+        if not passed:
+            raise GlobalCrawlFailure("REQUIRED_WATCHLIST_EDIT_JOURNEY_FAILED")
+
+    async def _supplementary_desktop(self, page: Page) -> None:
+        await page.set_viewport_size(DESKTOP)
+        for page_name in (name for name in ACTIVE_PAGES if name not in {"Home", "Research Any Ticker"}):
+            try:
+                await self._supplementary_desktop_page(page, page_name)
+            except GlobalCrawlFailure:
+                raise
+            except Exception as exc:
+                await self._record(
+                    category="SUPPLEMENTARY_EXECUTION", page_name=page_name,
+                    interaction="desktop-journey", expected="Supplementary journey completes without an uncaught exception",
+                    observed=type(exc).__name__, passed=False,
+                    elapsed=0.0, severity="P2", required=False,
+                )
+
+    async def _supplementary_desktop_page(self, page: Page, page_name: str) -> None:
+            await self._page_visit(page, page_name)
+            if page_name == "Earnings Intelligence":
+                await self._earnings_vnext_contract(page, viewport="desktop")
+            if page_name == "Full Ranked Scan":
+                await self._full_scan_vnext_contract(page, viewport="desktop")
+                await self._full_scan_candidate_journeys(page, viewport="desktop")
+            if page_name == "Recovery":
+                await self._recovery_vnext_contract(page, viewport="desktop")
+                await self._recovery_candidate_journeys(page, viewport="desktop", drill_down=True)
+            if page_name == "Portfolio Intelligence":
+                await self._position_management_contract(page, viewport="desktop")
+            if page_name in {"Earnings Intelligence", "Political Intelligence"}:
+                await self._click_expanders(page, page_name=page_name)
+                await self._supporting_evidence(page, page_name=page_name)
+            if page_name == "Ask AI":
+                for ticker in REQUIRED_RESEARCH_TICKERS:
+                    if not self.research_contexts.get(ticker, {}).get("authority_digest"):
+                        await self._submit_research(page, ticker, tabs=False, viewport="desktop")
+                    await self._ask(page, ticker=ticker)
+
+    async def _required_mobile(self, page: Page) -> None:
+        await page.set_viewport_size(MOBILE)
+        await asyncio.wait_for(self._home_cards(page, viewport="mobile"), timeout=90)
+        for ticker in REQUIRED_RESEARCH_TICKERS:
+            passed = await self._submit_research(page, ticker, tabs=True, viewport="mobile")
+            if not passed:
+                raise GlobalCrawlFailure(f"REQUIRED_RESEARCH_FAILED_{ticker}_MOBILE")
+        if not await asyncio.wait_for(self._page_visit(page, "Watchlist Intelligence", viewport="mobile"), timeout=20):
+            raise GlobalCrawlFailure("REQUIRED_WATCHLIST_MOBILE_FAILED")
+        await asyncio.wait_for(self._ask(page, viewport="mobile"), timeout=35)
+
+    async def _customer_role_visual_evidence(self, page: Page) -> None:
+        """Capture the launch-critical customer surfaces in a real viewer session."""
+        await page.set_viewport_size(DESKTOP)
+        await asyncio.wait_for(self._page_visit(page, "Home", viewport="desktop"), timeout=30)
+        await self._shot(
+            page, page_name="Home", interaction="customer-role-evidence",
+            state="scroll-zero", viewport="desktop", complete_surface=True,
+        )
+        for ticker in ("NVDA", "AVT", "CRC"):
+            passed = await self._submit_research(page, ticker, tabs=False, viewport="desktop")
+            if not passed:
+                raise GlobalCrawlFailure(f"CUSTOMER_ROLE_RESEARCH_FAILED_{ticker}")
+        if not await asyncio.wait_for(
+            self._page_visit(page, "Watchlist Intelligence", viewport="desktop"), timeout=20,
+        ):
+            raise GlobalCrawlFailure("CUSTOMER_ROLE_WATCHLIST_FAILED")
+        await self._shot(
+            page, page_name="Watchlist Intelligence", interaction="customer-role-evidence",
+            state="visible", viewport="desktop", complete_surface=True,
+        )
+        await asyncio.wait_for(self._ask(page, viewport="desktop"), timeout=35)
+
+        await page.set_viewport_size(MOBILE)
+        await asyncio.wait_for(self._page_visit(page, "Home", viewport="mobile"), timeout=30)
+        await self._shot(
+            page, page_name="Home", interaction="customer-role-evidence",
+            state="scroll-zero", viewport="mobile", complete_surface=True,
+        )
+        for ticker in ("NVDA", "AVT", "CRC"):
+            passed = await self._submit_research(page, ticker, tabs=False, viewport="mobile")
+            if not passed:
+                raise GlobalCrawlFailure(f"CUSTOMER_ROLE_RESEARCH_FAILED_{ticker}_MOBILE")
+        if not await asyncio.wait_for(
+            self._page_visit(page, "Watchlist Intelligence", viewport="mobile"), timeout=20,
+        ):
+            raise GlobalCrawlFailure("CUSTOMER_ROLE_WATCHLIST_FAILED_MOBILE")
+        await self._shot(
+            page, page_name="Watchlist Intelligence", interaction="customer-role-evidence",
+            state="visible", viewport="mobile", complete_surface=True,
+        )
+        await asyncio.wait_for(self._ask(page, viewport="mobile"), timeout=35)
+
+        # A 360px evidence pass is intentionally separate from the mandatory
+        # 390px mobile certification so the existing gate is not weakened.
+        # It captures each customer route plus published and withheld Research
+        # states under the smallest supported phone width.
+        await page.set_viewport_size(NARROW_MOBILE)
+        await asyncio.wait_for(self._page_visit(page, "Home", viewport="mobile_360"), timeout=30)
+        await self._shot(
+            page, page_name="Home", interaction="customer-role-evidence",
+            state="scroll-zero", viewport="mobile_360", complete_surface=True,
+        )
+        for ticker in ("NVDA", "CRC"):
+            passed = await self._submit_research(page, ticker, tabs=False, viewport="mobile_360")
+            if not passed:
+                raise GlobalCrawlFailure(f"CUSTOMER_ROLE_RESEARCH_FAILED_{ticker}_MOBILE_360")
+        if not await asyncio.wait_for(
+            self._page_visit(page, "Watchlist Intelligence", viewport="mobile_360"), timeout=20,
+        ):
+            raise GlobalCrawlFailure("CUSTOMER_ROLE_WATCHLIST_FAILED_MOBILE_360")
+        await self._shot(
+            page, page_name="Watchlist Intelligence", interaction="customer-role-evidence",
+            state="visible", viewport="mobile_360", complete_surface=True,
+        )
+        await asyncio.wait_for(self._ask(page, viewport="mobile_360"), timeout=35)
+
+        await self._customer_tablet_visual_evidence(page)
+
+    async def _customer_tablet_visual_evidence(self, page: Page) -> None:
+        # Tablet captures are a focused visual-acceptance pass. The complete
+        # interaction contract is already exercised at desktop and mobile;
+        # here we verify that every primary customer route remains readable at
+        # both supported tablet breakpoints without multiplying provider-free
+        # journey time or changing application state.
+        for viewport_name, viewport in (("tablet_1024", TABLET), ("tablet_768", NARROW_TABLET)):
+            await page.set_viewport_size(viewport)
+            for page_name in ("Home", "Research Any Ticker", "Watchlist Intelligence", "Ask AI"):
+                started = time.monotonic()
+                try:
+                    passed = await asyncio.wait_for(
+                        self._page_visit(page, page_name, viewport=viewport_name), timeout=20,
+                    )
+                except asyncio.TimeoutError as exc:
+                    shot = await self._shot(
+                        page, page_name=page_name, interaction="tablet-navigation-timeout",
+                        state="failure", viewport=viewport_name,
+                    )
+                    await self._record(
+                        category="TABLET_NAVIGATION", page_name=page_name,
+                        interaction="tablet-navigation-timeout",
+                        expected="Destination page renders within the existing 20-second bound",
+                        observed="TimeoutError; destination acceptance withheld", passed=False,
+                        elapsed=time.monotonic() - started, viewport=viewport_name,
+                        screenshots=(shot,), severity="P1",
+                    )
+                    raise GlobalCrawlFailure("TABLET_NAVIGATION_TIMEOUT") from exc
+                if not passed:
+                    raise GlobalCrawlFailure(
+                        f"CUSTOMER_ROLE_{page_name.upper().replace(' ', '_')}_FAILED_{viewport_name.upper()}"
+                    )
+                await self._shot(
+                    page, page_name=page_name, interaction="customer-role-evidence",
+                    state="visible", viewport=viewport_name, complete_surface=True,
+                )
+
+    async def _supplementary_mobile(self, page: Page) -> None:
+        await page.set_viewport_size(MOBILE)
+        for page_name in (name for name in MOBILE_PAGES if name not in {"Home", "Research Any Ticker"}):
+            try:
+                await self._supplementary_mobile_page(page, page_name)
+            except GlobalCrawlFailure:
+                raise
+            except Exception as exc:
+                await self._record(
+                    category="SUPPLEMENTARY_EXECUTION", page_name=page_name,
+                    interaction="mobile-journey", expected="Supplementary mobile journey completes without an uncaught exception",
+                    observed=type(exc).__name__, passed=False, elapsed=0.0,
+                    viewport="mobile", severity="P2", required=False,
+                )
+
+    async def _supplementary_mobile_page(self, page: Page, page_name: str) -> None:
+            await self._page_visit(page, page_name, viewport="mobile")
+            if page_name == "Ask AI":
+                if not self.research_contexts.get("NVDA", {}).get("authority_digest"):
+                    await self._submit_research(page, "NVDA", tabs=False, viewport="mobile")
+                await self._ask(page, viewport="mobile")
+            elif page_name == "Political Intelligence":
+                await self._click_expanders(page, page_name=page_name, viewport="mobile")
+                await self._supporting_evidence(page, page_name=page_name, viewport="mobile")
+            elif page_name == "Earnings Intelligence":
+                await self._earnings_vnext_contract(page, viewport="mobile")
+            elif page_name == "Full Ranked Scan":
+                await self._full_scan_vnext_contract(page, viewport="mobile")
+            elif page_name == "Recovery":
+                await self._recovery_vnext_contract(page, viewport="mobile")
+                await self._recovery_candidate_journeys(page, viewport="mobile", drill_down=False)
+            elif page_name == "Portfolio Intelligence":
+                await self._position_management_contract(page, viewport="mobile")
+
+    async def run(self, *, phase: str = "all") -> dict[str, Any]:
+        self.enforce_required_authority = phase in {"required", "all"}
+        customer_visual_audit = (
             phase == "all"
             and os.getenv("ATLAS_VISUAL_CRAWL_CUSTOMER_ONLY", "").strip().lower()
             in {"1", "true", "yes"}
