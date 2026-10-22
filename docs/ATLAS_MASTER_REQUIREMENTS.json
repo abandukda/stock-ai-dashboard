@@ -209,5 +209,27 @@
     "deployed": false,
     "live_verified": false,
     "remaining_acceptance": "Actual NVDA/MSFT/historicalAMZN desktop/tablet/mobile production chart screenshots after separately approved merge; full original Home/Research/ReportCard mockups unavailable."
+  },
+  "aggregate_integrity_review": {
+    "scope": "Two fixed retained final ZIPs; archive+member+canonical-file integrity only",
+    "built": true,
+    "tested": "17localtestsPASS;96MiBgeneratedmember;14-testprofile36,564KiBRSS/0.879s;twoalreadydownloadedshardcompatibilityprobesPASS,sourceunchanged",
+    "merged": false,
+    "deployed": false,
+    "live_verified": false,
+    "actual_final_aggregate_execution": "NOT_DISPATCHED_NOT_AUTHORIZED",
+    "workflow": "atlas_retained_aggregate_verify.yml",
+    "resource_limits": "1MiBchunk;512MiBaddressspace;25min;1024entries;16GiBmember/32GiBtotal;8GiBfreetempdisk",
+    "data_scope": "11318542723+11456584757 only; no extraction/sourceupload/productionledger/SSH/Contabo/protectedmigration/providers/paidAI/publication",
+    "approval": "Exact-headmerge plus separate exact-merged-main ownerdispatch authorization for ephemeral hosted retained-artifact verification",
+    "remaining_blockers": "Actuallargearchivebytes/canonicalpins stillnotverified;originalDOhost/currentraw-checkpoint/independentbackup/ledgerWAL evidence stillrequired"
+  },
+  "pending_customer_chart_integration": {
+    "pr": 117,
+    "exact_head": "170d715a41d5465f4cf1a0e98b6aea0565d8e61f",
+    "status": "OPEN_GREEN_CI_NOT_MERGED_AT_REVIEW_START",
+    "production_baseline_sha": "4d0a11e188e1529531cbac1ace1b0a2c74a4df32",
+    "production_run": 39708451001,
+    "production_result": "SUCCESS83/83checks,71screens;notnewactivechartacceptance"
   }
 }

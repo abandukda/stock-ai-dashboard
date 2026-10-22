@@ -1,0 +1,93 @@
+name: ATLAS Retained Aggregate Integrity Review
+on:
+  workflow_dispatch:
+    inputs:
+      approved_source_sha:
+        description: Exact merged main SHA approved for this read-only verification
+        required: true
+        type: string
+      authorization:
+        description: AUTHORIZE_RETAINED_ARCHIVE_VERIFY followed by colon and approved SHA
+        required: true
+        type: string
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: atlas-retained-aggregate-integrity
+  cancel-in-progress: false
+jobs:
+  verify:
+    if: >-
+      github.repository == 'abandukda/stock-ai-dashboard' &&
+      github.actor == 'abandukda' && github.ref == 'refs/heads/main' &&
+      inputs.approved_source_sha == github.sha &&
+      inputs.authorization == format('AUTHORIZE_RETAINED_ARCHIVE_VERIFY:{0}', github.sha)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        artifact_id: ['11318542723', '11456584757']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Initialize fail-closed receipt and require free temporary disk
+        env:
+          ARTIFACT_ID: ${{ matrix.artifact_id }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          mkdir -p audit_results/aggregate
+          python3 - <<'PY'
+          import json,os,shutil
+          from pathlib import Path
+          p=Path('audit_results/aggregate')/(os.environ['ARTIFACT_ID']+'.json')
+          p.write_text(json.dumps({'status':'FAILED','error':'VERIFICATION_NOT_COMPLETED','provider_calls':0,'ledger_access':False,'production_writes':0}))
+          if shutil.disk_usage(os.environ['RUNNER_TEMP']).free < 8*1024**3:
+              raise SystemExit('TEMPORARY_DISK_PREFLIGHT_FAILED')
+          PY
+      - name: Verify pinned GitHub artifact metadata before download
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_ID: ${{ matrix.artifact_id }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$ARTIFACT_ID" > "$RUNNER_TEMP/artifact-metadata.json"
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          meta=json.loads((Path(os.environ['RUNNER_TEMP'])/'artifact-metadata.json').read_text())
+          item=next(x for x in json.loads(Path('config/retained_aggregate_verification.json').read_text())['artifacts'] if str(x['artifact_id'])==os.environ['ARTIFACT_ID'])
+          assert meta['id']==item['artifact_id'] and meta['expired'] is False
+          assert meta['size_in_bytes']==item['archive_size_bytes']
+          assert meta['digest']=='sha256:'+item['archive_sha256']
+          assert meta['workflow_run']['id']==item['run_id']
+          assert meta['workflow_run']['head_sha']==item['source_sha']
+          PY
+      - name: Download only the pinned retained artifact into ephemeral hosted storage
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_ID: ${{ matrix.artifact_id }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$ARTIFACT_ID/zip" > "$RUNNER_TEMP/retained.zip"
+      - name: Stream verify under the 512 MiB address-space limit
+        env:
+          ARTIFACT_ID: ${{ matrix.artifact_id }}
+        run: |
+          /usr/bin/time -v -o "audit_results/aggregate/${ARTIFACT_ID}-resources.txt" \
+            python3 scripts/verify_retained_aggregate.py \
+              --archive "$RUNNER_TEMP/retained.zip" --artifact-id "$ARTIFACT_ID" \
+              --output "audit_results/aggregate/${ARTIFACT_ID}.json"
+      - name: Upload receipts only, never retained source files
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: atlas-retained-integrity-${{ matrix.artifact_id }}-${{ github.run_id }}
+          path: audit_results/aggregate
+          if-no-files-found: error
+          retention-days: 90
