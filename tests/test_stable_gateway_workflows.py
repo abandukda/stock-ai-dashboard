@@ -35,7 +35,8 @@ def test_report_card_is_default_branch_scope_bound_and_mutations_stay_closed():
     assert "Mutation/provider adapters remain separately reviewed and intentionally fail closed." in text
     assert "cutoff_utc" in inputs and "as_of" not in inputs
     assert '--cutoff-utc "$REPORT_CARD_CUTOFF_UTC"' in text
-    assert 'test "$REPORT_CARD_CUTOFF_UTC" = "2026-10-13T20:30:00Z"' in text
+    assert 'test "$(python3 scripts/validate_report_card_cutoff.py "$REPORT_CARD_CUTOFF_UTC")" = "$REPORT_CARD_CUTOFF_UTC"' in text
+    assert "2026-10-13T20:30:00Z" not in text
     assert "verify_report_card_closed_sentinel.py" in text
     assert "OPERATIONS_KILL_SWITCH" not in text
     assert "ACQUISITION_KILL_SWITCH" in text

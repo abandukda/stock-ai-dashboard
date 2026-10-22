@@ -19,6 +19,40 @@ from services.report_card_exchange_calendar import build_xnys_calendar
 
 
 SCHEMA = "ATLAS_RESEARCH_MARKET_READ_MODEL_V1"
+ADMISSION_RECEIPT_SCHEMA = "ATLAS_RESEARCH_MARKET_ADMISSION_RECEIPT_V1"
+ADMISSION_STATUS_CODES = frozenset({"AVAILABLE", "PARTIAL", "UNAVAILABLE", "QA_ONLY", "NOT_RECORDED"})
+ADMISSION_REASON_CODES = frozenset({
+    "INVALID_TICKER", "ROOTS_NOT_CONFIGURED", "FILE_NOT_FOUND", "FILE_UNREADABLE",
+    "SCHEMA_OR_LINEAGE_REJECTED", "SOURCE_PIN_MISMATCH", "BUNDLE_PIN_MISMATCH",
+    "BACKUP_AUTHORITY_REJECTED", "RECORD_HASH_MISMATCH", "NO_VERIFIED_FAMILIES",
+    "CONTEXT_ADMITTED", "HISTORY_FAMILY_REJECTED", "HISTORY_FAMILY_MISSING",
+    "QA_ENRICHMENT_USED", "ADMISSION_RECEIPT_UNAVAILABLE", "BUNDLE_ACCEPTED",
+})
+
+
+def public_admission_marker_values(receipt: Any) -> dict[str, Any]:
+    """Only public enumerated codes may cross the rendered diagnostic boundary."""
+    receipt = receipt if isinstance(receipt, Mapping) else {}
+    status, reason = receipt.get("status"), receipt.get("reason")
+    result = {
+        "status": status if isinstance(status, str) and status in ADMISSION_STATUS_CODES else "NOT_RECORDED",
+        "reason": reason if isinstance(reason, str) and reason in ADMISSION_REASON_CODES else "ADMISSION_RECEIPT_UNAVAILABLE",
+    }
+    for field in ("primary_configured", "backup_configured", "source_pin_configured", "bundle_pin_configured"):
+        result[field] = receipt.get(field) is True
+    for field in ("accepted_family_count", "rejected_family_count"):
+        value = receipt.get(field)
+        result[field] = value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else 0
+    history = receipt.get("history_status")
+    result["history_status"] = history if isinstance(history, str) and history in {
+        "ADMITTED", "REJECTED", "MISSING", "NOT_EVALUATED"
+    } else "NOT_EVALUATED"
+    result["history_reason"] = {
+        "ADMITTED": "HISTORY_FAMILY_ADMITTED", "REJECTED": "HISTORY_FAMILY_REJECTED",
+        "MISSING": "HISTORY_FAMILY_ABSENT", "NOT_EVALUATED": "HISTORY_NOT_EVALUATED",
+    }[result["history_status"]]
+    return result
+
 CLASSIFICATION = "CONTEXTUAL_NON_SCORING"
 FAMILY_MAX_AGE_SECONDS = {
     "historical_ohlcv": 7 * 86400,
@@ -170,10 +204,31 @@ def load_research_market_context(
     backup_root: str | Path | None = None,
     expected_source_sha: str | None = None,
     expected_bundle_id: str | None = None,
+    admission_receipt: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Load a verified retained bundle without network access or mutation."""
+    """Load retained context; optional diagnostic output never grants authority.
+
+    The receipt contains public reason codes, booleans and counts only. Failed
+    enrichment remains an empty dictionary; no path, exception or source value
+    is copied into the receipt, and existing admission/fallback gates remain.
+    """
+    receipt = admission_receipt if admission_receipt is not None else {}
+    receipt.clear()
+    receipt.update({
+        "schema": ADMISSION_RECEIPT_SCHEMA, "status": "UNAVAILABLE",
+        "reason": "ROOTS_NOT_CONFIGURED",
+        "primary_configured": root not in (None, ""),
+        "backup_configured": backup_root not in (None, ""),
+        "source_pin_configured": bool(expected_source_sha),
+        "bundle_pin_configured": bool(expected_bundle_id),
+        "attempts": [], "accepted_family_count": 0, "rejected_family_count": 0,
+        "history_status": "NOT_EVALUATED", "history_reason": "HISTORY_NOT_EVALUATED",
+    })
     symbol = _safe_ticker(ticker)
-    if not symbol or (root in (None, "") and backup_root in (None, "")):
+    if not symbol:
+        receipt["reason"] = "INVALID_TICKER"
+        return {}
+    if root in (None, "") and backup_root in (None, ""):
         return {}
     document = None
     supplied = ""
@@ -183,9 +238,14 @@ def load_research_market_context(
             continue
         try:
             proposed = json.loads((Path(candidate) / f"{symbol}.json").read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            receipt["attempts"].append({"source": label, "reason": "FILE_NOT_FOUND"})
+            continue
         except (OSError, ValueError, TypeError):
+            receipt["attempts"].append({"source": label, "reason": "FILE_UNREADABLE"})
             continue
         if not isinstance(proposed, dict) or not isinstance(proposed.get("families"), Mapping):
+            receipt["attempts"].append({"source": label, "reason": "SCHEMA_OR_LINEAGE_REJECTED"})
             continue
         proposed_hash = str(proposed.pop("record_sha256", ""))
         lineage = {
@@ -199,33 +259,60 @@ def load_research_market_context(
         }
         lineage_sha = hashlib.sha256(_canonical(lineage)).hexdigest()
         backup = proposed.get("backup_provenance") if isinstance(proposed.get("backup_provenance"), Mapping) else {}
-        if (
-            proposed.get("schema") == SCHEMA
-            and str(proposed.get("ticker") or "").upper() == symbol
-            and proposed.get("source_sha")
-            and proposed.get("lineage_sha256") == lineage_sha
-            and (not expected_source_sha or proposed.get("source_sha") == expected_source_sha)
-            and (not expected_bundle_id or proposed.get("bundle_id") == expected_bundle_id)
-            and (label != "BACKUP" or (
-                backup.get("independent_copy") is True
-                and backup.get("lineage_sha256") == lineage_sha
-            ))
-            and proposed_hash == hashlib.sha256(_canonical(proposed)).hexdigest()
+        rejection = None
+        if (proposed.get("schema") != SCHEMA
+                or str(proposed.get("ticker") or "").upper() != symbol
+                or not proposed.get("source_sha")
+                or proposed.get("lineage_sha256") != lineage_sha):
+            rejection = "SCHEMA_OR_LINEAGE_REJECTED"
+        elif expected_source_sha and proposed.get("source_sha") != expected_source_sha:
+            rejection = "SOURCE_PIN_MISMATCH"
+        elif expected_bundle_id and proposed.get("bundle_id") != expected_bundle_id:
+            rejection = "BUNDLE_PIN_MISMATCH"
+        elif label == "BACKUP" and not (
+            backup.get("independent_copy") is True and backup.get("lineage_sha256") == lineage_sha
         ):
+            rejection = "BACKUP_AUTHORITY_REJECTED"
+        elif proposed_hash != hashlib.sha256(_canonical(proposed)).hexdigest():
+            rejection = "RECORD_HASH_MISMATCH"
+        receipt["attempts"].append({"source": label, "reason": rejection or "BUNDLE_ACCEPTED"})
+        if rejection is None:
             document, supplied, cache_source = proposed, proposed_hash, label
             break
     if document is None:
+        reasons = [attempt["reason"] for attempt in receipt["attempts"]]
+        # Keep a rejected primary pin/hash visible when its optional backup is
+        # merely absent; all candidate outcomes remain in the safe receipt.
+        receipt["reason"] = next((reason for reason in reasons if reason != "FILE_NOT_FOUND"), "FILE_NOT_FOUND")
         return {}
     checked = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
     modules: dict[str, Any] = {}
     for key, envelope in (document.get("families") or {}).items():
         if not isinstance(envelope, Mapping) or envelope.get("capability") != key:
+            receipt["rejected_family_count"] += 1
             continue
         verified = _family(envelope, ticker=symbol, now=checked)
         if verified:
             modules[str(key)] = verified
+        else:
+            receipt["rejected_family_count"] += 1
+    receipt["accepted_family_count"] = len(modules)
+    receipt["history_status"] = (
+        "ADMITTED" if "historical_ohlcv" in modules else
+        "REJECTED" if "historical_ohlcv" in document["families"] else "MISSING"
+    )
+    receipt["history_reason"] = {
+        "ADMITTED": "HISTORY_FAMILY_ADMITTED", "REJECTED": "HISTORY_FAMILY_REJECTED",
+        "MISSING": "HISTORY_FAMILY_ABSENT",
+    }[receipt["history_status"]]
     if not modules:
+        receipt["reason"] = "NO_VERIFIED_FAMILIES"
         return {}
+    receipt["status"] = "AVAILABLE" if receipt["history_status"] == "ADMITTED" else "PARTIAL"
+    receipt["reason"] = (
+        "CONTEXT_ADMITTED" if receipt["history_status"] == "ADMITTED" else
+        "HISTORY_FAMILY_REJECTED" if receipt["history_status"] == "REJECTED" else "HISTORY_FAMILY_MISSING"
+    )
     modules["__atlas_ticker__"] = symbol
     modules["__read_model__"] = {
         "schema": SCHEMA,
@@ -265,6 +352,7 @@ def seal_research_market_bundle(document: Mapping[str, Any]) -> dict[str, Any]:
 
 
 __all__ = [
-    "CLASSIFICATION", "FAMILY_MAX_AGE_SECONDS", "SCHEMA",
+    "CLASSIFICATION", "FAMILY_MAX_AGE_SECONDS", "SCHEMA", "ADMISSION_RECEIPT_SCHEMA",
+    "public_admission_marker_values",
     "load_research_market_context", "seal_research_market_bundle",
 ]

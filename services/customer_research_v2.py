@@ -13,7 +13,7 @@ from typing import Any, Iterable, Mapping
 from services.customer_authority import customer_authority, customer_authority_identity
 from services.annual_financial_statements import annual_financial_statements
 from services.customer_statement_history_bundle import customer_statement_history
-from services.research_market_read_model import load_research_market_context
+from services.research_market_read_model import ADMISSION_RECEIPT_SCHEMA, load_research_market_context
 from services.institutional_research_report import build_institutional_research_report
 from services.research_financial_availability import (
     build_financial_availability, financial_context_sentence,
@@ -959,12 +959,19 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
         if not valid_statement_history:
             statement_history = {"status": "UNAVAILABLE", "reason": "STATEMENT_HISTORY_AUTHORITY_MISMATCH"}
     enrichment = _qa_enrichment(ticker)
+    admission_receipt = {
+        "schema": ADMISSION_RECEIPT_SCHEMA, "status": "NOT_RECORDED",
+        "reason": "ADMISSION_RECEIPT_UNAVAILABLE",
+    }
+    if enrichment:
+        admission_receipt.update(status="QA_ONLY", reason="QA_ENRICHMENT_USED")
     if not enrichment:
         enrichment = load_research_market_context(
             ticker, os.getenv("ATLAS_RESEARCH_MARKET_DATA_ROOT", "").strip(),
             backup_root=os.getenv("ATLAS_RESEARCH_MARKET_DATA_BACKUP_ROOT", "").strip(),
             expected_source_sha=os.getenv("ATLAS_RESEARCH_MARKET_EXPECTED_SOURCE_SHA", "").strip() or None,
             expected_bundle_id=os.getenv("ATLAS_RESEARCH_MARKET_EXPECTED_BUNDLE_ID", "").strip() or None,
+            admission_receipt=admission_receipt,
         )
     enrichment_ticker = str(enrichment.get("__atlas_ticker__") or ticker).strip().upper()
     if enrichment and enrichment_ticker != ticker:
@@ -1063,6 +1070,7 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
     market_context = {
         "status": "AVAILABLE" if enrichment.get("__read_model__") else ("QA_ONLY" if enrichment else "UNAVAILABLE"),
         **dict(_map(enrichment.get("__read_model__"))),
+        "admission_receipt": dict(admission_receipt),
     }
     financial_availability = build_financial_availability(
         ticker=ticker, snapshot=financial_snapshot, depth=financial_depth,

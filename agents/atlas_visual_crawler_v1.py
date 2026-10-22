@@ -46,6 +46,63 @@ from services.vnext_presentation_contract import (
 
 
 VISUAL_CRAWLER_VERSION = "ATLAS_VISUAL_CRAWLER_V1_1"
+
+# Keep this public marker decoder dependency-free: production QA installs only
+# Playwright/Pillow, not the financial read-model/calendar runtime. Tests bind
+# these code domains to the producer contract without broadening QA dependencies.
+_MARKET_ADMISSION_STATUS_CODES = frozenset({"AVAILABLE", "PARTIAL", "UNAVAILABLE", "QA_ONLY", "NOT_RECORDED"})
+_MARKET_ADMISSION_REASON_CODES = frozenset({
+    "INVALID_TICKER", "ROOTS_NOT_CONFIGURED", "FILE_NOT_FOUND", "FILE_UNREADABLE",
+    "SCHEMA_OR_LINEAGE_REJECTED", "SOURCE_PIN_MISMATCH", "BUNDLE_PIN_MISMATCH",
+    "BACKUP_AUTHORITY_REJECTED", "RECORD_HASH_MISMATCH", "NO_VERIFIED_FAMILIES",
+    "CONTEXT_ADMITTED", "HISTORY_FAMILY_REJECTED", "HISTORY_FAMILY_MISSING",
+    "QA_ENRICHMENT_USED", "ADMISSION_RECEIPT_UNAVAILABLE", "BUNDLE_ACCEPTED",
+})
+_MARKET_ADMISSION_MARKER_FIELDS = (
+    "status", "reason", "history_status", "primary_configured", "backup_configured",
+    "source_pin_configured", "bundle_pin_configured", "accepted_family_count", "rejected_family_count",
+)
+
+
+def _sanitize_market_admission_attributes(attributes: dict[str, Any]) -> dict[str, Any]:
+    status, reason = attributes.get("status"), attributes.get("reason")
+    result = {
+        "status": status if isinstance(status, str) and status in _MARKET_ADMISSION_STATUS_CODES else "NOT_RECORDED",
+        "reason": reason if isinstance(reason, str) and reason in _MARKET_ADMISSION_REASON_CODES else "ADMISSION_RECEIPT_UNAVAILABLE",
+    }
+    for field in ("primary_configured", "backup_configured", "source_pin_configured", "bundle_pin_configured"):
+        result[field] = attributes.get(field) in ("True", "true")
+    for field in ("accepted_family_count", "rejected_family_count"):
+        value = attributes.get(field)
+        result[field] = int(value) if isinstance(value, str) and re.fullmatch(r"[0-9]{1,7}", value) else 0
+    history = attributes.get("history_status")
+    result["history_status"] = history if isinstance(history, str) and history in {
+        "ADMITTED", "REJECTED", "MISSING", "NOT_EVALUATED"
+    } else "NOT_EVALUATED"
+    result["history_reason"] = {
+        "ADMITTED": "HISTORY_FAMILY_ADMITTED", "REJECTED": "HISTORY_FAMILY_REJECTED",
+        "MISSING": "HISTORY_FAMILY_ABSENT", "NOT_EVALUATED": "HISTORY_NOT_EVALUATED",
+    }[result["history_status"]]
+    return result
+
+
+async def _market_admission_evidence(page: Page, ticker: str) -> dict[str, Any]:
+    """Collect only enumerated marker fields; never DOM text, paths or bars."""
+    for scope in _scopes(page):
+        try:
+            marker = scope.locator(f'[data-atlas-qa="research-v2-market-admission"][data-atlas-ticker="{ticker}"]')
+            if not await marker.count():
+                continue
+            attributes = {
+                field: await marker.last.get_attribute("data-atlas-" + field.replace("_", "-"))
+                for field in _MARKET_ADMISSION_MARKER_FIELDS
+            }
+            return {"marker_present": True, **_sanitize_market_admission_attributes(attributes)}
+        except Exception:
+            # Diagnostics never replace or bypass the chart's existing assertion.
+            continue
+    return {"marker_present": False, **_sanitize_market_admission_attributes({})}
+
 RISK_CAPTURE_REQUIRED_CONTENT = (
     "Risk & Evidence", "Company-specific measured risks", "General monitoring conditions",
 )
@@ -2812,6 +2869,7 @@ class AtlasVisualCrawler:
     async def _annotated_chart_evidence(self, page: Page, ticker: str, viewport: str) -> bool:
         """Require the actual active customer chart, not a legacy renderer/JSON token."""
         started = time.monotonic()
+        admission = await _market_admission_evidence(page, ticker)
         passed = False
         shot = ""
         for scope in _scopes(page):
@@ -2838,7 +2896,7 @@ class AtlasVisualCrawler:
                 break
         await self._record(category="RESEARCH_CHART", page_name="Research Any Ticker", interaction="active-four-panel-chart",
                            expected="Exact ticker-owned active customer chart visibly renders four panels",
-                           observed=f"ticker={ticker}; four_panels={passed}; actual_chart_screenshot={bool(shot)}",
+                           observed=f"ticker={ticker}; four_panels={passed}; actual_chart_screenshot={bool(shot)}; market_admission={json.dumps(admission, sort_keys=True)}",
                            passed=passed, elapsed=time.monotonic()-started, ticker=ticker, viewport=viewport,
                            screenshots=(shot,), severity="P1", required=True)
         return passed

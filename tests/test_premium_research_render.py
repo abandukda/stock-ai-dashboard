@@ -45,6 +45,11 @@ class PremiumResearchRender(unittest.TestCase):
                                     page.locator('[data-testid="stPlotlyChart"]').first.scroll_into_view_if_needed()
                                     page.wait_for_selector('.y4title',state='attached',timeout=30000)
                                     self.assertTrue(page.locator('.y4title').count())
+                                    # Currency in chart prose must stay literal, never become a math expression.
+                                    outlook = page.locator('[data-testid="stCaptionContainer"]').filter(has_text="Latest supplied close")
+                                    self.assertEqual(outlook.count(), 1)
+                                    self.assertIn("$", outlook.inner_text())
+                                    self.assertEqual(outlook.locator(".katex").count(), 0)
                                     self.assertLessEqual(page.evaluate('document.documentElement.scrollWidth'),width+1)
                                     capture_complete_streamlit(page,target/f'GENERATED_{ticker}_{width}_SIMPLE.png')
                                     page.get_by_role('tab',name='Detailed View',exact=True).click()
