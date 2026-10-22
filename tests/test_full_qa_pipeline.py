@@ -76,3 +76,24 @@ def test_developer_center_exposes_latest_qa_timing_summary():
     source = (Path(__file__).resolve().parents[1] / "ui/developer_center.py").read_text()
     assert "Latest QA timing" in source
     assert 'qa.get("qa_timing")' in source
+
+
+@pytest.mark.parametrize("candidate,accepted", [
+    ("",False),("qa:",False),("qa:123",True),("full-universe:37216506983",True),
+    ("publication:123",True),("123",True),("123\nrun_id=456",False),("latest",False),
+])
+def test_full_qa_requires_existing_candidate_without_provider_acquisition(candidate,accepted):
+    import os, subprocess, yaml
+    workflow=yaml.safe_load(Path(".github/workflows/atlas_full_qa_certification.yml").read_text())
+    backend=workflow["jobs"]["backend-certification"]
+    first=backend["steps"][0]
+    assert first["name"]=="Require existing candidate before setup"
+    result=subprocess.run(["bash","-c",first["run"]],env={**os.environ,"RETAINED_CANDIDATE":candidate},capture_output=True,text=True)
+    assert (result.returncode==0)==accepted
+    if not accepted:
+        assert result.returncode==78 and "RETAINED_CANDIDATE_REQUIRED" in result.stdout
+    assert backend["env"]["ATLAS_QA_PROVIDER_CALLS_ALLOWED"]=="0"
+    assert backend["env"]["TWELVE_DATA_ENABLED"]=="false"
+    assert backend["env"]["ATLAS_ALLOW_EXTERNAL_AI"]=="false"
+    assert not any("API_KEY" in key for key in backend["env"])
+    assert "python overnight_market_scan.py" not in str(backend["steps"])
