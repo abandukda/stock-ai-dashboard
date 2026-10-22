@@ -3949,6 +3949,21 @@ class AtlasVisualCrawler:
                 return False
         return True
 
+    async def _wait_diagnostic_route_ready(self, page: Page, page_name: str, *, timeout_seconds: float = 15) -> None:
+        """Observe the same navigation generation; never re-click or retry it."""
+        async def observe() -> None:
+            while True:
+                if await _has_rendered_exception(page):
+                    raise GlobalCrawlFailure("DIAGNOSTIC_APPLICATION_EXCEPTION")
+                if (await self._current_route_visible(page, page_name)
+                        and await _page_render_complete(page, page_name)):
+                    return
+                await page.wait_for_timeout(100)
+        try:
+            await asyncio.wait_for(observe(), timeout=timeout_seconds)
+        except asyncio.TimeoutError as exc:
+            raise GlobalCrawlFailure("DIAGNOSTIC_RENDER_INCOMPLETE") from exc
+
     async def _capture_chart_failure_views(self, page: Page) -> None:
         """Capture existing Home/Research only; no submits, retries or certification."""
         for viewport_name, viewport in (("mobile_360", {"width": 360, "height": 900}), ("tablet_768", NARROW_TABLET)):
@@ -3959,8 +3974,7 @@ class AtlasVisualCrawler:
                 navigated, _, _ = await asyncio.wait_for(_navigate(page, page_name), timeout=15)
                 if not navigated:
                     raise GlobalCrawlFailure("DIAGNOSTIC_NAVIGATION_FAILED")
-                if not await asyncio.wait_for(_page_render_complete(page, page_name), timeout=15):
-                    raise GlobalCrawlFailure("DIAGNOSTIC_RENDER_INCOMPLETE")
+                await self._wait_diagnostic_route_ready(page, page_name)
                 # Recheck source and role after each navigation before saving content.
                 await self._customer_navigation_contract(page)
                 await self._role_isolation_contract(page, expected_role="customer_viewer")

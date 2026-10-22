@@ -1,0 +1,19 @@
+{
+  "main": "e342957a7d363886ca884973ddb85af1cc8fd34f",
+  "production_run": 39806077736,
+  "artifact_id": 12438097056,
+  "artifact_sha256": "e3777435a763499eebabbc77fd1fefefcf2b9e3ea9c41c1aeeb144b36f5ea952",
+  "deployed_source_exact": true,
+  "authentication_success": true,
+  "required_checks": {"attempted":22,"passed":20,"failed":2},
+  "screenshots":16,
+  "original_failure":"REQUIRED_RESEARCH_FAILED_NVDA",
+  "post_failure_diagnostic":{"status":"STOPPED","error_category":"DIAGNOSTIC_RENDER_INCOMPLETE","acceptance":false},
+  "repair":"Observe the same selected route until its completed-render marker, bounded by15seconds; preserve120second total diagnostic ceiling. Never re-click navigation or retry chart/credentials. Fail immediately on application exceptions.",
+  "history_delivery":"NOT_AUTHORIZED",
+  "current_certified_cycle":"NOT_COMPLETED",
+  "original_host_backup_authority":"UNVERIFIED",
+  "ledger_writes":false,
+  "provider_calls":0,
+  "public_report_card_activation":false
+}
