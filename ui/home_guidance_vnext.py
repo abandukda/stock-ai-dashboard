@@ -1422,7 +1422,8 @@ def _render_groups(story: Mapping[str, Any], *, emit_interactive) -> None:
     st.markdown("## Strongest Opportunities")
     st.caption(
         f"Showing {visible} featured idea{'s' if visible != 1 else ''} from {total} total certified BUY NOW "
-        "opportunities. Featured order follows the published ranking; these are decisions, not performance results."
+        "opportunities. Featured order follows the published ranking; these are decisions, not performance results. "
+        "ATLAS Fair Value is an estimate, not a guaranteed return."
     )
     if not actionable:
         empty = story.get("home_opportunity_empty_state") if isinstance(story.get("home_opportunity_empty_state"), Mapping) else {}
