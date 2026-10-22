@@ -4,6 +4,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from enum import Enum
 import hashlib
+import hmac
+import secrets
 import json
 import os
 from typing import Any, Callable, Mapping
@@ -15,6 +17,8 @@ from services.provider_domain_contracts import (
     ProvenanceEnvelope, UsePermission,
 )
 
+
+_CACHE_PARTITION_KEY = secrets.token_bytes(32)
 
 TRANSCRIPT_ADAPTER_VERSION = "ATLAS_TRANSCRIPT_ADAPTER_V2"
 TRANSCRIPT_DERIVATION_VERSION = "ATLAS_TRANSCRIPT_DERIVATION_V1"
@@ -95,6 +99,16 @@ class ConfiguredTranscriptProvider:
         )
         self._get = get
 
+    def cache_partition(self) -> str:
+        """Opaque process-local identity; never serialize credentials or this token.
+
+        Provider name alone cannot isolate accounts, endpoints or display rights.
+        Keyed hashing also prevents offline guessing of credential values.
+        """
+        identity = json.dumps([self._provider, self._base, self._key, self._license.value,
+                               TRANSCRIPT_ADAPTER_VERSION], separators=(",", ":")).encode()
+        return hmac.new(_CACHE_PARTITION_KEY, identity, hashlib.sha256).hexdigest()
+
     def transcript(self, symbol: str, *, year: int, quarter: int) -> GovernedRecord:
         ticker = str(symbol).upper().strip()
         captured = _now()
@@ -142,7 +156,7 @@ class ConfiguredTranscriptProvider:
         provenance = ProvenanceEnvelope(
             provider=self._provider, dataset_family=DatasetFamily.OPTIONAL_QUALITATIVE_INTELLIGENCE,
             endpoint_or_source_family="EARNINGS_TRANSCRIPT", symbol=ticker,
-            canonical_security_id=ticker, source_timestamp=str(payload.get("call_date") or "") or None,
+            canonical_security_id=ticker, source_timestamp=str(payload.get("call_date") or payload.get("conference_date") or "") or None,
             capture_timestamp=captured, effective_period=f"{resolved_year}-Q{resolved_quarter}", fiscal_period=f"Q{resolved_quarter} {resolved_year}",
             raw_evidence_id=f"TRANSCRIPT:{transcript_id}:{content_hash[:20]}", content_hash=content_hash,
             freshness_status="CAPTURED", certification_status=CertificationStatus.UNVERIFIED_SHADOW,

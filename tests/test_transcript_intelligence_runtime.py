@@ -248,3 +248,47 @@ def test_explicit_external_ai_opt_in_uses_injected_stub_without_network(monkeypa
         provider=_provider([]), allow_external_ai=True)
     assert calls == ['MSFT']
     assert result.operation_metadata['grounding_status'] == 'PASS'
+
+
+def test_cache_does_not_launder_display_rights_between_provider_instances():
+    clear_transcript_runtime_cache()
+    first = retrieve_and_summarize_transcript(
+        "NVDA", year=2026, quarter=2, provider=_provider([]), summarizer=_summary,
+    )
+    assert first.customer_projection["semantic_status"] == "AVAILABLE"
+    calls = []
+    second = retrieve_and_summarize_transcript(
+        "NVDA", year=2026, quarter=2,
+        provider=_provider(calls, license_state="DEVELOPMENT_PRECOMMERCIAL"), summarizer=_summary,
+    )
+    assert calls
+    assert second.customer_projection["semantic_status"] == "DATA_UNAVAILABLE"
+    assert second.operation_metadata["cache_status"] == "CACHE_MISS"
+
+
+def test_cache_partition_includes_account_and_endpoint_without_exposing_key():
+    provider = _provider([])
+    partition = provider.cache_partition()
+    assert len(partition) == 64
+    assert partition == _provider([]).cache_partition()
+    for attr, value in (("_key", "another-account"), ("_base", "https://other.invalid")):
+        other = _provider([])
+        setattr(other, attr, value)
+        assert other.cache_partition() != partition
+    assert "secret" not in partition
+
+
+def test_unavailable_transcript_can_be_retried_when_new_call_arrives():
+    clear_transcript_runtime_cache()
+    calls = []
+    provider = _provider(calls)
+    original = provider.transcript
+    unavailable = ConfiguredTranscriptProvider(api_key="", provider_name="earningscall")
+    provider.transcript = unavailable.transcript
+    first = retrieve_and_summarize_transcript("MSFT", year=2026, quarter=2, provider=provider)
+    assert first.operation_metadata["transcript_status"] == "UNAVAILABLE"
+    provider.transcript = original
+    second = retrieve_and_summarize_transcript("MSFT", year=2026, quarter=2, provider=provider)
+    assert second.operation_metadata["transcript_status"] == "AVAILABLE"
+    assert second.operation_metadata["ai_summary_status"] != "PASS"
+    assert second.operation_metadata["cache_status"] == "CACHE_MISS"

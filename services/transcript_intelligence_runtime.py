@@ -310,7 +310,7 @@ def retrieve_and_summarize_transcript(
     A configured API key alone is not authorization.
     """
     provider = provider or ConfiguredTranscriptProvider()
-    key = (str(symbol).upper(), int(year), int(quarter), _provider_name(provider))
+    key = (str(symbol).upper().strip(), int(year), int(quarter), provider.cache_partition())
     cache_hit = key in _REQUEST_CACHE
     evidence = _REQUEST_CACHE.get(key)
     provider_calls = 0
@@ -321,8 +321,11 @@ def retrieve_and_summarize_transcript(
         resolved_year = int(evidence.payload.get("year") or year)
         resolved_quarter = int(evidence.payload.get("quarter") or quarter)
         identity_key = (key[0], resolved_year, resolved_quarter, key[3], evidence_id)
-        evidence = _EVIDENCE_CACHE.setdefault(identity_key, evidence)
-        _REQUEST_CACHE[key] = evidence
+        # Missing/denied responses must not poison the cache indefinitely. A
+        # later separately authorized request can discover a newly released call.
+        if evidence.payload.get("raw_content_hash") and evidence.payload.get("raw_content"):
+            evidence = _EVIDENCE_CACHE.setdefault(identity_key, evidence)
+            _REQUEST_CACHE[key] = evidence
     raw = evidence.payload.get("raw_content")
     insight = None
     projection: Mapping[str, Any] = {
@@ -373,6 +376,7 @@ def retrieve_and_summarize_transcript(
         "provider": evidence.provenance.provider,
         "capture_timestamp": evidence.provenance.capture_timestamp,
         "license_state": evidence.provenance.license_class,
+        "transcript_status": "AVAILABLE" if isinstance(raw, str) and raw.strip() else "UNAVAILABLE",
         "grounding_status": grounding, "ai_summary_status": ai_status,
         "grounding_violations": list(violations) if isinstance(raw, str) and raw.strip() else [],
         "claim_diagnostics": list(claim_diagnostics) if isinstance(raw, str) and raw.strip() else [],

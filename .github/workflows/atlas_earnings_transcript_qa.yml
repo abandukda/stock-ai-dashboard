@@ -2,6 +2,32 @@ name: ATLAS Earnings Transcript Functional QA
 
 on:
   workflow_dispatch:
+    inputs:
+      approved_source_sha:
+        description: Exact main SHA separately approved for transcript acquisition
+        required: true
+        type: string
+      acquisition_authorization:
+        description: AUTHORIZE_TRANSCRIPT_QA:<exact SHA>
+        required: true
+        type: string
+      allow_external_ai:
+        description: Enable only with separate external AI execution approval
+        default: false
+        type: boolean
+      ai_authorization:
+        description: AUTHORIZE_TRANSCRIPT_AI:<exact SHA> when AI is separately approved
+        required: false
+        type: string
+  pull_request:
+    branches: [main]
+    paths:
+      - services/transcript*.py
+      - services/research_history_ingestion.py
+      - tests/test_transcript*.py
+      - tests/test_earnings_transcript_workflow.py
+      - tests/test_research_history_ingestion.py
+      - .github/workflows/atlas_earnings_transcript_qa.yml
   push:
     branches:
       - codex/full-universe-closure-temp
@@ -19,33 +45,73 @@ permissions:
   contents: read
 
 jobs:
-  transcript-functional-qa:
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    env:
-      PYTHONPATH: "."
-      ATLAS_TRANSCRIPT_API_KEY: ${{ secrets.EARNINGSCALL_API_KEY }}
-      ATLAS_TRANSCRIPT_API_BASE_URL: https://v2.api.earningscall.biz
-      ATLAS_TRANSCRIPT_PROVIDER: earningscall
-      ATLAS_TRANSCRIPT_LICENSE_STATE: DEVELOPMENT_DERIVED_DISPLAY_ALLOWED
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+  provider-free:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt pytest pyyaml
+      - name: Provider-free ingestion and transcript regressions
+        run: >-
+          python -m pytest -q
+          tests/test_research_history_ingestion.py
+          tests/test_research_market_read_model.py
+          tests/test_research_refresh_execution.py
+          tests/test_daily_buy_now_post_close.py
+          tests/test_phase9d_customer_foundation.py
+          tests/test_beta_product_foundation.py
+          tests/test_authentication_roles.py
+          tests/test_transcript_provider_contract.py
+          tests/test_transcript_intelligence_runtime.py
+          tests/test_earnings_transcript_workflow.py
+          tests/test_atlas_vnext_earnings.py
+          tests/test_provider_family_boundary_adversarial.py
+
+  transcript-functional-qa:
+    needs: provider-free
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.actor == 'abandukda' && github.ref == 'refs/heads/main' &&
+      inputs.approved_source_sha == github.sha &&
+      inputs.acquisition_authorization == format('AUTHORIZE_TRANSCRIPT_QA:{0}', github.sha) &&
+      (!inputs.allow_external_ai || inputs.ai_authorization == format('AUTHORIZE_TRANSCRIPT_AI:{0}', github.sha))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.approved_source_sha }}
+          persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
       - run: pip install -r requirements.txt
-      - name: Run governed transcript and Earnings tests
-        run: >-
-          pytest -q
-          tests/test_transcript_provider_contract.py
-          tests/test_transcript_intelligence_runtime.py
-          tests/test_atlas_vnext_earnings.py
-          tests/test_provider_family_boundary_adversarial.py
-      - name: Run bounded live EarningsCall and AI QA
+      - name: Run separately authorized EarningsCall QA
+        env:
+          PYTHONPATH: "."
+          ATLAS_TRANSCRIPT_API_KEY: ${{ secrets.EARNINGSCALL_API_KEY }}
+          ATLAS_TRANSCRIPT_API_BASE_URL: https://v2.api.earningscall.biz
+          ATLAS_TRANSCRIPT_PROVIDER: earningscall
+          ATLAS_TRANSCRIPT_LICENSE_STATE: DEVELOPMENT_DERIVED_DISPLAY_ALLOWED
+          OPENAI_API_KEY: ${{ inputs.allow_external_ai && secrets.OPENAI_API_KEY || '' }}
+          ALLOW_AI: ${{ inputs.allow_external_ai }}
+          EXPECTED_SHA: ${{ inputs.approved_source_sha }}
         run: |
-          test -n "$OPENAI_API_KEY"
-          python scripts/earnings_transcript_live_qa.py --symbols AAPL,MSFT,NVDA --require-ai
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -n "$ATLAS_TRANSCRIPT_API_KEY"
+          if [ "$ALLOW_AI" = "true" ]; then
+            test -n "$OPENAI_API_KEY"
+            python scripts/earnings_transcript_live_qa.py --symbols AAPL,MSFT,NVDA --require-ai
+          else
+            python scripts/earnings_transcript_live_qa.py --symbols AAPL,MSFT,NVDA
+          fi
       - name: Assert analytical and production artifacts unchanged
         run: |
           if ! git diff --quiet -- market_full_scan.json market_prescreen.json market_scan_state.json publication_manifest.json; then
