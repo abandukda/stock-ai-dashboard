@@ -1,0 +1,63 @@
+name: ATLAS Execution Monitor Review Only
+# Proposed cadence after separate activation approval: */5 * * * *
+# Deliberately NO schedule or workflow_run trigger. No notification writes.
+on:
+  workflow_dispatch:
+    inputs:
+      previous_fingerprint:
+        description: 'Prior reviewed fingerprint; empty means initial observation'
+        required: false
+        type: string
+permissions:
+  contents: read
+  actions: read
+  pull-requests: read
+concurrency:
+  group: atlas-monitor-review
+  cancel-in-progress: false
+jobs:
+  snapshot:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Read bounded public execution state
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          mkdir -p audit_results/monitor
+          gh api "repos/$GH_REPO/branches/main" > audit_results/monitor/main.json
+          gh api "repos/$GH_REPO/actions/runs?per_page=100" > audit_results/monitor/runs.json
+          gh api "repos/$GH_REPO/pulls?state=open&per_page=100" > audit_results/monitor/pulls.json
+      - name: Produce deterministic read-only receipt
+        env:
+          PREVIOUS_FINGERPRINT: ${{ inputs.previous_fingerprint }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          from scripts.atlas_execution_monitor import receipt
+          root=Path('audit_results/monitor')
+          def read(name): return json.loads((root/name).read_text())
+          runs=read('runs.json')
+          pulls=read('pulls.json')
+          if runs['total_count'] > 100 or len(pulls) >= 100:
+              # Snapshot is deliberately bounded, never advertised as full history.
+              scope='LATEST_100_RUNS_OPEN_PRS_BOUNDED'
+          else:
+              scope='AVAILABLE_EXECUTION_STATE'
+          value=receipt({'main_sha':read('main.json')['commit']['sha'],
+                         'runs':runs['workflow_runs'], 'pulls':pulls}, os.environ['PREVIOUS_FINGERPRINT'])
+          value['coverage']=scope
+          (root/'receipt.json').write_text(json.dumps(value,indent=2,sort_keys=True)+'\n')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atlas-monitor-review-${{ github.run_id }}
+          path: audit_results/monitor/receipt.json
+          if-no-files-found: error
+          retention-days: 30

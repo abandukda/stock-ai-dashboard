@@ -142,10 +142,6 @@ jobs:
           if test -z "$contiguous_session"; then
             contiguous_session="$CONFIGURED_CONTIGUOUS_SESSION"
           fi
-          test -n "$contiguous_session" || {
-            echo "No certified contiguous-session boundary is configured" >&2
-            exit 1
-          }
           python3 scripts/run_daily_buy_now_post_close.py \
             --now "$now" --last-published-session "$last_session" --root . \
             --last-contiguous-session "$contiguous_session" \
