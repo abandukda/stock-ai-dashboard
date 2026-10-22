@@ -98,7 +98,7 @@
       "priority": "P1",
       "requirement": "Premium Home and beginner/institutional Research; briefing/Top15/risk; annotated charts; NVDA/MSFT/META; permitted transcripts and grounded AI",
       "current_stage": "PARTIAL_LIVE_VERIFIED",
-      "source_sha": "c45b9da52d6a58df3289d53e74f4583b20b38aa9",
+      "source_sha": "041ded97b71307f90c763cfc491153bca6a35f91",
       "stages": {
         "built": "PARTIAL",
         "tested": "PARTIAL",
@@ -106,11 +106,9 @@
         "deployed": true,
         "live_verified": "PARTIAL: CUSTOMER BASELINE ONLY"
       },
-      "test_evidence": "Production83/83checks;71screens; clipped mobile nav repaired only in PR110",
+      "test_evidence": "83/83 actual authenticated production checks;71screens;8Researchsubmissions. Manually inspected NVDA/MSFTmobile and768tabletHome; NVDA mobile navigation visible.",
       "workflow_ids": [
-        "39695810692",
-        "39696841098",
-        "39696841071"
+        "39705466623"
       ],
       "artifact": {
         "readiness_sha256": "a8d7f7c16a3dbcca4f39da231a3da4e878547071ff89c613c71d593764ad4b25",
@@ -119,7 +117,7 @@
       },
       "data_freshness": "Retained Oct4 snapshot / history Oct2; META absent",
       "blocker": "No current briefing; original mockups unavailable; Support/Resistance labels and comprehensive tablet journeys incomplete; transcript rights not certified",
-      "next_action": "Review PR1108c33d99aa5cd3f2f72d06f21f7f76dffd50d107d; implement deterministic labels without scoring changes; screenshot NVDA/MSFT/historicalAMZN at desktop/tablet/mobile",
+      "next_action": "Complete exact-current main QA after reviewed initial-shell settling fix; full premium/annotated chart acceptance remains open.",
       "approval": "Exact-head merge; original approved mockups; separate paidAI/publication approval if needed",
       "last_updated": "2026-10-22T00:55:00Z"
     },
@@ -162,7 +160,7 @@
       "stages": {
         "built": "PARTIAL",
         "tested": "PARTIAL",
-        "merged": false,
+        "merged": "PR110-114 YES; next gate repair REVIEW ONLY",
         "deployed": false,
         "live_verified": false
       },
@@ -177,38 +175,32 @@
         "production_artifact_sha256": "ba66e6723b8e0d7745a8c917a0a6f60189eba0d40975e44dd98aa8d8e1403917"
       },
       "data_freshness": "Live source last verified c45b9da",
-      "blocker": "Monitor foundation lacks runner/approval/live/data authority adapters, durable baseline and notifications; Autopilot draft PR permission denied",
+      "blocker": "Current exactSHA shell observed IN_PROGRESS before login ready; currentmain live acceptance withheld. Full five-minute monitor still incomplete and disabled.",
       "next_action": "Review operations PR; implement adapters/durable dedup/isolated issue reporter; keep schedules absent pending approval",
       "approval": "Exact-head merge; separate unattended monitor activation; owner-reviewed PR path without broadening Actions permissions",
       "last_updated": "2026-10-22T00:55:00Z"
     }
   ],
-  "current_main_sha": "041ded97b71307f90c763cfc491153bca6a35f91",
+  "current_main_sha": "cbcf044153f540affc960da8f7e9000b5c116bc5",
   "latest_execution": {
-    "baseline_sha": "3126e5e13048c496765e1a9b08ada65e78765921",
-    "merged_prs": [
-      110,
-      111,
-      112
-    ],
-    "production_qa_run": 39703905220,
-    "production_qa_result": "FAIL: post-login ImportError in v784_top_nav",
-    "source_gate": "PASS exact4f5e7bb35f72c0feb66ec04673d4c5487203519a",
-    "artifact_id": 12393668703,
-    "artifact_sha256": "fff356c37f300bb7b1bccf4e0fdb2bc24b6f210a4ac08ed4c59350bc00f2dbe7",
-    "root_cause_limit": "ImportError confirmed. Stale module reproduced locally; host sys.modules not directly inspected.",
-    "repair": "Independent presentation module; actual navigation tested with legacy contract cached",
-    "live_verified": false,
-    "repair_merged_sha": "041ded97b71307f90c763cfc491153bca6a35f91",
-    "followup": {
-      "run39703996717": "FAIL82/83; MSFT Home drilldown remained Home;71screens",
-      "artifact12393224722_sha256": "47831d7101ede06db915cb4a7ad9a259241de0200b2c1e38103a0bfdfe35d828",
-      "run39704178633": "FAIL:74/74required;79/79attempted;62screens;tablet navigation20second timeout, unfinished summary",
-      "artifact12394916179_sha256": "1b34c4b2e99c7eafb0ec428c8cf7064a9d9903ee288e5371099922deb49d868b",
-      "latest_run": 39705466623,
-      "latest_result": "IN_PROGRESS; no live acceptance claimed",
-      "review_repair": "Require checked destination radio; preserve20secondtablet bound and record timeout screenshot/defect before fatal finalization",
-      "local_regressions": "82PASS"
-    }
+    "current_main_sha": "cbcf044153f540affc960da8f7e9000b5c116bc5",
+    "verified_customer_sha": "041ded97b71307f90c763cfc491153bca6a35f91",
+    "verified_customer_run": 39705466623,
+    "verified_customer_result": "SUCCESS83/83;74/74required;71screens;8Researchsubmissions;26pages",
+    "verified_customer_artifact": 12394333956,
+    "verified_customer_artifact_sha256": "2c0cbbca024a176a6bef7c4b91b6f6546cad798f76ef7ecfa0d2b3c3376d31cc",
+    "current_main_run": 39706426002,
+    "current_main_result": "FAIL before authentication: exact expectedSHA observed with IN_PROGRESS, shell gate returned too early",
+    "current_main_artifact": 12395437046,
+    "current_main_artifact_sha256": "6bd2151683c020fa6b4c92b3c2e2b781950f70df36d1138cbf8194187e040ed4",
+    "daily_receipt_run": 39705613734,
+    "daily_receipt_result": "FAIL_CLOSED missing certified boundary; zero provider/production writes; sanitized receipt saved",
+    "daily_artifact": 12394478714,
+    "daily_artifact_sha256": "a7b98caf07d95178e6d8d00b46d94d4dcc5493647097b6f655be7dff8b45022a",
+    "review_repair": "Settle exactSHA IN_PROGRESS inside EXISTING45secondinitialshellbound. Unchanged wrongSHA/fatal/credential/browser gates and16priorSHApropagationattempts.",
+    "local_tests": "22PASS+6subtests",
+    "private_report_card_live_verified": false,
+    "current_certified_market_data": false,
+    "design_parity": false
   }
 }
