@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import ast
 from pathlib import Path
 
 import pytest
@@ -201,8 +202,8 @@ def test_customer_foundation_is_provider_independent_and_not_wired_to_scanner_or
     customer_source = "\n".join(path.read_text() for path in (root / "services/customer").glob("*.py"))
     for provider in ("alpaca", "finnhub", "twelve data", "algoseek", "newsapi", "fmp_api_key"):
         assert provider not in customer_source.lower()
-    assert "services.customer" not in (root / "overnight_market_scan.py").read_text()
-    assert "services.customer" not in (root / "app.py").read_text()
+    assert not _imports_customer_package((root / "overnight_market_scan.py").read_text())
+    assert not _imports_customer_package((root / "app.py").read_text())
     assert "market_full_scan.json" not in customer_source
 
 
@@ -210,3 +211,31 @@ def test_customer_foundation_does_not_touch_methodology_gates() -> None:
     root = Path(__file__).resolve().parents[1]
     assert 'TECHNICAL_MODEL_VERSION = "BULL_RUN_RADAR_V1_PROVISIONAL"' in (root / "services/technical_intelligence/config.py").read_text()
     assert "JUSTIFIED_MULTIPLE_FRAMEWORK_APPROVED = False" in (root / "engines/ai_valuation.py").read_text()
+
+
+def _imports_customer_package(source: str) -> bool:
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.Import):
+            names = [alias.name for alias in node.names]
+        elif isinstance(node, ast.ImportFrom):
+            names = [node.module or ""]
+            if node.module == "services":
+                names += ["services." + alias.name for alias in node.names]
+        else:
+            continue
+        if any(name == "services.customer" or name.startswith("services.customer.") for name in names):
+            return True
+    return False
+
+
+@pytest.mark.parametrize("source", [
+    "import services.customer", "import services.customer.service as account",
+    "from services.customer import service", "from services.customer.repository import CustomerRepository",
+    "from services import customer",
+])
+def test_customer_boundary_rejects_real_package_imports(source):
+    assert _imports_customer_package(source)
+
+
+def test_customer_boundary_allows_unrelated_financial_authority_module():
+    assert not _imports_customer_package("from services.customer_authority import customer_authority")

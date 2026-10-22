@@ -63,6 +63,9 @@ jobs:
           tests/test_research_market_read_model.py
           tests/test_research_refresh_execution.py
           tests/test_daily_buy_now_post_close.py
+          tests/test_phase9d_customer_foundation.py
+          tests/test_beta_product_foundation.py
+          tests/test_authentication_roles.py
           tests/test_transcript_provider_contract.py
           tests/test_transcript_intelligence_runtime.py
           tests/test_earnings_transcript_workflow.py
