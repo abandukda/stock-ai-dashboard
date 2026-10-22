@@ -45,7 +45,7 @@ class PremiumHomeRender(unittest.TestCase):
         with socket.socket() as sock:
             sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
         target=Path('audit_results/premium_home');target.mkdir(parents=True,exist_ok=True)
-        env=dict(os.environ,PYTHONPATH=str(Path.cwd()),ATLAS_QA_PROVIDER_CALLS_ALLOWED='0',ATLAS_ALLOW_EXTERNAL_AI='false',ATLAS_CUSTOMER_REPORT_CARD_ENABLED='false')
+        env=dict(os.environ,PYTHONPATH=os.pathsep.join(filter(None,(str(Path.cwd()),os.environ.get('PYTHONPATH','')))),ATLAS_QA_PROVIDER_CALLS_ALLOWED='0',ATLAS_ALLOW_EXTERNAL_AI='false',ATLAS_CUSTOMER_REPORT_CARD_ENABLED='false')
         with (target/'fixture_server.log').open('w') as log:
             process=subprocess.Popen([sys.executable,'-m','streamlit','run','scripts/premium_home_review_fixture.py','--server.address=127.0.0.1',f'--server.port={port}','--server.headless=true','--browser.gatherUsageStats=false','--theme.base=dark'],env=env,stdout=log,stderr=subprocess.STDOUT)
             try:
@@ -78,6 +78,16 @@ class PremiumHomeRender(unittest.TestCase):
                             self.assertTrue(page.get_by_text('Public activation OFF',exact=False).count())
                             capture_complete_streamlit(page,target/f'GENERATED_HOME_{width}.png')
                             page.get_by_text('View all 4 BUY NOW opportunities',exact=True).click()
+                            search=page.get_by_role('textbox',name='Find an opportunity',exact=True)
+                            search.fill('fixture_a');search.press('Enter')
+                            page.get_by_text('Showing 1 of 4 published opportunities',exact=False).wait_for()
+                            capture_complete_streamlit(page,target/f'GENERATED_HOME_SEARCH_{width}.png')
+                            self.assertTrue(page.locator('[class~="st-key-compact_cta_home_all_certified_FIXTURE_A"]').get_by_role('button').is_visible())
+                            search.fill('no-such-published-company');search.press('Enter')
+                            page.get_by_text('No published opportunities match your search.',exact=False).wait_for()
+                            self.assertEqual(page.locator('[class~="st-key-compact_cta_home_all_certified_FIXTURE_A"]').count(),0)
+                            search.fill('');search.press('Enter')
+                            page.get_by_text('Showing 4 of 4 published opportunities',exact=False).wait_for()
                             owned=page.locator('[class~="st-key-compact_cta_home_governed_quick_CODA"]')
                             owned.get_by_role('button',name='View Research →',exact=True).click()
                             page.wait_for_selector('[data-fixture-selected-ticker="CODA"]',state='attached',timeout=30000)

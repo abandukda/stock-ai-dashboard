@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
+import re
 from datetime import date, datetime, time, timedelta, timezone
 from typing import Any, Mapping, Sequence
 
@@ -135,6 +137,23 @@ def build_history_backfill_plan(
     return plan
 
 
+def validate_ohlcv_bar(row: Mapping[str, Any]) -> None:
+    """Reject malformed values before any observation can become certified.
+
+    Do not coerce strings/bools or repair inconsistent prices: preserved source
+    bytes remain the authority, and invalid evidence requires explicit recovery.
+    """
+    for field in ("open", "high", "low", "close", "volume"):
+        value = row.get(field)
+        if type(value) not in (int, float) or not math.isfinite(value):
+            raise ValueError("BUY_NOW_BACKFILL_OHLCV_NOT_FINITE_NUMERIC")
+        if value < 0 or (field != "volume" and value == 0):
+            raise ValueError("BUY_NOW_BACKFILL_OHLCV_OUT_OF_RANGE")
+    if not (row["low"] <= row["open"] <= row["high"] and
+            row["low"] <= row["close"] <= row["high"]):
+        raise ValueError("BUY_NOW_BACKFILL_OHLCV_GEOMETRY_INVALID")
+
+
 def validate_backfill_observation_set(
     *, plan: Mapping[str, Any], observations: Mapping[str, Sequence[Mapping[str, Any]]],
     unavailable: Mapping[str, Mapping[str, Any]] | None = None,
@@ -170,7 +189,9 @@ def validate_backfill_observation_set(
         for row in rows:
             if any(row.get(field) is None for field in ("open", "high", "low", "close", "volume")):
                 raise ValueError(f"BUY_NOW_BACKFILL_OHLCV_INCOMPLETE:{ticker}:{row.get('session')}")
-            if not row.get("raw_response_sha256") or not row.get("corporate_action_status"):
+            validate_ohlcv_bar(row)
+            if (not re.fullmatch(r"[0-9a-f]{64}", str(row.get("raw_response_sha256") or "")) or
+                    row.get("corporate_action_status") not in {"NONE", "PRESENT"}):
                 raise ValueError(f"BUY_NOW_BACKFILL_LINEAGE_INCOMPLETE:{ticker}:{row.get('session')}")
     result = {
         "status": "COMPLETE",
@@ -188,4 +209,4 @@ def validate_backfill_observation_set(
     return result
 
 
-__all__ = ["build_history_backfill_plan", "validate_backfill_observation_set"]
+__all__ = ["build_history_backfill_plan", "validate_backfill_observation_set", "validate_ohlcv_bar"]

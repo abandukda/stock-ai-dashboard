@@ -4,6 +4,12 @@ on:
   pull_request:
     paths:
       - services/incremental_provider_free_replay.py
+      - services/buy_now_backfill_certification.py
+      - services/buy_now_history_backfill_execution.py
+      - services/buy_now_history_continuity.py
+      - tests/test_buy_now_backfill_certification.py
+      - tests/test_buy_now_history_backfill_execution.py
+      - tests/test_buy_now_history_continuity.py
       - tests/test_finnhub_incremental_post_close.py
       - .github/workflows/atlas_incremental_retained_ci.yml
 
@@ -27,4 +33,6 @@ jobs:
           python -m pytest -q
           tests/test_finnhub_incremental_post_close.py
           tests/test_buy_now_backfill_certification.py
+          tests/test_buy_now_history_backfill_execution.py
+          tests/test_buy_now_history_continuity.py
           tests/test_incremental_publication_bridge.py

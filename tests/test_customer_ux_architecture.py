@@ -67,7 +67,7 @@ def test_mobile_keeps_actionable_cards_before_watching():
     assert 'featured_cards = actionable[:3]' in group
     assert group.index('_compact_opportunity_card(actionable[0]') < group.index('with st.expander(f"Worth Watching')
     assert group.index('enumerate(featured_cards[1:], start=1)') < group.index('with st.expander(f"Worth Watching')
-    assert group.index("remaining = all_actionable[3:]") < group.index('with st.expander(f"Worth Watching')
+    assert group.index("matches = _filter_published_opportunities(all_actionable, query)") < group.index('with st.expander(f"Worth Watching')
     assert "@media(max-width:700px)" in source
 
 

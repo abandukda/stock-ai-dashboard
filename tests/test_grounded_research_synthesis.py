@@ -127,3 +127,55 @@ def test_rejects_unsupported_nonnumeric_financial_prose():
     validation = validate_synthesis(candidate, packet)
     assert validation["valid"] is False
     assert "UNSUPPORTED_PROSE:thesis:0" in validation["violations"]
+
+
+@pytest.mark.parametrize('candidate', [{}, {'thesis': [], 'support': [], 'risks': [], 'watch_items': []}])
+def test_empty_model_response_is_not_available(candidate, monkeypatch):
+    monkeypatch.setenv('ATLAS_RESEARCH_MODEL_ENABLED', 'true')
+    class Empty(FakeAdapter):
+        def summarize(self, packet):
+            return candidate
+    result = synthesize_research('NVDA', RETAINED['NVDA'], adapter=Empty(), provider_authorized=True)
+    assert result['status'] == 'MODEL_SYNTHESIS_UNAVAILABLE'
+    assert 'EMPTY_SYNTHESIS' in result['validation']['violations']
+
+
+@pytest.mark.parametrize('citations', ['nvda-revenue', 42, {'nvda-revenue': True}, [42]])
+def test_malformed_model_citations_are_rejected_without_exception(citations):
+    packet = build_evidence_packet('NVDA', RETAINED['NVDA'])
+    candidate = {'thesis': [{'text': RETAINED['NVDA'][0]['fact'], 'evidence_ids': citations}],
+                 'support': [], 'risks': [], 'watch_items': []}
+    assert not validate_synthesis(candidate, packet)['valid']
+
+
+@pytest.mark.parametrize('mutation', ['text', 'ticker', 'evidence', 'status', 'sections'])
+def test_cached_model_output_revalidated_without_provider_retry(tmp_path, monkeypatch, mutation):
+    import json
+    monkeypatch.setenv('ATLAS_RESEARCH_MODEL_ENABLED', 'true')
+    adapter = FakeAdapter()
+    cache = SynthesisCache(tmp_path)
+    result = synthesize_research('NVDA', RETAINED['NVDA'], adapter=adapter, provider_authorized=True, cache=cache)
+    path = tmp_path / (result['identity'] + '.json')
+    stored = json.loads(path.read_text())
+    if mutation == 'text':
+        stored['sections']['thesis'][0]['text'] = 'Guaranteed profit of 999%.'
+    elif mutation == 'ticker':
+        stored['ticker'] = 'MSFT'
+    elif mutation == 'evidence':
+        stored['evidence_identity'] = '0' * 64
+    elif mutation == 'status':
+        stored['status'] = 'UNAVAILABLE'
+    else:
+        stored['sections'] = []
+    stored['validation'] = {'valid': True}  # Stored flags never grant authority.
+    path.write_text(json.dumps(stored))
+    before = path.read_bytes()
+    rejected = synthesize_research('NVDA', RETAINED['NVDA'], adapter=adapter, provider_authorized=True, cache=cache)
+    assert rejected['status'] == 'MODEL_SYNTHESIS_UNAVAILABLE'
+    assert rejected['reason'] == 'CACHED_MODEL_OUTPUT_REJECTED'
+    assert adapter.calls == 1 and path.read_bytes() == before
+
+
+def test_nonobject_cache_file_does_not_crash(tmp_path):
+    (tmp_path / 'example.json').write_text('[]')
+    assert SynthesisCache(tmp_path).read('example') is None

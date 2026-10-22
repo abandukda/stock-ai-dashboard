@@ -68,6 +68,18 @@ def _date(value: Any) -> str:
         return 'Date unavailable'
 
 
+def _registration_time(value: Any) -> str:
+    """Only an explicit timezone-aware ledger envelope timestamp is registration."""
+    from datetime import datetime, timezone
+    try:
+        parsed = datetime.fromisoformat(str(value).replace('Z', '+00:00'))
+        if parsed.tzinfo is None:
+            return 'Registration unavailable'
+        return parsed.astimezone(timezone.utc).strftime('%b %d, %Y %H:%M:%S UTC')
+    except (TypeError, ValueError):
+        return 'Registration unavailable'
+
+
 def _reference_price(value: Any) -> str:
     import math
     try:
@@ -86,6 +98,7 @@ def signal_directory_html(signals) -> str:
         rows.append(
             f'<tr data-atlas-signal-id="{escape(str(signal["signal_id"]))}">'
             f'<th scope="row">{escape(str(signal["ticker"]))}</th>'
+            f'<td>{escape(_registration_time(signal.get("registered_at")))}</td>'
             f'<td>{escape(_date(signal.get("signal_timestamp")))}</td>'
             f'<td>{escape(_reference_price(signal.get("reference_price")))}'
             f'<small>{escape(_date(signal.get("reference_price_timestamp")))}</small></td>'
@@ -97,9 +110,11 @@ def signal_directory_html(signals) -> str:
         '<div class="atlas-rc-directory-scroll" tabindex="0" role="region" aria-label="Original signal history table">'
         '<table><caption>Original registered signals</caption><thead><tr>'
         '<th scope="col">Signal</th><th scope="col">Registered (UTC)</th>'
-        '<th scope="col">Signal reference price</th><th scope="col">Observations</th>'
+        '<th scope="col">Original signal date</th><th scope="col">Signal reference price</th><th scope="col">Observations</th>'
         '</tr></thead><tbody>' + ''.join(rows) + '</tbody></table></div>'
         '<p class="atlas-rc-reference-note">A signal reference price is not an executable entry. '
+        'Registration is the immutable ledger record time, not proof of customer publication. '
+        'Original signal and reference-price dates do not establish an executable entry. '
         'Historical prices do not create prospective returns. Open a signal to inspect its original chart and evidence.</p>'
         '</section>'
     )

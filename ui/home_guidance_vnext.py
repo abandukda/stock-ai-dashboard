@@ -1411,6 +1411,14 @@ def _compact_opportunity_card(card: Mapping[str, Any], *, key: str, first: bool 
     _open_research(ticker, f"home_top_idea_{key}_{ticker}", compact=True)
 
 
+def _filter_published_opportunities(cards: Sequence[Mapping[str, Any]], query: str) -> list[Mapping[str, Any]]:
+    """Filter presentation only; preserve published order, values and ownership."""
+    needle = str(query or "").strip().casefold()
+    return [card for card in cards if not needle or any(
+        needle in str(card.get(field) or "").casefold() for field in ("ticker", "company")
+    )]
+
+
 def _render_groups(story: Mapping[str, Any], *, emit_interactive) -> None:
     all_cards = list(story.get("cards") or ())
     featured = list(story.get("home_featured_cards") or _home_candidate_surface(all_cards))
@@ -1473,13 +1481,17 @@ def _render_groups(story: Mapping[str, Any], *, emit_interactive) -> None:
                 with st.container(key=f"home_top_idea_position_{index + 1}"):
                     _compact_opportunity_card(card, key=f"actionable_{index}", summary_only=True)
     if len(all_actionable) > 3:
-        remaining = all_actionable[3:]
         with st.expander(f"View all {len(all_actionable)} BUY NOW opportunities", expanded=False):
-            st.caption("The table preserves the published ranking. Select a ticker below to open its complete Research page.")
+            st.caption("Compare every published opportunity, including featured ideas. Search does not change the certified ranking.")
+            query = st.text_input("Find an opportunity", placeholder="Ticker or company name", key="home_buy_now_search")
+            matches = _filter_published_opportunities(all_actionable, query)
+            st.caption(f"Showing {len(matches)} of {len(all_actionable)} published opportunities · retained certified snapshot")
+            if not matches:
+                st.info("No published opportunities match your search. Clear the search to see the complete inventory.")
             st.dataframe(
                 [
                     {
-                        "Rank": int(card.get("production_rank") or index + 4),
+                        "Rank": int(card.get("production_rank") or all_actionable.index(card) + 1),
                         "Ticker": str(card.get("ticker") or "UNKNOWN"),
                         "Company": str(card.get("company") or "Unavailable"),
                         "Last certified close": _money(card.get("display_price")),
@@ -1493,14 +1505,15 @@ def _render_groups(story: Mapping[str, Any], *, emit_interactive) -> None:
                         "Confidence": _score(card.get("decision_confidence"), suffix="%"),
                         "Evidence date": _timestamp(card.get("decision_as_of")),
                     }
-                    for index, card in enumerate(remaining)
+                    for index, card in enumerate(matches)
                 ],
                 hide_index=True,
                 use_container_width=True,
             )
-            tickers = [str(card.get("ticker") or "UNKNOWN") for card in remaining]
-            selected = st.selectbox("Open complete Research", tickers, key="home_remaining_buy_now_ticker")
-            _open_research(selected, f"home_all_certified_{selected}", compact=True)
+            tickers = [str(card.get("ticker") or "UNKNOWN") for card in matches]
+            if tickers:
+                selected = st.selectbox("Open complete Research", tickers, key="home_remaining_buy_now_ticker")
+                _open_research(selected, f"home_all_certified_{selected}", compact=True)
             governed_quick_links = [ticker for ticker in ("NVDA", "MSFT", "CODA") if ticker in tickers]
             if governed_quick_links:
                 st.caption("Quick Research links")

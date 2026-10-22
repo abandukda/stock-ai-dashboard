@@ -151,3 +151,31 @@ def test_model_exception_does_not_discard_reusable_source_or_leak_error(tmp_path
     clear_transcript_runtime_cache()
     result=run(store,provider(calls),summary_revision="v1")
     assert result.operation_metadata["provider_invocation_count"]==0 and len(calls)==1
+
+
+def test_http_denial_is_not_cached_then_separately_authorized_success_is_reused(tmp_path):
+    calls=[]; ai=[]; store=TranscriptEvidenceStore(tmp_path/"private")
+    responses=[403,200]
+    def get(url, **kwargs):
+        calls.append(url)
+        response=Response()
+        response.status_code=responses.pop(0)
+        return response
+    p=ConfiguredTranscriptProvider(api_key="mock-key",base_url="https://v2.api.earningscall.biz",
+        provider_name="earningscall",license_state="COMMERCIAL_LICENSE_CONFIRMED",get=get)
+    denied=run(store,p,acquisition_authorized=True,summary_authorized=True,
+        summarizer=summary(ai),summary_revision="approved-v1")
+    assert len(calls)==1 and not ai and denied.insight is None
+    assert denied.transcript.payload["reason"]=="ENTITLEMENT_UNAVAILABLE"
+    with sqlite3.connect(store.path) as db:
+        assert db.execute("SELECT count(*) FROM records").fetchone()[0]==0
+    with pytest.raises(PermissionError,match="ACQUISITION_NOT_AUTHORIZED"):
+        run(store,p)
+    allowed=run(store,p,acquisition_authorized=True,summary_authorized=True,
+        summarizer=summary(ai),summary_revision="approved-v1")
+    clear_transcript_runtime_cache()
+    retained=run(TranscriptEvidenceStore(store.root),p,summary_revision="approved-v1")
+    assert len(calls)==2 and len(ai)==1
+    assert retained.insight.as_dict()==allowed.insight.as_dict()
+    assert retained.operation_metadata["provider_invocation_count"]==0
+    assert retained.operation_metadata["summary_cache_status"]=="DURABLE_HIT"

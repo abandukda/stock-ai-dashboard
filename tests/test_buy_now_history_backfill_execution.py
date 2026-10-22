@@ -132,3 +132,21 @@ def test_consumed_claim_forensics_sanitizes_no_data_and_reconciles(tmp_path):
     assert result["failure"]["ordinal"] == 1
     assert result["failure"]["response_shape"]["classification"] == "FINNHUB_NO_DATA"
     assert "body_base64" not in json.dumps(result)
+
+
+def test_invalid_prices_stop_at_first_preserved_response_without_retry(tmp_path):
+    calls = []
+    def malformed(request):
+        response = _transport(calls)(request)
+        body = json.loads(response.body)
+        body["c"][0] = float("nan")
+        return Response(200, json.dumps(body).encode())
+    executor, scope = _bound(tmp_path, malformed)
+    for _ in range(2):
+        with pytest.raises(ValueError, match="OHLCV_NOT_FINITE_NUMERIC"):
+            executor.run()
+    assert calls == [1]
+    claim_dir = tmp_path / "state" / "history_backfill_claims" / scope["claim_id"]
+    assert len(list((claim_dir / "intents").glob("*.json"))) == 1
+    assert not list((claim_dir / "receipts").glob("*.json"))
+    assert json.loads((claim_dir / "claim.json").read_text())["state"] != "COMPLETE"
