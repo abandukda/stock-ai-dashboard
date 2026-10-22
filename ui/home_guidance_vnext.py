@@ -1441,7 +1441,8 @@ def _render_groups(story: Mapping[str, Any], *, emit_interactive) -> None:
     visible = len(featured_cards)
     st.markdown('<div id="atlas-opportunities"></div>', unsafe_allow_html=True)
     st.markdown("## Strongest Opportunities")
-    from ui.home_reference_components import published_inventory_html
+    from services.presentation_source import presentation_module
+    published_inventory_html = presentation_module("ui.research_reference_components").published_inventory_html
     st.markdown(published_inventory_html(total, timestamp=_timestamp(story.get("scan_timestamp"))), unsafe_allow_html=True)
     st.caption(
         f"Showing {visible} featured idea{'s' if visible != 1 else ''} from {total} total certified BUY NOW "
@@ -1461,7 +1462,8 @@ def _render_groups(story: Mapping[str, Any], *, emit_interactive) -> None:
     if len(actionable) > 1:
         with comparison_column:
             st.markdown('<div class="atlas-home-section-kicker">02 / COMPARE THE SHORTLIST</div>', unsafe_allow_html=True)
-            from ui.home_reference_components import opportunity_table_html
+            from services.presentation_source import presentation_module
+            opportunity_table_html = presentation_module("ui.research_reference_components").opportunity_table_html
             st.markdown(opportunity_table_html(all_actionable[:5], money=_money, score=_score), unsafe_allow_html=True)
             st.caption("Published BUY NOW order · dated closes · estimates are not forecast returns.")
     if len(featured_cards) > 1:
@@ -1803,7 +1805,8 @@ def _render_daily_brief(story: Mapping[str, Any]) -> None:
         if market_read else
         "<strong>Market context:</strong> Current governed context is unavailable, so ATLAS is not inferring a backdrop."
     )
-    from ui.home_reference_components import market_cards_html
+    from services.presentation_source import presentation_module
+    market_cards_html = presentation_module("ui.research_reference_components").market_cards_html
     market_cards = market_cards_html(market, money=_money, timestamp=_timestamp, show_empty_notice=False)
     command_mode = "atlas-command-has-markets" if market.get("instruments") else "atlas-command-retained-focus"
     st.markdown(
