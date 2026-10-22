@@ -70,14 +70,16 @@ def _time_et(value: Any) -> str:
 
 def _open_research(ticker: str, key: str, *, compact: bool = False) -> None:
     contract = research_interaction_contract(ticker, key)
-    st.markdown(
+    control_key = f"compact_cta_{key}" if compact else key
+    target = st.container(key=control_key) if compact else st
+    target.markdown(
         f'<span data-atlas-qa="home-guidance-research-cta" data-atlas-ticker="{html.escape(ticker)}" '
         f'data-atlas-interaction-id="{html.escape(contract["interaction_id"])}" '
+        f'data-atlas-control-key="{html.escape(control_key)}" '
         f'data-atlas-expected-page="{html.escape(contract["expected_page"])}" '
         f'data-atlas-expected-ticker="{html.escape(contract["expected_ticker"])}" aria-hidden="true" '
         'style="display:none">home-guidance-research-cta</span>', unsafe_allow_html=True,
     )
-    target = st.container(key=f"compact_cta_{key}") if compact else st
     label = "View Research →" if compact else f"View Full Investment Case — {ticker}"
     if target.button(label, key=key, type="primary", width="content" if compact else "stretch"):
         begin_research_entry(
