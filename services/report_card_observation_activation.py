@@ -12,7 +12,7 @@ import tempfile
 from contextlib import closing
 from typing import Any, Mapping, Sequence
 
-from services.prospective_report_card import ProspectiveLedger, _utc, _digest, append_observations_atomic
+from services.prospective_report_card import ProspectiveLedger, _utc, _digest, _finite_observation_number, append_observations_atomic
 
 
 BUNDLE_SCHEMA = "ATLAS_REPORT_CARD_OBSERVATION_BUNDLE_V1"
@@ -169,10 +169,12 @@ def apply_observation_bundle(*, ledger: ProspectiveLedger, backup_root: Path,
         if provenance.get("session_status") != FINALIZED_SESSION_STATUS:
             raise ValueError("OBSERVATION_PRICE_NOT_FINALIZED")
         if observation.get("data_status") == "AVAILABLE":
-            reference = float(signal_by_id[signal_id]["reference_price"])
-            observed = float(observation["observed_price"])
-            spy_reference = float(observation.pop("benchmark_reference_price"))
-            spy_observed = float(observation.pop("benchmark_observed_price"))
+            reference = _finite_observation_number(signal_by_id[signal_id]["reference_price"], positive=True)
+            observed = _finite_observation_number(observation["observed_price"], positive=True)
+            spy_reference = _finite_observation_number(observation.pop("benchmark_reference_price"), positive=True)
+            spy_observed = _finite_observation_number(observation.pop("benchmark_observed_price"), positive=True)
+            if any(value is None for value in (reference, observed, spy_reference, spy_observed)):
+                raise ValueError("OBSERVATION_PRICE_INVALID")
             stock_return = observed / reference - 1.0
             benchmark_return = spy_observed / spy_reference - 1.0
             observation.update(stock_return=stock_return, benchmark_return=benchmark_return,

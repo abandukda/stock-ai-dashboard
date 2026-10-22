@@ -10,6 +10,7 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import shutil
@@ -372,6 +373,17 @@ def append_amendment(ledger: ProspectiveLedger, *, signal_id: str, amendment: Ma
     return amendment_id
 
 
+def _finite_observation_number(value: Any, *, positive: bool = False) -> float | None:
+    """Reject JSON booleans/non-finite values before any return arithmetic/write."""
+    if isinstance(value, bool):
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return number if math.isfinite(number) and (not positive or number > 0) else None
+
+
 def _validated_observation_record(ledger: ProspectiveLedger, *, signal_id: str, horizon: int,
                                   observation: Mapping[str, Any], now: datetime) -> tuple[str, dict[str, Any]]:
     if horizon not in HORIZONS:
@@ -393,6 +405,11 @@ def _validated_observation_record(ledger: ProspectiveLedger, *, signal_id: str, 
     if status_value == "AVAILABLE":
         if observation["observed_price"] is None or len(sessions) != horizon or len(set(sessions)) != horizon:
             raise ValueError("OBSERVATION_TRADING_CALENDAR_INCOMPLETE")
+        if _finite_observation_number(observation["observed_price"], positive=True) is None:
+            raise ValueError("OBSERVATION_PRICE_INVALID")
+        for field in ("stock_return", "benchmark_return", "excess_return"):
+            if observation.get(field) is not None and _finite_observation_number(observation[field]) is None:
+                raise ValueError("OBSERVATION_RETURN_INVALID:" + field)
         observed = _utc(observation["observed_at"], "OBSERVED")
         benchmark_observed = _utc(observation["benchmark_observed_at"], "BENCHMARK_OBSERVED")
         if observed.date().isoformat() != sessions[-1] or benchmark_observed.date() != observed.date():

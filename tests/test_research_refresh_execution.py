@@ -6,7 +6,7 @@ import pytest
 
 from services.finnhub_enterprise_display_contract import CONTRACT_ID
 from services.research_refresh_execution import (
-    MAX_REQUESTS, compile_execution_plan, execute_live, rehearse,
+    MAX_REQUESTS, compile_execution_plan, execute_live, rehearse, request_parameters,
 )
 from services.research_refresh_readiness import ALLOWED_CAPABILITIES, plan_research_refresh
 
@@ -99,3 +99,16 @@ def test_tampered_or_non_commit_upstream_identity_fails_closed():
     weak["source_sha"] = "branch-name"
     with pytest.raises(ValueError, match="SOURCE_SHA"):
         compile_execution_plan(weak, as_of=date(2026, 10, 18))
+
+
+@pytest.mark.parametrize("session", [date(2026, 10, 21), date(2026, 10, 22)])
+def test_history_interval_includes_completed_target_session(session):
+    params = request_parameters("historical_ohlcv", "NVDA", as_of=session)
+    start = int(datetime(session.year, session.month, session.day, tzinfo=timezone.utc).timestamp())
+    assert params["to"] == start + 86400 - 1
+    # Daily bars may retain provider timestamps later than midnight UTC.
+    for offset in (0, 4 * 3600, 20 * 3600, 86399):
+        assert params["from"] <= start + offset <= params["to"]
+    assert start + 86400 > params["to"]
+    assert request_parameters("splits", "NVDA", as_of=session)["to"] == session.isoformat()
+    assert request_parameters("dividends", "NVDA", as_of=session)["to"] == session.isoformat()

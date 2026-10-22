@@ -59,7 +59,9 @@ def request_parameters(capability: str, ticker: str, *, as_of: date) -> dict[str
     start_5y = as_of - timedelta(days=5 * 366)
     start_1y = as_of - timedelta(days=366)
     if capability == "historical_ohlcv":
-        return {"symbol": ticker, "resolution": "D", "from": _unix(start_5y), "to": _unix(as_of)}
+        # Finnhub `to` is an interval end timestamp, not an inclusive date.
+        # Match the completed-session boundary used by incremental refreshes.
+        return {"symbol": ticker, "resolution": "D", "from": _unix(start_5y), "to": _unix(as_of + timedelta(days=1)) - 1}
     if capability in {"splits", "dividends"}:
         return {"symbol": ticker, "from": start_5y.isoformat(), "to": as_of.isoformat()}
     if capability == "financial_statements":

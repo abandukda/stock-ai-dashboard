@@ -705,7 +705,7 @@ def _deterministic_answer(question: str, report: Mapping[str, Any]) -> str:
     )
 
 
-def ask_atlas(question: str, report: Mapping[str, Any]) -> dict[str, Any]:
+def ask_atlas(question: str, report: Mapping[str, Any], *, allow_external_ai: bool = False) -> dict[str, Any]:
     from services.customer.provider_neutral import provider_neutral_customer_projection
     report = provider_neutral_customer_projection(report)
     question = str(question or "").strip()
@@ -760,9 +760,9 @@ def ask_atlas(question: str, report: Mapping[str, Any]) -> dict[str, Any]:
     )):
         answer = _deterministic_answer(question, report)
         mode = "deterministic_decision_story"
-    elif llm_is_configured() and callable(answer_ticker_question):
+    elif allow_external_ai and llm_is_configured() and callable(answer_ticker_question):
         try:
-            answer = answer_ticker_question(question, context)
+            answer = answer_ticker_question(question, context, allow_external_ai=True)
             mode = "llm_grounded"
         except Exception:
             answer = _deterministic_answer(question, report)

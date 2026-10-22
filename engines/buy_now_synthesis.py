@@ -200,8 +200,10 @@ def synthesize_buy_now(
     return result
 
 
-def configured_openai_generator(payload: Mapping[str, Any]) -> Mapping[str, Any]:
+def configured_openai_generator(payload: Mapping[str, Any], *, allow_external_ai: bool = False) -> Mapping[str, Any]:
     """One bounded structured call; callers decide caching and call count."""
+    if not allow_external_ai:
+        raise RuntimeError("EXTERNAL_AI_EXECUTION_NOT_AUTHORIZED")
     if not os.getenv("OPENAI_API_KEY"):
         raise RuntimeError("OpenAI is not configured")
     from openai import OpenAI

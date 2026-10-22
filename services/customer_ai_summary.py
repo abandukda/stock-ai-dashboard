@@ -76,7 +76,7 @@ def build_research_summary(report: Mapping[str, Any]) -> dict[str, Any]:
         "Entry consideration": str(_mapping(guidance.get("action_now")).get("current_action") or "Use the certified entry range when published."),
         "What to monitor": _items([*(_items(conditions.get("strengthen"))), *(_items(conditions.get("invalidate")))], 4),
     }
-    return {"status": "AVAILABLE", "authority": "CERTIFIED_ATLAS_FACTS", "explanation": "AI_GENERATED_EXPLANATION", "sections": sections, "evidence_ids": evidence_ids, "version": VERSION}
+    return {"status": "AVAILABLE", "authority": "CERTIFIED_ATLAS_FACTS", "explanation": "DETERMINISTIC_EVIDENCE_SUMMARY", "external_model_used": False, "sections": sections, "evidence_ids": evidence_ids, "version": VERSION}
 
 
 def build_earnings_summary(story: Mapping[str, Any]) -> dict[str, Any]:

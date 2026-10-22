@@ -63,6 +63,9 @@ class InMemoryCustomerRepository:
             raise KeyError("customer not found")
 
     def put_user(self, user: User, profile: AccountProfile) -> None:
+        current = self._users.get(user.user_id)
+        if current is not None and current.auth_subject != user.auth_subject:
+            raise ValueError("authentication subject is immutable")
         existing = self._auth_index.get(user.auth_subject)
         if existing and existing != user.user_id:
             raise ValueError("authentication subject already registered")
@@ -149,6 +152,9 @@ class InMemoryCustomerRepository:
 
     def put_saved_research(self, value: SavedResearch) -> bool:
         self._require_user(value.user_id)
+        existing = self._saved.get(value.saved_research_id)
+        if existing is not None and existing.user_id != value.user_id:
+            raise PermissionError("saved research owner mismatch")
         for item in self._saved.values():
             if item.user_id == value.user_id and item.security.security_id == value.security.security_id:
                 return False
@@ -194,7 +200,8 @@ class InMemoryCustomerRepository:
 
     def active_symbol_union(self) -> set[str]:
         """Privacy-safe aggregate used solely for Phase 8A subscription demand."""
-        return {item.security.ticker for item in self._symbols.values()}
+        return {item.security.ticker for item in self._symbols.values()
+                if not self._users[item.user_id].disabled}
 
 
 __all__ = ["CustomerRepository", "InMemoryCustomerRepository"]

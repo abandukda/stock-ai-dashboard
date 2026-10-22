@@ -23,10 +23,27 @@ def _as_of_date(value):
 RESEARCH_REFERENCE_CSS = r'''<style>
 .atlas-research-digest{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:1rem;margin:.7rem 0}.atlas-research-digest article{border:1px solid #204159;border-radius:14px;background:linear-gradient(135deg,#102638,#0a1828);padding:1.1rem;min-width:0}.atlas-research-digest small{color:#6fceff;font-size:.68rem;letter-spacing:.08em;font-weight:750}.atlas-research-digest h3{color:#edf5ff;font-size:1.25rem!important;margin:.5rem 0!important}.atlas-research-digest p{color:#cad9e9;font-size:.92rem;line-height:1.65}.atlas-research-digest .atlas-digest-update{background:#0a1828}.atlas-research-digest footer{font-size:.7rem;color:#91a9bf;line-height:1.6}.atlas-research-digest a{color:#79ceff}.atlas-research-analysis{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}.atlas-research-analysis article{border:1px solid #253c50;border-radius:12px;padding:1rem;background:#0c1b2a}.atlas-research-analysis h4{font-size:1rem!important;color:#8ed6ff;margin:0 0 .5rem!important}.atlas-research-analysis p{font-size:.9rem;line-height:1.65;color:#d1dfed}
 @media(max-width:800px){.atlas-research-digest,.atlas-research-analysis{grid-template-columns:1fr}.atlas-research-digest article{padding:.85rem}}
-.atlas-r2-head .atlas-r2-metrics{grid-template-columns:repeat(5,minmax(0,1fr));margin:.8rem 0 0;gap:.5rem}.atlas-r2-head .atlas-r2-metrics .atlas-r2-metric{padding:.75rem}.atlas-r2-head .atlas-r2-metrics strong{font-size:1.25rem;font-variant-numeric:tabular-nums}.atlas-r2-head .atlas-r2-metric p{font-size:.7rem;line-height:1.45;color:#9eb4c9;margin:.45rem 0 0}.atlas-research-section-nav{display:flex;gap:.45rem;overflow-x:auto;padding:.4rem 0 .7rem;margin:.3rem 0;scrollbar-width:thin}.atlas-research-section-nav a{white-space:nowrap;padding:.55rem .8rem;border:1px solid #21425a;border-radius:8px;background:#0a1e31;color:#bbddf6;text-decoration:none;font-size:.8rem}.atlas-research-section-nav a:hover,.atlas-research-section-nav a:focus-visible{background:#123957;color:white;outline:2px solid #56aef3}
+.atlas-r2-head .atlas-r2-metrics{grid-template-columns:repeat(5,minmax(0,1fr));margin:.8rem 0 0;gap:.5rem}.atlas-r2-head .atlas-r2-metrics .atlas-r2-metric{padding:.75rem}.atlas-r2-head .atlas-r2-metrics strong{font-size:1.25rem;font-variant-numeric:tabular-nums}.atlas-r2-head .atlas-r2-metric p{font-size:.7rem;line-height:1.45;color:#9eb4c9;margin:.45rem 0 0}.atlas-research-section-nav{display:flex;gap:.45rem;overflow-x:auto;padding:.4rem 0 .7rem;margin:.3rem 0;scrollbar-width:thin}.atlas-research-section-nav a{display:inline-flex;align-items:center;min-height:44px;box-sizing:border-box;white-space:nowrap;padding:.55rem .8rem;border:1px solid #21425a;border-radius:8px;background:#0a1e31;color:#bbddf6;text-decoration:none;font-size:.8rem}.atlas-research-section-nav a:hover,.atlas-research-section-nav a:focus-visible{background:#123957;color:white;outline:2px solid #56aef3}
+[id^="atlas-research-"]{scroll-margin-top:1rem}.atlas-research-section-nav{overscroll-behavior-x:contain}.atlas-research-section-nav:focus-within{outline-offset:3px}
 @media(max-width:1000px){.atlas-r2-head .atlas-r2-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:700px){body:has([data-atlas-qa="research-v2-root"]) [data-testid="stMainBlockContainer"]{padding-left:.75rem!important;padding-right:.75rem!important}.atlas-r2-head .atlas-r2-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.atlas-r2-head .atlas-r2-metrics strong{font-size:1.2rem}.atlas-r2-head .atlas-r2-metrics .atlas-r2-metric:last-child{grid-column:1/-1}}
 </style>'''
+
+
+RESEARCH_SECTION_LINKS = (
+    ("overview", "Overview"), ("technicals", "Chart & technicals"),
+    ("financials", "Valuation & analysts"), ("risks", "Risks & evidence"),
+    ("news", "Company news"), ("statements", "Financial statements"),
+    ("earnings", "Earnings history"), ("developments", "Events"), ("company", "Company"),
+)
+
+
+def research_section_navigation_html():
+    """Navigate rendered evidence sections, including their honest pending states."""
+    links = ''.join('<a href="#atlas-research-' + key + '">' + escape(label) + '</a>'
+                    for key, label in RESEARCH_SECTION_LINKS)
+    return ('<nav class="atlas-research-section-nav" aria-label="Research sections" '
+            'data-atlas-qa="research-section-navigation">' + links + '</nav>')
 
 
 def executive_digest_html(page):

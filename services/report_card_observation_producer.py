@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Mapping, Sequence
 
-from services.prospective_report_card import ProspectiveLedger, _utc
+from services.prospective_report_card import ProspectiveLedger, _utc, _finite_observation_number
 from services.report_card import HORIZONS
 from services.report_card_observation_activation import (
     ALLOWED_CORPORATE_ACTION_STATUS,
@@ -32,11 +32,7 @@ def _sessions_after(sessions: Sequence[str], timestamp: datetime) -> list[str]:
 
 def _close(instrument: Mapping[str, Any], session: str) -> float | None:
     value = (instrument.get("closes") or {}).get(session)
-    try:
-        result = float(value)
-    except (TypeError, ValueError):
-        return None
-    return result if result > 0 else None
+    return _finite_observation_number(value, positive=True)
 
 
 def build_observation_bundle(
@@ -128,10 +124,7 @@ def build_observation_bundle(
             observed = _close(instrument, window[-1])
             benchmark_observed = _close(benchmark, window[-1])
             reference = references.get(signal_id)
-            try:
-                benchmark_reference = float((reference or {}).get("price"))
-            except (TypeError, ValueError):
-                benchmark_reference = 0.0
+            benchmark_reference = _finite_observation_number((reference or {}).get("price"), positive=True) or 0.0
             if not observed or not benchmark_observed or benchmark_reference <= 0:
                 raise ValueError(f"OBSERVATION_PRICE_MISSING:{ticker}")
             try:
