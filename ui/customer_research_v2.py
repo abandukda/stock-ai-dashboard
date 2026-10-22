@@ -911,6 +911,47 @@ def _range_rows(frame: pd.DataFrame, selected: str) -> pd.DataFrame:
     return frame.loc[frame.index >= cutoff]
 
 
+
+def _annotated_customer_price_chart(price_frame, *, rows, date_key, close_key, ticker, chart, report, key):
+    """Called only after the active customer's existing chart ownership gate."""
+    from datetime import timezone
+    from services.annotated_research_chart import build_annotated_research_chart
+    selected = rows.set_index(date_key).loc[price_frame.index]
+    bars = []
+    for stamp, row in selected.iterrows():
+        bar = {"date": stamp.isoformat(), "close": row[close_key]}
+        for field in ("open", "high", "low", "volume", "ticker"):
+            if field in selected.columns:
+                bar[field] = row[field]
+        bars.append(bar)
+    evaluation = (report.get("research_context") or {}).get("current_evaluation") or {}
+    technical = (evaluation.get("technical_confirmation") or {}).get("evidence") or (report.get("sections") or {}).get("technical", {}).get("data") or {}
+    levels = [("Support", technical.get("support"), "dot"),
+              ("Resistance", technical.get("resistance"), "dot"),
+              ("Pivot / Breakout", technical.get("pivot"), "dash")]
+    try:
+        fig, evidence = build_annotated_research_chart(bars, ticker=ticker, levels=levels)
+    except ValueError:
+        _marker("annotated-chart", ticker, status="UNAVAILABLE")
+        st.warning("Chart evidence needs validation; no missing prices or indicators were inferred.")
+        return
+    _marker("annotated-chart", ticker, status="AVAILABLE", panels="4", classification="EDUCATIONAL_NON_SCORING", fingerprint=evidence["evidence_digest"])
+    st.plotly_chart(fig, use_container_width=True, key=key, config={"responsive": True, "displaylogo": False})
+    st.caption(evidence["outlook"])
+    if not evidence["candles"]:
+        st.caption("Close-only history: complete verified OHLC bars are unavailable, so candles are not inferred.")
+    if not evidence["volume_available"]:
+        st.caption("Volume is unavailable for this evidence bundle.")
+    if evidence["pending_lookbacks"]:
+        st.caption("Awaiting complete lookback: " + ", ".join(evidence["pending_lookbacks"]))
+    for label, value, _ in levels[:2]:
+        if value is None:
+            st.caption(f"Certified {label.lower()} level unavailable; no level was inferred.")
+    st.caption(evidence["methodology"])
+    st.caption("Click a legend item to hide a series; double-click to isolate it. Hover to inspect a bar.")
+    st.caption("Presentation calculated " + _friendly_time(datetime.now(timezone.utc).isoformat()) + ". This does not refresh the retained source date.")
+
+
 def render_customer_research_first_screen(report: Mapping[str, Any]) -> dict[str, Any]:
     """Render the settled ticker's customer-safe summary before search controls."""
     customer_view = build_customer_research_view(report)
@@ -1147,7 +1188,9 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
             # so its local ``h`` binding is intentionally unavailable here.
             # Use the already-certified projection carried by this page.
             price_frame = stock_rows.copy()
-            _dark_line_chart(price_frame, height=300, y_title="Price (USD/share)", key=f"research-price-chart-{ticker}")
+            _annotated_customer_price_chart(price_frame, rows=rows, date_key=date_key, close_key=close_key,
+                                            ticker=ticker, chart=chart, report=report,
+                                            key=f"research-price-chart-{ticker}")
             if not stock_rows.empty:
                 st.caption(
                     f"History shown: {stock_rows.index.min():%b %d, %Y} – "
