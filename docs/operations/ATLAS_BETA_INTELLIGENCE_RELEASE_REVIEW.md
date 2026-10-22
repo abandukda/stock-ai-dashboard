@@ -146,3 +146,9 @@ cropped short pending/disconnected pages at an inner node's height. Short pages 
 preserve the full viewport. Browser assertions require saved images to include the
 complete personal-access and transcript-availability notices. Visual acceptance
 remains open until those complete captures pass fresh exact-head review.
+
+Final notice-bound checks passed on `39852172196`; one available-summary assertion
+raced its later source-caption delta. Saved DOM contained the correct caption and
+receipt evidence identity. The browser now waits for the exact caption matching the
+receipt before asserting it, retaining and strengthening source-lineage acceptance.
+No application/source-data logic changes accompany this fixture correction.

@@ -142,7 +142,12 @@ class PremiumEarningsCacheRender(unittest.TestCase):
                                                 else:
                                                     page.get_by_text('Revenue grew 10%.',exact=True).wait_for()
                                                     self.assertIn('Transcript availability: AVAILABLE · AI summary availability: AVAILABLE',page.inner_text('body'))
-                                                    self.assertIn('Transcript evidence:',page.inner_text('body'))
+                                                    evidence_marker = page.locator('[data-atlas-transcript-evidence-id]')
+                                                    evidence_marker.wait_for(state='attached')
+                                                    evidence_id = evidence_marker.get_attribute('data-atlas-transcript-evidence-id')
+                                                    self.assertTrue(evidence_id.startswith('TRANSCRIPT:GENERATED:CALL:'))
+                                                    page.get_by_text('Transcript evidence: ' + evidence_id, exact=True).wait_for(state='visible')
+                                                    self.assertIn('Transcript evidence: ' + evidence_id,page.inner_text('body'))
                                                 marker=page.locator('[data-atlas-transcript-provider-calls]')
                                                 self.assertEqual(marker.get_attribute('data-atlas-transcript-provider-calls'),'0')
                                             else:
