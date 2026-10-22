@@ -1,6 +1,7 @@
 """Actual Earnings renderer against TEMP generated cache; never production evidence."""
 import os
 from pathlib import Path
+from PIL import Image
 import socket
 import subprocess
 import sys
@@ -153,7 +154,16 @@ class PremiumEarningsCacheRender(unittest.TestCase):
                                         self.assertEqual(page.locator('[data-testid="stException"]').count(),0)
                                         self.assertLessEqual(page.evaluate('document.documentElement.scrollWidth'),width+1)
                                         self.assertFalse(external,'External browser requests were aborted: '+repr(external))
-                                        capture_complete_streamlit(page,target/f'GENERATED_NOT_PRODUCTION_{mode}_{width}.png')
+                                        saved_path = target/f'GENERATED_NOT_PRODUCTION_{mode}_{width}.png'
+                                        capture_complete_streamlit(page,saved_path)
+                                        if mode in {'default','missing'}:
+                                            text = ('Transcript availability: not connected · AI summary availability: pending'
+                                                    if mode == 'default' else 'Transcript availability: not cached · AI summary availability: pending')
+                                            notice = page.get_by_text(text, exact=True).bounding_box()
+                                            self.assertIsNotNone(notice)
+                                            with Image.open(saved_path) as saved:
+                                                self.assertGreaterEqual(saved.height, 1000)
+                                                self.assertGreaterEqual(saved.height, notice['y'] + notice['height'])
                                     except Exception:
                                         page.screenshot(path=str(target/f'FAILED_{mode}_{width}.png'),full_page=True)
                                         (target/f'FAILED_{mode}_{width}_DOM.html').write_text(page.content())

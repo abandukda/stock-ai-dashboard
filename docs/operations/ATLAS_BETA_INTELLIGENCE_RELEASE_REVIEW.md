@@ -139,3 +139,10 @@ seed before the UI server starts; provider/model guards remain and a cache-write
 constructor guard additionally protects customer interaction. The actual guarded
 read-only AppTest passed against that preseeded available summary. Fresh hosted
 acceptance remains required; partial screenshots are not full acceptance.
+
+The retry of `39848730933` passed 113 offline plus 13 render tests and produced
+48 PNGs. Actual inspection nevertheless found that the shared screenshot helper
+cropped short pending/disconnected pages at an inner node's height. Short pages now
+preserve the full viewport. Browser assertions require saved images to include the
+complete personal-access and transcript-availability notices. Visual acceptance
+remains open until those complete captures pass fresh exact-head review.

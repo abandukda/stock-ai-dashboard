@@ -2,6 +2,7 @@
 import os
 import re
 from pathlib import Path
+from PIL import Image
 import socket
 import subprocess
 import sys
@@ -117,7 +118,13 @@ class PremiumPersonalWatchlistsRender(unittest.TestCase):
                                     self.assertEqual(page.locator('[data-testid="stException"]').count(), 0)
                                     self.assertNotIn('BOB PRIVATE NEVER VISIBLE', page.locator('body').inner_text())
                                     self.assertLessEqual(page.evaluate('document.documentElement.scrollWidth'), width+1)
-                                    capture_complete_streamlit(page, target/f'GENERATED_PENDING_{width}.png')
+                                    pending_path = target/f'GENERATED_PENDING_{width}.png'
+                                    capture_complete_streamlit(page, pending_path)
+                                    notice = page.get_by_text('Personal watchlists require individual account access.', exact=False).bounding_box()
+                                    self.assertIsNotNone(notice)
+                                    with Image.open(pending_path) as saved:
+                                        self.assertGreaterEqual(saved.height, 1000)
+                                        self.assertGreaterEqual(saved.height, notice['y'] + notice['height'])
                                 except Exception:
                                     page.screenshot(path=str(target/f'FAILED_{width}.png'), full_page=True)
                                     (target/f'FAILED_{width}_DOM.html').write_text(page.content(), encoding='utf-8')
