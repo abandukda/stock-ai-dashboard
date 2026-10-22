@@ -33,6 +33,9 @@ class PremiumResearchRender(unittest.TestCase):
                                 self.assertEqual(page.locator('[data-testid="stException"]').count(),0)
                                 self.assertTrue(page.locator('[data-atlas-qa="research-executive-digest"]').is_visible())
                                 self.assertEqual(page.locator('[data-atlas-qa="research-v2-annotated-chart"]').get_attribute('data-atlas-ticker'),ticker)
+                                # Streamlit mounts Plotly lazily when the chart enters the viewport.
+                                page.locator('[data-testid="stPlotlyChart"]').first.scroll_into_view_if_needed()
+                                page.wait_for_selector('.y4title',state='attached',timeout=30000)
                                 self.assertTrue(page.locator('.y4title').count())
                                 self.assertLessEqual(page.evaluate('document.documentElement.scrollWidth'),width+1)
                                 capture_complete_streamlit(page,target/f'GENERATED_{ticker}_{width}_SIMPLE.png')
