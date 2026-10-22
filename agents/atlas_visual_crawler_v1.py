@@ -3942,7 +3942,7 @@ class AtlasVisualCrawler:
                 completion, _ = json.JSONDecoder().raw_decode(row.observed.removeprefix("completion="))
             except (ValueError, TypeError):
                 return False
-            if not all(completion.get(key) is True for key in (
+            if not isinstance(completion, dict) or not all(completion.get(key) is True for key in (
                 "complete", "ticker", "no_stale_ticker", "provider_boundary_zero",
                 "certified_fields_reconciled", "lifecycle_complete",
             )) or completion.get("provider_calls") != 0 or completion.get("rendered_exception") is not False:

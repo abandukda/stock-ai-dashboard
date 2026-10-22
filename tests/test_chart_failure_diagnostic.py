@@ -73,3 +73,12 @@ def test_diagnostic_captures_existing_state_at_four_route_viewports_only():
     assert c._customer_navigation_contract.await_count==8 and c._role_isolation_contract.await_count==8
     assert all(call.kwargs["required"] is False for call in c._record.await_args_list)
     c._submit_research.assert_not_awaited()
+
+
+@pytest.mark.parametrize("observed",["completion=[]", "completion=null", "completion=not-json"])
+def test_malformed_completion_cannot_mask_original_failure(observed):
+    c=crawler();c.results[-1].observed=observed
+    original=GlobalCrawlFailure("REQUIRED_RESEARCH_FAILED_NVDA")
+    with pytest.raises(GlobalCrawlFailure) as raised:
+        asyncio.run(c._preserve_failure_with_evidence(object(),original,customer_only=True))
+    assert raised.value is original and not hasattr(c,"post_failure_diagnostic")
