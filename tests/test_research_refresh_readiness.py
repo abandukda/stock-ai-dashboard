@@ -87,3 +87,36 @@ def test_request_ceiling_is_hard_and_checked_before_any_transport():
                 ["NVDA"], {}, _entitlement(*ALLOWED_CAPABILITIES),
                 source_sha="e", now=NOW, limits=limits,
             )
+
+
+def test_new_endpoint_families_require_explicit_selection_and_entitlement():
+    from services.research_refresh_readiness import SUPPORTED_CAPABILITIES
+    entitled = _entitlement(*SUPPORTED_CAPABILITIES)
+    default = plan_research_refresh(['NVDA'], {}, entitled, source_sha='a' * 40, now=NOW)
+    assert {row['capability'] for row in default['requests']} == set(ALLOWED_CAPABILITIES)
+    selected = plan_research_refresh(['NVDA'], {}, entitled, source_sha='a' * 40, now=NOW,
+                                    capabilities=['eps_estimates', 'live_quote'])
+    assert [row['capability'] for row in selected['requests']] == ['live_quote', 'eps_estimates']
+    assert selected['scope_sha256'] != default['scope_sha256']
+    unentitled = plan_research_refresh(['NVDA'], {}, _entitlement(), source_sha='a' * 40, now=NOW,
+                                      capabilities=['live_quote'])
+    assert unentitled['requests'] == []
+    assert unentitled['unavailable'] == [{'ticker': 'NVDA', 'capability': 'live_quote', 'reason': 'NOT_ENTITLED'}]
+
+
+@pytest.mark.parametrize('selection', [['unknown'], ['live_quote', 'live_quote'], [], [True], 'live_quote'])
+def test_invalid_explicit_capability_scope_is_rejected(selection):
+    with pytest.raises(ValueError, match='CAPABILITY_INVALID'):
+        plan_research_refresh(['NVDA'], {}, _entitlement(*ALLOWED_CAPABILITIES), source_sha='a' * 40,
+                              now=NOW, capabilities=selection)
+
+
+def test_new_cache_family_freshness_is_bounded_and_naive_clock_rejected():
+    cache = {'NVDA': {'live_quote': {'capture_timestamp': '2026-10-18T11:59:00Z', 'integrity_verified': True}}}
+    kwargs = dict(tickers=['NVDA'], cache_index=cache, entitlement=_entitlement('live_quote'),
+                  source_sha='a' * 40, capabilities=['live_quote'])
+    assert plan_research_refresh(now=NOW, **kwargs)['retained_fresh']
+    cache['NVDA']['live_quote']['capture_timestamp'] = '2026-10-18T11:58:59Z'
+    assert plan_research_refresh(now=NOW, **kwargs)['requests'][0]['capability'] == 'live_quote'
+    with pytest.raises(ValueError, match='TIMEZONE_REQUIRED'):
+        plan_research_refresh(now=NOW.replace(tzinfo=None), **kwargs)

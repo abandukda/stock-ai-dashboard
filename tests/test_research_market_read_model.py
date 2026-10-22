@@ -191,3 +191,46 @@ def test_rejects_unordered_duplicate_nonfinal_and_malformed_ohlcv(tmp_path):
         root = tmp_path / str(index); root.mkdir()
         (root / "NVDA.json").write_text(json.dumps(document))
         assert "historical_ohlcv" not in load_research_market_context("NVDA", root)
+
+
+def test_nonmapping_json_and_families_fail_closed_with_verified_backup(tmp_path):
+    primary, backup = tmp_path / 'primary', tmp_path / 'backup'
+    primary.mkdir(); backup.mkdir()
+    document = _document()
+    document['backup_provenance'] = {'independent_copy': True, 'lineage_sha256': document['lineage_sha256']}
+    document = seal_research_market_bundle(document)
+    (backup / 'NVDA.json').write_text(json.dumps(document))
+    for corrupt in ([], None, 'not a document', {'families': []}, {'families': 'invalid'}):
+        (primary / 'NVDA.json').write_text(json.dumps(corrupt))
+        assert load_research_market_context('NVDA', primary) == {}
+        result = load_research_market_context('NVDA', primary, backup_root=backup)
+        assert result['__read_model__']['cache_source'] == 'BACKUP'
+        assert 'historical_ohlcv' in result
+
+
+def test_invalid_ohlcv_numeric_and_container_types_never_crash_or_admit(tmp_path):
+    cases = [('timestamps', [float('inf')]), ('timestamps', [float('nan')]),
+             ('timestamps', [10 ** 400]), ('timestamps', [True]),
+             ('close', [True]), ('volume', [True]), ('open', {'bad': 1}),
+             ('timestamps', 1792180800), ('completed_session_flags', True)]
+    for index, (field, value) in enumerate(cases):
+        document = _document()
+        family = document['families']['historical_ohlcv']
+        family['payload'][field] = value
+        family['payload_sha256'] = hashlib.sha256(_canonical(family['payload'])).hexdigest()
+        document = seal_research_market_bundle(document)
+        root = tmp_path / str(index); root.mkdir()
+        (root / 'NVDA.json').write_text(json.dumps(document))
+        result = load_research_market_context('NVDA', root)
+        assert 'historical_ohlcv' not in result
+        assert 'basic_financials' in result  # One bad family does not hide valid domains.
+
+
+def test_envelope_cannot_be_relabelled_under_a_different_family(tmp_path):
+    document = _document()
+    document['families']['historical_ohlcv'] = document['families']['basic_financials']
+    document = seal_research_market_bundle(document)
+    (tmp_path / 'NVDA.json').write_text(json.dumps(document))
+    result = load_research_market_context('NVDA', tmp_path)
+    assert 'historical_ohlcv' not in result
+    assert 'basic_financials' in result

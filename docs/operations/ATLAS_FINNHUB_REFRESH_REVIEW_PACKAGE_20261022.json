@@ -1,0 +1,794 @@
+{
+  "actual_ledger_writes": 0,
+  "actual_provider_calls": 0,
+  "actual_publication_writes": 0,
+  "base_source_sha": "190f1307444c6f17efb059c8b108e561f15ece3d",
+  "compiled_plan": {
+    "as_of": "2026-10-22",
+    "deferred": [],
+    "entitlement_status": "LIVE_REVALIDATION_REQUIRED",
+    "limits": {
+      "concurrency": 1,
+      "max_requests": 60,
+      "max_tickers": 4,
+      "retries": 0
+    },
+    "mode": "REHEARSAL_TRANSPORT_DISABLED",
+    "package_sha256": "7c1dfacd840f00389451d8372cdd539f2c2900afda1c40595225c9c90b9128fe",
+    "provider_calls": 0,
+    "publication_writes": 0,
+    "recommendation_authority": "UNCHANGED",
+    "report_card_writes": 0,
+    "requests": [
+      {
+        "cache_reason": "CACHE_MISSING",
+        "capability": "historical_ohlcv",
+        "endpoint": "/stock/candle",
+        "ordinal": 1,
+        "parameters": {
+          "from": 1634515200,
+          "resolution": "D",
+          "symbol": "ANET",
+          "to": 1792713599
+        },
+        "request_sha256": "554f436b3c9c897041705eb540fb6045d15bb825b504a4be6e977d3dd6b21b03",
+        "ticker": "ANET"
+      },
+      {
+        "cache_reason": "CACHE_MISSING",
+        "capability": "historical_ohlcv",
+        "endpoint": "/stock/candle",
+        "ordinal": 2,
+        "parameters": {
+          "from": 1634515200,
+          "resolution": "D",
+          "symbol": "META",
+          "to": 1792713599
+        },
+        "request_sha256": "8222e724efd4e0fa7eee6a4810687045a0451d60f0d48c4541cfd0e9b7742374",
+        "ticker": "META"
+      },
+      {
+        "cache_reason": "CACHE_MISSING",
+        "capability": "historical_ohlcv",
+        "endpoint": "/stock/candle",
+        "ordinal": 3,
+        "parameters": {
+          "from": 1634515200,
+          "resolution": "D",
+          "symbol": "MSFT",
+          "to": 1792713599
+        },
+        "request_sha256": "ce25f7c11dbb2a1f8d14e10f3e5b42d642160bd0520303452ccbefbf583d1abd",
+        "ticker": "MSFT"
+      },
+      {
+        "cache_reason": "CACHE_MISSING",
+        "capability": "historical_ohlcv",
+        "endpoint": "/stock/candle",
+        "ordinal": 4,
+        "parameters": {
+          "from": 1634515200,
+          "resolution": "D",
+          "symbol": "NVDA",
+          "to": 1792713599
+        },
+        "request_sha256": "60bedd5bdd582b1c15eea8c6308a9b4f92066425ad2bc33a39d66e1459c8d5ee",
+        "ticker": "NVDA"
+      },
+      {
+        "cache_reason": "SIGNED_DISPLAY_CONTRACT_CACHE_MISSING",
+        "capability": "splits",
+        "endpoint": "/stock/split",
+        "ordinal": 5,
+        "parameters": {
+          "from": "2021-10-18",
+          "symbol": "ANET",
+          "to": "2026-10-22"
+        },
+        "request_sha256": "10b437f19d7320945c7a6ca5cfb1fd94bcf0f50b5a9be3f337d59c905104bbfb",
+        "ticker": "ANET"
+      },
+      {
+        "cache_reason": "SIGNED_DISPLAY_CONTRACT_CACHE_MISSING",
+        "capability": "splits",
+        "endpoint": "/stock/split",
+        "ordinal": 6,
+        "parameters": {
+          "from": "2021-10-18",
+          "symbol": "META",
+          "to": "2026-10-22"
+        },
+        "request_sha256": "5e9cb52a7f074a71bd8fe052c0e05fd5c783ed455416a230f590b67541650037",
+        "ticker": "META"
+      },
+      {
+        "cache_reason": "SIGNED_DISPLAY_CONTRACT_CACHE_MISSING",
+        "capability": "splits",
+        "endpoint": "/stock/split",
+        "ordinal": 7,
+        "parameters": {
+          "from": "2021-10-18",
+          "symbol": "MSFT",
+          "to": "2026-10-22"
+        },
+        "request_sha256": "a663e1b0945a918bd654f62746219f5642d2ab4ccd4743bfee21c1f0b756f661",
+        "ticker": "MSFT"
+      },
+      {
+        "cache_reason": "SIGNED_DISPLAY_CONTRACT_CACHE_MISSING",
+        "capability": "splits",
+        "endpoint": "/stock/split",
+        "ordinal": 8,
+        "parameters": {
+          "from": "2021-10-18",
+          "symbol": "NVDA",
+          "to": "2026-10-22"
+        },
+        "request_sha256": "863eeee9f202d0bae580d8b8f96853a5c212b5a761153d91e86be9f41a2b40b3",
+        "ticker": "NVDA"
+      },
+      {
+        "cache_reason": "SIGNED_DISPLAY_CONTRACT_CACHE_MISSING",
+        "capability": "dividends",
+        "endpoint": "/stock/dividend",
+        "ordinal": 9,
+        "parameters": {
+          "from": "2021-10-18",
+          "symbol": "ANET",
+          "to": "2026-10-22"
+        },
+        "request_sha256": "75fbf8060b248da40083e82f1b01e3da7c3ca3f06c18ff6212d431c81311cf90",
+        "ticker": "ANET"
+      },
+      {
+        "cache_reason": "SIGNED_DISPLAY_CONTRACT_CACHE_MISSING",
+        "capability": "dividends",
+        "endpoint": "/stock/dividend",
+        "ordinal": 10,
+        "parameters": {
+          "from": "2021-10-18",
+          "symbol": "META",
+          "to": "2026-10-22"
+        },
+        "request_sha256": "34f4acea50a7b882eacdb1959f4a7ef94d300524e1c95d2eda16f42a0e85b801",
+        "ticker": "META"
+      },
+      {
+        "cache_reason": "SIGNED_DISPLAY_CONTRACT_CACHE_MISSING",
+        "capability": "dividends",
+        "endpoint": "/stock/dividend",
+        "ordinal": 11,
+        "parameters": {
+          "from": "2021-10-18",
+          "symbol": "MSFT",
+          "to": "2026-10-22"
+        },
+        "request_sha256": "35c4034778f9da9071727553b46591a3795636bd36f8bf9eee41da29afc92d02",
+        "ticker": "MSFT"
+      },
+      {
+        "cache_reason": "SIGNED_DISPLAY_CONTRACT_CACHE_MISSING",
+        "capability": "dividends",
+        "endpoint": "/stock/dividend",
+        "ordinal": 12,
+        "parameters": {
+          "from": "2021-10-18",
+          "symbol": "NVDA",
+          "to": "2026-10-22"
+        },
+        "request_sha256": "a16190221a9cb24a501d354e254285db53f3d8a454c3c643450f4e38a83c390f",
+        "ticker": "NVDA"
+      },
+      {
+        "cache_reason": "CACHE_MISSING",
+        "capability": "financial_statements",
+        "endpoint": "/stock/financials-reported",
+        "ordinal": 13,
+        "parameters": {
+          "freq": "annual",
+          "symbol": "ANET"
+        },
+        "request_sha256": "8ba9f7cf282a94944953015a6a89d61f44773794c907bdc63054cd7cdac931c1",
+        "ticker": "ANET"
+      },
+      {
+        "cache_reason": "CACHE_MISSING",
+        "capability": "financial_statements",
+        "endpoint": "/stock/financials-reported",
+        "ordinal": 14,
+        "parameters": {
+          "freq": "annual",
+          "symbol": "META"
+        },
+        "request_sha256": "cb157c50cd268db7c9be1c3a35ab895a2aedad32c17c82639329c152b09fb22e",
+        "ticker": "META"
+      },
+      {
+        "cache_reason": "CACHE_MISSING",
+        "capability": "financial_statements",
+        "endpoint": "/stock/financials-reported",
+        "ordinal": 15,
+        "parameters": {
+          "freq": "annual",
+          "symbol": "MSFT"
+        },
+        "request_sha256": "bee2573350678c9e58d07952802858b61dd0bcc305cd7073a617a6d75c047cfe",
+        "ticker": "MSFT"
+      },
+      {
+        "cache_reason": "CACHE_MISSING",
+        "capability": "financial_statements",
+        "endpoint": "/stock/financials-reported",
+        "ordinal": 16,
+        "parameters": {
+          "freq": "annual",
+          "symbol": "NVDA"
+        },
+        "request_sha256": "f2aa6679ff888f8ca862929ce698ff5ddd4dd2b88d760d3ff84149f07a65abf5",
+        "ticker": "NVDA"
+      },
+      {
+        "cache_reason": "CACHE_MISSING",
+        "capability": "basic_financials",
+        "endpoint": "/stock/metric",
+        "ordinal": 17,
+        "parameters": {
+          "metric": "all",
+          "symbol": "ANET"
+        },
+        "request_sha256": "dc6941ecdf2234123fc8027378c4abc7349861411ccb0c5bd85a58bfc9f4862f",
+        "ticker": "ANET"
+      },
+      {
+        "cache_reason": "CACHE_MISSING",
+        "capability": "basic_financials",
+        "endpoint": "/stock/metric",
+        "ordinal": 18,
+        "parameters": {
+          "metric": "all",
+          "symbol": "META"
+        },
+        "request_sha256": "3aba24ae6ea64eef80dfe3fd06850f842d315bdc17d0d80448ca7cffc2d71480",
+        "ticker": "META"
+      },
+      {
+        "cache_reason": "CACHE_MISSING",
+        "capability": "basic_financials",
+        "endpoint": "/stock/metric",
+        "ordinal": 19,
+        "parameters": {
+          "metric": "all",
+          "symbol": "MSFT"
+        },
+        "request_sha256": "f50e249f18822422a849cb0a396fd01bfed3dd3fc321ee295bd1ef0a0e80dc68",
+        "ticker": "MSFT"
+      },
+      {
+        "cache_reason": "CACHE_MISSING",
+        "capability": "basic_financials",
+        "endpoint": "/stock/metric",
+        "ordinal": 20,
+        "parameters": {
+          "metric": "all",
+          "symbol": "NVDA"
+        },
+        "request_sha256": "c8d7488822145c105a7557d181f121f32d5de37aae9a1e8c247e2ef22cf9695c",
+        "ticker": "NVDA"
+      },
+      {
+        "cache_reason": "CACHE_MISSING",
+        "capability": "stock_earnings",
+        "endpoint": "/stock/earnings",
+        "ordinal": 21,
+        "parameters": {
+          "symbol": "ANET"
+        },
+        "request_sha256": "d3a4ea2f0e896d2efcc23086b6b56ee492a339b154940664a06dafa00a175e63",
+        "ticker": "ANET"
+      },
+      {
+        "cache_reason": "CACHE_MISSING",
+        "capability": "stock_earnings",
+        "endpoint": "/stock/earnings",
+        "ordinal": 22,
+        "parameters": {
+          "symbol": "META"
+        },
+        "request_sha256": "99d0bc8ecf62561747c7f51878d38900d8c1cc5a35e5bf136a5ad5a7cf1a66ad",
+        "ticker": "META"
+      },
+      {
+        "cache_reason": "CACHE_MISSING",
+        "capability": "stock_earnings",
+        "endpoint": "/stock/earnings",
+        "ordinal": 23,
+        "parameters": {
+          "symbol": "MSFT"
+        },
+        "request_sha256": "e4dead86113abdd23f21766429e2a7560dd8f84615c562b23de9bcd06d8a9bc0",
+        "ticker": "MSFT"
+      },
+      {
+        "cache_reason": "CACHE_MISSING",
+        "capability": "stock_earnings",
+        "endpoint": "/stock/earnings",
+        "ordinal": 24,
+        "parameters": {
+          "symbol": "NVDA"
+        },
+        "request_sha256": "89fd6f10cc4be0a331c4672433bcafc4affaa5f9272de40aed7ea2e21da11917",
+        "ticker": "NVDA"
+      },
+      {
+        "cache_reason": "CACHE_MISSING",
+        "capability": "recommendations",
+        "endpoint": "/stock/recommendation",
+        "ordinal": 25,
+        "parameters": {
+          "symbol": "ANET"
+        },
+        "request_sha256": "7483660966e156761a8312311aef0ac43ac3e63f6a8515d958e743465b11d652",
+        "ticker": "ANET"
+      },
+      {
+        "cache_reason": "CACHE_MISSING",
+        "capability": "recommendations",
+        "endpoint": "/stock/recommendation",
+        "ordinal": 26,
+        "parameters": {
+          "symbol": "META"
+        },
+        "request_sha256": "45ce30455e762b7aa38779dd432e8bfa6fa75593add0995ac741b25c9613a9e7",
+        "ticker": "META"
+      },
+      {
+        "cache_reason": "CACHE_MISSING",
+        "capability": "recommendations",
+        "endpoint": "/stock/recommendation",
+        "ordinal": 27,
+        "parameters": {
+          "symbol": "MSFT"
+        },
+        "request_sha256": "942538b025588c1a0a8368d3348ea8f18d1309eefba7b6efdca929570a51ef2a",
+        "ticker": "MSFT"
+      },
+      {
+        "cache_reason": "CACHE_MISSING",
+        "capability": "recommendations",
+        "endpoint": "/stock/recommendation",
+        "ordinal": 28,
+        "parameters": {
+          "symbol": "NVDA"
+        },
+        "request_sha256": "423969d4d2b32d1f38ef0f118df518e8645b647019c537b5d2eb5e3711cad4bc",
+        "ticker": "NVDA"
+      },
+      {
+        "cache_reason": "CACHE_MISSING",
+        "capability": "price_targets",
+        "endpoint": "/stock/price-target",
+        "ordinal": 29,
+        "parameters": {
+          "symbol": "ANET"
+        },
+        "request_sha256": "ee9d5cea69eb59f2a9454146403e95918720c5af79c51f4ae34766bcd33118d3",
+        "ticker": "ANET"
+      },
+      {
+        "cache_reason": "CACHE_MISSING",
+        "capability": "price_targets",
+        "endpoint": "/stock/price-target",
+        "ordinal": 30,
+        "parameters": {
+          "symbol": "META"
+        },
+        "request_sha256": "1e923dc9f6a234133aebbbd7531df569623de2f23246b16af76d841103a83773",
+        "ticker": "META"
+      },
+      {
+        "cache_reason": "CACHE_MISSING",
+        "capability": "price_targets",
+        "endpoint": "/stock/price-target",
+        "ordinal": 31,
+        "parameters": {
+          "symbol": "MSFT"
+        },
+        "request_sha256": "5c04d2a972b09124bc4b80b68244508db3d1bfa4f16de0388d48ff16799ae67b",
+        "ticker": "MSFT"
+      },
+      {
+        "cache_reason": "CACHE_MISSING",
+        "capability": "price_targets",
+        "endpoint": "/stock/price-target",
+        "ordinal": 32,
+        "parameters": {
+          "symbol": "NVDA"
+        },
+        "request_sha256": "6c071c0d11db787cfc3c0fac797cee273432d752329910cb2e68fff88088dfdb",
+        "ticker": "NVDA"
+      },
+      {
+        "cache_reason": "CACHE_MISSING",
+        "capability": "company_news",
+        "endpoint": "/company-news",
+        "ordinal": 33,
+        "parameters": {
+          "from": "2025-10-21",
+          "symbol": "ANET",
+          "to": "2026-10-22"
+        },
+        "request_sha256": "fa225763562c3aabbb398e55cdf489679ea03700f10b2fdcfc05b3f93ee4247b",
+        "ticker": "ANET"
+      },
+      {
+        "cache_reason": "CACHE_MISSING",
+        "capability": "company_news",
+        "endpoint": "/company-news",
+        "ordinal": 34,
+        "parameters": {
+          "from": "2025-10-21",
+          "symbol": "META",
+          "to": "2026-10-22"
+        },
+        "request_sha256": "95c0082b5f71d55073155fc831d02c05216f2392551c0bcd391a6a61dda6c285",
+        "ticker": "META"
+      },
+      {
+        "cache_reason": "CACHE_MISSING",
+        "capability": "company_news",
+        "endpoint": "/company-news",
+        "ordinal": 35,
+        "parameters": {
+          "from": "2025-10-21",
+          "symbol": "MSFT",
+          "to": "2026-10-22"
+        },
+        "request_sha256": "17abfda15948be3a3fe3ddc0085a0a97d206ec6a98bbf220c134f0e55c9943e3",
+        "ticker": "MSFT"
+      },
+      {
+        "cache_reason": "CACHE_MISSING",
+        "capability": "company_news",
+        "endpoint": "/company-news",
+        "ordinal": 36,
+        "parameters": {
+          "from": "2025-10-21",
+          "symbol": "NVDA",
+          "to": "2026-10-22"
+        },
+        "request_sha256": "729a861972d4683164a62d7dfd55ce4a09178026856cc3092a50672928b6361d",
+        "ticker": "NVDA"
+      },
+      {
+        "cache_reason": "CACHE_MISSING",
+        "capability": "analyst_actions",
+        "endpoint": "/stock/upgrade-downgrade",
+        "ordinal": 37,
+        "parameters": {
+          "symbol": "ANET"
+        },
+        "request_sha256": "ab978903210c11888846e06e39c42fd535bbb6b02acd2188d2c5579e94ae6dfe",
+        "ticker": "ANET"
+      },
+      {
+        "cache_reason": "CACHE_MISSING",
+        "capability": "analyst_actions",
+        "endpoint": "/stock/upgrade-downgrade",
+        "ordinal": 38,
+        "parameters": {
+          "symbol": "META"
+        },
+        "request_sha256": "825888549cefe85237a832e3cecd9e77bc3029da62bbe2b9680efbdd496b62c7",
+        "ticker": "META"
+      },
+      {
+        "cache_reason": "CACHE_MISSING",
+        "capability": "analyst_actions",
+        "endpoint": "/stock/upgrade-downgrade",
+        "ordinal": 39,
+        "parameters": {
+          "symbol": "MSFT"
+        },
+        "request_sha256": "b623ea2c53e2b7ee09f46d0cb8cb0d8b326b5deec60b8dddca9ab252f9d1d309",
+        "ticker": "MSFT"
+      },
+      {
+        "cache_reason": "CACHE_MISSING",
+        "capability": "analyst_actions",
+        "endpoint": "/stock/upgrade-downgrade",
+        "ordinal": 40,
+        "parameters": {
+          "symbol": "NVDA"
+        },
+        "request_sha256": "49961a3b69f5741bffd257f9bd1ed6a94ffbd24a1bdab6a3e7369b997b30bb50",
+        "ticker": "NVDA"
+      },
+      {
+        "cache_reason": "CACHE_MISSING",
+        "capability": "earnings_calendar",
+        "endpoint": "/calendar/earnings",
+        "ordinal": 41,
+        "parameters": {
+          "from": "2026-07-24",
+          "symbol": "ANET",
+          "to": "2027-04-20"
+        },
+        "request_sha256": "99615f3a45a508da5b431c575324c5a6cf51eec6b01c5e880b3cda889e315a7a",
+        "ticker": "ANET"
+      },
+      {
+        "cache_reason": "CACHE_MISSING",
+        "capability": "earnings_calendar",
+        "endpoint": "/calendar/earnings",
+        "ordinal": 42,
+        "parameters": {
+          "from": "2026-07-24",
+          "symbol": "META",
+          "to": "2027-04-20"
+        },
+        "request_sha256": "ad416019aa873c5c95574187c08eee46f4314a471ac8c25cc53d55075ea272e4",
+        "ticker": "META"
+      },
+      {
+        "cache_reason": "CACHE_MISSING",
+        "capability": "earnings_calendar",
+        "endpoint": "/calendar/earnings",
+        "ordinal": 43,
+        "parameters": {
+          "from": "2026-07-24",
+          "symbol": "MSFT",
+          "to": "2027-04-20"
+        },
+        "request_sha256": "ae18dafeccf06750fb627dd0fc8504e6759238283a66924568fc958cb6d773c6",
+        "ticker": "MSFT"
+      },
+      {
+        "cache_reason": "CACHE_MISSING",
+        "capability": "earnings_calendar",
+        "endpoint": "/calendar/earnings",
+        "ordinal": 44,
+        "parameters": {
+          "from": "2026-07-24",
+          "symbol": "NVDA",
+          "to": "2027-04-20"
+        },
+        "request_sha256": "d2b822313c5ccc23400b2a62987af717ffdd3da9f3a8c9d31ce1683cf7a1c439",
+        "ticker": "NVDA"
+      },
+      {
+        "cache_reason": "CACHE_MISSING",
+        "capability": "live_quote",
+        "endpoint": "/quote",
+        "ordinal": 45,
+        "parameters": {
+          "symbol": "ANET"
+        },
+        "request_sha256": "7b53a8bc7ecc5567d144e5be0ff2e7fc16bac9a2ef4118cec05c2718f5319063",
+        "ticker": "ANET"
+      },
+      {
+        "cache_reason": "CACHE_MISSING",
+        "capability": "live_quote",
+        "endpoint": "/quote",
+        "ordinal": 46,
+        "parameters": {
+          "symbol": "META"
+        },
+        "request_sha256": "b5904d45356a2febb54ce264e21db2e77810d1901167701fc5ac4b3fd201bcea",
+        "ticker": "META"
+      },
+      {
+        "cache_reason": "CACHE_MISSING",
+        "capability": "live_quote",
+        "endpoint": "/quote",
+        "ordinal": 47,
+        "parameters": {
+          "symbol": "MSFT"
+        },
+        "request_sha256": "c5b450bef7eb8c1b88489c21a9b2ffb9ff0716b980eb6da27c51d649ef1beda6",
+        "ticker": "MSFT"
+      },
+      {
+        "cache_reason": "CACHE_MISSING",
+        "capability": "live_quote",
+        "endpoint": "/quote",
+        "ordinal": 48,
+        "parameters": {
+          "symbol": "NVDA"
+        },
+        "request_sha256": "220ad2e90ec866ab2f6a767c94a20b4762afaba730731cf131337b00219abdc4",
+        "ticker": "NVDA"
+      },
+      {
+        "cache_reason": "CACHE_MISSING",
+        "capability": "company_profile",
+        "endpoint": "/stock/profile2",
+        "ordinal": 49,
+        "parameters": {
+          "symbol": "ANET"
+        },
+        "request_sha256": "02017a5d82afdf88715e278af3fc8223f904ee8fceef028d5bdecd3367174e96",
+        "ticker": "ANET"
+      },
+      {
+        "cache_reason": "CACHE_MISSING",
+        "capability": "company_profile",
+        "endpoint": "/stock/profile2",
+        "ordinal": 50,
+        "parameters": {
+          "symbol": "META"
+        },
+        "request_sha256": "f29ab8d5f6947de7b552e4721480552211c560f67949fdb70f41e4da15c9e1e7",
+        "ticker": "META"
+      },
+      {
+        "cache_reason": "CACHE_MISSING",
+        "capability": "company_profile",
+        "endpoint": "/stock/profile2",
+        "ordinal": 51,
+        "parameters": {
+          "symbol": "MSFT"
+        },
+        "request_sha256": "be15cd1e93f2c4b0f2b40c75d2c706ad0fb2d454a79b4ec71ce412674f9c3289",
+        "ticker": "MSFT"
+      },
+      {
+        "cache_reason": "CACHE_MISSING",
+        "capability": "company_profile",
+        "endpoint": "/stock/profile2",
+        "ordinal": 52,
+        "parameters": {
+          "symbol": "NVDA"
+        },
+        "request_sha256": "1f021131042a02790a201c3349272d64ba58fbce331bd1272531f4843c0898ce",
+        "ticker": "NVDA"
+      },
+      {
+        "cache_reason": "CACHE_MISSING",
+        "capability": "revenue_estimates",
+        "endpoint": "/stock/revenue-estimate",
+        "ordinal": 53,
+        "parameters": {
+          "freq": "quarterly",
+          "symbol": "ANET"
+        },
+        "request_sha256": "1c6480b5a4808ebcd4dcba68ead0629fc385adf525dbc9d1267baed063ab40d4",
+        "ticker": "ANET"
+      },
+      {
+        "cache_reason": "CACHE_MISSING",
+        "capability": "revenue_estimates",
+        "endpoint": "/stock/revenue-estimate",
+        "ordinal": 54,
+        "parameters": {
+          "freq": "quarterly",
+          "symbol": "META"
+        },
+        "request_sha256": "82ab850e60cec99ac0cd1eb6baab578fa35c0e6a180eeaa7e48a57c08357fac5",
+        "ticker": "META"
+      },
+      {
+        "cache_reason": "CACHE_MISSING",
+        "capability": "revenue_estimates",
+        "endpoint": "/stock/revenue-estimate",
+        "ordinal": 55,
+        "parameters": {
+          "freq": "quarterly",
+          "symbol": "MSFT"
+        },
+        "request_sha256": "b2788d5e7639a7e672b3175c0651b680b25e7d9afdd79340a05f4422bb4ae04e",
+        "ticker": "MSFT"
+      },
+      {
+        "cache_reason": "CACHE_MISSING",
+        "capability": "revenue_estimates",
+        "endpoint": "/stock/revenue-estimate",
+        "ordinal": 56,
+        "parameters": {
+          "freq": "quarterly",
+          "symbol": "NVDA"
+        },
+        "request_sha256": "047c06360586b9b6ab7a632cb3d6c83da01199cf93ab6aba16605609f0fdb440",
+        "ticker": "NVDA"
+      },
+      {
+        "cache_reason": "CACHE_MISSING",
+        "capability": "eps_estimates",
+        "endpoint": "/stock/eps-estimate",
+        "ordinal": 57,
+        "parameters": {
+          "freq": "quarterly",
+          "symbol": "ANET"
+        },
+        "request_sha256": "bbb3ec13592d46ee9f1758bd2ad9f2c4251755da525e7db08b7f83904aafd54c",
+        "ticker": "ANET"
+      },
+      {
+        "cache_reason": "CACHE_MISSING",
+        "capability": "eps_estimates",
+        "endpoint": "/stock/eps-estimate",
+        "ordinal": 58,
+        "parameters": {
+          "freq": "quarterly",
+          "symbol": "META"
+        },
+        "request_sha256": "14a62d97464a806b77dd732a0b2a44c16b005e89eb742faa6d5ba097385ef9c5",
+        "ticker": "META"
+      },
+      {
+        "cache_reason": "CACHE_MISSING",
+        "capability": "eps_estimates",
+        "endpoint": "/stock/eps-estimate",
+        "ordinal": 59,
+        "parameters": {
+          "freq": "quarterly",
+          "symbol": "MSFT"
+        },
+        "request_sha256": "5d8e08dbd94868c35dad537a0cf241d12e20a3bc3e266ef962fb481f6fe80a03",
+        "ticker": "MSFT"
+      },
+      {
+        "cache_reason": "CACHE_MISSING",
+        "capability": "eps_estimates",
+        "endpoint": "/stock/eps-estimate",
+        "ordinal": 60,
+        "parameters": {
+          "freq": "quarterly",
+          "symbol": "NVDA"
+        },
+        "request_sha256": "982170d576d6cb463dcdc32c178134b956ef4d5cee08aa84e4a8a73907d21dbd",
+        "ticker": "NVDA"
+      }
+    ],
+    "retained_fresh": [],
+    "schema": "ATLAS_RESEARCH_REFRESH_EXECUTION_V1",
+    "scope_sha256": "4ebf11ed2252155ef135df7e6e2b6b40464b4fd56d287e1ee0594eda0380b67a",
+    "source_sha": "190f1307444c6f17efb059c8b108e561f15ece3d",
+    "unavailable": [],
+    "upstream_plan_sha256": "b049b0be10852fabbb9ac33459f4eb27b69844d4b7a827031fa6fe156cdfa3c0",
+    "upstream_scope_sha256": "1458c387cca24d8925ffabeae1c258a2ded55f5860e33abab6115941458f4005"
+  },
+  "endpoint_inventory_source": "services/finnhub_enterprise_display_contract.py:ENTERPRISE_DISPLAY_MATRIX",
+  "entitlement_fixture": "SIMULATED_APPROVED_INPUT_FOR_PROVIDER_FREE_PLANNING_NOT_LIVE_ENTITLEMENT_PROOF",
+  "execution_authority": {
+    "ledger_append": false,
+    "licensed_acquisition": false,
+    "paid_ai": false,
+    "promotion": false,
+    "protected_migration": false,
+    "publication": false,
+    "token_issued": false
+  },
+  "planning_clock_not_capture_timestamp": "2026-10-22T22:05:00+00:00",
+  "rebind_to_actual_approved_merged_sha_required": true,
+  "review_code_sha256": {
+    "services/finnhub_enterprise_display_contract.py": "ad8c7dd4634160afdd2dd4ff9075652e47680de081069dacaa0c44c5adccecba",
+    "services/research_market_read_model.py": "00543a30f2e955a7d57f6204382a92cef6869ccbbe04514687e2c169e8ec2361",
+    "services/research_refresh_execution.py": "0c35879650c96208e9af11e2bde2abebc8be5ae95e297cf8658fe14cd04e9ea4",
+    "services/research_refresh_readiness.py": "82d92f306b9bd2c1caa7141a065c8e2888f7f37e3e9340c462c69c5a0d9a4e05"
+  },
+  "review_sha256": "97eabc03edaef7908c058e67e20b45249403c858949c95033b577d2b7397708a",
+  "schema": "atlas.research.refresh.owner_review.v1",
+  "scope": {
+    "adjustment_families": 2,
+    "automatic_retries": 0,
+    "concurrency": 1,
+    "explicit_families": 13,
+    "maximum_logical_requests": 60,
+    "tickers": [
+      "ANET",
+      "META",
+      "MSFT",
+      "NVDA"
+    ]
+  },
+  "signed_contract_and_account_entitlement_revalidation_required": true,
+  "status": "REVIEW_ONLY_NOT_EXECUTABLE",
+  "window": {
+    "end": "2026-10-22T18:30:00-04:00",
+    "session": "2026-10-22",
+    "start": "2026-10-22T18:00:00-04:00",
+    "timezone": "America/New_York"
+  }
+}
