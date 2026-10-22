@@ -133,7 +133,9 @@ jobs:
       analytical_source_sha: ${{ steps.verify.outputs.source_sha }}
     env:
       ATLAS_DATA_MODE: INTERNAL_TRIAL
-      TWELVE_DATA_ENABLED: "true"
+      TWELVE_DATA_ENABLED: "false"
+      ATLAS_QA_PROVIDER_CALLS_ALLOWED: "0"
+      ATLAS_ALLOW_EXTERNAL_AI: "false"
       ATLAS_HARD_PUBLICATION_GOVERNANCE_ENABLED: "true"
       ATLAS_FOUNDER_GUIDANCE_V1_ENABLED: "true"
       ATLAS_QA_READINESS_TIMEOUT_SECONDS: "180"
@@ -151,13 +153,18 @@ jobs:
       FULL_EVALUATION_POOL_SIZE: "1400"
       DISCOVERY_VALIDATION_NEAR_CUTOFF: "100"
       DISCOVERY_VALIDATION_RANDOM: "100"
-      TWELVE_DATA_API_KEY: ${{ secrets.TWELVE_DATA_API_KEY }}
-      FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
-      NEWSAPI_KEY: ${{ secrets.NEWSAPI_KEY }}
-      ALPHA_VANTAGE_API_KEY: ${{ secrets.ALPHA_VANTAGE_API_KEY }}
-      SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
 
     steps:
+      - name: Require existing candidate before setup
+        env:
+          RETAINED_CANDIDATE: ${{ github.event.workflow_run.id || inputs.candidate_run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! [[ "$RETAINED_CANDIDATE" =~ ^(qa:|publication:|full-universe:)?[0-9]+$ ]]; then
+            echo "::error::RETAINED_CANDIDATE_REQUIRED: select an existing governed artifact run; acquisition requires a separately approved workflow."
+            exit 78
+          fi
       - name: Checkout current production main
         uses: actions/checkout@v4
         with:
@@ -324,18 +331,6 @@ jobs:
             --require-authorization "$QA_MODE" \
             --materialize audit_results/candidate_artifacts \
             --output audit_results/full_universe_input_validation.json
-
-      - name: Verify candidate-generation credential contract
-        if: steps.candidate.outputs.run_id == ''
-        run: |
-          if [ -z "${TWELVE_DATA_API_KEY:-}" ]; then
-            echo "::error::INTERNAL_TRIAL candidate generation requires TWELVE_DATA_API_KEY"
-            exit 1
-          fi
-
-      - name: Generate exact candidate for direct invocation
-        if: steps.candidate.outputs.run_id == ''
-        run: python overnight_market_scan.py
 
       - name: Preview candidate relationship and promotion eligibility
         id: identity
