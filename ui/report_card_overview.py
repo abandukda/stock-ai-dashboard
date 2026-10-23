@@ -3,6 +3,79 @@ from html import escape
 from typing import Any, Mapping
 
 
+def benchmark_evidence(report: Mapping[str, Any]) -> dict[str, Any]:
+    """Select paired recorded returns only; never create a portfolio series."""
+    import math
+    if not report.get('observation_count'):
+        return {'status': 'PENDING', 'rows': (),
+                'reason': 'No prospective observations are recorded. Approved entry timing, aligned SPY evidence and matured horizons are required before comparison.'}
+    # The legacy service admits per-row returns without a policy label. Any
+    # explicit restriction (including unknown future policy) fails closed.
+    if report.get('performance_policy') not in (None, ''):
+        return {'status': 'WITHHELD', 'rows': (),
+                'reason': 'Recorded prices do not authorize performance. Approved aligned-entry methodology is required.'}
+    rows = report.get('rows')
+    rows = rows if isinstance(rows, (tuple, list)) else ()
+    pairs = []
+    identities = [(item.get('signal_id'), item.get('horizon_sessions'))
+                  for item in rows if isinstance(item, Mapping)]
+    for item in rows:
+        if not isinstance(item, Mapping) or item.get('status') != 'AVAILABLE':
+            continue
+        identity = (item.get('signal_id'), item.get('horizon_sessions'))
+        if identities.count(identity) != 1:
+            continue
+        if (not all(isinstance(item.get(key), str) and item[key].strip()
+                    for key in ('signal_id', 'ticker', 'observed_at'))
+                or type(item.get('horizon_sessions')) is not int or item['horizon_sessions'] <= 0
+                or not all(type(item.get(key)) in (int, float) and math.isfinite(item[key])
+                           for key in ('stock_return', 'spy_return'))):
+            continue
+        pairs.append(dict(item))
+    if pairs and report.get('observation_count', 0) > 0:
+        return {'status': 'AVAILABLE', 'rows': tuple(pairs),
+                'reason': 'Individual recorded observations at the same registered horizon; not a funded portfolio or cumulative return.'}
+    pending = any(isinstance(item, Mapping) and item.get('status') == 'NOT_MATURED_OR_NOT_OBSERVED' for item in rows)
+    return {'status': 'PENDING' if not report.get('observation_count') or pending else 'UNAVAILABLE', 'rows': (),
+            'reason': 'No approved paired ATLAS signal and SPY returns are available. Missing evidence and not-yet-observed horizons remain unmeasured.'}
+
+
+def render_benchmark_panel(report: Mapping[str, Any]) -> None:
+    import streamlit as st
+    evidence = benchmark_evidence(report)
+    st.markdown(
+        f'<section class="atlas-rc-benchmark atlas-rc-benchmark--{evidence["status"].lower()}" data-atlas-qa="report-card-benchmark-evidence" '
+        f'data-atlas-benchmark-status="{evidence["status"]}">'
+        '<h2>ATLAS signals vs SPY</h2><div class="atlas-rc-legend"><b>● ATLAS signal</b><span>● SPY benchmark</span></div>'
+        + (f'<div class="atlas-rc-empty"><strong>Comparison {evidence["status"].lower()}</strong>'
+           '<span>No performance curve is drawn without approved evidence.</span></div>' if not evidence['rows'] else '')
+        + f'<p>{escape(evidence["reason"])}</p></section>', unsafe_allow_html=True,
+    )
+    if not evidence['rows']:
+        return
+    import plotly.graph_objects as go
+    horizons = sorted({item['horizon_sessions'] for item in evidence['rows']})
+    selected = st.selectbox('Comparison horizon', horizons, format_func=lambda value: f'{value} trading sessions',
+                            key='report_card_benchmark_horizon')
+    pairs = [item for item in evidence['rows'] if item['horizon_sessions'] == selected]
+    figure = go.Figure()
+    for name, field, color in (('ATLAS signal', 'stock_return', '#39aaff'), ('SPY benchmark', 'spy_return', '#dbe8f5')):
+        figure.add_bar(name=name, x=[f'{item["ticker"]} · {item["signal_id"]}' for item in pairs],
+                       y=[item[field] for item in pairs], marker_color=color,
+                       customdata=[[item['observed_at'], item['horizon_sessions']] for item in pairs],
+                       hovertemplate='%{x}<br>Return: %{y:.2%}<br>Observed: %{customdata[0]}<br>Horizon: %{customdata[1]} sessions<extra>%{fullData.name}</extra>')
+    categories = [f'{item["ticker"]} · {item["signal_id"]}' for item in pairs]
+    labels = [f'{item["ticker"]} · {item["signal_id"][:8]}'+('…' if len(item['signal_id']) > 8 else '') for item in pairs]
+    figure.update_layout(barmode='group', height=340, margin=dict(l=70, r=10, t=20, b=100),
+                         paper_bgcolor='#0b192a', plot_bgcolor='#0b192a', font_color='#c5d9ec',
+                         yaxis=dict(tickformat='.0%', title=dict(text='Recorded return', standoff=12),
+                                    automargin=True, tickfont=dict(color='#c5d9ec')),
+                         xaxis=dict(title='Original signal identity', tickmode='array', tickvals=categories,
+                                    ticktext=labels, tickangle=0, tickfont=dict(color='#c5d9ec'), automargin=True),
+                         legend=dict(orientation='h', y=-.4, x=0, font=dict(color='#c5d9ec')))
+    st.plotly_chart(figure, width='stretch', key='report_card_benchmark_pairs', theme=None)
+
+
 def overview_html(report: Mapping[str, Any]) -> str:
     observations = int(report['observation_count'])
     metrics = (
@@ -10,9 +83,12 @@ def overview_html(report: Mapping[str, Any]) -> str:
         ('Observations', observations, 'Prospective evidence in the ledger'),
         ('Open signals', report['open_signal_count'], 'Tracking remains in progress'),
         ('SPY comparisons', report['spy_comparison_count'], 'Same-session benchmark evidence'),
+        ('Performance', 'Pending' if observations == 0 else
+         ('Withheld' if report.get('performance_policy') not in (None, '') else 'Per signal'),
+         'No portfolio return inferred'),
     )
     cards = ''.join(
-        f'<article><small>{escape(label)}</small><strong>{int(value):,}</strong>'
+        f'<article><small>{escape(label)}</small><strong>{escape(str(value))}</strong>'
         f'<span>{escape(note)}</span></article>' for label, value, note in metrics
     )
     if observations == 0:
@@ -20,7 +96,7 @@ def overview_html(report: Mapping[str, Any]) -> str:
         description = ('No prospective price observations have been recorded. Signal returns, '
                        'SPY excess returns and win rates are unavailable until genuine, certified '
                        'observations are authorized and recorded.')
-    elif report.get('performance_policy') == 'VISIBILITY_ONLY_NO_RETURN_AUTHORITY':
+    elif report.get('performance_policy') not in (None, ''):
         title = 'Recorded prices; performance withheld'
         description = ('Recorded observations remain visible as evidence counts. Returns, SPY excess returns '
                        'and win rates are withheld pending separately approved, aligned-entry methodology. '
@@ -34,29 +110,30 @@ def overview_html(report: Mapping[str, Any]) -> str:
         '<section class="atlas-rc-summary" aria-label="Report Card evidence summary" '
         'data-atlas-qa="report-card-executive-summary">'
         f'<div class="atlas-rc-metrics">{cards}</div>'
-        '<div class="atlas-rc-evidence-grid">'
-        f'<article class="atlas-rc-pending"><small>PROSPECTIVE PERFORMANCE</small>'
-        f'<h2>{escape(title)}</h2><p>{escape(description)}</p></article>'
-        '<article><small>HISTORICAL SIGNAL EVIDENCE</small><h2>Review the original investment case</h2>'
+        '<div class="atlas-rc-status-line">'
+        f'<b>{escape(title)}</b><p>{escape(description)}</p>'
         '<p>Open a signal below to inspect its original dated price chart and evidence. '
         'Historical prices provide context; they do not create a prospective observation.</p>'
-        '<span class="atlas-rc-private">Private review · Public activation OFF</span></article>'
+        '<span class="atlas-rc-private">Private review · Public activation OFF</span>'
         '</div></section>'
     )
 
 
 OVERVIEW_CSS = '''<style>
+.atlas-report-card-hero{padding:1rem;border:1px solid #293b51;border-radius:14px;background:#0d1b2c;color:#e8eff8;margin-bottom:.75rem}.atlas-report-card-hero .atlas-kicker{font-size:.68rem;letter-spacing:.08em;color:#70b9ed}.atlas-report-card-hero h1{font-size:1.55rem!important;line-height:1.2!important;margin:.4rem 0!important;padding:0!important;color:#edf6ff}.atlas-report-card-hero p{font-size:.82rem;line-height:1.5;color:#adc4dc;margin:.3rem 0}
 .atlas-rc-summary{margin:.5rem 0 1.5rem;color:#e8eff8}
-.atlas-rc-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.75rem}
+.atlas-rc-metrics{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:.5rem}
 .atlas-rc-summary article{min-width:0;border:1px solid #293b51;border-radius:16px;padding:1.15rem;background:linear-gradient(145deg,#122236,#0d1727)}
 .atlas-rc-summary small{display:block;font-size:.73rem;letter-spacing:.065em;color:#a8bed5;line-height:1.4}
-.atlas-rc-metrics strong{display:block;font-size:2.2rem;line-height:1.2;font-variant-numeric:tabular-nums;margin:.4rem 0;color:#f5f9ff}
+.atlas-rc-metrics article{padding:.75rem}.atlas-rc-metrics strong{display:block;font-size:1.5rem;line-height:1.2;font-variant-numeric:tabular-nums;margin:.25rem 0;color:#f5f9ff}
 .atlas-rc-metrics span{display:block;font-size:.77rem;line-height:1.45;color:#a8b9cc}
 .atlas-rc-evidence-grid{display:grid;grid-template-columns:1.25fr 1fr;gap:.75rem;margin-top:.75rem}
 .atlas-rc-summary .atlas-rc-pending{border-color:#665637;background:linear-gradient(135deg,#27251e,#131f2e)}
 .atlas-rc-summary h2{font-size:1.25rem!important;line-height:1.25!important;margin:.5rem 0!important;padding:0!important}
 .atlas-rc-summary p{font-size:.9rem;line-height:1.6;color:#c4d2e1;margin:.5rem 0}
 .atlas-rc-private{display:inline-block;margin-top:.4rem;font-size:.72rem;padding:.35rem .6rem;border:1px solid #3a536e;border-radius:999px;color:#b9d7f5}
+.atlas-rc-status-line{margin:.75rem 0;padding:.8rem 1rem;border-left:3px solid #3998e8;background:#101e30;border-radius:4px 12px 12px 4px}.atlas-rc-status-line p{font-size:.8rem;margin:.25rem 0}.atlas-rc-status-line b{font-size:.95rem;color:#d8eaff}
+.atlas-rc-benchmark{padding:1rem;border:1px solid #2c4560;border-radius:14px;background:linear-gradient(145deg,#0e2339,#091522);color:#dcecff;min-height:240px}.atlas-rc-benchmark--available{min-height:0}.atlas-rc-benchmark h2{font-size:1.15rem!important;margin:0 0 .5rem!important}.atlas-rc-benchmark p{color:#a9bfd5;font-size:.85rem;line-height:1.55}.atlas-rc-legend{display:flex;gap:1rem;font-size:.75rem;color:#afc6df}.atlas-rc-legend b{color:#52b6ff}.atlas-rc-empty{display:grid;place-content:center;min-height:140px;text-align:center;border:1px dashed #36536f;border-radius:10px;margin:.8rem 0;padding:.7rem}.atlas-rc-empty strong{font-size:1rem;color:#e3d5b2}.atlas-rc-empty span{font-size:.8rem;color:#aac0d6;margin-top:.5rem}
 @media(max-width:1000px){.atlas-rc-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.atlas-rc-evidence-grid{grid-template-columns:1fr 1fr}}
 @media(max-width:600px){.atlas-rc-evidence-grid{grid-template-columns:1fr}.atlas-rc-summary article{padding:.85rem}.atlas-rc-metrics{gap:.5rem}.atlas-rc-metrics strong{font-size:1.8rem}.atlas-rc-summary h2{font-size:1.1rem!important}}
 </style>'''
@@ -100,24 +177,32 @@ def signal_directory_html(signals) -> str:
     for signal in signals:
         count = int(signal.get('observation_count') or 0)
         state = f'{count} recorded' if count else 'Pending'
+        registration = _registration_time(signal.get('registered_at'))
+        registration_date = ' '.join(registration.split()[:3])
         rows.append(
             f'<tr data-atlas-signal-id="{escape(str(signal["signal_id"]))}">'
             f'<th scope="row">{escape(str(signal["ticker"]))}</th>'
-            f'<td>{escape(_registration_time(signal.get("registered_at")))}</td>'
+            f'<td><span class="atlas-rc-signal-state">{escape(state)}</span></td>'
+            f'<td title="{escape(registration, quote=True)}">{escape(registration_date)}</td>'
             f'<td>{escape(_date(signal.get("signal_timestamp")))}</td>'
             f'<td>{escape(_reference_price(signal.get("reference_price")))}'
             f'<small>{escape(_date(signal.get("reference_price_timestamp")))}</small></td>'
-            f'<td><span class="atlas-rc-signal-state">{escape(state)}</span></td></tr>'
+            '<td>Unavailable<small>Not the reference price</small></td>'
+            f'<td>{escape(", ".join(str(value) for value in signal.get("registered_horizons") or ())) or "Unavailable"}'
+            '<small>Trading sessions · SPY alignment: see detail</small></td>'
+            '</tr>'
         )
     return (
         f'<section class="atlas-rc-directory" data-atlas-qa="report-card-signal-directory" data-atlas-signal-count="{len(signals)}">'
         '<h2>Original signal history</h2><p>Registered recommendations and their original price evidence.</p>'
         '<div class="atlas-rc-directory-scroll" tabindex="0" role="region" aria-label="Original signal history table">'
         '<table><caption>Original registered signals</caption><thead><tr>'
-        '<th scope="col">Signal</th><th scope="col">Registered (UTC)</th>'
-        '<th scope="col">Original signal date</th><th scope="col">Signal reference price</th><th scope="col">Observations</th>'
+        '<th scope="col">Signal</th><th scope="col">Observations</th><th scope="col">Registered (UTC)</th>'
+        '<th scope="col">Original signal date</th><th scope="col">Signal reference price</th>'
+        '<th scope="col">Executable entry</th><th scope="col">Registered horizons / SPY</th>'
         '</tr></thead><tbody>' + ''.join(rows) + '</tbody></table></div>'
-        '<p class="atlas-rc-reference-note">A signal reference price is not an executable entry. '
+        '<p class="atlas-rc-reference-note">Scroll the table for entry, horizon and observation evidence. '
+        'A signal reference price is not an executable entry. '
         'Registration is the immutable ledger record time, not proof of customer publication. '
         'Original signal and reference-price dates do not establish an executable entry. '
         'Historical prices do not create prospective returns. Open a signal to inspect its original chart and evidence.</p>'
@@ -126,18 +211,18 @@ def signal_directory_html(signals) -> str:
 
 
 DIRECTORY_CSS = '''<style>
-.atlas-rc-directory{margin:1.1rem 0;color:#e7eff9}.atlas-rc-directory h2{font-size:1.45rem!important;margin:.25rem 0!important}
+.atlas-rc-directory{margin:0 0 1rem;padding:.8rem;border:1px solid #293b51;border-radius:14px;background:#0d1b2c;color:#e7eff9}.atlas-rc-directory h2{font-size:1.15rem!important;margin:.25rem 0!important;color:#e7eff9}
 .atlas-rc-directory p{color:#a9bfd5;font-size:.88rem;line-height:1.5}.atlas-rc-directory-scroll{max-height:420px;overflow:auto;border:1px solid #30455e;border-radius:14px;background:#101d2f}
-.atlas-rc-directory table{width:100%;border-collapse:collapse;min-width:480px;font-size:.88rem}
+.atlas-rc-directory table{width:100%;border-collapse:collapse;min-width:760px;font-size:.82rem}
 .atlas-rc-directory caption{text-align:left;padding:.6rem .8rem;color:#a9bfd5;font-size:.78rem}
-.atlas-rc-directory th,.atlas-rc-directory td{padding:.8rem;text-align:left;border-bottom:1px solid #263b54;vertical-align:middle}
+.atlas-rc-directory th,.atlas-rc-directory td{padding:.55rem .6rem;text-align:left;border-bottom:1px solid #263b54;vertical-align:middle}
 .atlas-rc-directory thead th{position:sticky;top:0;background:#182b42;color:#c0d6ed;font-size:.72rem;letter-spacing:.025em;z-index:1}
-.atlas-rc-directory tbody th{color:#f1f7ff;font-weight:750}.atlas-rc-directory td{color:#d4e2f1;font-variant-numeric:tabular-nums}
-.atlas-rc-directory td small{display:block;color:#9aafc6;font-size:.7rem;margin-top:.22rem}
+.atlas-rc-directory tbody th{color:#f1f7ff;font-weight:750}.atlas-rc-directory td{color:#d4e2f1;font-variant-numeric:tabular-nums;white-space:nowrap}
+.atlas-rc-directory td small{display:block;color:#9aafc6;font-size:.7rem;margin-top:.22rem;white-space:normal;max-width:140px}
 .atlas-rc-signal-state{display:inline-block;padding:.25rem .5rem;border:1px solid #6a593c;border-radius:999px;background:#2a281f;color:#e8cc91;font-size:.76rem}
 .atlas-rc-directory .atlas-rc-reference-note{font-size:.75rem;color:#9bafc5;margin:.6rem 0}
 .atlas-rc-directory-scroll:focus-visible{outline:3px solid #8bc1ff;outline-offset:3px}
-@media(max-width:600px){.atlas-rc-directory th,.atlas-rc-directory td{padding:.65rem .6rem}.atlas-rc-directory table{min-width:440px;font-size:.82rem}}
+@media(max-width:600px){.atlas-rc-directory th,.atlas-rc-directory td{padding:.55rem .6rem}}
 </style>'''
 
 

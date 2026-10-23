@@ -75,6 +75,125 @@ def test_dashboard_access_and_missing_ledger_fail_closed(tmp_path):
         build_internal_report_card(tmp_path / "missing.sqlite3", authorized=True)
 
 
+def _render_private_route(root):
+    from ui.internal_report_card import render_internal_report_card_route
+    render_internal_report_card_route(root, authorized=True)
+
+
+@pytest.mark.parametrize("root", [None, "", "  ", "missing"])
+def test_private_route_missing_storage_is_honest_and_does_not_create_data(tmp_path, root):
+    from streamlit.testing.v1 import AppTest
+    configured = str(tmp_path / "private-source") if root == "missing" else root
+    before = list(tmp_path.iterdir())
+    app = AppTest.from_function(_render_private_route, kwargs={"root": configured}).run()
+    assert not app.exception
+    rendered = "\n".join(str(item.value) for item in app.markdown)
+    assert 'data-atlas-report-card-status="UNAVAILABLE"' in rendered
+    assert "have not been verified" in rendered and "Public activation OFF" in rendered
+    assert "report-card-overview" not in rendered
+    assert str(tmp_path) not in rendered
+    assert not app.metric
+    assert list(tmp_path.iterdir()) == before
+
+
+def test_private_route_authorization_precedes_storage_and_rendering(monkeypatch):
+    from unittest.mock import Mock
+    import ui.internal_report_card as presentation
+    renderer, streamlit = Mock(), Mock()
+    monkeypatch.setattr(presentation, "render_internal_report_card", renderer)
+    monkeypatch.setattr(presentation, "st", streamlit)
+    with pytest.raises(PermissionError, match="ACCESS_REQUIRED"):
+        presentation.render_internal_report_card_route(None, authorized=False)
+    renderer.assert_not_called()
+    assert not streamlit.mock_calls
+
+
+@pytest.mark.parametrize("failure", [PermissionError("denied"), ValueError("LEDGER_INTEGRITY_FAILURE"),
+                                     FileNotFoundError("unrelated chart file")])
+def test_private_route_does_not_mask_security_integrity_or_unrelated_failures(monkeypatch, failure):
+    from unittest.mock import Mock
+    import ui.internal_report_card as presentation
+    renderer, streamlit = Mock(side_effect=failure), Mock()
+    monkeypatch.setattr(presentation, "render_internal_report_card", renderer)
+    monkeypatch.setattr(presentation, "st", streamlit)
+    with pytest.raises(type(failure), match=str(failure)):
+        presentation.render_internal_report_card_route("configured-source", authorized=True)
+    assert not streamlit.mock_calls
+
+
+def test_private_route_preserves_public_off_guard_even_without_storage(monkeypatch):
+    from unittest.mock import Mock
+    import ui.internal_report_card as presentation
+    import services.report_card_governance as governance
+    streamlit = Mock()
+    monkeypatch.setattr(presentation, "st", streamlit)
+    monkeypatch.setattr(governance, "public_report_allowed", lambda: True)
+    with pytest.raises(PermissionError, match="PUBLIC_REPORT_CARD_MUST_REMAIN_OFF"):
+        presentation.render_internal_report_card_route(None, authorized=True)
+    assert not streamlit.mock_calls
+
+
+def test_private_route_passes_existing_source_to_renderer_unchanged(monkeypatch):
+    from unittest.mock import Mock
+    import ui.internal_report_card as presentation
+    report = {"signal_count": 20, "observation_count": 0}
+    renderer = Mock(return_value=report)
+    monkeypatch.setattr(presentation, "render_internal_report_card", renderer)
+    assert presentation.render_internal_report_card_route(" existing-source ", authorized=True) is report
+    renderer.assert_called_once_with(Path("existing-source/report-card.sqlite3"), authorized=True)
+
+
+def test_app_report_card_route_handles_optional_configuration():
+    source = Path("app.py").read_text()
+    assert 'os.environ["ATLAS_REPORT_CARD_DURABLE_ROOT"]' not in source
+    assert 'getattr(_report_card_ui, "render_internal_report_card_route", None)' in source
+
+
+@pytest.mark.parametrize("helper", ["missing", False, "current"])
+@pytest.mark.parametrize("authorized,public", [(True, False), (False, False), (True, True)])
+def test_actual_app_route_handles_cached_module_without_bypassing_guards(monkeypatch, helper, authorized, public):
+    import ast
+    import os
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+    import ui
+    import services.report_card_governance as governance
+
+    tree = ast.parse(Path("app.py").read_text())
+    route = next(node for node in ast.walk(tree) if isinstance(node, ast.If)
+                 and isinstance(node.test, ast.Compare)
+                 and isinstance(node.test.left, ast.Name) and node.test.left.id == "selected_page"
+                 and any(isinstance(value, ast.Constant) and value.value == "Internal Report Card"
+                         for value in node.test.comparators))
+    current = Mock(return_value={"status": "AVAILABLE"})
+    cached = SimpleNamespace()
+    if helper != "missing":
+        cached.render_internal_report_card_route = current if helper == "current" else helper
+    monkeypatch.setattr(ui, "internal_report_card", cached)
+    monkeypatch.setattr(governance, "public_report_allowed", lambda: public)
+    monkeypatch.setenv("ATLAS_REPORT_CARD_DURABLE_ROOT", "existing-private-source")
+    streamlit = Mock()
+    namespace = {"os": os, "st": streamlit, "_internal_authorized": authorized}
+    code = compile(ast.Module(body=route.body, type_ignores=[]), "actual_app_report_card_route", "exec")
+    if not authorized or public:
+        with pytest.raises(PermissionError, match="ACCESS_REQUIRED" if not authorized else "MUST_REMAIN_OFF"):
+            exec(code, namespace)
+        current.assert_not_called()
+        assert not streamlit.mock_calls
+    else:
+        exec(code, namespace)
+        if helper == "current":
+            current.assert_called_once_with("existing-private-source", authorized=True)
+            assert not streamlit.mock_calls
+        else:
+            current.assert_not_called()
+            streamlit.info.assert_called_once()
+            rendered = streamlit.markdown.call_args.args[0]
+            assert 'data-atlas-report-card-status="UNAVAILABLE"' in rendered
+            assert "existing-private-source" not in rendered
+            streamlit.metric.assert_not_called()
+
+
 def test_detail_projection_uses_immutable_record_id_when_payload_omits_signal_id(tmp_path):
     item = ProspectiveLedger(tmp_path / "ledger.sqlite3")
     item.activate(

@@ -28790,9 +28790,26 @@ def main(*, customer_bindings=None):
     elif selected_page=="Political Intelligence": render_v58_political_intelligence(full_df)
     elif selected_route=="Ask AI": render_chat_helper(full_df)
     elif selected_page=="Internal Report Card":
-        from ui.internal_report_card import render_internal_report_card
-        _durable_root = Path(os.environ["ATLAS_REPORT_CARD_DURABLE_ROOT"])
-        render_internal_report_card(_durable_root / "report-card.sqlite3", authorized=_internal_authorized)
+        from ui import internal_report_card as _report_card_ui
+        from services.report_card_governance import public_report_allowed
+        if not _internal_authorized:
+            raise PermissionError("INTERNAL_REPORT_CARD_ACCESS_REQUIRED")
+        if public_report_allowed():
+            raise PermissionError("PUBLIC_REPORT_CARD_MUST_REMAIN_OFF")
+        _report_card_route = getattr(_report_card_ui, "render_internal_report_card_route", None)
+        if callable(_report_card_route):
+            _report_card_route(
+                os.getenv("ATLAS_REPORT_CARD_DURABLE_ROOT"), authorized=_internal_authorized,
+            )
+        else:
+            st.markdown(
+                '<span data-atlas-qa="report-card-interface-unavailable" '
+                'data-atlas-report-card-status="UNAVAILABLE" data-atlas-customer-visible="false" '
+                'aria-hidden="true" style="display:none">report-card-interface-unavailable</span>',
+                unsafe_allow_html=True,
+            )
+            st.info("The private Report Card interface is unavailable in this application session. "
+                    "Ledger evidence and performance have not been verified. Public activation remains OFF.")
     elif selected_page=="Developer Center":
         _developer_pipeline = v104_pipeline_from_df(full_df)
         render_developer_center(
