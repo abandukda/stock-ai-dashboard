@@ -16,6 +16,7 @@ on:
       - 'ui/personal_account.py'
       - 'tests/test_personal_account_ui.py'
       - 'tests/test_premium_personal_account_render.py'
+      - 'tests/test_premium_personal_home_render.py'
       - 'ui/personal_watchlists.py'
       - 'tests/test_premium_personal_watchlists_render.py'
       - 'tests/test_personal_watchlists_ui.py'
@@ -75,5 +76,36 @@ jobs:
           path: |
             audit_results/premium_home
             audit_results/premium_research
+          if-no-files-found: error
+          retention-days: 14
+
+  provider-free-personal-home-journey:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      ATLAS_QA_PROVIDER_CALLS_ALLOWED: '0'
+      ATLAS_ALLOW_EXTERNAL_AI: 'false'
+      ATLAS_CUSTOMER_REPORT_CARD_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -r requirements.txt playwright==1.52.0
+      - name: Prepare recognized Ubuntu mirror and install complete browser dependencies
+        run: |
+          python -m pytest -q tests/test_ci_ubuntu_mirror.py
+          sudo python3 scripts/normalize_ci_ubuntu_mirror.py
+          python -m playwright install --with-deps chromium
+      - name: Verify individual Home Research and private account switching
+        run: python -m pytest -q tests/test_premium_personal_home_render.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atlas-generated-personal-home-${{ github.run_id }}
+          path: audit_results/premium_home/personal_home
           if-no-files-found: error
           retention-days: 14
