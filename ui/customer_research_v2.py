@@ -1352,6 +1352,29 @@ def _render_runtime_code_marker(view_builder, ticker: str) -> None:
                for key, value in identity[name].items()})
 
 
+def _render_provider_quote_context(page: Mapping[str, Any]) -> None:
+    """A separate dated quote never replaces the certified decision price."""
+    quote = page.get("quote_context")
+    quote = quote if isinstance(quote, Mapping) else {}
+    status = quote.get("status")
+    status = status if status in {"AVAILABLE", "DATED"} else "UNAVAILABLE"
+    _marker("provider-quote-context", str(page.get("ticker") or "UNKNOWN"), status=status)
+    if status == "UNAVAILABLE":
+        st.caption("Provider quote context is unavailable. The Last Certified Close above remains the decision price; no quote was requested.")
+        return
+    prefix = "Dated retained provider quote" if status == "DATED" else "Retained provider quote"
+    currency = quote.get("currency")
+    value = f'{quote["price"]:,.2f}'
+    units = f' {currency}' if currency else " (currency not supplied by quote endpoint)"
+    _literal_retained_context(f'{prefix}: {value}{units} · Provider as of {quote.get("as_of")}')
+    st.caption("Partial market coverage · Non-scoring context · This is not a certified close, full-market live price or a post-market certification.")
+    with st.expander("Quote source and freshness", expanded=False):
+        _literal_retained_context(f'Source: {quote.get("source")} · Evidence: {quote.get("evidence_id")} · Captured: {quote.get("captured_at")}')
+        if currency and quote.get("currency_evidence_id"):
+            _literal_retained_context(f'Currency profile evidence: {quote["currency_evidence_id"]}')
+        st.caption("Fresh capture does not refresh the provider's last-trade timestamp. The endpoint's response identity is bound to the requested symbol.")
+
+
 def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[[Mapping[str, Any]], None]) -> bool:
     view_builder = build_customer_research_view
     customer_view = view_builder(report)
@@ -1375,6 +1398,7 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
     public_admission_marker_values = reference.public_admission_marker_values
     market_context = page.get("market_context") if isinstance(page.get("market_context"), Mapping) else {}
     _marker("market-admission", ticker, **public_admission_marker_values(market_context.get("admission_receipt")))
+    _render_provider_quote_context(page)
     ask_cta(report)
 
     st.markdown(reference.RESEARCH_REFERENCE_CSS + reference.research_section_navigation_html(), unsafe_allow_html=True)
