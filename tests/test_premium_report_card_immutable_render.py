@@ -1,5 +1,8 @@
 """Actual synthetic snapshot browser renders; never production acceptance."""
 import os
+import asyncio
+import hashlib
+import re
 from pathlib import Path
 import socket
 import subprocess
@@ -66,6 +69,126 @@ st.markdown('<span data-fixture-complete="true"></span>', unsafe_allow_html=True
                             assert not external
                             context.close()
                     finally: browser.close()
+            finally:
+                process.terminate()
+                try: process.wait(timeout=10)
+                except subprocess.TimeoutExpired: process.kill(); process.wait(timeout=10)
+
+
+def test_original_cohort_selector_excludes_group_and_reopens_after_detail():
+    """Actual compact Streamlit UI; twenty synthetic records, zero observations."""
+    from tests.test_internal_report_card_dashboard import ledger, NOW
+    from playwright.async_api import async_playwright
+    from scripts.crawl_report_card_durable_ui import (
+        original_cohort_signal_panels, wait_for_report_card_detail_state,
+        wait_for_report_card_overview_settled,
+    )
+    target = Path('audit_results/premium_home/report_card_original_cohort')
+    target.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix='atlas-generated-cohort-') as temporary:
+        root = Path(temporary)
+        item = ledger(root / 'generated-primary' / 'ledger.sqlite3')
+        for index in range(18):
+            identity, ticker = f'GENERATED-{index}', 'TEST' + chr(65 + index)
+            item.append('SIGNAL', identity, dict(signal_id=identity,
+                semantic_identity=identity, ticker=ticker, canonical_recommendation='BUY_NOW',
+                first_seen_at=NOW.isoformat(), reference_price=None,
+                withholding_status='CUSTOMER_PUBLISHABLE', candidate_digest='GENERATED',
+                publication_digest='GENERATED', evaluation_snapshot_id='GENERATED',
+                evidence_ids=['GENERATED_ONLY_NOT_FINANCIAL_EVIDENCE']), created_at=NOW)
+        path = item.backup(root / 'generated-consolidated', now=NOW)
+        digest, tip = hashlib.sha256(path.read_bytes()).hexdigest(), item.verify()
+        fixture = root / 'fixture.py'
+        fixture.write_text('''from pathlib import Path
+import streamlit as st
+from ui.internal_report_card import render_internal_report_card
+st.set_page_config(layout='wide')
+st.caption('TWENTY SYNTHETIC SIGNALS — NOT PRODUCTION OR FINANCIAL EVIDENCE')
+render_internal_report_card(Path(%r), authorized=True, snapshot_sha256=%r, snapshot_tip=%r)
+st.markdown('<span data-fixture-complete="true"></span>', unsafe_allow_html=True)
+''' % (str(path), digest, tip))
+        with socket.socket() as sock:
+            sock.bind(('127.0.0.1', 0)); port = sock.getsockname()[1]
+        env = dict(os.environ, PYTHONPATH=os.pathsep.join(filter(None,
+            (str(Path.cwd()), os.environ.get('PYTHONPATH', '')))),
+            STREAMLIT_GLOBAL_DEVELOPMENT_MODE='false', ATLAS_QA_PROVIDER_CALLS_ALLOWED='0',
+            ATLAS_ALLOW_EXTERNAL_AI='false', ATLAS_CUSTOMER_REPORT_CARD_ENABLED='false')
+        with (target/'fixture_server.log').open('w') as log:
+            process = subprocess.Popen([sys.executable, '-m', 'streamlit', 'run', str(fixture),
+                '--server.address=127.0.0.1', f'--server.port={port}', '--server.headless=true',
+                '--browser.gatherUsageStats=false', '--theme.base=dark'],
+                env=env, stdout=log, stderr=subprocess.STDOUT)
+            try:
+                async def browser_case():
+                    async with async_playwright() as pw:
+                        browser = await pw.chromium.launch(headless=True)
+                        try:
+                            for width in (360, 768, 1440):
+                                context = await browser.new_context(viewport={'width':width,'height':1000})
+                                external = []
+                                async def local_only(route):
+                                    parsed = urlsplit(route.request.url)
+                                    if parsed.hostname == '127.0.0.1' and parsed.port == port:
+                                        await route.continue_()
+                                    else:
+                                        external.append(route.request.url); await route.abort()
+                                await context.route('**/*', local_only)
+                                page = await context.new_page()
+                                await page.goto(f'http://127.0.0.1:{port}')
+                                await page.locator('[data-fixture-complete="true"]').wait_for(state='attached')
+                                marker = page.locator('[data-atlas-qa="report-card-overview"]')
+                                assert await marker.get_attribute('data-atlas-signal-count') == '20'
+                                assert await marker.get_attribute('data-atlas-observation-count') == '0'
+                                # Reproduce the actual defect: ancestor text also matches the old selector.
+                                old = page.locator('[data-testid="stExpander"]').filter(
+                                    has_text=re.compile(r' · [A-Z_]+ · \d+ observations'))
+                                assert await old.count() == 21
+                                panels = await original_cohort_signal_panels(page, str(width))
+                                assert await panels.count() == 20
+                                labels = [await panels.nth(i).locator('summary').inner_text() for i in range(20)]
+                                assert all(' · BUY_NOW · 0 observations' in label for label in labels)
+                                assert len(set(labels)) == 20
+                                identities = []
+                                for index in range(20):
+                                    text = await panels.nth(index).text_content()
+                                    identity = re.search(r'Signal ID:\s*([^\s]+)', text)
+                                    assert identity is not None
+                                    identities.append(identity.group(1))
+                                assert set(identities) == {'AAA', 'BBB'} | {f'GENERATED-{i}' for i in range(18)}
+                                assert len(identities) == len(set(identities)) == 20
+                                last = panels.nth(19)
+                                await last.locator('summary').click()
+                                button = last.get_by_role('button', name='View Signal Digest →', exact=True)
+                                await button.wait_for(state='visible')
+                                await button.click()
+                                await wait_for_report_card_detail_state(page, str(width), 'GENERATED-17')
+                                await page.get_by_role('button', name='← Back to Report Card', exact=True).click()
+                                await wait_for_report_card_overview_settled(page, str(width))
+                                group = page.locator('[data-testid="stExpander"]').filter(
+                                    has=page.get_by_text('Recommendation details', exact=True))
+                                if await group.locator('details').first.get_attribute('open') is not None:
+                                    await group.locator('summary').first.click()
+                                assert await group.locator('details').first.get_attribute('open') is None
+                                panels = await original_cohort_signal_panels(page, str(width))
+                                assert await panels.count() == 20
+                                assert await group.locator('details').first.get_attribute('open') is not None
+                                assert await page.locator('[data-testid="stException"]').count() == 0
+                                assert await page.evaluate('document.documentElement.scrollWidth <= innerWidth')
+                                assert not external
+                                await page.screenshot(path=str(target/f'GENERATED_NOT_PRODUCTION_cohort_{width}.png'), full_page=True)
+                                await context.close()
+                        finally:
+                            await browser.close()
+                deadline = time.monotonic() + 30
+                while time.monotonic() < deadline:
+                    assert process.poll() is None
+                    with socket.socket() as probe:
+                        if probe.connect_ex(('127.0.0.1', port)) == 0: break
+                    time.sleep(.2)
+                else: raise AssertionError('Generated cohort startup timeout')
+                asyncio.run(browser_case())
+                assert hashlib.sha256(path.read_bytes()).hexdigest() == digest
+                assert not any(Path(str(path)+suffix).exists() for suffix in ('-wal','-shm','-journal'))
             finally:
                 process.terminate()
                 try: process.wait(timeout=10)
