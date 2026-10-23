@@ -9,7 +9,56 @@ from tests.test_premium_earnings_cache_render import _seed_generated_cache
 from tests.test_premium_home_render import capture_complete_streamlit
 
 
+def _watchlist_creation_controls(page):
+    """Wait for the completed account surface before changing expander state.
+
+    The navigation radio arrives before later Streamlit deltas. Sampling a
+    not-yet-mounted input as invisible can close its already-open expander.
+    """
+    page.locator('[data-extracted-composition="complete"][data-result="EMPTY"], '
+                 '[data-extracted-composition="complete"][data-result="AVAILABLE"]').wait_for(state='attached')
+    name = page.get_by_label('Watchlist name', exact=True)
+    name.wait_for(state='attached')
+    details = page.locator('details').filter(has=name)
+    details.wait_for(state='attached')
+    if details.get_attribute('open') is None:
+        details.locator('summary').click()
+    name.wait_for(state='visible')
+    return name
+
+
 class PremiumCustomerCompositionRender(unittest.TestCase):
+    def test_creation_controls_wait_for_late_input_and_open_only_closed_expander(self):
+        with sync_playwright() as pw:
+            browser = pw.chromium.launch(headless=True)
+            try:
+                page = browser.new_page(viewport={'width': 360, 'height': 1000})
+                page.route('**/*', lambda route: route.abort())
+                for initially_open in (True, False):
+                    page.set_content('<details ' + ('open' if initially_open else '') + '>'
+                        '<summary>Create a watchlist</summary><div id="later"></div></details>'
+                        '<span data-extracted-composition="complete" data-result="EMPTY"></span>'
+                        '<script>window.summaryClicks=0;document.querySelector("summary").onclick=()=>summaryClicks++;</script>')
+                    self.assertEqual(page.get_by_label('Watchlist name', exact=True).count(), 0)
+                    # Start mounting only after the absent-input precondition is observed.
+                    page.evaluate("""()=>setTimeout(()=>document.querySelector('#later').innerHTML=
+                        '<label>Watchlist name<input aria-label="Watchlist name"></label>'
+                        +'<button>Create watchlist</button>',100)""")
+                    name = _watchlist_creation_controls(page)
+                    name.fill('Generated delayed control')
+                    page.get_by_role('button', name='Create watchlist', exact=True).click()
+                    self.assertEqual(name.input_value(), 'Generated delayed control')
+                    self.assertIsNotNone(page.locator('details').get_attribute('open'))
+                    self.assertEqual(page.evaluate('summaryClicks'), 0 if initially_open else 1)
+                # Completion alone cannot substitute for a missing required input.
+                page.set_content('<span data-extracted-composition="complete" data-result="EMPTY"></span>')
+                page.set_default_timeout(150)
+                from playwright.sync_api import TimeoutError as BrowserTimeout
+                with self.assertRaises(BrowserTimeout):
+                    _watchlist_creation_controls(page)
+            finally:
+                browser.close()
+
     def test_invited_accounts_research_and_retained_earnings_at_three_sizes(self):
         target=Path('audit_results/premium_home/extracted_composition');target.mkdir(parents=True,exist_ok=True)
         with tempfile.TemporaryDirectory(prefix='atlas-extracted-composition-') as temporary:
@@ -68,9 +117,7 @@ now=datetime(2026,10,23,tzinfo=timezone.utc)''')
                                         sign_in.wait_for();sign_in.click()
                                         page.get_by_role('radio',name='Watchlist',exact=True).wait_for(state='attached')
                                         # Each viewport owns a fresh name; the test demonstrates real adapter persistence.
-                                        name=page.get_by_label('Watchlist name',exact=True)
-                                        if not name.is_visible():
-                                            page.get_by_text('Create a watchlist',exact=True).click()
+                                        name=_watchlist_creation_controls(page)
                                         name.fill(f'Alice composed {mode} {width}')
                                         page.get_by_role('button',name='Create watchlist',exact=True).click()
                                         page.get_by_label('Find a ticker or company',exact=True).fill('NVDA')
