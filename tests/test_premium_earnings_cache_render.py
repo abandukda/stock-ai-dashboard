@@ -176,9 +176,13 @@ class PremiumEarningsCacheRender(unittest.TestCase):
                                                         claim = 'Revenue grew 10%. ![generated](https://example.invalid/earnings-pixel) [report](https://example.invalid/report) <img src="https://example.invalid/raw"> & detail'
                                                         page.get_by_text('Cached AI summary of source-grounded earnings-call evidence',exact=True).wait_for()
                                                         page.get_by_text(claim,exact=True).first.wait_for(state='attached')
+                                                        # The second card follows the cached-summary deltas.
+                                                        # Wait for that same required heading before counting;
+                                                        # seeing an earlier claim does not settle the rerun.
+                                                        page.locator('h3.atlas-earnings-literal').nth(1).wait_for(state='attached')
                                                         self.assertGreaterEqual(page.locator('.atlas-earnings-literal').count(),10)
                                                         self.assertEqual(page.locator('img[src*="example.invalid"], a[href*="example.invalid"]').count(),0)
-                                                        self.assertGreaterEqual(page.locator('h3.atlas-earnings-literal').count(),2)
+                                                        self.assertEqual(page.locator('h3.atlas-earnings-literal').count(),2)
                                                         # Expand disclosure so literal thesis/limitation evidence is visibly exercised.
                                                         page.get_by_text('What Changes the Thesis',exact=True).click()
                                                         page.get_by_text('Deep Evidence',exact=True).click()

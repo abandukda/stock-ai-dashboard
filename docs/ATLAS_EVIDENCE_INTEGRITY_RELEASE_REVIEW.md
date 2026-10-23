@@ -33,3 +33,8 @@ No licensed provider call, paid AI call, production ledger/source write, runner 
 - Independent review reproduced the receipt I/O leak before its correction, reverified sanitized JSON/empty stderr/exit1 after correction, and passed **11 targeted Earnings tests in 36.67s**, including its responsive browser journey. No remaining blocking issue found. Counts overlap and must not be added together.
 
 The actual production Research chart failure remains open at source b3030ab, QA run39882721639. This release neither diagnoses that worker nor installs financial history. PR139 is the separately reviewed runtime diagnostic candidate.
+
+## First governed browser result and bounded correction
+
+Initial Premium run39888462931 failed one assertion at the original candidate head: the instantaneous heading count observed one, while the saved failure DOM contained both required literal headings, zero injected nodes and no application exception. The earlier cached-summary claim did not establish completion of the later card's Streamlit deltas. The test now waits boundedly for that same required second heading, then requires exactly two (previously at least two). No application/source-data code or security assertion is relaxed. Customer39888462945, Operations39888462983 and Routing39888462947 passed that initial head. Fresh exact-head CI is required after this test-only correction.
+Corrected actual Earnings browser regression passed all15generated journeys in30.640s. This confirms the bounded correction locally; required final-head hosted CI remains separate.
