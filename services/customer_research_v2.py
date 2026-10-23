@@ -1008,6 +1008,8 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
     recommendations = _analyst_module(enrichment.get("recommendations"), "recommendations", ticker)
     targets = _analyst_module(enrichment.get("price_targets"), "price_targets", ticker)
     profile = _module(enrichment.get("company_profile"))
+    from services.research_quote_context import project_quote_context
+    quote_context = project_quote_context(enrichment.get("live_quote"), ticker=ticker, profile=profile)
     financials = _module(enrichment.get("basic_financials"))
     news = _module(enrichment.get("company_news"))
     events = _module(enrichment.get("earnings_calendar"))
@@ -1119,6 +1121,7 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
         },
         "signal": signal,
         "market_context": market_context,
+        "quote_context": quote_context,
         "chart": {
             **_chart_projection(report, signal, enrichment),
             "ownership": {

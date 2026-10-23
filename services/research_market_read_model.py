@@ -204,6 +204,18 @@ def _family(envelope: Any, *, ticker: str, now: datetime) -> dict[str, Any] | No
         if identity is None:
             return None
         result["market_identity"] = identity
+    elif capability == "live_quote":
+        from services.research_quote_context import quote_identity
+        identity = quote_identity(payload, captured=captured, checked=now)
+        if (identity is None or provenance.get("raw_capture_binding") != "EXACT_BYTES_VERIFIED"
+                or provenance.get("capture_time_binding") != "RECEIPT_BOUND_NOT_CLOCK_CERTIFICATION"
+                or provenance.get("response_identity_binding") != "REQUEST_BOUND_PROVIDER_RESPONSE_HAS_NO_REQUIRED_TICKER"
+                or any(not isinstance(provenance.get(key), str) or len(provenance[key]) != 64
+                       or any(ch not in "0123456789abcdef" for ch in provenance[key])
+                       for key in ("raw_response_sha256", "quote_scope_sha256", "quote_package_sha256"))):
+            return None
+        result["quote_identity"] = identity
+        result["cache_status"] = "FRESH_CACHE" if identity["freshness"] == "RECENT_PROVIDER_TIMESTAMP" else "STALE_RETAINED"
     return result
 
 
@@ -308,6 +320,11 @@ def load_research_market_context(
             receipt["family_rejections"].append({"capability": key, "reason": semantic_reason})
             continue
         verified = _family(envelope, ticker=symbol, now=checked)
+        if key == "live_quote" and (not expected_source_sha or not expected_bundle_id
+                or provenance.get("quote_code_source_sha") != document["source_sha"]):
+            # A recently captured quote must not create authority from an
+            # unpinned legacy root or a different request-plan source.
+            verified = None
         if verified:
             modules[str(key)] = verified
         else:
