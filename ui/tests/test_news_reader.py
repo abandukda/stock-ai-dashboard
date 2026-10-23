@@ -9,6 +9,7 @@ import unittest
 from unittest.mock import Mock
 
 from ui.research_learning import build_news_reader
+from services.customer_research_v2 import _customer_news
 
 
 def article(timestamp, headline="Example report"):
@@ -23,6 +24,21 @@ def fixture(*items):
 
 
 class NewsReaderTests(unittest.TestCase):
+    def test_projection_preserves_source_timestamp_precision_for_chronology(self):
+        cases = (("2025-02-01", "DATE_ONLY", "OVERLAPPING", "2025-02-01"),
+                 ("2025-02-01T12:00:00", "UNSPECIFIED", "UNAVAILABLE", None),
+                 ("2025-02-01T12:00:00-05:00", "INSTANT", "AFTER", "2025-02-01T17:00:00Z"))
+        for stamp, precision, relation, displayed in cases:
+            with self.subTest(stamp=stamp):
+                raw = dict(headline="NVDA synthetic report", article_publisher="Synthetic source",
+                           article_timestamp=stamp, commercial_display_allowed=True, ticker="NVDA")
+                items = _customer_news({"payload": {"articles": [raw]}}, ticker="NVDA", company="NVIDIA")
+                self.assertEqual(items[0]["article_timestamp_precision"], precision)
+                page = fixture(*items)
+                row = build_news_reader(page)["items"][0]
+                self.assertEqual(row["relation"], relation)
+                self.assertEqual(row["published_at"], displayed)
+
     def test_orders_and_compares_instants_in_utc_without_mutating_page(self):
         page = fixture(article("2025-02-01T10:00:00-05:00", "Earlier"),
                        article("2025-02-01T18:00:00+01:00", "Later"),

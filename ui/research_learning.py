@@ -190,8 +190,12 @@ def build_news_reader(page: Mapping[str, Any]) -> dict[str, Any]:
         headline, publisher = text(item.get("headline")), text(item.get("article_publisher"))
         if not headline or not publisher:
             continue
-        published = interval(item.get("article_timestamp"))
-        timestamp = item["article_timestamp"] if published else None
+        timestamp = item.get("article_timestamp")
+        precision = item.get("article_timestamp_precision")
+        if precision == "DATE_ONLY" and isinstance(timestamp, str):
+            timestamp = timestamp[:10]
+        published = None if precision == "UNSPECIFIED" else interval(timestamp)
+        timestamp = timestamp if published else None
         identity = (headline, publisher, published)
         if identity in seen:
             continue

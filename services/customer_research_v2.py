@@ -121,13 +121,26 @@ def _customer_news(module: Mapping[str, Any], *, ticker: str, company: str) -> l
         item = _map(raw)
         headline = str(item.get("headline") or item.get("title") or "").strip()
         publisher = str(item.get("article_publisher") or item.get("publisher") or "").strip()
-        published = _instant(item.get("article_timestamp") or item.get("published_at") or item.get("date"))
+        raw_timestamp = item.get("article_timestamp") or item.get("published_at") or item.get("date")
+        published = _instant(raw_timestamp)
+        # Normalization must not turn a source calendar date (or a naive stamp)
+        # into evidence of an exact publication instant for the news reader.
+        precision = "UNSPECIFIED"
+        if isinstance(raw_timestamp, (int, float)) and not isinstance(raw_timestamp, bool):
+            precision = "INSTANT"
+        elif isinstance(raw_timestamp, str) and published is not None:
+            raw_text = raw_timestamp.strip()
+            if len(raw_text) == 10:
+                precision = "DATE_ONLY"
+            elif datetime.fromisoformat(raw_text.replace("Z", "+00:00")).tzinfo is not None:
+                precision = "INSTANT"
         licensed = item.get("commercial_display_allowed") is True or str(item.get("commercial_status") or "").upper() in {"LICENSED", "DISPLAY_ALLOWED"}
         explicit_match = str(item.get("ticker") or "").upper() == ticker.upper() or str(item.get("ticker_relevance") or "").upper() in {"VERIFIED_ENTITY", "ACCEPTED_COMPANY"}
         textual_match = any(term and term in headline.upper() for term in identity_terms)
         if headline and publisher and published and licensed and (explicit_match or textual_match):
             output.append({**dict(item), "headline": headline, "article_publisher": publisher,
-                           "article_timestamp": published.isoformat().replace("+00:00", "Z")})
+                           "article_timestamp": published.isoformat().replace("+00:00", "Z"),
+                           "article_timestamp_precision": precision})
     return output[:3]
 
 
