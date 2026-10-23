@@ -3,6 +3,7 @@ import json
 import re
 
 import pytest
+from services.runtime_projection_contract import semantic_digest
 
 from services.daily_buy_now_post_close import (
     classify_earnings, continuity_decision, ordered_missing_sessions,
@@ -99,6 +100,7 @@ def test_retained_dry_run_uses_real_gates_and_never_mutates(tmp_path):
         "publication_gate_status": "PASS", "report_card_prospective_active": False,
         "executor_candidate_digest_verified": True, "workflow_run_id": "1",
         "customer_publication_count": 1, "universe_count": 1,
+        "artifact_hashes": {"market_full_scan.json": semantic_digest(rows)},
     }))
     result = validate_retained_publication(root=tmp_path, output=tmp_path / "out/result.json")
     assert result["provider_calls"] == result["production_writes"] == 0

@@ -4,17 +4,26 @@ from __future__ import annotations
 from datetime import datetime, time, timezone
 import hashlib
 import json
+import math
+import os
 from pathlib import Path
+import tempfile
 from typing import Any, Mapping, Sequence
 from zoneinfo import ZoneInfo
 
 from services.report_card_exchange_calendar import build_xnys_calendar, verify_xnys_calendar
+from services.runtime_projection_loader import validate_customer_inventory_payload
 
 
 SCHEMA_VERSION = "ATLAS_DAILY_BUY_NOW_POST_CLOSE_V1"
 EASTERN = ZoneInfo("America/New_York")
 POST_CLOSE = time(18, 0)
 WAKE_WINDOW_END = time(18, 30)
+RETAINED_INPUT_NAMES = ("market_full_scan.json", "market_scan_state.json", "publication_manifest.json")
+PROTECTED_INPUT_NAMES = RETAINED_INPUT_NAMES + (
+    "full_evaluation_pool.json", "market_prescreen.json", "discovery_candidate_pool.json",
+    "recovery_scan.json", "etf_scan.json", "total_market_universe.json",
+)
 
 
 def _canonical(value: Any) -> bytes:
@@ -126,18 +135,54 @@ def classify_earnings(evidence: Mapping[str, Any] | None, *, prior_digest: str =
             "digest": digest}
 
 
+def validate_receipt_output(*, root: Path, output: Path) -> None:
+    """Reject aliases of the fixed eight projection files and their manifest.
+
+    This is a bounded repository-file guard, not a general filesystem or ledger
+    location discovery mechanism. Unread projection files are not certified.
+    """
+    try:
+        resolved = output.resolve()
+        for name in PROTECTED_INPUT_NAMES:
+            source = root / name
+            if resolved == source.resolve() or (output.exists() and source.exists() and output.samefile(source)):
+                raise ValueError("RETAINED_INPUT_ALIAS")
+    except (OSError, ValueError, RuntimeError):
+        raise RuntimeError("DAILY_BUY_NOW_RECEIPT_OUTPUT_CONFLICT") from None
+
+
+def write_daily_receipt(*, root: Path, output: Path, value: Mapping[str, Any]) -> None:
+    """Write only a receipt; replacement never follows a final symlink/hardlink."""
+    validate_receipt_output(root=root, output=output)
+    encoded = json.dumps(value, indent=2, sort_keys=True, allow_nan=False)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=output.parent, delete=False) as handle:
+            temporary = Path(handle.name)
+            handle.write(encoded)
+        validate_receipt_output(root=root, output=output)
+        os.replace(temporary, output)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+
+
 def validate_retained_publication(*, root: Path, output: Path) -> dict[str, Any]:
     """Exercise customer-publication gates without providers or writes to production."""
+    validate_receipt_output(root=root, output=output)
     before: dict[str, str] = {}
-    required = ("market_full_scan.json", "market_scan_state.json", "publication_manifest.json")
+    snapshots: dict[str, bytes] = {}
+    required = RETAINED_INPUT_NAMES
     for name in required:
         path = root / name
         if not path.is_file():
             raise RuntimeError(f"DAILY_BUY_NOW_RETAINED_INPUT_MISSING:{name}")
-        before[name] = hashlib.sha256(path.read_bytes()).hexdigest()
-    rows = json.loads((root / "market_full_scan.json").read_text(encoding="utf-8"))
-    state = json.loads((root / "market_scan_state.json").read_text(encoding="utf-8"))
-    manifest = json.loads((root / "publication_manifest.json").read_text(encoding="utf-8"))
+        snapshots[name] = path.read_bytes()
+        before[name] = hashlib.sha256(snapshots[name]).hexdigest()
+    rows = json.loads(snapshots["market_full_scan.json"].decode("utf-8"))
+    state = json.loads(snapshots["market_scan_state.json"].decode("utf-8"))
+    manifest = json.loads(snapshots["publication_manifest.json"].decode("utf-8"))
     if not isinstance(rows, list) or not rows:
         raise RuntimeError("DAILY_BUY_NOW_RETAINED_ROWS_EMPTY")
     if state.get("status") != "COMPLETE":
@@ -148,6 +193,11 @@ def validate_retained_publication(*, root: Path, output: Path) -> dict[str, Any]
         raise RuntimeError("DAILY_BUY_NOW_REPORT_CARD_MUST_REMAIN_OFF")
     if manifest.get("executor_candidate_digest_verified") is not True:
         raise RuntimeError("DAILY_BUY_NOW_CANDIDATE_NOT_VERIFIED")
+    valid, _failures = validate_customer_inventory_payload(
+        rows, manifest, artifact_name="market_full_scan.json",
+    )
+    if not valid:
+        raise RuntimeError("DAILY_BUY_NOW_RETAINED_PROJECTION_NOT_VERIFIED")
     actions: dict[str, int] = {}
     published = 0
     pillar_fields = (
@@ -165,7 +215,12 @@ def validate_retained_publication(*, root: Path, output: Path) -> dict[str, Any]
             def valid_pillar(field: str) -> bool:
                 value = evaluation.get(field)
                 score = value.get("score") if isinstance(value, dict) else value
-                return isinstance(score, (int, float))
+                if type(score) not in (int, float):
+                    return False
+                try:
+                    return math.isfinite(score)
+                except (OverflowError, ValueError):
+                    return False
             if any(not valid_pillar(field) for field in pillar_fields):
                 raise RuntimeError("DAILY_BUY_NOW_SIX_PILLAR_REPLAY_INCOMPLETE")
             if not evaluation.get("methodology_version") or not evaluation.get("decision_digest"):
@@ -191,12 +246,12 @@ def validate_retained_publication(*, root: Path, output: Path) -> dict[str, Any]
         "publication_gate_status": "PASS",
     }
     result["result_sha256"] = _digest(result)
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(result, indent=2, sort_keys=True), encoding="utf-8")
+    write_daily_receipt(root=root, output=output, value=result)
     return result
 
 
 __all__ = [
     "classify_earnings", "continuity_decision", "ordered_missing_sessions",
     "schedule_decision", "validate_retained_publication",
+    "validate_receipt_output", "write_daily_receipt",
 ]

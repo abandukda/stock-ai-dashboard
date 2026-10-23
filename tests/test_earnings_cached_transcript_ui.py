@@ -123,3 +123,39 @@ def test_earnings_customer_changes_trigger_provider_free_browser_capture():
     assert job['env']['ATLAS_QA_PROVIDER_CALLS_ALLOWED'] == '0'
     assert job['env']['ATLAS_ALLOW_EXTERNAL_AI'] == 'false'
     assert any('test_premium_*render.py' in step.get('run','') for step in job['steps'])
+
+
+def test_grounded_claims_and_source_metadata_are_literal_not_markdown(surface):
+    from copy import deepcopy
+    from html import unescape
+    from html.parser import HTMLParser
+    import hashlib
+    from services.transcript_intelligence_runtime import validate_grounded_summary
+    text = 'Revenue grew 10%. ![source](https://example.invalid/pixel) [report](https://example.invalid/report) <img src=x> & detail\nNext line'
+    grounded = {'claim': text, 'source_excerpt': text,
+                'source_excerpt_hash': hashlib.sha256(text.encode()).hexdigest(), 'claim_type': 'PERFORMANCE'}
+    assert validate_grounded_summary({'management_summary': grounded}, text)[0]
+    story = {'ticker': 'NVDA', 'event_identity': {'fiscal_period': text},
+             'transcript_intelligence': {'semantic_status': 'AVAILABLE', 'evidence_ids': [text],
+                'data': {'management_themes': [{'text': text}], 'supported_risks': [text]}}}
+    before = deepcopy(story)
+    class LiteralCache(Cache):
+        def read(self, *args, **kwargs):
+            value = super().read(*args, **kwargs)
+            value.update(provider=text, capture_timestamp=text, transcript_evidence_id=text)
+            value['customer_projection'].update(management_summary={'claim': text},
+                management_themes=[{'claim': text}], source_evidence_ids=[text],
+                model_provider=text, model_version=text, generation_timestamp=text)
+            return value
+    ui._render_transcript_intelligence(story, suffix='literal', cache_reader=LiteralCache('AVAILABLE'))
+    output = '\n'.join(surface.output)
+    class Elements(HTMLParser):
+        def __init__(self): super().__init__(); self.bad = []
+        def handle_starttag(self, tag, attrs):
+            if tag in {'img', 'a', 'script'} or any(k in {'src','href'} for k,v in attrs):
+                self.bad.append((tag, attrs))
+    parsed = Elements(); parsed.feed(output)
+    assert parsed.bad == []
+    assert text in unescape(output)
+    assert 'white-space:pre-wrap' in output and 'overflow-wrap:anywhere' in output
+    assert story == before

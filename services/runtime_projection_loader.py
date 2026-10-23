@@ -14,28 +14,45 @@ from pathlib import Path
 from typing import Any, Mapping
 
 
+def validate_customer_inventory_payload(
+    payload: Any, manifest: Mapping[str, Any], *, artifact_name: str,
+) -> tuple[bool, tuple[str, ...]]:
+    """Validate already-read bytes' payload with the exact customer contract.
+
+    Callers which hash source bytes must validate the payload parsed from those
+    same bytes, rather than reopening the file between hashing and admission.
+    """
+    try:
+        if manifest.get("runtime_projection_contract"):
+            from services.runtime_projection_contract import validate_runtime_projection
+
+            valid, failures = validate_runtime_projection(
+                payload, manifest, artifact_name=artifact_name,
+            )
+        else:
+            expected = dict(manifest.get("artifact_hashes") or {}).get(artifact_name)
+            canonical = json.dumps(
+                payload, sort_keys=True, separators=(",", ":"), default=str,
+            ).encode()
+            valid = bool(expected and hashlib.sha256(canonical).hexdigest() == expected)
+            failures = () if valid else ("LEGACY_ARTIFACT_DIGEST_MISMATCH",)
+        return valid, failures
+    except (TypeError, ValueError):
+        return False, ("RUNTIME_PROJECTION_UNREADABLE",)
+
+
 def load_exact_customer_inventory_with_status(
     path: Path, manifest: Mapping[str, Any],
 ) -> tuple[Any, bool, tuple[str, ...]]:
     """Load the projection only when its governed contract validates."""
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
-        if manifest.get("runtime_projection_contract"):
-            from services.runtime_projection_contract import validate_runtime_projection
-
-            valid, failures = validate_runtime_projection(
-                payload, manifest, artifact_name=path.name,
-            )
-        else:
-            expected = dict(manifest.get("artifact_hashes") or {}).get(path.name)
-            canonical = json.dumps(
-                payload, sort_keys=True, separators=(",", ":"), default=str,
-            ).encode()
-            valid = bool(expected and hashlib.sha256(canonical).hexdigest() == expected)
-            failures = () if valid else ("LEGACY_ARTIFACT_DIGEST_MISMATCH",)
+        valid, failures = validate_customer_inventory_payload(
+            payload, manifest, artifact_name=path.name,
+        )
         return (payload if valid else []), valid, failures
     except (OSError, TypeError, ValueError, json.JSONDecodeError):
         return [], False, ("RUNTIME_PROJECTION_UNREADABLE",)
 
 
-__all__ = ["load_exact_customer_inventory_with_status"]
+__all__ = ["load_exact_customer_inventory_with_status", "validate_customer_inventory_payload"]

@@ -13,6 +13,7 @@ if str(ROOT) not in sys.path:
 
 from services.daily_buy_now_post_close import (
     continuity_decision, schedule_decision, validate_retained_publication,
+    validate_receipt_output, write_daily_receipt,
 )
 
 
@@ -29,6 +30,17 @@ def main() -> int:
     # text: provider/host errors may contain sensitive paths or values.
     payload = {"status": "FAILED", "provider_calls": 0, "production_writes": 0,
                "schedule": {"eligible": False}, "error": "COORDINATOR_VALIDATION_FAILED"}
+    # Even failure receipts must not overwrite the retained source. Validate
+    # both destinations before reading/planning, and never write on alias error.
+    validation_output = args.output.parent / "provider_free_publication_validation.json"
+    try:
+        validate_receipt_output(root=args.root, output=args.output)
+        validate_receipt_output(root=args.root, output=validation_output)
+    except Exception:
+        payload["error"] = "DAILY_BUY_NOW_RECEIPT_OUTPUT_CONFLICT"
+        print(json.dumps(payload, sort_keys=True))
+        return 1
+    exit_code = 0
     try:
         now = datetime.fromisoformat(args.now.replace("Z", "+00:00"))
         boundary = args.last_contiguous_session or args.last_published_session
@@ -38,19 +50,23 @@ def main() -> int:
         decision = schedule_decision(now=now, last_published_session=args.last_published_session)
         continuity = continuity_decision(now=now, last_contiguous_session=boundary)
         dry_run = validate_retained_publication(
-            root=args.root, output=args.output.parent / "provider_free_publication_validation.json"
+            root=args.root, output=validation_output
         )
         payload = {"status": "PASS", "schedule": decision, "continuity": continuity,
                    "dry_run": dry_run, "provider_calls": 0, "production_writes": 0}
     except Exception:
-        args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
-        print(json.dumps(payload, sort_keys=True))
-        return 1
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+        exit_code = 1
+    try:
+        write_daily_receipt(root=args.root, output=args.output, value=payload)
+    except Exception:
+        # Receipt storage can fail independently of financial validation. Do
+        # not leak either exception (including chained input/config errors).
+        payload = {"status": "FAILED", "provider_calls": 0, "production_writes": 0,
+                   "schedule": {"eligible": False},
+                   "error": "DAILY_BUY_NOW_RECEIPT_WRITE_FAILED"}
+        exit_code = 1
     print(json.dumps(payload, sort_keys=True))
-    return 0
+    return exit_code
 
 
 if __name__ == "__main__":
