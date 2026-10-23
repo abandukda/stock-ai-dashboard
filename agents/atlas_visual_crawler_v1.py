@@ -103,6 +103,30 @@ async def _market_admission_evidence(page: Page, ticker: str) -> dict[str, Any]:
             continue
     return {"marker_present": False, **_sanitize_market_admission_attributes({})}
 
+
+async def _runtime_code_evidence(page: Page, ticker: str) -> dict[str, Any]:
+    """Collect only bounded function-body labels/hashes, never source or paths."""
+    result = {'scope': 'FUNCTION_BODIES_ONLY', 'data_admission': 'NOT_ATTESTED',
+              'marker_present': False}
+    for name in ('view', 'projection', 'reader'):
+        result[name] = {'status': 'UNAVAILABLE', 'loaded_sha256': '', 'disk_sha256': ''}
+    for scope in _scopes(page):
+        try:
+            marker = scope.locator(f'[data-atlas-qa="research-v2-runtime-code"][data-atlas-ticker="{ticker}"]').last
+            if not await marker.count():
+                continue
+            result['marker_present'] = True
+            for name in ('view', 'projection', 'reader'):
+                value = await marker.get_attribute(f'data-atlas-{name}-status')
+                result[name]['status'] = value if value in {'BODY_MATCH', 'BODY_MISMATCH'} else 'UNAVAILABLE'
+                for key in ('loaded_sha256', 'disk_sha256'):
+                    value = await marker.get_attribute(f'data-atlas-{name}-{key.replace("_", "-")}')
+                    result[name][key] = value if isinstance(value, str) and re.fullmatch(r'[0-9a-f]{64}', value) else ''
+            return result
+        except Exception:
+            continue
+    return result
+
 RISK_CAPTURE_REQUIRED_CONTENT = (
     "Risk & Evidence", "Company-specific measured risks", "General monitoring conditions",
 )
@@ -2870,6 +2894,7 @@ class AtlasVisualCrawler:
         """Require the actual active customer chart, not a legacy renderer/JSON token."""
         started = time.monotonic()
         admission = await _market_admission_evidence(page, ticker)
+        runtime_code = await _runtime_code_evidence(page, ticker)
         passed = False
         shot = ""
         for scope in _scopes(page):
@@ -2896,7 +2921,7 @@ class AtlasVisualCrawler:
                 break
         await self._record(category="RESEARCH_CHART", page_name="Research Any Ticker", interaction="active-four-panel-chart",
                            expected="Exact ticker-owned active customer chart visibly renders four panels",
-                           observed=f"ticker={ticker}; four_panels={passed}; actual_chart_screenshot={bool(shot)}; market_admission={json.dumps(admission, sort_keys=True)}",
+                           observed=f"ticker={ticker}; four_panels={passed}; actual_chart_screenshot={bool(shot)}; runtime_code={json.dumps(runtime_code, sort_keys=True)}; market_admission={json.dumps(admission, sort_keys=True)}",
                            passed=passed, elapsed=time.monotonic()-started, ticker=ticker, viewport=viewport,
                            screenshots=(shot,), severity="P1", required=True)
         return passed

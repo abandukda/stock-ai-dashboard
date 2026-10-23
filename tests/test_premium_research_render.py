@@ -36,6 +36,12 @@ class PremiumResearchRender(unittest.TestCase):
                                     admission = page.locator('[data-atlas-qa="research-v2-market-admission"]')
                                     self.assertEqual(admission.get_attribute('data-atlas-status'), 'NOT_RECORDED')
                                     self.assertEqual(admission.get_attribute('data-atlas-reason'), 'ADMISSION_RECEIPT_UNAVAILABLE')
+                                    code_identity = page.locator('[data-atlas-qa="research-v2-runtime-code"]').last
+                                    self.assertEqual(code_identity.get_attribute('data-atlas-ticker'), ticker)
+                                    self.assertEqual(code_identity.get_attribute('data-atlas-scope'), 'FUNCTION_BODIES_ONLY')
+                                    # This fixture intentionally wraps the view builder;
+                                    # a mismatch must neither admit nor reject its chart.
+                                    self.assertEqual(code_identity.get_attribute('data-atlas-view-status'), 'BODY_MISMATCH')
                                     self.assertTrue(page.locator('[data-atlas-qa="research-executive-digest"]').is_visible())
                                     navigation=page.get_by_role('navigation',name='Research sections')
                                     navigation.get_by_role('link',name='Chart & technicals',exact=True).click()

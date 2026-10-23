@@ -144,7 +144,8 @@ def test_all_four_customer_routes_are_bound_to_the_shared_projection():
         "ask": Path("engines/ask_atlas_engine.py").read_text(),
         "home": Path("engines/home_guidance_story_v1.py").read_text(),
     }
-    assert "build_customer_research_view(report)" in sources["research"]
+    assert "view_builder = build_customer_research_view" in sources["research"]
+    assert "customer_view = view_builder(report)" in sources["research"]
     assert "build_customer_research_view(row)" in sources["watchlist"]
     assert "build_customer_research_view(report)" in sources["ask"]
     assert "customer_research_surface" in sources["home"]
