@@ -322,6 +322,62 @@ def _render_earnings_walkthrough(page: Mapping[str, Any]) -> None:
     )
 
 
+def _render_business_reader(page: Mapping[str, Any]) -> None:
+    builder = getattr(_research_learning, "build_business_reader", None)
+    if builder is None:
+        st.info("The business-model reader is unavailable in this application session.")
+        return
+    reader = builder(page)
+    if reader["status"] != "AVAILABLE":
+        return
+    st.markdown("### Start here: how does this business make money?")
+    description = reader["description"]
+    if description:
+        _literal_retained_context(description["text"])
+        _literal_retained_context(
+            f'Source: {description["source"]} · Profile captured: {_financial_period(description.get("as_of"))} · '
+            f'Evidence ID: {description["evidence_id"]}', caption=True,
+        )
+    else:
+        st.info("A source-bound business description is unavailable. An industry label alone does not explain how this company earns money.")
+    st.write(
+        "Follow the money from customers to profit to cash. These are different measures, "
+        "not amounts to add together. Read each fiscal period separately; these retained facts may cover different periods."
+    )
+    for stage in reader["stages"]:
+        st.markdown(f'**{stage["title"]}**')
+        st.write(stage["question"])
+        fact = stage["fact"]
+        if fact is None:
+            st.caption("Source-bound reported USD evidence is unavailable for this step.")
+            continue
+        st.write(_financial_value(fact["value"], fact["unit"]))
+        _literal_retained_context(
+            f'Fiscal period: {_financial_period(fact.get("period"))} · Source: {fact["provider"]} · '
+            f'Evidence as of: {_financial_period(fact.get("as_of"))} · Evidence ID: {fact["evidence_id"]}',
+            caption=True,
+        )
+    st.caption(
+        "A separate revenue breakdown by product, customer, or geography is unavailable in this reader. "
+        "Totals alone cannot establish customer loyalty, pricing power, or an advantage over competitors."
+    )
+    with st.expander("Go deeper: test the business model before trusting the thesis", expanded=False):
+        st.write(
+            "In the retained filing, look for who pays, what they buy, and whether purchases repeat. "
+            "Check whether a few customers or one product account for much of sales, and whether losing them would be costly."
+        )
+        st.write(
+            "Then check the costs of delivering those sales and the investment needed to keep the business running. "
+            "Operating cash is before capital spending; it is not automatically cash available to shareholders. "
+            "The earnings section below compares reported profit and cash where matching annual evidence exists."
+        )
+        st.write(
+            "To connect the business to the investment thesis, ask what would have to stay true for the valuation assumptions to hold. "
+            "Use the retained bull and bear watchpoints below to identify what to monitor. "
+            "Company-specific answers to these filing questions are unavailable unless explicitly supported by the displayed evidence."
+        )
+
+
 def _render_learning_guide(page: Mapping[str, Any], *, ticker: str) -> None:
     guide = build_learning_guide(page)
     if guide["status"] != "AVAILABLE":
@@ -329,6 +385,7 @@ def _render_learning_guide(page: Mapping[str, Any], *, ticker: str) -> None:
     _marker("learning-guide", ticker, status=guide["status"], non_scoring="true")
     st.markdown("### Read the evidence like an investor")
     st.caption("Learning guidance · Uses this retained snapshot, not live results or AI-generated research.")
+    _render_business_reader(page)
     _render_valuation_guide(page)
     with st.expander("Earnings: are sales turning into profit and cash?", expanded=True):
         st.write(
