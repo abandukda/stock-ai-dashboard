@@ -1,6 +1,7 @@
 """Unwired personal-watchlist surface; trusted controller injection is required."""
 from __future__ import annotations
 from typing import Callable
+from html import escape
 import streamlit as st
 from services.customer.service import EntitlementError
 from services.customer.watchlist_controller import PersonalWatchlistAccessError, PersonalWatchlistController
@@ -88,7 +89,11 @@ def render_personal_watchlists(*, controller: PersonalWatchlistController | None
     except Exception:
         st.warning("This watchlist is temporarily unavailable.")
         return {"status": "UNAVAILABLE"}
-    st.markdown("### " + detail.name.replace("$", r"\$"))
+    # User/catalog strings are literal content, never Markdown instructions.
+    st.markdown(
+        '<h3 class="atlas-personal-watchlist-name">' + escape(detail.name) + '</h3>',
+        unsafe_allow_html=True,
+    )
     st.caption(f"{len(detail.symbols)} saved companies" + (" · Default watchlist" if detail.is_default else ""))
     with st.expander("Manage this watchlist"):
         renamed = st.text_input("Rename watchlist", value=detail.name, key=key + selected + ":rename", max_chars=80)
@@ -124,7 +129,10 @@ def render_personal_watchlists(*, controller: PersonalWatchlistController | None
         st.info("No companies saved in this watchlist yet. Search above to add your first ticker.")
     for item in detail.symbols:
         with st.container(border=True):
-            st.markdown("**" + item.ticker + "** · " + item.company.replace("$", r"\$"))
+            st.markdown(
+                '<p class="atlas-personal-watchlist-company"><strong>' + escape(item.ticker)
+                + '</strong> · ' + escape(item.company) + '</p>', unsafe_allow_html=True,
+            )
             st.caption("Certified Research available" if item.research_available else "Certified Research is unavailable for this saved symbol.")
             if st.button("Open Research — " + item.ticker, key=key + selected + ":research:" + item.ticker,
                          disabled=not item.research_available or open_research is None, use_container_width=True):

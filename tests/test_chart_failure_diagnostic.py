@@ -63,17 +63,24 @@ def test_diagnostic_navigation_failure_stops_without_retry_or_screenshot():
     assert nav.await_count==1;c._shot.assert_not_awaited()
 
 
-def test_diagnostic_captures_existing_state_at_four_route_viewports_only():
+def test_diagnostic_observes_all_existing_viewer_routes_without_mutation_or_private_scope():
     c=crawler();c._customer_navigation_contract=AsyncMock();c._role_isolation_contract=AsyncMock();c._shot=AsyncMock(return_value="actual.png");c._record=AsyncMock()
     c._submit_research=AsyncMock(side_effect=AssertionError("No ticker submit or chart retry"))
+    c._ask=AsyncMock(side_effect=AssertionError("No question/model submit"))
+    c._watchlist_edit_journey=AsyncMock(side_effect=AssertionError("No watchlist mutation"))
     c._wait_diagnostic_route_ready=AsyncMock()
     page=SimpleNamespace(set_viewport_size=AsyncMock())
     with patch("agents.atlas_visual_crawler_v1._navigate",new=AsyncMock(return_value=(True,0,"ok"))) as nav,patch("agents.atlas_visual_crawler_v1._page_render_complete",new=AsyncMock(return_value=True)):
         asyncio.run(c._capture_chart_failure_views(page))
-    assert nav.await_count==4 and c._shot.await_count==4
-    assert c._customer_navigation_contract.await_count==8 and c._role_isolation_contract.await_count==8
+    assert nav.await_count==12 and c._shot.await_count==12
+    assert c._customer_navigation_contract.await_count==24 and c._role_isolation_contract.await_count==24
+    assert {call.args[1] for call in nav.await_args_list} == {"Home", "Research Any Ticker", "Watchlist Intelligence", "Ask AI"}
+    assert {call.kwargs["viewport"] for call in c._shot.await_args_list} == {"desktop", "mobile_360", "tablet_768"}
+    assert all(call.kwargs["expected_role"] == "customer_viewer" for call in c._role_isolation_contract.await_args_list)
     assert all(call.kwargs["required"] is False for call in c._record.await_args_list)
     c._submit_research.assert_not_awaited()
+    c._ask.assert_not_awaited()
+    c._watchlist_edit_journey.assert_not_awaited()
 
 
 @pytest.mark.parametrize("observed",["completion=[]", "completion=null", "completion=not-json"])
@@ -88,9 +95,10 @@ def test_malformed_completion_cannot_mask_original_failure(observed):
 def test_delayed_completion_observes_same_route_without_navigation_retry():
     c=crawler();c._current_route_visible=AsyncMock(return_value=True)
     page=SimpleNamespace(wait_for_timeout=AsyncMock())
-    with patch("agents.atlas_visual_crawler_v1._has_rendered_exception",new=AsyncMock(return_value=False)),patch("agents.atlas_visual_crawler_v1._page_render_complete",new=AsyncMock(side_effect=[False,False,True])) as ready,patch("agents.atlas_visual_crawler_v1._navigate",new=AsyncMock()) as navigate:
+    with patch("agents.atlas_visual_crawler_v1._has_rendered_exception",new=AsyncMock(return_value=False)),patch("agents.atlas_visual_crawler_v1._page_render_complete",new=AsyncMock(side_effect=[False,False,True])) as ready,patch("agents.atlas_visual_crawler_v1._navigate",new=AsyncMock()) as navigate,patch("agents.atlas_visual_crawler_v1.asyncio.sleep",new=AsyncMock()) as wait:
         asyncio.run(c._wait_diagnostic_route_ready(page,"Home"))
-    assert ready.await_count==3 and page.wait_for_timeout.await_count==2
+    assert ready.await_count==3 and wait.await_count==2
+    page.wait_for_timeout.assert_not_awaited()
     navigate.assert_not_awaited()
 
 
@@ -100,3 +108,28 @@ def test_exception_stops_before_accepting_even_a_ready_marker():
         with pytest.raises(GlobalCrawlFailure,match="DIAGNOSTIC_APPLICATION_EXCEPTION"):
             asyncio.run(c._wait_diagnostic_route_ready(object(),"Home"))
     ready.assert_not_awaited()
+
+
+@pytest.mark.parametrize("guard", ["_customer_navigation_contract", "_role_isolation_contract"])
+def test_independent_routes_stop_on_first_source_or_role_failure(guard):
+    c=crawler();c._customer_navigation_contract=AsyncMock();c._role_isolation_contract=AsyncMock()
+    c._shot=AsyncMock();c._record=AsyncMock();c._wait_diagnostic_route_ready=AsyncMock()
+    setattr(c,guard,AsyncMock(side_effect=GlobalCrawlFailure("UNSAFE_VIEWER_SESSION")))
+    page=SimpleNamespace(set_viewport_size=AsyncMock())
+    with patch("agents.atlas_visual_crawler_v1._navigate",new=AsyncMock()) as nav:
+        with pytest.raises(GlobalCrawlFailure,match="UNSAFE_VIEWER_SESSION"):
+            asyncio.run(c._capture_chart_failure_views(page))
+    nav.assert_not_awaited();c._shot.assert_not_awaited()
+
+
+@pytest.mark.parametrize("guard", ["_customer_navigation_contract", "_role_isolation_contract"])
+def test_changed_source_or_role_after_navigation_stops_before_capture_or_next_route(guard):
+    c=crawler();c._customer_navigation_contract=AsyncMock();c._role_isolation_contract=AsyncMock()
+    c._shot=AsyncMock();c._record=AsyncMock();c._wait_diagnostic_route_ready=AsyncMock()
+    setattr(c,guard,AsyncMock(side_effect=[None,GlobalCrawlFailure("SESSION_CHANGED_AFTER_NAVIGATION")]))
+    page=SimpleNamespace(set_viewport_size=AsyncMock())
+    with patch("agents.atlas_visual_crawler_v1._navigate",new=AsyncMock(return_value=(True,0,"ok"))) as nav:
+        with pytest.raises(GlobalCrawlFailure,match="SESSION_CHANGED_AFTER_NAVIGATION"):
+            asyncio.run(c._capture_chart_failure_views(page))
+    assert nav.await_count==1
+    c._shot.assert_not_awaited()

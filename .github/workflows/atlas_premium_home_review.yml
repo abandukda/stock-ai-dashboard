@@ -4,6 +4,9 @@ on:
     paths:
       - 'ui/report_card_overview.py'
       - 'tests/test_premium_report_card_registration_render.py'
+      - 'ui/personal_watchlists.py'
+      - 'tests/test_premium_personal_watchlists_render.py'
+      - 'tests/test_personal_watchlists_ui.py'
       - 'ui/home_guidance_vnext.py'
       - 'ui/earnings_vnext.py'
       - 'tests/test_earnings_cached_transcript_ui.py'

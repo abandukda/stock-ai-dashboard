@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hashlib
 
+import pytest
+
 from services.transcript_intelligence_runtime import (
     _bind_source_excerpt_hashes, _source_span_ledger,
     clear_transcript_runtime_cache, retrieve_and_summarize_transcript,
@@ -292,3 +294,30 @@ def test_unavailable_transcript_can_be_retried_when_new_call_arrives():
     assert second.operation_metadata["transcript_status"] == "AVAILABLE"
     assert second.operation_metadata["ai_summary_status"] != "PASS"
     assert second.operation_metadata["cache_status"] == "CACHE_MISS"
+
+
+@pytest.mark.parametrize('source,claim,reason', [
+    ('NVDA did not increase revenue.', 'NVDA did increase revenue.', 'SOURCE_SCOPE_OR_NEGATION_CHANGED'),
+    ('NVDA acquired ARM.', 'ARM acquired NVDA.', 'SOURCE_TERM_ORDER_CHANGED'),
+    ('Revenue rose 10% while margin fell 2%.', 'Margin rose 10% while revenue fell 2%.', 'SOURCE_TERM_ORDER_CHANGED'),
+    ('Demand will improve if orders recover.', 'Demand will improve.', 'SOURCE_SCOPE_OR_NEGATION_CHANGED'),
+    ("Demand didn't improve.", 'Demand improve.', 'SOURCE_SCOPE_OR_NEGATION_CHANGED'),
+])
+def test_lexical_reuse_cannot_reverse_transcript_relationships_or_drop_qualifiers(source, claim, reason):
+    payload = {'management_summary': {'claim': claim, 'source_excerpt': source,
+        'source_excerpt_hash': hashlib.sha256(source.encode()).hexdigest(), 'claim_type': 'PERFORMANCE'}}
+    valid, violations, diagnostics = validate_grounded_summary(payload, source)
+    assert not valid and 'MANAGEMENT_SUMMARY_UNGROUNDED' in violations
+    assert diagnostics[0]['match_reason'] == reason
+    assert 'MEANING_PASS' not in str(diagnostics)
+    assert 'source_excerpt' not in diagnostics[0]
+
+
+def test_successful_transcript_guard_is_explicitly_traceability_not_semantic_proof():
+    clear_transcript_runtime_cache()
+    result = retrieve_and_summarize_transcript('NVDA', year=2026, quarter=2,
+        provider=_provider([]), summarizer=_summary)
+    assert result.operation_metadata['grounding_status'] == 'PASS'
+    assert result.operation_metadata['semantic_entailment_verified'] is False
+    assert result.operation_metadata['grounding_policy'] == 'ATLAS_TRANSCRIPT_ORDERED_TRACEABILITY_V1'
+    assert 'MEANING_PASS' not in str(result.operation_metadata['claim_diagnostics'])

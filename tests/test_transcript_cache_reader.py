@@ -252,3 +252,23 @@ def test_summary_copied_to_another_account_identity_is_rejected(tmp_path):
         db.execute('INSERT INTO records VALUES (?,?,?,?)',('summary',key,body,digest))
     with pytest.raises(TranscriptCacheReadError,match='ACCOUNT_BINDING_REVALIDATION_REQUIRED'):
         _reader(root,provider=other,summary_revision='approved-model-policy-v1').read('NVDA',year=2026,quarter=2)
+
+
+
+def test_legacy_grounding_policy_summary_is_not_admitted_or_reacquired(tmp_path, monkeypatch):
+    import services.transcript_evidence_store as store_module
+    root = tmp_path / 'private'
+    # Generate a TEMP mock legacy-key record without changing retained-source identity.
+    monkeypatch.setattr(store_module, 'TRANSCRIPT_SUMMARY_PROMPT_VERSION', 'ATLAS_TRANSCRIPT_SUMMARY_PROMPT_V2')
+    monkeypatch.setattr(store_module, 'TRANSCRIPT_SUMMARY_SCHEMA_VERSION', 'ATLAS_TRANSCRIPT_SUMMARY_SCHEMA_V2')
+    _cache(root, model=True)
+    before = _snapshot(root)
+    p = provider([])
+    def forbidden(*args, **kwargs): raise AssertionError('No reacquisition or model calls')
+    p.transcript = p.available_periods = forbidden
+    result = _reader(root, provider=p, summary_revision='approved-model-policy-v1').read('NVDA', year=2026, quarter=2)
+    assert result['transcript_status'] == 'AVAILABLE'
+    assert result['ai_summary_status'] == 'PENDING'
+    assert result['customer_projection'] == {}
+    assert result['provider_calls'] == result['model_calls'] == 0
+    assert _snapshot(root) == before
