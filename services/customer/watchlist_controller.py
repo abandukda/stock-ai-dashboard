@@ -16,7 +16,8 @@ from typing import Any, Callable, Iterable, Mapping
 
 from services.customer_authority import customer_authority
 from services.live_market.models import SecurityType
-from .service import CustomerService
+from .service import CustomerService, EntitlementError
+from .models import Capability
 
 
 class PersonalWatchlistAccessError(PermissionError):
@@ -49,6 +50,12 @@ class PersonalWatchlistOverview:
 
 
 @dataclass(frozen=True)
+class PersonalAccountAccess:
+    view_key: str
+    capabilities: frozenset[Capability]
+
+
+@dataclass(frozen=True)
 class PersonalWatchlistSnapshot:
     view_key: str
     watchlists: tuple[PersonalWatchlistOverview, ...]
@@ -60,6 +67,7 @@ class PersonalWatchlistItem:
     company: str
     research_available: bool
     added_at: datetime
+    research_entitled: bool = True
 
 
 @dataclass(frozen=True)
@@ -173,6 +181,11 @@ class PersonalWatchlistController:
                 raise PersonalWatchlistAccessError("WATCHLIST_CONTEXT_CHANGED")
             yield user.user_id, current_key
 
+    def account_access(self, *, view_key: object = _UNBOUND_VIEW) -> PersonalAccountAccess:
+        """Revalidate current registered authority, never token/session roles."""
+        with self._account(view_key) as (owner, key):
+            return PersonalAccountAccess(key, self._service.entitlements(owner).capabilities)
+
     def snapshot(self) -> PersonalWatchlistSnapshot:
         with self._account() as (owner, key):
             lists = tuple(PersonalWatchlistOverview(item.watchlist_id, item.name, item.is_default,
@@ -188,7 +201,8 @@ class PersonalWatchlistController:
                 entry = self._catalog.get(saved.security.ticker)
                 symbols.append(PersonalWatchlistItem(saved.security.ticker,
                     entry.company if entry else saved.security.ticker,
-                    bool(entry and entry.research_available), saved.added_at))
+                    bool(entry and entry.research_available), saved.added_at,
+                    self._service.allows(owner, Capability.FULL_RESEARCH)))
             return PersonalWatchlistDetail(item.watchlist_id, item.name, item.is_default, tuple(symbols))
 
     def create_watchlist(self, name: str, *, view_key: str) -> None:
@@ -235,6 +249,8 @@ class PersonalWatchlistController:
 
     def research_ticker(self, watchlist_id: str, ticker: str, *, view_key: str) -> str:
         with self._account(view_key) as (owner, _):
+            if not self._service.allows(owner, Capability.FULL_RESEARCH):
+                raise EntitlementError("FULL_RESEARCH_REQUIRED")
             ticker = _ticker(ticker)
             saved = self._service.list_symbols(owner, watchlist_id)
             entry = self._catalog.get(ticker)

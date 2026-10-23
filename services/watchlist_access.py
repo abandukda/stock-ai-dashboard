@@ -11,6 +11,9 @@ def workspace_watchlist_allowed(state: Mapping[str, Any]) -> bool:
     A shared viewer/beta password or an arbitrary user_id/auth_subject is not
     an individual identity and cannot authorize access to the workspace file.
     """
+    from services.customer.request_authority import personal_viewer_active
+    if personal_viewer_active():
+        return False
     if state.get("authenticated") is not True:
         return False
     roles = [state.get(key) for key in ("role", "user_role") if state.get(key) is not None]

@@ -186,6 +186,14 @@ class PremiumEarningsCacheRender(unittest.TestCase):
                                                         # Expand disclosure so literal thesis/limitation evidence is visibly exercised.
                                                         page.get_by_text('What Changes the Thesis',exact=True).click()
                                                         page.get_by_text('Deep Evidence',exact=True).click()
+                                                        page.get_by_text('ATLAS Decision After Earnings',exact=True).click()
+                                                        states=page.locator('.atlas-earnings-decision-state p')
+                                                        self.assertEqual(states.count(),3)
+                                                        for state in states.all():
+                                                            self.assertEqual(state.inner_text(),'Unavailable — no actionable recommendation published')
+                                                            self.assertTrue(state.is_visible())
+                                                            self.assertTrue(state.evaluate('(e)=>e.scrollWidth<=e.clientWidth+1 && e.scrollHeight<=e.clientHeight+1'))
+                                                            self.assertNotEqual(state.evaluate('(e)=>getComputedStyle(e).textOverflow'),'ellipsis')
                                                         literal = page.locator('.atlas-earnings-literal').filter(has_text=claim).first
                                                         literal.scroll_into_view_if_needed()
                                                         self.assertTrue(literal.is_visible())

@@ -1,3 +1,4 @@
+import ast
 from pathlib import Path
 
 from services.exact_candidate_research import (
@@ -115,7 +116,7 @@ def test_app_guards_both_optional_enrichment_paths_in_exact_candidate_mode():
 
 def test_research_route_resolves_before_cross_surface_bootstrap():
     source = Path("app.py").read_text(encoding="utf-8")
-    main = source[source.rindex("def main():"):]
+    main = ast.get_source_segment(source, [n for n in ast.parse(source).body if isinstance(n, ast.FunctionDef) and n.name == "main"][-1])
     assert main.index("selected_page=render_v73_top_nav(pages)") < main.index("full_df=load_full_scan()")
     assert 'if selected_page == "Research Any Ticker":' in main
     assert "full_df=pd.DataFrame(); top_df=pd.DataFrame(); recovery_df=pd.DataFrame()" in main

@@ -2,6 +2,12 @@ name: ATLAS Premium Home Review
 on:
   pull_request:
     paths:
+      - 'app.py'
+      - 'ui/customer_runtime.py'
+      - 'services/customer/request_authority.py'
+      - 'services/customer/watchlist_controller.py'
+      - 'services/watchlist_access.py'
+      - 'tests/test_premium_customer_composition_render.py'
       - 'ui/report_card_overview.py'
       - 'tests/test_premium_report_card_registration_render.py'
       - 'tests/test_premium_report_card_immutable_render.py'

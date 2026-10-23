@@ -192,6 +192,9 @@ ATLAS_REQUIRE_AUTH = (os.getenv("ATLAS_REQUIRE_AUTH") or "").strip().lower() in 
 
 
 def get_user_role():
+    from services.customer.request_authority import personal_viewer_active
+    if personal_viewer_active():
+        return "viewer"
     if "user_role" not in st.session_state or st.session_state.get("user_role") is None:
         authenticated_role = st.session_state.get("role") if st.session_state.get("authenticated") else None
         st.session_state["user_role"] = authenticated_role or (
@@ -28639,7 +28642,17 @@ def _render_page_explanation(page_name):
     render_atlas_explains(synthesize_page_explanation(page_name, source_date=source_date))
 
 
-def main():
+def main(*, customer_bindings=None):
+    # Explicit server composition only. The unchanged default never opens an
+    # identity provider, private store or transcript cache.
+    if customer_bindings is not None:
+        from ui.customer_runtime import render_personal_runtime
+        return render_personal_runtime(
+            customer_bindings,
+            render_navigation=render_v73_top_nav,
+            open_research=v784_open_research,
+            render_earnings=render_earnings_vnext,
+        )
     if not dashboard_login_gate(): return
     if os.getenv("ATLAS_RESEARCH_WIDGET_TRACE", "").strip().lower() in {"1", "true", "yes", "on"}:
         st.session_state["atlas_widget_trace_run_sequence"] = int(st.session_state.get("atlas_widget_trace_run_sequence") or 0) + 1

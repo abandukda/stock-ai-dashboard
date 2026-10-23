@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import ast
 from pathlib import Path
 
 import pandas as pd
@@ -157,7 +158,7 @@ def test_no_rank_movement_or_factor_contribution_is_invented():
 
 def test_final_active_route_uses_only_full_scan_vnext():
     source = (ROOT / "app.py").read_text(encoding="utf-8")
-    final_main = source[source.rfind("def main():"):]
+    final_main = ast.get_source_segment(source, [n for n in ast.parse(source).body if isinstance(n, ast.FunctionDef) and n.name == "main"][-1])
     branch = final_main.split('elif selected_page=="Full Ranked Scan":', 1)[1].split(
         'elif selected_page=="Portfolio Intelligence":', 1
     )[0]

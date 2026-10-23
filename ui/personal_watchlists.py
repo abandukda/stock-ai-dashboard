@@ -33,8 +33,11 @@ def _apply(operation) -> bool:
     except PersonalWatchlistAccessError:
         _clear_personal_widget_state()
         st.rerun()
-    except EntitlementError:
-        st.info("Your account's watchlist or symbol limit has been reached.")
+    except EntitlementError as error:
+        if str(error) == "FULL_RESEARCH_REQUIRED":
+            st.info("Full Research is not enabled for this account.")
+        else:
+            st.info("Your account's watchlist or symbol limit has been reached.")
     except KeyError:
         st.warning("This watchlist or symbol is not available in your current account.")
     except ValueError:
@@ -134,8 +137,10 @@ def render_personal_watchlists(*, controller: PersonalWatchlistController | None
                 + '</strong> · ' + escape(item.company) + '</p>', unsafe_allow_html=True,
             )
             st.caption("Certified Research available" if item.research_available else "Certified Research is unavailable for this saved symbol.")
+            if not item.research_entitled:
+                st.caption("Full Research is not enabled for this account.")
             if st.button("Open Research — " + item.ticker, key=key + selected + ":research:" + item.ticker,
-                         disabled=not item.research_available or open_research is None, use_container_width=True):
+                         disabled=not item.research_available or not item.research_entitled or open_research is None, use_container_width=True):
                 def navigate():
                     ticker = controller.research_ticker(selected, item.ticker, view_key=snapshot.view_key)
                     open_research(ticker)

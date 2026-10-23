@@ -14,6 +14,7 @@ import re
 from typing import Any, Mapping
 
 from services.finnhub_enterprise_display_contract import CONTRACT_ID
+from services.operations_gateway import CAPTURE_TIME_CONTRACT
 from services.report_card_exchange_calendar import build_xnys_calendar
 from services.research_market_read_model import SCHEMA, seal_research_market_bundle
 
@@ -118,6 +119,50 @@ def build_history_bundle(
     })
 
 
+def _capture_instant(value: Any) -> datetime:
+    if (type(value) is not str or not re.fullmatch(
+            r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|\+00:00)", value)):
+        raise ValueError("HISTORY_GATEWAY_CAPTURE_TIME_INVALID")
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        raise ValueError("HISTORY_GATEWAY_CAPTURE_TIME_INVALID") from None
+
+
+def _verify_capture_window(
+    telemetry: list[Mapping[str, Any]], summary: Mapping[str, Any], *,
+    captured_at: datetime, checked_at: datetime,
+) -> tuple[datetime, datetime]:
+    """Bind run capture time to sequential per-request UTC receipt windows.
+
+    This observes the executor's clock, not a provider price/as-of timestamp or
+    an independently certified wall clock. Legacy receipts remain unchanged and
+    cannot acquire a completion timestamp from caller input or a run ID.
+    """
+    if summary.get("capture_time_contract") != CAPTURE_TIME_CONTRACT:
+        raise ValueError("HISTORY_GATEWAY_CAPTURE_TIME_UNATTESTED")
+    if summary.get("capture_time_status") != "BOUND":
+        raise ValueError("HISTORY_GATEWAY_CAPTURE_TIME_UNATTESTED")
+    if (not isinstance(captured_at, datetime) or captured_at.tzinfo is None or captured_at.utcoffset() is None
+            or not isinstance(checked_at, datetime) or checked_at.tzinfo is None or checked_at.utcoffset() is None):
+        raise ValueError("HISTORY_GATEWAY_CAPTURE_TIME_INVALID")
+    windows = []
+    for row in telemetry:
+        if row.get("capture_time_contract") != CAPTURE_TIME_CONTRACT or row.get("capture_time_status") != "BOUND":
+            raise ValueError("HISTORY_GATEWAY_CAPTURE_TIME_UNATTESTED")
+        start = _capture_instant(row.get("attempt_started_at"))
+        end = _capture_instant(row.get("response_completed_at"))
+        if end < start or end > checked_at or (windows and start < windows[-1][1]):
+            raise ValueError("HISTORY_GATEWAY_CAPTURE_TIME_WINDOW_INVALID")
+        windows.append((start, end))
+    started = _capture_instant(summary.get("capture_started_at"))
+    completed = _capture_instant(summary.get("capture_completed_at"))
+    if (not windows or started != windows[0][0] or completed != windows[-1][1]
+            or completed != captured_at):
+        raise ValueError("HISTORY_GATEWAY_CAPTURE_TIME_BINDING_INVALID")
+    return started, completed
+
+
 def build_history_review_from_gateway_capture(
     raw_response_bytes: bytes, *, metadata: Mapping[str, Any], run_summary: Mapping[str, Any],
     ticker: str, source_sha: str, scope_sha256: str, bundle_id: str,
@@ -157,6 +202,7 @@ def build_history_review_from_gateway_capture(
            or type(row.get("retry_count")) is not int or row["retry_count"] != 0
            for index, row in enumerate(telemetry, 1)):
         raise ValueError("HISTORY_GATEWAY_ATTEMPT_RECEIPT_INVALID")
+    _verify_capture_window(telemetry, run_summary, captured_at=captured_at, checked_at=checked_at)
     ordinal = metadata.get("ordinal")
     if (type(ordinal) is not int or not 1 <= ordinal <= len(telemetry)
             or telemetry[ordinal - 1] != dict(metadata)
@@ -180,10 +226,29 @@ def build_history_review_from_gateway_capture(
         adjustment_basis=adjustment_basis, adjustment_evidence_id=adjustment_evidence_id,
         raw_response_bytes=raw_response_bytes,
     )
+    # Run completion is the bundle capture clock, but a later ancillary request
+    # must not make an earlier pre-close candle response appear finalized.
+    timestamps = bundle["families"]["historical_ohlcv"]["payload"]["timestamps"]
+    first_session = datetime.fromtimestamp(timestamps[0], timezone.utc).date().isoformat()
+    last_session = datetime.fromtimestamp(timestamps[-1], timezone.utc).date().isoformat()
+    response_completed = _capture_instant(metadata["response_completed_at"])
+    response_calendar = build_xnys_calendar(start_date=first_session, as_of=response_completed)
+    if last_session > response_calendar["finalized_session"]:
+        raise ValueError("HISTORY_CAPTURE_PRECEDES_FINALIZED_SESSION")
+    provenance = bundle["families"]["historical_ohlcv"]["provenance"]
+    provenance.update({
+        "gateway_capture_time_contract": CAPTURE_TIME_CONTRACT,
+        "capture_time_binding": "GATEWAY_RECEIPT_BOUND_NOT_CLOCK_CERTIFICATION",
+        "gateway_attempt_started_at": metadata["attempt_started_at"],
+        "gateway_response_completed_at": metadata["response_completed_at"],
+        "gateway_run_capture_completed_at": run_summary["capture_completed_at"],
+    })
+    bundle = seal_research_market_bundle(bundle)
     return {
         "status": "OWNER_REVIEW_ONLY_NOT_PUBLISHED", "bundle": bundle,
         "source_sha": source_sha, "scope_sha256": scope_sha256,
         "raw_sha256": metadata["raw_sha256"], "raw_bytes": len(raw_response_bytes),
         "provider_calls": 0, "publication_writes": 0, "report_card_writes": 0,
         "financial_certification": "SEPARATE_GOVERNED_REVIEW_REQUIRED",
+        "capture_time_binding": "GATEWAY_RECEIPT_BOUND_NOT_CLOCK_CERTIFICATION",
     }
