@@ -24,7 +24,10 @@ class RegistrationRenderTest(unittest.TestCase):
                         '<p style="color:white">GENERATED COMPONENT — NOT PRODUCTION</p>'
                         + DIRECTORY_CSS + signal_directory_html([signal]) + '</body>')
                     self.assertEqual(page.locator('tbody tr').count(), 1)
-                    self.assertIn('Oct 08, 2026 03:20:18 UTC', page.locator('tbody').inner_text())
+                    registration = page.locator('tbody td[title]')
+                    self.assertEqual(registration.count(), 1)
+                    self.assertEqual(registration.inner_text(), 'Oct 08, 2026')
+                    self.assertEqual(registration.get_attribute('title'), 'Oct 08, 2026 03:20:18 UTC')
                     self.assertIn('Oct 06, 2026', page.locator('tbody').inner_text())
                     self.assertIn('not proof of customer publication', page.locator('body').inner_text())
                     self.assertNotIn('0%', page.locator('body').inner_text())

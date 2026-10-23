@@ -12,6 +12,7 @@ from plotly.subplots import make_subplots
 
 from services.report_card_dashboard import build_internal_report_card
 from ui.report_card_overview import OVERVIEW_CSS, overview_html, render_signal_directory, horizon_coverage_html
+from ui import report_card_overview as _report_card_overview
 
 
 REPORT_CARD_VIEW_OVERVIEW = "OVERVIEW"
@@ -349,6 +350,34 @@ def _render_signal_detail(detail: Mapping[str, Any]) -> None:
     st.markdown("\n".join(f'- {item}' for item in detail["move_attribution"]["uncertain_or_not_attributable"]))
 
 
+def render_internal_report_card_route(durable_root: str | None, *, authorized: bool) -> Mapping[str, Any]:
+    """Present unavailable private storage without inventing ledger evidence."""
+    if not authorized:
+        raise PermissionError("INTERNAL_REPORT_CARD_ACCESS_REQUIRED")
+    from services.report_card_governance import public_report_allowed
+    if public_report_allowed():
+        raise PermissionError("PUBLIC_REPORT_CARD_MUST_REMAIN_OFF")
+    root = durable_root.strip() if isinstance(durable_root, str) else ""
+    if root:
+        try:
+            return render_internal_report_card(Path(root) / "report-card.sqlite3", authorized=True)
+        except FileNotFoundError as exc:
+            if str(exc) != "INTERNAL_REPORT_CARD_LEDGER_UNAVAILABLE":
+                raise
+    st.markdown(
+        OVERVIEW_CSS + '<section class="atlas-rc-summary" data-atlas-qa="report-card-interface-unavailable" '
+        'data-atlas-report-card-status="UNAVAILABLE" data-atlas-customer-visible="false">'
+        '<article class="atlas-rc-pending"><small>INTERNAL ONLY · access controlled</small>'
+        '<h2>Report Card evidence unavailable</h2>'
+        '<p>The private Report Card cannot read its configured ledger in this deployment. '
+        'Signal counts, returns, chart evidence and backup integrity have not been verified.</p>'
+        '<p>Public activation OFF · No observations have been created by this view.</p></article></section>',
+        unsafe_allow_html=True,
+    )
+    st.info("An administrator must verify the existing read-only ledger configuration and source access before internal certification.")
+    return {"status": "UNAVAILABLE", "customer_visible": False}
+
+
 def render_internal_report_card(ledger_path: Path, *, authorized: bool,
                                 snapshot_sha256: str | None = None,
                                 snapshot_tip: str | None = None) -> Mapping[str, Any]:
@@ -365,9 +394,9 @@ def render_internal_report_card(ledger_path: Path, *, authorized: bool,
                 'aria-hidden="true" style="display:none">internal-report-card</span>', unsafe_allow_html=True)
     st.markdown(
         '<div class="atlas-report-card-hero"><div class="atlas-kicker">INTERNAL ONLY · access controlled</div>'
-        '<h1>Prospective Report Card</h1><p>Immutable signal observations measured against SPY. '
-        'Signal tracking only — tracked recommendations are not funded model-portfolio purchases. '
-        'Descriptive research operations only — Not a public performance claim.</p></div>',
+        '<h1>Prospective Report Card</h1><p>Private signal evidence and SPY comparisons. '
+        'Tracked recommendations are not funded model-portfolio purchases. '
+        'Not a public performance claim.</p></div>',
         unsafe_allow_html=True,
     )
     view_mode, selected_id = normalize_report_card_view_state(
@@ -410,58 +439,72 @@ def render_internal_report_card(ledger_path: Path, *, authorized: bool,
         'aria-hidden="true" style="display:none">report-card-overview</span>',
         unsafe_allow_html=True,
     )
-    render_signal_directory(report["signals"], on_open=open_report_card_detail)
-    st.markdown(
-        '<div class="atlas-source-chips"><span class="atlas-certification-chip">Append-only ledger</span>'
-        f'<span class="atlas-source-chip">Activated {report["activation_timestamp"]}</span>'
-        f'<span class="atlas-source-chip">Ledger {report["ledger_tip_digest"][:12]}…</span>'
-        f'<span class="atlas-source-chip">Backup {report["last_backup_status"]}</span></div>',
-        unsafe_allow_html=True,
-    )
+    benchmark_column, history_column = st.columns([1.15, 1], gap="medium")
+    with benchmark_column:
+        benchmark_renderer = getattr(_report_card_overview, "render_benchmark_panel", None)
+        if callable(benchmark_renderer):
+            benchmark_renderer(report)
+        else:
+            st.info("The ATLAS vs SPY comparison is unavailable in this application session. No performance is inferred.")
+    with history_column:
+        render_signal_directory(report["signals"], on_open=open_report_card_detail)
     st.caption(f'Next eligible observation: {report["next_eligible_observation"]}')
     st.markdown(f'**Ledger integrity:** {report["integrity"]} · **Admission integrity:** '
                 f'{report["admission_integrity"]} · **Backup status:** {report["last_backup_status"]}')
     if report["admission_defects"]:
         st.error("Signal-admission QA failed: " + ", ".join(report["admission_defects"]))
-    st.subheader("Matured horizon coverage")
-    st.markdown(horizon_coverage_html(report["coverage"]), unsafe_allow_html=True)
     st.subheader("Signal admission and observation detail")
-    for signal in report["signals"]:
-        with st.expander(f'{signal["ticker"]} · {signal["original_action"]} · {signal["observation_count"]} observations'):
-            st.markdown(
-                f'**Signal ID:** `{signal["signal_id"]}`  \n'
-                f'**First seen:** {signal["signal_timestamp"]}  \n'
-                f'**Reference price:** {signal["reference_price"]} · {signal["reference_price_timestamp"]}  \n'
-                f'**Admission:** {signal["admission_reason"]} · publication eligible: '
-                f'{signal["customer_publication_eligible_at_issuance"]}  \n'
-                f'**Candidate:** `{signal["candidate_digest"]}`  \n'
-                f'**Publication:** `{signal["publication_digest"]}`  \n'
-                f'**Evaluation snapshot:** `{signal["evaluation_snapshot_id"]}`  \n'
-                f'**Horizons:** {", ".join(str(item) for item in signal["registered_horizons"])} sessions · '
-                f'next: {signal["next_eligible_horizon"] if signal["next_eligible_horizon"] is not None else "Complete"}  \n'
-                f'**Corporate action:** {signal["corporate_action_state"]}'
-            )
-            rows = []
-            for item in report["rows"]:
-                if item["signal_id"] != signal["signal_id"]:
-                    continue
-                rows.append({
-                    "Horizon": f'{item["horizon_sessions"]} sessions',
-                    "Status": "Pending" if item["status"] == "NOT_MATURED_OR_NOT_OBSERVED" else item["status"],
-                    "Observed price": (f'${float(item["observed_price"]):,.2f}'
-                                       if item["observed_price"] is not None else "Not yet observed"),
-                    "Signal return": _percent(item["stock_return"]), "SPY return": _percent(item["spy_return"]),
-                    "Relative performance": _percent(item["excess_return"]),
-                    "Observed at": item["observed_at"] or "Not yet observed",
-                })
-            st.dataframe(rows, width="stretch", hide_index=True)
-            st.button(
-                "View Signal Digest →",
-                key=f'report_card_signal_{signal["signal_id"]}',
-                on_click=open_report_card_detail,
-                args=(st.session_state, signal["signal_id"]),
-            )
+    with st.expander("Recommendation details", expanded=False):
+        for signal in report["signals"]:
+            with st.expander(f'{signal["ticker"]} · {signal["original_action"]} · {signal["observation_count"]} observations'):
+                st.markdown(
+                    f'**Signal ID:** `{signal["signal_id"]}`  \n'
+                    f'**First seen:** {signal["signal_timestamp"]}  \n'
+                    f'**Reference price:** {signal["reference_price"]} · {signal["reference_price_timestamp"]}  \n'
+                    f'**Admission:** {signal["admission_reason"]} · publication eligible: '
+                    f'{signal["customer_publication_eligible_at_issuance"]}  \n'
+                    f'**Candidate:** `{signal["candidate_digest"]}`  \n'
+                    f'**Publication:** `{signal["publication_digest"]}`  \n'
+                    f'**Evaluation snapshot:** `{signal["evaluation_snapshot_id"]}`  \n'
+                    f'**Horizons:** {", ".join(str(item) for item in signal["registered_horizons"])} sessions · '
+                    f'next: {signal["next_eligible_horizon"] if signal["next_eligible_horizon"] is not None else "Complete"}  \n'
+                    f'**Corporate action:** {signal["corporate_action_state"]}'
+                )
+                rows = []
+                for item in report["rows"]:
+                    if item["signal_id"] != signal["signal_id"]:
+                        continue
+                    rows.append({
+                        "Horizon": f'{item["horizon_sessions"]} sessions',
+                        "Status": "Pending" if item["status"] == "NOT_MATURED_OR_NOT_OBSERVED" else item["status"],
+                        "Observed price": (f'${float(item["observed_price"]):,.2f}'
+                                           if item["observed_price"] is not None else "Not yet observed"),
+                        "Signal return": _percent(item["stock_return"]), "SPY return": _percent(item["spy_return"]),
+                        "Relative performance": _percent(item["excess_return"]),
+                        "Observed at": item["observed_at"] or "Not yet observed",
+                    })
+                st.dataframe(rows, width="stretch", hide_index=True)
+                st.button(
+                    "View Signal Digest →",
+                    key=f'report_card_signal_{signal["signal_id"]}',
+                    on_click=open_report_card_detail,
+                    args=(st.session_state, signal["signal_id"]),
+                )
     st.caption("Sample sizes are shown per horizon. Missing and not-yet-matured observations remain explicit.")
+    with st.expander("Methodology, horizon coverage and source verification", expanded=False):
+        st.markdown("**How to read this dashboard**")
+        st.write("Registered is the immutable ledger recording time, not proof of customer publication. "
+                 "A reference price is not an executable entry. Entry timing, aligned SPY prices and matured "
+                 "trading-session horizons require separately approved evidence. Historical signal charts "
+                 "are educational context and do not create prospective observations.")
+        st.write("The comparison shows individual recorded signal returns only when admitted by the existing "
+                 "financial policy. It does not calculate a cumulative portfolio return, win rate or a funded strategy. "
+                 "Pending, missing and methodology-restricted evidence never becomes a zero return.")
+        st.subheader("Matured horizon coverage")
+        st.markdown(horizon_coverage_html(report["coverage"]), unsafe_allow_html=True)
+        st.caption(f'Ledger activation: {report["activation_timestamp"]} · Ledger digest: {report["ledger_tip_digest"]}')
+        st.caption("Backup status is reported ledger metadata; independent backup verification requires protected audit evidence. "
+                   "Public activation OFF. This read-only view does not create observations.")
     return report
 
 

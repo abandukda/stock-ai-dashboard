@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import html
+from contextvars import ContextVar
 import json
 import os
 import re
@@ -17,6 +18,9 @@ from engines.research_engine import begin_research_entry, research_interaction_c
 from services.home_market_intelligence import build_home_market_intelligence
 from ui.market_timestamp import format_market_timestamp_et
 from ui.vnext_presentation import CanonicalNumberFormatter
+
+
+_PERSONAL_NAVIGATION_ROUTES: ContextVar[tuple[str, ...] | None] = ContextVar('atlas_home_navigation_routes', default=None)
 
 
 def _display(value: Any) -> str:
@@ -69,6 +73,10 @@ def _time_et(value: Any) -> str:
 
 
 def _open_research(ticker: str, key: str, *, compact: bool = False) -> None:
+    permitted = _PERSONAL_NAVIGATION_ROUTES.get()
+    if permitted is not None and 'Research' not in permitted:
+        st.caption('Full Research is not enabled for your account.')
+        return
     contract = research_interaction_contract(ticker, key)
     control_key = f"compact_cta_{key}" if compact else f"research_cta_{key}"
     target = st.container(key=control_key)
@@ -1924,7 +1932,8 @@ def _render_footer_navigation() -> None:
     from services.customer_navigation_contract import CUSTOMER_ROUTES
     # Every footer action must target a route the customer navigation admits.
     # Legacy internal labels otherwise bounce viewers silently back to Home.
-    destinations = tuple((page, page) for page in CUSTOMER_ROUTES if page != "Home")
+    routes = _PERSONAL_NAVIGATION_ROUTES.get()
+    destinations = tuple((page, page) for page in (CUSTOMER_ROUTES if routes is None else routes) if page != "Home")
     for start in range(0, len(destinations), 3):
         columns = st.columns(3)
         for column, (label, page) in zip(columns, destinations[start:start + 3]):
@@ -2050,7 +2059,7 @@ def _inject_editorial_css() -> None:
     )
 
 
-def render_home_guidance_vnext(story: Mapping[str, Any], *, emit_interactive=None, authorized_internal: bool = False) -> None:
+def _render_home_guidance_vnext(story: Mapping[str, Any], *, emit_interactive=None, authorized_internal: bool = False) -> None:
     """Render persisted Guidance shell; optional context occurs after interactivity."""
     if emit_interactive is None:
         from services.session_stability import emit_page_interactive as emit
@@ -2122,6 +2131,21 @@ def render_home_guidance_vnext(story: Mapping[str, Any], *, emit_interactive=Non
     _render_internal_performance_tracking(authorized_internal=authorized_internal)
     _render_market_read(story)
     _render_footer_navigation()
+
+
+def render_home_guidance_vnext(story: Mapping[str, Any], *, emit_interactive=None,
+                               authorized_internal: bool = False,
+                               navigation_routes: tuple[str, ...] | None = None) -> None:
+    """Optional trusted route restriction; default Home behavior is unchanged.
+
+    Request-local presentation only: never grants account or financial authority.
+    """
+    token = _PERSONAL_NAVIGATION_ROUTES.set(navigation_routes)
+    try:
+        _render_home_guidance_vnext(story, emit_interactive=emit_interactive,
+                                   authorized_internal=authorized_internal)
+    finally:
+        _PERSONAL_NAVIGATION_ROUTES.reset(token)
 
 
 __all__ = ["render_home_guidance_vnext"]
