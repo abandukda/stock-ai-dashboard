@@ -29,6 +29,24 @@ def _display(value: Any, fallback: str = "Unavailable") -> str:
     return str(value)
 
 
+def _literal(value: Any, *, kind: str = "text", bullet: bool = False) -> None:
+    """Render source/model prose as text, never as Markdown instructions.
+
+    Preserve the evidence string (including line breaks and Markdown syntax)
+    while preventing images, links or HTML from becoming browser elements.
+    Only the fixed presentation wrapper is HTML; no source field selects it.
+    """
+    tag = "h3" if kind == "heading" else "p"
+    style = "white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;"
+    if kind == "caption":
+        style += "font-size:.875rem;opacity:.75;"
+    elif kind == "info":
+        style += "padding:1rem;border-radius:.5rem;background:rgba(28,131,225,.12);border:1px solid rgba(28,131,225,.22);"
+    content = ("• " if bullet else "") + _display(value)
+    st.markdown(f'<{tag} class="atlas-earnings-literal" style="{style}">{escape(content)}</{tag}>',
+                unsafe_allow_html=True)
+
+
 def _metric(value: Any, *, pct: bool = False, money: bool = False) -> str:
     if value is None or isinstance(value, (Mapping, list, tuple, set)):
         return "Unavailable"
@@ -237,8 +255,8 @@ def _render_transcript_intelligence(story: Mapping[str, Any], *, suffix: str,
                 'style="display:none">earnings-ai-summary</span>', unsafe_allow_html=True)
     st.markdown("#### Reported-quarter transcript analysis")
     event = story.get("event_identity") or {}
-    st.caption("Snapshot period: " + _display(event.get("fiscal_period"))
-               + " · Reported: " + _customer_date(event.get("report_date")))
+    _literal("Snapshot period: " + _display(event.get("fiscal_period"))
+               + " · Reported: " + _customer_date(event.get("report_date")), kind="caption")
     st.caption("Snapshot transcript context · contextual/non-scoring · cannot change the certified ATLAS Action")
     if summary["status"] != "AVAILABLE":
         st.info("No transcript analysis is attached to this reported-quarter snapshot. "
@@ -246,8 +264,9 @@ def _render_transcript_intelligence(story: Mapping[str, Any], *, suffix: str,
     else:
         for label, items in summary["sections"].items():
             st.markdown(f"**{label}**")
-            st.write("\n".join(f"- {item}" for item in items) or "No grounded statement available.")
-        st.caption("Transcript evidence: " + (", ".join(summary["evidence_ids"]) or "Unavailable"))
+            for item in items or ["No grounded statement available."]:
+                _literal(item, bullet=True)
+        _literal("Transcript evidence: " + (", ".join(summary["evidence_ids"]) or "Unavailable"), kind="caption")
     st.markdown("#### What management emphasized")
     if transcript.get("semantic_status") == "AVAILABLE":
         for label, key in (
@@ -261,10 +280,10 @@ def _render_transcript_intelligence(story: Mapping[str, Any], *, suffix: str,
             if items:
                 st.markdown(f"**{label}**")
                 for item in list(items)[:4]:
-                    st.markdown(f"- {_display(item.get('text') if isinstance(item, Mapping) else item)}")
+                    _literal(item.get("text") if isinstance(item, Mapping) else item, bullet=True)
         evidence_ids = transcript.get("evidence_ids") or (data.get("source_evidence_ids") if isinstance(data, Mapping) else []) or []
         if evidence_ids:
-            st.caption("Transcript evidence: " + ", ".join(str(item) for item in evidence_ids))
+            _literal("Transcript evidence: " + ", ".join(str(item) for item in evidence_ids), kind="caption")
     else:
         st.caption("Transcript commentary unavailable for this quarter.")
 
@@ -311,19 +330,19 @@ def _render_transcript_intelligence(story: Mapping[str, Any], *, suffix: str,
             st.warning("Cached earnings-call evidence could not be verified. It remains unavailable.")
         return
     status = result.get("ai_summary_status")
-    st.caption(f"Transcript availability: {_display(result.get('transcript_status'))} · AI summary availability: {_display(status)}")
-    st.caption(f"Selected call: Q{quarter} {year} · Call date: {_customer_date(result.get('call_date'))} · Retained evidence; not proof of the latest release")
-    st.caption("Source: " + _display(result.get("provider"))
-               + " · Captured: " + _customer_date(result.get("capture_timestamp")))
+    _literal(f"Transcript availability: {_display(result.get('transcript_status'))} · AI summary availability: {_display(status)}", kind="caption")
+    _literal(f"Selected call: Q{quarter} {year} · Call date: {_customer_date(result.get('call_date'))} · Retained evidence; not proof of the latest release", kind="caption")
+    _literal("Source: " + _display(result.get("provider"))
+               + " · Captured: " + _customer_date(result.get("capture_timestamp")), kind="caption")
     projection = result.get("customer_projection") or {}
     if status == "AVAILABLE" and projection.get("semantic_status") == "AVAILABLE":
         st.info("Cached AI summary of source-grounded earnings-call evidence")
-        st.caption("Analysis generated: " + _customer_date(projection.get("generation_timestamp"))
+        _literal("Analysis generated: " + _customer_date(projection.get("generation_timestamp"))
                    + " · Model: " + _display(projection.get("model_provider"))
-                   + " · Version: " + _display(projection.get("model_version")))
+                   + " · Version: " + _display(projection.get("model_version")), kind="caption")
         summary = projection.get("management_summary")
         if isinstance(summary, Mapping) and summary.get("claim"):
-            st.write(summary["claim"])
+            _literal(summary["claim"])
         for label, key in (
             ("Key themes", "management_themes"), ("Guidance", "verified_guidance_statements"),
             ("Opportunities", "supported_opportunities"), ("Risks", "supported_risks"),
@@ -333,8 +352,8 @@ def _render_transcript_intelligence(story: Mapping[str, Any], *, suffix: str,
             if claims:
                 st.markdown(f"**{label}**")
                 for claim in claims[:4]:
-                    st.markdown(f"- {_display(claim.get('claim') if isinstance(claim, Mapping) else claim)}")
-        st.caption("Transcript evidence: " + ", ".join(str(value) for value in projection.get("source_evidence_ids", []) if value))
+                    _literal(claim.get("claim") if isinstance(claim, Mapping) else claim, bullet=True)
+        _literal("Transcript evidence: " + ", ".join(str(value) for value in projection.get("source_evidence_ids", []) if value), kind="caption")
     elif status == "DISPLAY_NOT_PERMITTED":
         st.info("The retained transcript's current permission does not allow a customer AI-summary display.")
     else:
@@ -354,8 +373,8 @@ def _reported_card(story: Mapping[str, Any], open_research: Callable[[str], Any]
                    *, cache_reader: ReadOnlyTranscriptCache | None = None) -> None:
     latest = story.get("latest_quarter") or {}
     st.markdown('<span class="atlas-earnings-card-anchor" aria-hidden="true"></span>', unsafe_allow_html=True)
-    st.markdown(f"### {story['ticker']} · {_display(story.get('company'))}")
-    st.caption(f"Reported · {_display(story['event_identity'].get('report_date'))} · {_display(story['event_identity'].get('fiscal_period'))}")
+    _literal(f"{story['ticker']} · {_display(story.get('company'))}", kind="heading")
+    _literal(f"Reported · {_display(story['event_identity'].get('report_date'))} · {_display(story['event_identity'].get('fiscal_period'))}", kind="caption")
     st.markdown(
         '<div class="atlas-earnings-mobile-snapshot">'
         f'<div><strong>Quarter:</strong> {escape(_display(story.get("event_result")))}</div>'
@@ -378,17 +397,20 @@ def _reported_card(story: Mapping[str, Any], open_research: Callable[[str], Any]
     cols[2].metric("Revenue surprise", _metric(latest.get("revenue_surprise_pct"), pct=True))
     cols[3].metric("ATLAS state", _decision_label(story))
     st.markdown("#### What Happened")
-    st.write(_display(story.get("what_happened"), "Reported-quarter evidence is incomplete."))
+    _literal(_display(story.get("what_happened"), "Reported-quarter evidence is incomplete."))
     st.markdown("#### Why It Matters")
     for item in story.get("why_it_matters") or ["No additional grounded implication is available."]:
-        st.markdown(f"- {item}")
+        _literal(item, bullet=True)
     _render_transcript_intelligence(story, suffix=f"reported-{index}-{story['ticker']}", cache_reader=cache_reader)
     with st.expander("Guidance & Estimate Changes"):
         guidance = story.get("management_guidance") or {}
-        st.write(guidance.get("status_detail") if guidance.get("semantic_status") != "AVAILABLE" else guidance)
+        if guidance.get("semantic_status") != "AVAILABLE":
+            _literal(guidance.get("status_detail"))
+        else:
+            st.write(guidance)
         st.info("Estimate revision direction cannot be verified from the available point-in-time evidence.")
         snapshot = (story.get("analyst_estimate_snapshots") or {})
-        st.caption(snapshot.get("status_detail") or "Estimate revision history is still being accumulated.")
+        _literal(snapshot.get("status_detail") or "Estimate revision history is still being accumulated.", kind="caption")
         actions = story.get("analyst_actions") or []
         if actions:
             st.dataframe(pd.DataFrame(actions), width="stretch", hide_index=True)
@@ -408,16 +430,16 @@ def _reported_card(story: Mapping[str, Any], open_research: Callable[[str], Any]
         cols[1].metric("Expected Return", _metric(decision.get("decision_expected_return"), pct=True))
         cols[2].metric("Technical state", _display(story.get("technical_state"), "State not published"))
         if not availability.get("decision_available"):
-            st.info(availability.get("customer_reason") or "ATLAS has not issued a canonical decision.")
-        st.caption(f"Wall Street consensus: {_metric(story.get('wall_street_consensus'), money=True)} · separate from Atlas FV")
+            _literal(availability.get("customer_reason") or "ATLAS has not issued a canonical decision.", kind="info")
+        _literal(f"Wall Street consensus: {_metric(story.get('wall_street_consensus'), money=True)} · separate from Atlas FV", kind="caption")
     with st.expander("What Changes the Thesis"):
         for label, key in (("Strengthens", "thesis_strengtheners"), ("Weakens", "thesis_weakeners"), ("Invalidates", "thesis_invalidators")):
             st.markdown(f"**{label}**")
             items = story.get(key) or []
-            st.write(" · ".join(items) if items else "No grounded condition published.")
+            _literal(" · ".join(items) if items else "No grounded condition published.")
     with st.expander("What ATLAS Is Watching Next"):
         for item in story.get("watch_next") or ["Next reported EPS and revenue evidence."]:
-            st.markdown(f"- {item}")
+            _literal(item, bullet=True)
     with st.expander("Deep Evidence"):
         history = story.get("history") or []
         if history:
@@ -427,9 +449,9 @@ def _reported_card(story: Mapping[str, Any], open_research: Callable[[str], Any]
         st.markdown("**Analyst evidence**")
         if analyst.get("semantic_status") == "AVAILABLE":
             consensus = analyst.get("consensus") or {}
-            st.write(
-                f"Consensus target: {_markdown_money(consensus.get('mean_target'))} · "
-                f"Range: {_markdown_money(consensus.get('low_target'))}–{_markdown_money(consensus.get('high_target'))} · "
+            _literal(
+                f"Consensus target: {_metric(consensus.get('mean_target'), money=True)} · "
+                f"Range: {_metric(consensus.get('low_target'), money=True)}–{_metric(consensus.get('high_target'), money=True)} · "
                 f"Analysts: {_display(consensus.get('analyst_count'))}"
             )
             if analyst.get("actions"):
@@ -454,7 +476,7 @@ def _reported_card(story: Mapping[str, Any], open_research: Callable[[str], Any]
         ownership = deep.get("ownership") or {}
         st.markdown("**Ownership**")
         if ownership.get("semantic_status") == "AVAILABLE":
-            st.write(
+            _literal(
                 f"Institutional ownership: {_unsigned_pct(ownership.get('institutional_ownership_pct'))} · "
                 f"Insider ownership: {_unsigned_pct(ownership.get('insider_ownership_pct'))}"
             )
@@ -478,18 +500,19 @@ def _reported_card(story: Mapping[str, Any], open_research: Callable[[str], Any]
             st.caption("No verified company-specific political transactions are available.")
         transcript = story.get("transcript_intelligence") or {}
         st.write("Transcript: " + ("Derived intelligence available" if transcript.get("semantic_status") == "AVAILABLE" else "Transcript commentary unavailable for this quarter."))
-        st.write("Limitations: " + " ".join(story.get("limitations") or []))
-        st.caption(f"Evidence IDs: {', '.join(story.get('evidence_ids') or []) or 'Unavailable'} · As of: {_display(story.get('as_of'))}")
+        _literal("Limitations: " + " ".join(story.get("limitations") or []))
+        _literal(f"Evidence IDs: {', '.join(story.get('evidence_ids') or []) or 'Unavailable'} · As of: {_display(story.get('as_of'))}", kind="caption")
     _open_button(story, open_research, f"reported-{index}")
 
 
 def _upcoming_card(story: Mapping[str, Any], open_research: Callable[[str], Any], index: int) -> None:
     st.markdown('<span class="atlas-earnings-card-anchor" aria-hidden="true"></span>', unsafe_allow_html=True)
-    st.markdown(f"### {story['ticker']} · {_display(story.get('company'))}")
-    st.caption(f"Upcoming · {_display(story['event_identity'].get('next_event_date'))}")
+    _literal(f"{story['ticker']} · {_display(story.get('company'))}", kind="heading")
+    _literal(f"Upcoming · {_display(story['event_identity'].get('next_event_date'))}", kind="caption")
     st.metric("ATLAS state", _decision_label(story))
     st.info("Actual EPS, actual revenue, quarter classification, and post-event thesis impact are not available before the report.")
-    st.write("**What ATLAS is watching:** " + " · ".join(story.get("watch_next") or ["The reported EPS and revenue result."]))
+    st.markdown("**What ATLAS is watching:**")
+    _literal(" · ".join(story.get("watch_next") or ["The reported EPS and revenue result."]))
     _open_button(story, open_research, f"upcoming-{index}")
 
 

@@ -4,8 +4,13 @@ on:
     branches: [main]
     paths:
       - scripts/run_daily_buy_now_post_close.py
+      - services/daily_buy_now_post_close.py
+      - services/runtime_projection_loader.py
+      - services/runtime_projection_contract.py
       - scripts/atlas_execution_monitor.py
       - tests/test_daily_coordinator_receipts.py
+      - tests/test_daily_admission_integrity.py
+      - tests/test_daily_buy_now_post_close.py
       - tests/test_atlas_execution_monitor.py
       - docs/ATLAS_MASTER_REQUIREMENTS*
       - .github/workflows/atlas_operations_readiness.yml
@@ -21,8 +26,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
       - run: python -m pip install pytest==9.1.1 exchange_calendars==4.13.2
-      - run: python -m pytest -q tests/test_daily_coordinator_receipts.py tests/test_daily_buy_now_post_close.py tests/test_atlas_execution_monitor.py
+      - run: python -m pytest -q tests/test_daily_coordinator_receipts.py tests/test_daily_buy_now_post_close.py tests/test_daily_admission_integrity.py tests/test_atlas_execution_monitor.py
