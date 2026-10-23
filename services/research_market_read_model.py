@@ -82,7 +82,7 @@ def _instant(value: Any) -> datetime | None:
         if parsed.tzinfo is None:
             return None
         return parsed.astimezone(timezone.utc)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return None
 
 

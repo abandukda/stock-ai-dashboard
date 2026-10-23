@@ -20,7 +20,7 @@ from ui.customer_research_v2 import render_customer_research_v2
 st.set_page_config(layout="wide", page_title="Generated retained analyst review")
 st.warning("GENERATED RETAINED ANALYST FIXTURE — NOT PRODUCTION, MARKET EVIDENCE OR FINANCIAL CERTIFICATION")
 mode = str(st.query_params.get("mode", "valid"))
-if mode not in {"valid", "malformed", "zero", "literal"}:
+if mode not in {"valid", "malformed", "zero", "literal", "target_missing", "target_invalid", "flag_off", "eps_valid"}:
     st.stop()
 root = Path(os.environ["ATLAS_GENERATED_ANALYST_ROOT"]).resolve() / mode
 root.mkdir(parents=True, exist_ok=True)
@@ -72,6 +72,23 @@ document = seal_research_market_bundle({
         }),
     },
 })
+if mode == "eps_valid":
+    # Real byte-bound converter, then sealed file -> actual read model -> renderer.
+    from tests.test_research_context_ingestion import review
+    converted = review("stock_earnings", value=[
+        {"symbol": "NVDA", "period": "2026-07-31", "actual": 1.2, "estimate": 1},
+        {"symbol": "NVDA", "period": "2026-04-30", "actual": 0, "estimate": -1},
+        {"symbol": "NVDA", "period": "2026-01-31", "actual": -3.25, "estimate": 0},
+    ])
+    document["families"]["stock_earnings"] = converted["bundle"]["families"]["stock_earnings"]
+if mode == "target_missing":
+    del document["families"]["price_targets"]
+elif mode == "target_invalid":
+    document["families"]["price_targets"] = family("price_targets", "/stock/price-target", {
+        "target_low": 100, "target_mean": -120, "target_median": 121, "target_high": 140,
+        "last_updated": "2026-10-22 00:00:00",
+    })
+document = seal_research_market_bundle(document)
 if mode == "literal":
     document["families"]["company_news"] = family("company_news", "/company-news", {
         "articles": [{
@@ -89,7 +106,7 @@ os.environ["ATLAS_RESEARCH_MARKET_EXPECTED_SOURCE_SHA"] = source_sha
 os.environ["ATLAS_RESEARCH_MARKET_EXPECTED_BUNDLE_ID"] = bundle_id
 os.environ["ATLAS_QA_MODE"] = "0"
 os.environ["ATLAS_RESEARCH_V2_QA_ENRICHMENT"] = ""
-os.environ["ATLAS_WALL_STREET_CONTEXT_ENABLED"] = "true"
+os.environ["ATLAS_WALL_STREET_CONTEXT_ENABLED"] = "false" if mode == "flag_off" else "true"
 
 source = report()
 source["company"] = "NVDA · Generated demonstration company"
@@ -104,6 +121,7 @@ page = view.as_mapping()
 wall = page["wall_street"]
 admission = page["market_context"]["admission_receipt"]
 values = {
+    "wall-status": str(wall["status"]),
     "mode": mode, "consensus": wall.get("consensus") or "NONE",
     "analyst-count": "NONE" if wall.get("analyst_count") is None else str(wall["analyst_count"]),
     "accepted-family-count": str(admission["accepted_family_count"]),

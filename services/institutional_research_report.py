@@ -7,6 +7,7 @@ fills an unavailable field with an estimate.
 from __future__ import annotations
 
 from typing import Any, Mapping
+from services.research_analyst_readiness import analyst_display_fact
 
 
 CONTRACT = "ATLAS_INSTITUTIONAL_RESEARCH_REPORT_V1"
@@ -97,6 +98,8 @@ def build_institutional_research_report(page: Mapping[str, Any]) -> dict[str, An
     thesis = tuple(str(item).strip() for item in _seq(summary.get("why_rating")) if str(item).strip())[:3]
     risks = tuple(str(item).strip() for item in _seq(summary.get("risks")) if str(item).strip())[:4]
     wall = _map(page.get("wall_street")); catalysts = _map(page.get("catalysts"))
+    average_target = analyst_display_fact(page.get("analyst_context_readiness"), "average_target")
+    recommendations = analyst_display_fact(page.get("analyst_context_readiness"), "recommendation_coverage")
     events = tuple(dict(item) for item in _seq(catalysts.get("events")) if isinstance(item, Mapping))[:3]
     strengthen, weaken, invalidate = (_condition(page, key) for key in ("strengthen", "weaken", "invalidate"))
     valuation = {
@@ -105,9 +108,12 @@ def build_institutional_research_report(page: Mapping[str, Any]) -> dict[str, An
         "fair_value_gap_pct": header.get("fair_value_gap_pct"),
         "as_of": header.get("price_timestamp"),
         "wall_street_status": wall.get("status") or "UNAVAILABLE",
-        "wall_street_consensus": wall.get("consensus") if wall.get("status") == "AVAILABLE" else None,
-        "wall_street_target_average": wall.get("target_average") if wall.get("status") == "AVAILABLE" else None,
-        "wall_street_as_of": wall.get("as_of") if wall.get("status") == "AVAILABLE" else None,
+        "wall_street_recommendations_status": recommendations["status"],
+        "wall_street_target_average_status": average_target["status"],
+        "wall_street_consensus": recommendations.get("consensus"),
+        "wall_street_recommendation_period": recommendations.get("as_of"),
+        "wall_street_target_average": average_target.get("value"),
+        "wall_street_as_of": average_target.get("as_of"),
         "named_institution_opinions": (),
         "named_institution_limitation": "No verified licensed institution-specific opinions are retained for display.",
     }

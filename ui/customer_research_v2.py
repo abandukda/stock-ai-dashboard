@@ -90,6 +90,36 @@ def _marker(name: str, ticker: str, **attrs: Any) -> None:
     )
 
 
+def _render_retained_reported_earnings(context: Any, *, ticker: str) -> bool:
+    """Display admitted EPS facts without asserting comparability or rating authority."""
+    context = context if isinstance(context, Mapping) else {}
+    status = context.get("status")
+    _marker("retained-reported-earnings", ticker, status=status or "UNAVAILABLE")
+    records = context.get("records")
+    if (context.get("contract") != "ATLAS_RETAINED_REPORTED_EPS_CONTEXT_V1"
+            or status not in {"AVAILABLE", "PARTIAL"}
+            or not isinstance(records, list) or not records):
+        return False
+    st.markdown("### Retained reported EPS")
+    st.caption("EPS means earnings per share. These are retained provider facts, not proof of the latest earnings release.")
+    rows = [{
+        "Period end": str(row.get("period_end") or "Unavailable"),
+        "Actual EPS · provider units": str(row["eps_actual"]) if row.get("eps_actual") is not None else "Unavailable",
+        "Estimate EPS · basis unverified": str(row["eps_estimate"]) if row.get("eps_estimate") is not None else "Unavailable",
+    } for row in records[:6] if isinstance(row, Mapping)]
+    if not rows:
+        return False
+    st.table(pd.DataFrame(rows))
+    st.info("Currency, accounting basis and split comparability are unverified. Actual and estimate values are shown separately; no earnings beat, miss or surprise is inferred.")
+    st.caption("Period end is not the announcement or publication date. Reporting frequency is unverified; periods are not relabeled as quarters or years. This context does not change ATLAS's rating or establish transcript availability.")
+    source = context.get("source") if isinstance(context.get("source"), Mapping) else {}
+    _literal_retained_context(
+        f"Source: {source.get('provider') or 'Unavailable'} · Captured: {_analyst_context_date(source.get('captured_at'))} · "
+        f"Evidence: {source.get('raw_evidence_id') or 'Unavailable'}", caption=True,
+    )
+    return True
+
+
 def _render_production_authority_marker(page: Mapping[str, Any]) -> bool:
     """Emit authority only from the final ticker-bound customer projection."""
     ticker = str(page.get("ticker") or "").strip().upper()
@@ -157,11 +187,13 @@ def _render_institutional_overview(report: Mapping[str, Any], *, ticker: str) ->
         f'last certified close: {_money(valuation.get("last_certified_close"))} · '
         f'gap: {_pct(valuation.get("fair_value_gap_pct"), signed=True)}.'
     )
-    if valuation.get("wall_street_status") == "AVAILABLE":
+    if (valuation.get("wall_street_target_average_status") == "AVAILABLE"
+            or valuation.get("wall_street_recommendations_status") == "AVAILABLE"):
         st.caption(
             f'Wall Street consensus: {valuation.get("wall_street_consensus") or "Unavailable"} · '
             f'average target {_money(valuation.get("wall_street_target_average"))} · '
-            f'as of {_friendly_time(valuation.get("wall_street_as_of"))}. Contextual and non-scoring.'
+            f'target as of {_analyst_context_date(valuation.get("wall_street_as_of"))} · '
+            f'recommendation period {_analyst_context_date(valuation.get("wall_street_recommendation_period"))}. Contextual and non-scoring.'
         )
     else:
         st.caption("Wall Street context is unavailable or display-disabled; ATLAS does not substitute an estimate.")
@@ -1626,6 +1658,8 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
     else:
         st.markdown("### Earnings history")
         st.info("Comparable reported earnings and financial trends are unavailable in this snapshot. Transcript analysis requires its own admitted evidence.")
+
+    _render_retained_reported_earnings(page.get("retained_reported_earnings"), ticker=ticker)
 
     st.markdown('<div id="atlas-research-developments"></div>', unsafe_allow_html=True)
     _marker("section", ticker, section_name="Catalysts & Sentiment")
