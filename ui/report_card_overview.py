@@ -20,6 +20,11 @@ def overview_html(report: Mapping[str, Any]) -> str:
         description = ('No prospective price observations have been recorded. Signal returns, '
                        'SPY excess returns and win rates are unavailable until genuine, certified '
                        'observations are authorized and recorded.')
+    elif report.get('performance_policy') == 'VISIBILITY_ONLY_NO_RETURN_AUTHORITY':
+        title = 'Recorded prices; performance withheld'
+        description = ('Recorded observations remain visible as evidence counts. Returns, SPY excess returns '
+                       'and win rates are withheld pending separately approved, aligned-entry methodology. '
+                       'A valid snapshot hash does not establish performance authority.')
     else:
         title = 'Recorded evidence is available'
         description = ('Review each signal and horizon below for its recorded price, return and '

@@ -137,7 +137,12 @@ class ReadOnlyTranscriptCache:
 
     def _evidence(self, db, ticker, year, quarter):
         request = _hash([self._partition, ticker, year, quarter])
-        stored = self._get(db, 'transcript', request)
+        try:
+            stored = TranscriptEvidenceStore._source(lambda kind, identity: self._get(db, kind, identity), request)
+        except TranscriptCacheReadError:
+            raise
+        except ValueError:
+            raise TranscriptCacheReadError('TRANSCRIPT_CACHE_REVISION_IDENTITY_INVALID') from None
         if stored is None:
             return request, None
         try:

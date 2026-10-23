@@ -196,6 +196,15 @@ def internal_report(records: Sequence[ObservationRecord], signals: Sequence[Sign
     available = [record for record in records if record.signal_id in eligible_ids and record.data_status == "AVAILABLE" and record.stock_return is not None]
     returns = [float(record.stock_return) for record in available]
     excess = [float(record.excess_return) for record in available if record.excess_return is not None]
+    # Registered signals are not outcome samples, and horizons are not
+    # independent replications of the same signal.
+    matured_ids = {record.signal_id for record in available}
+    matured_by_horizon = {
+        str(h): len({record.signal_id for record in available if record.horizon_trading_days == h})
+        for h in HORIZONS
+    }
+    registration_cohorts = {signal.publication_timestamp[:10] for signal in prospective
+                            if signal.signal_id in matured_ids}
     return {
         "version": VERSION, "classification": REPORT_CLASSIFICATION, "customer_visible": False,
         "total_signals": len(prospective), "excluded_nonprospective_signals": len(signals) - len(prospective),
@@ -211,7 +220,13 @@ def internal_report(records: Sequence[ObservationRecord], signals: Sequence[Sign
         "methodology_cohorts": sorted({signal.cohort_id for signal in prospective}),
         "sector_breakdown": {sector: sum(signal.sector == sector for signal in prospective) for sector in sorted({s.sector for s in prospective if s.sector})},
         "market_regime_breakdown": {regime: sum(signal.market_regime == regime for signal in prospective) for regime in sorted({s.market_regime for s in prospective if s.market_regime})},
-        "sample_size_warning": "INSUFFICIENT_SAMPLE_FOR_CONCLUSIONS" if len(prospective) < 20 else None,
+        "matured_signal_count": len(matured_ids),
+        "matured_sample_by_horizon": matured_by_horizon,
+        "observed_publication_date_cohort_count": len(registration_cohorts),
+        "sample_size_warning": "INSUFFICIENT_SAMPLE_FOR_CONCLUSIONS" if (
+            len(matured_ids) < 20 or any(0 < count < 20 for count in matured_by_horizon.values())
+        ) else None,
+        "cohort_concentration_warning": "SINGLE_PUBLICATION_DATE_COHORT" if len(registration_cohorts) == 1 else None,
         "survivorship_policy": "DELISTED_AND_UNAVAILABLE_SECURITIES_RETAINED",
         "time_to_fair_value": "NOT_YET_IMPLEMENTED_REQUIRES_GOVERNED_SESSION_PATH",
     }

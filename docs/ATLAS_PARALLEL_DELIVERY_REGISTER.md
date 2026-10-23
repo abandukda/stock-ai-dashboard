@@ -1,3 +1,24 @@
+# Current integrated recovery candidate
+
+Baseline main/source: `d5ae98242ef64743149b218e0ba12b8965713b97`. The historical receipts below are superseded by [the full independent-review reconciliation](ATLAS_CLAUDE_RECONCILIATION_20261022.md) and its six track reports. This candidate integrates provider-free improvements; no original ledger, provider account, production configuration or infrastructure has been operated.
+
+| Track | Current engineering ownership | Concrete candidate | Live acceptance still required |
+|---|---|---|---|
+| A data | refocus_data | Reject gapped admitted history; source/runtime hash reconciliation | Actual certified current ticker and contiguous session; authorized source cycle |
+| B Home | refocus_home_design | Fair-value/confidence interpretation and dated featured guide | Original parity and current source-backed opportunities |
+| C Research | refocus_research_ai | Typed retained facts/valuation/calculation/assumption limits | Actual admitted NVDA/MSFT/META/ANET history and usable journey |
+| D AI | refocus_research_ai | Evidence interpretation without fabricated drivers | Genuine source-grounded model acceptance and aggregate paid budget |
+| E transcripts | refocus_earnings | Explicitly authorized immutable source revisions/cache invalidation | Genuine exact-quarter EarningsCall source and approved intelligence |
+| F Report Card | refocus_report_card | Independent immutable F1 visibility; inert aligned-entry F2 rehearsal | Original snapshot/registration/publication/backup authority; methodology and append separate |
+| G beta | refocus_beta | Post-lock session revocation and opt-in individual-account shell | Approved real IdP/store and Alice/Bob login-to-watchlist isolation |
+| H design/release | coordinator + refocus_home_design + independent reviewer | Old-review reconciliation, responsive actual generated renders, integrated CI | Real production after approval; no fixture parity or live completion claim |
+
+BUILT/TESTED receipts are in track reports and Issue78. MERGED/DEPLOYED/LIVE VERIFIED remain NO for this candidate. Production d5 is independently source-verified but required NVDA chart QA39878126614 still fails. Original review findings are closed only by demonstrated current properties, not by test existence or component counts.
+
+The retained-archive exact-main approval remains separately pinned to d5 while main is unchanged. The historical56e token below is superseded. No standing acquisition, observation or publication authorization is created.
+
+---
+
 # ATLAS integrated delivery register
 
 Current followup baseline: `56e6878a3a0df5d33a3b2c9ea896c413f69cb147`, the owner merge of reviewed PR136. Historical PR136 development baseline: `f00634e7a83264b99b6ddf4c2d3644a6cd10084d`. This register coordinates engineering; it does not authorize acquisition, deployment, infrastructure, financial publication or ledger operations.

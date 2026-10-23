@@ -8,6 +8,7 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest.mock import patch
 from urllib.parse import urlsplit
 
 from playwright.sync_api import sync_playwright
@@ -56,7 +57,8 @@ st.markdown('<span data-fixture-complete="true">Generated cache fixture complete
 '''
 
 
-def _seed_generated_cache(root):
+@patch('services.transcript_provider._now', return_value='2026-10-23T00:00:00+00:00')
+def _seed_generated_cache(root, _capture_clock):
     """Create synthetic retained evidence before starting the read-only UI server."""
     from datetime import datetime, timezone
     import hashlib

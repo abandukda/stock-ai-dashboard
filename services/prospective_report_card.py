@@ -110,7 +110,7 @@ class ProspectiveLedger:
         return connection
 
     def initialize(self) -> None:
-        with self._connect() as db:
+        with closing(self._connect()) as db, db:
             db.executescript(
                 """
                 BEGIN IMMEDIATE;
@@ -140,7 +140,7 @@ class ProspectiveLedger:
 
     def activate(self, *, activation_timestamp: str, now: datetime, maximum_clock_skew_seconds: int = 300) -> str:
         self.initialize()
-        with self._connect() as db:
+        with closing(self._connect()) as db, db:
             existing = db.execute("SELECT value FROM metadata WHERE key='activation_timestamp'").fetchone()
         if existing:
             return str(existing[0])
@@ -149,7 +149,7 @@ class ProspectiveLedger:
         if abs((current - activation).total_seconds()) > maximum_clock_skew_seconds:
             raise ValueError("ACTIVATION_TIMESTAMP_MUST_BE_CURRENT_NOT_BACKDATED")
         normalized = activation.isoformat()
-        with self._connect() as db:
+        with closing(self._connect()) as db, db:
             db.execute("BEGIN IMMEDIATE")
             existing = db.execute("SELECT value FROM metadata WHERE key='activation_timestamp'").fetchone()
             if existing:
@@ -160,7 +160,7 @@ class ProspectiveLedger:
         return normalized
 
     def activation_timestamp(self) -> datetime:
-        with self._connect() as db:
+        with closing(self._connect()) as db, db:
             row = db.execute("SELECT value FROM metadata WHERE key='activation_timestamp'").fetchone()
         if not row:
             raise PermissionError("INTERNAL_PROSPECTIVE_TRACKING_NOT_ACTIVATED")
@@ -170,7 +170,7 @@ class ProspectiveLedger:
                parent_id: str | None = None) -> bool:
         self.initialize()
         encoded = _canonical(payload)
-        with self._connect() as db:
+        with closing(self._connect()) as db, db:
             db.execute("BEGIN IMMEDIATE")
             existing = db.execute("SELECT payload_json,record_type,parent_id FROM records WHERE record_id=?", (record_id,)).fetchone()
             if existing:
@@ -198,7 +198,7 @@ class ProspectiveLedger:
         """Append a prevalidated record set in one transaction or not at all."""
         self.initialize()
         inserted = 0
-        with self._connect() as db:
+        with closing(self._connect()) as db, db:
             db.execute("BEGIN IMMEDIATE")
             previous = db.execute("SELECT record_digest FROM records ORDER BY sequence DESC LIMIT 1").fetchone()
             previous_digest = str(previous[0]) if previous else "GENESIS"
@@ -229,7 +229,7 @@ class ProspectiveLedger:
         return inserted
 
     def rows(self, record_type: str | None = None) -> list[dict[str, Any]]:
-        with self._connect() as db:
+        with closing(self._connect()) as db, db:
             query = "SELECT * FROM records" + (" WHERE record_type=?" if record_type else "") + " ORDER BY sequence"
             rows = db.execute(query, (record_type,) if record_type else ()).fetchall()
         return [{**dict(row), "payload": json.loads(row["payload_json"])} for row in rows]

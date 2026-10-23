@@ -17,6 +17,13 @@ NOW = datetime(2026, 10, 23, tzinfo=timezone.utc)
 END = datetime(2026, 12, 31, tzinfo=timezone.utc)
 
 
+@pytest.fixture(autouse=True)
+def fixed_capture_clock(monkeypatch):
+    # Provider-derived fixture timestamps must share the reader's fixed clock;
+    # wall-clock captures otherwise become future evidence after midnight.
+    monkeypatch.setattr('services.transcript_provider._now', lambda: NOW.isoformat())
+
+
 def _store(root):
     return TranscriptEvidenceStore(root, retention_until=END, clock=lambda: NOW)
 
