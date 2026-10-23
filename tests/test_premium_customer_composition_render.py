@@ -87,10 +87,13 @@ now=datetime(2026,10,23,tzinfo=timezone.utc)''')
                                         page.get_by_role('button',name='Load verified call insights',exact=True).click()
                                         availability='AVAILABLE' if mode=='available' else 'PENDING'
                                         page.get_by_text(f'Transcript availability: AVAILABLE · AI summary availability: {availability}',exact=True).wait_for()
+                                        # Availability arrives before later Streamlit deltas. Await the
+                                        # same required source caption rather than sampling a partial render.
+                                        page.get_by_text('Source: EARNINGSCALL · Captured: Oct 23, 2026',exact=True).wait_for(state='visible',timeout=10000)
                                         self.assertIn('Source: EARNINGSCALL',page.inner_text('body'))
                                         if mode=='available':
                                             page.get_by_text('Revenue grew 10%.',exact=True).wait_for()
-                                            page.get_by_text('Model:',exact=False).wait_for()
+                                            page.get_by_text('Analysis generated: Oct 23, 2026 · Model: GENERATED_MOCK_MODEL · Version: v1',exact=True).wait_for(state='visible',timeout=10000)
                                             marker=page.locator('[data-atlas-transcript-evidence-id]')
                                             marker.wait_for(state='attached')
                                             evidence=marker.get_attribute('data-atlas-transcript-evidence-id')
@@ -102,7 +105,20 @@ now=datetime(2026,10,23,tzinfo=timezone.utc)''')
                                         self.assertEqual(marker.get_attribute('data-atlas-transcript-provider-calls'),'0')
                                         self.assertNotIn('PRIVATE GENERATED SOURCE',page.inner_text('body'))
                                         self.assertNotIn('GENERATED_PRIVATE_KEY_NEVER_DISPLAY',page.inner_text('body'))
+                                        page.get_by_text("Transcript insights are contextual and do not independently change ATLAS's rating.",exact=True).wait_for(state='visible',timeout=10000)
+                                        page.get_by_role('button',name='View Investment Case — NVDA',exact=True).wait_for(state='visible',timeout=10000)
+                                        page.locator('[data-extracted-composition="complete"][data-result="EARNINGS_RENDERED"]').wait_for(state='attached',timeout=10000)
+                                        loading='[data-stale="true"], [data-testid*="Skeleton"], [data-testid*="skeleton"], [class*="Skeleton"], [class*="skeleton"]'
+                                        page.wait_for_function('''(selector)=>![...document.querySelectorAll(selector)].some(e=>{
+                                            const r=e.getBoundingClientRect(),s=getComputedStyle(e);
+                                            return r.width>0&&r.height>0&&s.display!=="none"&&s.visibility!=="hidden";
+                                        })''',arg=loading,timeout=10000)
                                         capture_complete_streamlit(page,target/f'GENERATED_NOT_PRODUCTION_{mode}_{width}_EARNINGS.png')
+                                        self.assertEqual(page.locator(loading).evaluate_all('''nodes=>nodes.filter(e=>{
+                                            const r=e.getBoundingClientRect(),s=getComputedStyle(e);
+                                            return r.width>0&&r.height>0&&s.display!=="none"&&s.visibility!=="hidden";
+                                        }).length'''),0)
+
                                         page.locator('[data-testid="stRadio"]').get_by_text('Account',exact=True).click()
                                         page.get_by_role('button',name='Sign out',exact=True).click()
                                         page.get_by_role('button',name='Sign in to ATLAS',exact=True).wait_for()
