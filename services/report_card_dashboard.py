@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import json
+import hashlib
+from contextlib import closing
 from pathlib import Path
 import sqlite3
 from statistics import median
@@ -13,7 +15,9 @@ from services.report_card_governance import public_report_allowed
 from services.report_card_signal_detail import build_signal_detail, load_certified_authority
 
 
-def build_internal_report_card(path: Path, *, authorized: bool, authority_root: Path | None = None) -> dict[str, Any]:
+def build_internal_report_card(path: Path, *, authorized: bool, authority_root: Path | None = None,
+                               immutable_snapshot: bool = False,
+                               performance_authorized: bool = True) -> dict[str, Any]:
     if not authorized:
         raise PermissionError("INTERNAL_REPORT_CARD_ACCESS_REQUIRED")
     if public_report_allowed():
@@ -21,8 +25,8 @@ def build_internal_report_card(path: Path, *, authorized: bool, authority_root: 
     ledger_path = Path(path).resolve()
     if not ledger_path.is_file():
         raise FileNotFoundError("INTERNAL_REPORT_CARD_LEDGER_UNAVAILABLE")
-    uri = f"file:{ledger_path.as_posix()}?mode=ro"
-    with sqlite3.connect(uri, uri=True) as db:
+    uri = ledger_path.as_uri() + "?mode=ro" + ("&immutable=1" if immutable_snapshot else "")
+    with closing(sqlite3.connect(uri, uri=True)) as db:
         db.row_factory = sqlite3.Row
         metadata = {row["key"]: row["value"] for row in db.execute("SELECT key,value FROM metadata")}
         records = list(db.execute("SELECT * FROM records ORDER BY sequence"))
@@ -48,6 +52,10 @@ def build_internal_report_card(path: Path, *, authorized: bool, authority_root: 
         payload = signal["payload"]
         observation_count = sum(row["parent_id"] == signal["record_id"] for row in observations)
         signal_observations = [row["payload"] for row in observations if row["parent_id"] == signal["record_id"]]
+        if not performance_authorized:
+            signal_observations = [dict(item, data_status="METHODOLOGY_RESTRICTED",
+                                       stock_return=None, benchmark_return=None, excess_return=None)
+                                   for item in signal_observations]
         matured = sorted(int(item["horizon_trading_days"]) for item in signal_observations)
         next_horizon = next((horizon for horizon in HORIZONS if horizon not in matured), None)
         latest_action = next((str(row["payload"].get("canonical_action") or "") for row in reversed(amendments)
@@ -81,8 +89,15 @@ def build_internal_report_card(path: Path, *, authorized: bool, authority_root: 
         enriched_signal_details.append(
             build_signal_detail(detail_signal, signal_observations, authority_rows=authority_rows)
         )
+        if not performance_authorized and signal_observations:
+            for section in enriched_signal_details[-1]['digest']:
+                if section['title'] in {'Relative performance', 'What changed since the signal'}:
+                    section['text'] = 'Recorded price evidence exists. Performance is withheld pending approved aligned-entry methodology.'
         for horizon in HORIZONS:
             item = observed.get((signal["record_id"], horizon))
+            if item and not performance_authorized:
+                item = dict(item, data_status="METHODOLOGY_RESTRICTED",
+                            stock_return=None, benchmark_return=None, excess_return=None)
             table.append({
                 "signal_id": signal["record_id"], "ticker": payload.get("ticker"), "first_seen_at": payload.get("first_seen_at"),
                 "issuance_price": payload.get("reference_price"), "action": payload.get("canonical_recommendation"),
@@ -154,4 +169,38 @@ def build_internal_report_card(path: Path, *, authorized: bool, authority_root: 
     }
 
 
-__all__ = ["build_internal_report_card"]
+def build_immutable_internal_report_card(path: Path, *, expected_sha256: str,
+                                         expected_tip: str, authorized: bool,
+                                         authority_root: Path | None = None) -> dict[str, Any]:
+    """Read an owner-approved consolidated snapshot, never a live WAL database.
+
+    This does not copy a ledger or establish independent backup authority. The
+    caller must supply separately verified immutable snapshot and chain pins.
+    """
+    if not authorized:
+        raise PermissionError("INTERNAL_REPORT_CARD_ACCESS_REQUIRED")
+    if (len(expected_sha256) != 64 or any(c not in '0123456789abcdef' for c in expected_sha256)
+            or not expected_tip):
+        raise ValueError("REPORT_CARD_SNAPSHOT_PINS_REQUIRED")
+    source = Path(path)
+    if source.is_symlink() or not source.is_file():
+        raise ValueError("REPORT_CARD_IMMUTABLE_SNAPSHOT_REQUIRED")
+    if source.stat().st_size > 64 * 1024 * 1024:
+        raise ValueError("REPORT_CARD_SNAPSHOT_SIZE_LIMIT")
+    if any(Path(str(source) + suffix).exists() for suffix in ('-wal', '-shm', '-journal')):
+        raise ValueError("REPORT_CARD_CONSOLIDATED_SNAPSHOT_REQUIRED")
+    if hashlib.sha256(source.read_bytes()).hexdigest() != expected_sha256:
+        raise ValueError("REPORT_CARD_SNAPSHOT_DIGEST_MISMATCH")
+    report = build_internal_report_card(source, authorized=authorized, authority_root=authority_root,
+                                        immutable_snapshot=True, performance_authorized=False)
+    if report['ledger_tip_digest'] != expected_tip:
+        raise ValueError("REPORT_CARD_SNAPSHOT_TIP_MISMATCH")
+    if hashlib.sha256(source.read_bytes()).hexdigest() != expected_sha256:
+        raise ValueError("REPORT_CARD_SNAPSHOT_CHANGED_DURING_READ")
+    report['source_mode'] = 'HASH_PINNED_IMMUTABLE_SNAPSHOT'
+    report['source_sha256'] = expected_sha256
+    report['performance_policy'] = 'VISIBILITY_ONLY_NO_RETURN_AUTHORITY'
+    return report
+
+
+__all__ = ["build_internal_report_card", "build_immutable_internal_report_card"]

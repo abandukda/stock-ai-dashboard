@@ -123,26 +123,62 @@ class TranscriptEvidenceStore:
         body = _json(value)
         db.execute("INSERT INTO records VALUES (?,?,?,?)", (kind, identity, body, hashlib.sha256(body.encode()).hexdigest()))
 
+    @staticmethod
+    def _set_source_head(db, request, digest, partition):
+        # Only this mutable pointer changes. Original and revision source records
+        # and every versioned summary remain retained under immutable identities.
+        value = {"request_identity": request, "raw_content_hash": digest,
+                 "revision_identity": _hash([request, digest])}
+        value["_cache_auth"] = hmac.new(partition.encode(),
+            _json(["transcript_head", request, value]).encode(), hashlib.sha256).hexdigest()
+        body = _json(value)
+        db.execute("INSERT INTO records VALUES (?,?,?,?) ON CONFLICT(kind,identity) "
+                   "DO UPDATE SET body=excluded.body,digest=excluded.digest",
+                   ("transcript_head", request, body, hashlib.sha256(body.encode()).hexdigest()))
+
+    @staticmethod
+    def _source(get, request):
+        original = get("transcript", request)
+        head = get("transcript_head", request)
+        if head is None:
+            return original
+        digest = head.get("raw_content_hash")
+        revision = head.get("revision_identity")
+        if (original is None or not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest)
+                or head.get("request_identity") != request or revision != _hash([request, digest])):
+            raise ValueError("TRANSCRIPT_CACHE_REVISION_IDENTITY_INVALID")
+        selected = get("transcript_revision", revision)
+        if (selected is None or not isinstance(selected.get("payload"), dict)
+                or selected["payload"].get("raw_content_hash") != digest):
+            raise ValueError("TRANSCRIPT_CACHE_REVISION_IDENTITY_INVALID")
+        return selected
+
     def run(self, symbol: str, *, year: int, quarter: int, provider: ConfiguredTranscriptProvider,
             acquisition_authorized: bool = False, summary_authorized: bool = False,
-            summarizer: Callable | None = None, summary_revision: str = "") -> TranscriptRuntimeResult:
+            summarizer: Callable | None = None, summary_revision: str = "",
+            refresh_authorized: bool = False) -> TranscriptRuntimeResult:
         ticker = str(symbol).upper().strip()
         if (not re.fullmatch(r"[A-Z][A-Z0-9.-]{0,14}", ticker) or type(year) is not int
                 or type(quarter) is not int or not 1990 <= year <= 2100 or quarter not in (1, 2, 3, 4)):
             raise ValueError("TRANSCRIPT_REQUEST_IDENTITY_INVALID")
         if summarizer is not None and not summary_revision.strip():
             raise ValueError("TRANSCRIPT_SUMMARY_REVISION_REQUIRED")
+        if refresh_authorized and not acquisition_authorized:
+            raise PermissionError("TRANSCRIPT_REVISION_ACQUISITION_NOT_AUTHORIZED")
         partition = provider.durable_cache_partition()
         request = _hash([partition, ticker, year, quarter])
         with self._connect() as db:
             db.execute("BEGIN IMMEDIATE")
-            stored = self._get(db, "transcript", request, partition)
+            get = lambda kind, identity: self._get(db, kind, identity, partition)
+            stored = self._source(get, request)
             acquired = False
-            if stored is None:
+            revision_status = "NOT_CHECKED"
+            if stored is None or refresh_authorized:
                 if not acquisition_authorized:
                     raise PermissionError("TRANSCRIPT_ACQUISITION_NOT_AUTHORIZED")
                 evidence = provider.transcript(ticker, year=year, quarter=quarter)
                 acquired = True
+                revision_status = "INITIAL_CAPTURE" if stored is None else "CHECKED_UNAVAILABLE"
             else:
                 evidence = _record(stored)
             raw = evidence.payload.get("raw_content")
@@ -158,6 +194,24 @@ class TranscriptEvidenceStore:
                     raise ValueError("TRANSCRIPT_EXACT_PERIOD_REQUIRED")
                 if stored is None:
                     self._put(db, "transcript", request, evidence.as_dict(), partition)
+                elif refresh_authorized:
+                    previous = _record(stored)
+                    if digest == previous.payload.get("raw_content_hash"):
+                        # An unchanged check is not a new source or model input.
+                        evidence = previous
+                        revision_status = "CHECKED_UNCHANGED"
+                    else:
+                        revision = _hash([request, digest])
+                        existing = get("transcript_revision", revision)
+                        if existing is None:
+                            self._put(db, "transcript_revision", revision, evidence.as_dict(), partition)
+                        else:
+                            evidence = _record(existing)
+                        self._set_source_head(db, request, digest, partition)
+                        revision_status = "UPDATED"
+            elif stored is not None and refresh_authorized:
+                # Denied/unavailable checks never erase a reusable exact quarter.
+                evidence = _record(stored)
             summary_key = _hash([request, evidence.payload.get("raw_content_hash"), summary_revision,
                                  TRANSCRIPT_SUMMARY_PROMPT_VERSION, TRANSCRIPT_SUMMARY_SCHEMA_VERSION])
             saved = self._get(db, "summary", summary_key, partition) if summary_revision else None
@@ -198,6 +252,7 @@ class TranscriptEvidenceStore:
                         "provider_invocation_count": int(acquired),
                         "network_calls_instrumented": False,
                         "summary_revision": summary_revision or None,
+                        "source_revision_status": revision_status,
                         "checked_at": datetime.now(timezone.utc).isoformat(),
                         "freshness_scope": "RETAINED_EXACT_QUARTER_NOT_LATEST_RELEASE_PROOF"}
             return replace(result, operation_metadata=metadata)

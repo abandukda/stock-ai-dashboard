@@ -19,6 +19,9 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -43,6 +46,9 @@ jobs:
           tests/test_report_card_signal_digest.py
           tests/test_report_card_retained_inventory.py
           tests/test_report_card_overview_presentation.py
+          tests/test_report_card_methodology_rehearsal.py
+          tests/test_report_card_immutable_visibility.py
+          tests/test_report_card_discovery_completeness.py
           tests/test_authentication_roles.py
       - name: Compile bounded Report Card modules
         run: >-

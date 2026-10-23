@@ -153,11 +153,19 @@ class PersonalWatchlistController:
         identity = self._verified_subject()  # Before transaction/file/database I/O.
         transaction = getattr(self._repository, "transaction", None)
         with transaction() if callable(transaction) else nullcontext():
+            # A competing request can hold the storage lock after the first
+            # verification. Do not admit a session that expired, was revoked,
+            # or changed accounts while this request waited for that lock.
+            current_identity = self._verified_subject()
+            if current_identity.subject != identity.subject:
+                raise PersonalWatchlistAccessError("WATCHLIST_CONTEXT_CHANGED")
             try:
                 registered = self._repository.user_by_auth_subject(identity.subject)
                 if registered is None:
                     raise PersonalWatchlistAccessError("ACCOUNT_NOT_REGISTERED")
                 user, _ = self._service.account(registered[0].user_id)
+            except PersonalWatchlistAccessError:
+                raise
             except (KeyError, PermissionError):
                 raise PersonalWatchlistAccessError("ACCOUNT_UNAVAILABLE") from None
             current_key = hashlib.sha256(("personal-watchlists:" + user.user_id).encode()).hexdigest()[:24]

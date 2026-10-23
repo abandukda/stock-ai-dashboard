@@ -37,6 +37,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - run: python3 -m pip install PyYAML==6.0.3 pytest==9.1.1
       - name: Validate smoke and routing workflow expressions with pinned actionlint
         shell: bash
@@ -69,7 +70,7 @@ jobs:
           ATLAS_QA_PROVIDER_CALLS_ALLOWED: '0'
           ATLAS_ALLOW_EXTERNAL_AI: 'false'
           ATLAS_CUSTOMER_REPORT_CARD_ENABLED: 'false'
-        run: python3 scripts/contabo_certification_rehearsal.py --source-sha "$GITHUB_SHA"
+        run: python3 scripts/contabo_certification_rehearsal.py --source-sha "$(git rev-parse HEAD)"
       - name: Validate consolidated host commands
         run: bash -n scripts/contabo_smoke_once.sh scripts/contabo_rehearsal_once.sh
   customer-navigation-geometry:
@@ -79,6 +80,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'

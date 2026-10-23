@@ -106,6 +106,27 @@ def test_customer_dates_are_human_readable_and_invalid_dates_fail_closed():
     assert certified_freshness(None) == Availability.MISSING_RETAINED_EVIDENCE
 
 
+def test_future_close_never_establishes_currentness_or_changes_financial_authority():
+    now = datetime(2026, 10, 9, tzinfo=timezone.utc)
+    for value in ('2099-01-01T00:00:00Z', '2026-10-09T00:00:01Z',
+                  '2026-10-09T01:00:01+01:00'):
+        assert certified_freshness(value, now=now) == Availability.MISSING_RETAINED_EVIDENCE
+    assert certified_freshness('2026-10-09T01:00:00+01:00', now=now) == Availability.CERTIFIED_CURRENT
+    assert certified_freshness('2026-10-04T00:00:00Z', now=now) == Availability.CERTIFIED_CURRENT
+    assert certified_freshness('2026-10-03T23:59:59Z', now=now) == Availability.CERTIFIED_DATED
+
+    source = report()
+    before = deepcopy(source)
+    # The retained fixture closes Oct8; reviewing before that close must not
+    # label it current, nor recalculate or amend its publication authority.
+    future = build_customer_research_view(source, now=datetime(2026, 10, 8, tzinfo=timezone.utc))
+    current = build_customer_research_view(source, now=now)
+    assert future.availability['certified_close'] == Availability.MISSING_RETAINED_EVIDENCE.value
+    assert future.payload['authority'] == current.payload['authority']
+    assert future.identity == current.identity
+    assert source == before
+
+
 def test_research_summary_101_explains_protected_metrics_without_redefining_them():
     source = __import__("pathlib").Path("ui/customer_research_v2.py").read_text()
     assert "Research 101 — what these numbers mean" in source

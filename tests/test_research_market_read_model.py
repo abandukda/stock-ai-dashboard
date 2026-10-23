@@ -91,6 +91,50 @@ def test_stale_retained_data_is_disclosed_not_relabelled_fresh(tmp_path):
     assert result["__read_model__"]["market_identity"]["session_freshness"] == "STALE_FINALIZED_SESSION"
 
 
+def test_current_last_candle_cannot_hide_a_missing_trading_session(tmp_path):
+    """A fully resealed bundle bypasses the producer, not the read boundary."""
+    document = _document()
+    family = document['families']['historical_ohlcv']
+    family['provenance']['capture_timestamp'] = '2026-10-21T22:00:00Z'
+    family['payload'] = {
+        'timestamps': [int(datetime(2026, 10, day, 20, tzinfo=timezone.utc).timestamp())
+                       for day in (19, 21)],
+        'open': [100, 100], 'high': [110, 110], 'low': [90, 90],
+        'close': [105, 105], 'volume': [100, 100],
+        'completed_session_flags': [True, True],
+    }
+    family['payload_sha256'] = hashlib.sha256(_canonical(family['payload'])).hexdigest()
+    document = seal_research_market_bundle(document)
+    (tmp_path / 'NVDA.json').write_text(json.dumps(document))
+    receipt = {}
+    result = load_research_market_context('NVDA', tmp_path,
+        now=datetime(2026, 10, 21, 22, tzinfo=timezone.utc), admission_receipt=receipt)
+    assert 'historical_ohlcv' not in result
+    assert 'basic_financials' in result
+    assert receipt['history_status'] == 'REJECTED'
+    assert receipt['status'] == 'PARTIAL'
+
+
+def test_weekend_gap_is_contiguous_and_retained_stale_history_remains_dated(tmp_path):
+    document = _document()
+    family = document['families']['historical_ohlcv']
+    family['provenance']['capture_timestamp'] = '2026-10-19T22:00:00Z'
+    family['payload'] = {
+        'timestamps': [int(datetime(2026, 10, day, 20, tzinfo=timezone.utc).timestamp())
+                       for day in (16, 19)],
+        'open': [100, 100], 'high': [110, 110], 'low': [90, 90],
+        'close': [105, 105], 'volume': [100, 100],
+        'completed_session_flags': [True, True],
+    }
+    family['payload_sha256'] = hashlib.sha256(_canonical(family['payload'])).hexdigest()
+    document = seal_research_market_bundle(document)
+    (tmp_path / 'NVDA.json').write_text(json.dumps(document))
+    result = load_research_market_context('NVDA', tmp_path,
+        now=datetime(2026, 10, 21, 22, tzinfo=timezone.utc))
+    assert result['historical_ohlcv']['market_identity']['session_freshness'] == 'STALE_FINALIZED_SESSION'
+    assert result['historical_ohlcv']['payload']['close'] == [105, 105]
+
+
 def test_rejects_tamper_wrong_identity_rights_and_unknown_endpoint(tmp_path):
     mutations = (
         lambda doc: doc["families"]["historical_ohlcv"]["payload"].update(close=[999]),

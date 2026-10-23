@@ -1353,6 +1353,29 @@ def _compact_card_narrative(card: Mapping[str, Any]) -> tuple[str, str | None]:
     return thesis, risk
 
 
+def _featured_evidence_guide(card: Mapping[str, Any]) -> str:
+    """Explain the admitted card without deriving an entry or new recommendation."""
+    price_date = _timestamp(card.get("price_as_of"))
+    price_context = (
+        f"Price evidence: {price_date}. Today's market panel does not refresh this company price."
+        if price_date != "Timestamp unavailable" else
+        "The company price timestamp is unavailable. Today's market panel does not establish its freshness."
+    )
+    points = [
+        ("Price basis", price_context),
+        ("Valuation", "The fair-value gap compares the displayed price with ATLAS's estimate; it is not a return forecast or a target date."),
+        ("Confidence", "Evidence confidence describes the supporting information, not the probability that the share price will rise."),
+    ]
+    if _compact_entry_status(card) == "Not published":
+        points.append(("Entry", "No executable entry plan is published for this snapshot. Open Research to review the dated evidence and limitations before deciding."))
+    return (
+        '<section class="atlas-home-evidence-guide" data-atlas-qa="home-featured-evidence-guide">'
+        '<h4>Read the evidence before acting</h4><dl>'
+        + ''.join(f'<div><dt>{html.escape(label)}</dt><dd>{html.escape(text)}</dd></div>' for label, text in points)
+        + '</dl></section>'
+    )
+
+
 def _compact_opportunity_card(card: Mapping[str, Any], *, key: str, first: bool = False, summary_only: bool = False) -> None:
     ticker = str(card.get("ticker") or "UNKNOWN")
     state = _customer_state(card)
@@ -1382,7 +1405,7 @@ def _compact_opportunity_card(card: Mapping[str, Any], *, key: str, first: bool 
             '<div class="atlas-home-compact-values">'
             f'<span><small>{html.escape(str(card.get("display_price_label") or "Dated price"))}</small><b>{html.escape(_money(card.get("display_price")))}</b></span>'
             f'<span><small>ATLAS Fair Value</small><b>{html.escape(_money(card.get("atlas_fair_value")))}</b></span>'
-            f'<span><small>Potential</small><b>{html.escape(_score(potential, suffix="%"))}</b></span></div>'
+            f'<span><small>Fair-value gap</small><b>{html.escape(_score(potential, suffix="%"))}</b></span></div>'
             f'{narrative}'
             f'<footer>{html.escape(evidence)} · Certified {_timestamp(card.get("decision_as_of"))}</footer></article>',
             unsafe_allow_html=True,
@@ -1398,12 +1421,13 @@ def _compact_opportunity_card(card: Mapping[str, Any], *, key: str, first: bool 
         '<div class="atlas-home-compact-values">'
         f'<span><small>{html.escape(str(card.get("display_price_label") or "Dated price"))}</small><b>{html.escape(_money(card.get("display_price")))}</b></span>'
         f'<span><small>ATLAS Fair Value</small><b>{html.escape(_money(card.get("atlas_fair_value")))}</b></span>'
-        f'<span><small>Potential</small><b>{html.escape(_score(potential, suffix="%"))}</b></span>'
+        f'<span><small>Fair-value gap</small><b>{html.escape(_score(potential, suffix="%"))}</b></span>'
         f'<span><small>Opportunity</small><b>{html.escape(_score(card.get("opportunity")))}</b></span>'
-        f'<span><small>Confidence</small><b>{html.escape(_score(card.get("decision_confidence"), suffix="%"))}</b></span>'
+        f'<span><small>Evidence confidence</small><b>{html.escape(_score(card.get("decision_confidence"), suffix="%"))}</b></span>'
         f'<span><small>Entry Status</small><b>{html.escape(entry_status)}</b></span></div>'
         f'{narrative}'
         + ('<p class="atlas-home-entry-explanation">Entry plan not published. BUY NOW is the certified classification, not a personalized entry instruction.</p>' if entry_status == 'Not published' else '')
+        + (_featured_evidence_guide(card) if first else '')
         + '<footer>'
         f'<span>{html.escape(evidence)}</span><span>Certified {_timestamp(card.get("decision_as_of"))}</span></footer></article>',
         unsafe_allow_html=True,
@@ -1496,13 +1520,13 @@ def _render_groups(story: Mapping[str, Any], *, emit_interactive) -> None:
                         "Company": str(card.get("company") or "Unavailable"),
                         "Last certified close": _money(card.get("display_price")),
                         "ATLAS Fair Value": _money(card.get("atlas_fair_value")),
-                        "Potential": _score(
+                        "Fair-value gap": _score(
                             card.get("live_implied_upside_pct")
                             if card.get("live_implied_upside_pct") is not None
                             else card.get("atlas_expected_return"),
                             suffix="%",
                         ),
-                        "Confidence": _score(card.get("decision_confidence"), suffix="%"),
+                        "Evidence confidence": _score(card.get("decision_confidence"), suffix="%"),
                         "Evidence date": _timestamp(card.get("decision_as_of")),
                     }
                     for index, card in enumerate(matches)

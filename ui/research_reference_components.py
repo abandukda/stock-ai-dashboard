@@ -70,7 +70,29 @@ def comprehensive_analysis_html(page):
     digest = page.get('investment_digest') or {}
     if digest.get('status') != 'AVAILABLE': return ''
     return (RESEARCH_REFERENCE_CSS+'<section class="atlas-research-analysis" data-atlas-qa="research-comprehensive-analysis">'+''.join(
-        '<article data-atlas-question="'+escape(str(a['key']))+'"><h4>'+escape(str(a['question']))+'</h4><p>'+escape(_readable(a['answer']))+'</p></article>' for a in digest.get('answers') or ())+'</section>')
+        '<article data-atlas-question="'+escape(str(a['key']))+'"><h4>'+escape(str(a['question']))+'</h4><p>'+escape(_readable(a['answer']))+'</p></article>' for a in digest.get('answers') or ())+'</section>'
+        + reasoning_context_html(digest.get('reasoning_packet') or {}))
+
+
+def reasoning_context_html(packet):
+    """Keep facts, model estimates and arithmetic visibly distinct."""
+    if packet.get('status') != 'AVAILABLE': return ''
+    rows = ''.join(
+        '<article data-atlas-evidence-kind="'+escape(str(item['kind']))+'"><h4>'
+        +escape(str(item['label']))+'</h4><p>'+escape(_readable(item['text']))+'</p>'
+        +('<p>Source date: '+escape(_readable(item['as_of']))+'</p>' if item.get('as_of') else '')
+        +'</article>' for item in packet.get('items') or ())
+    models = ''.join('<p>'+escape(str(model['name']))+' · '
+                    +escape(str(model.get('fiscal_period') or 'Period unavailable'))+': '
+                    +escape('; '.join(str(k).replace('_',' ')+' = '+str(v)
+                                     for k,v in model['assumptions'].items()))+'</p>'
+                    for model in packet.get('valuation_assumptions') or ())
+    limitations = ''.join('<p>'+escape(str(text))+'</p>' for text in packet.get('limitations') or ())
+    return ('<section aria-label="How to interpret the evidence" data-atlas-qa="research-reasoning-context">'
+            '<h3>How to interpret the evidence</h3><div class="atlas-research-analysis">'+rows
+            +'<article><h4>Valuation drivers and limits</h4>'+models+limitations
+            +'<p>Deterministic explanation · External AI not invoked. These inputs retain their original source dates.</p>'
+            '</article></div></section>')
 
 
 def fundamentals_cards_html(facts):

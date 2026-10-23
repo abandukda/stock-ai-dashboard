@@ -7,6 +7,24 @@ from ui.home_guidance_vnext import _money, _score
 
 
 class RetainedHomeComposition(unittest.TestCase):
+    def test_featured_reading_guide_does_not_invent_freshness_entry_or_return_forecast(self):
+        from ui.home_guidance_vnext import _featured_evidence_guide
+        card = {'ticker':'NVDA', 'display_price':233.99, 'atlas_fair_value':346.05,
+                'decision_as_of':'2026-10-04T16:21:00Z', 'decision_confidence':87.5}
+        before = deepcopy(card)
+        html = _featured_evidence_guide(card)
+        self.assertIn('company price timestamp is unavailable', html)
+        self.assertNotIn('Oct 4', html)  # Certification time cannot substitute for price time.
+        self.assertIn('not a return forecast or a target date', html)
+        self.assertIn('not the probability that the share price will rise', html)
+        self.assertIn('No executable entry plan is published', html)
+        self.assertEqual(card, before)
+        card['price_as_of'] = '2026-10-02T20:00:00Z'
+        card['trade_plan'] = {'entry_status':'IN_ENTRY_ZONE'}
+        dated = _featured_evidence_guide(card)
+        self.assertIn('Oct 2, 2026', dated)
+        self.assertNotIn('No executable entry plan', dated)
+
     def test_inventory_capacity_and_snapshot_date_remain_distinct(self):
         html = published_inventory_html(11, timestamp='Oct 4, 2026 · 12:21 PM ET')
         self.assertIn('11 published BUY NOW opportunities', html)
@@ -59,6 +77,9 @@ render_home_guidance_vnext({'cards':cards,'home_featured_cards':cards,'scan_time
         self.assertIn('atlas-command-retained-focus', html)
         self.assertEqual(html.count('data-atlas-qa="home-actionable-card"'), 3)
         self.assertIn('Entry plan not published', html)
+        self.assertIn('Read the evidence before acting', html)
+        self.assertIn('<small>Fair-value gap</small>', html)
+        self.assertIn('<small>Evidence confidence</small>', html)
         app.button(key='home_top_idea_actionable_0_TESTA').click().run()
         self.assertFalse(app.exception)
         self.assertEqual(app.session_state['active_research_ticker'], 'TESTA')

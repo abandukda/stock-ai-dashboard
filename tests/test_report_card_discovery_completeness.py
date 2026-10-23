@@ -30,6 +30,7 @@ def test_dashboard_exposes_complete_admission_provenance_and_pending_horizons(tm
         "signal_id": "signal-1", "ticker": "NVDA", "original_action": "BUY_NOW",
         "buy_now_transition_timestamp": "2026-10-08T20:05:00+00:00",
         "signal_timestamp": "2026-10-08T20:05:00+00:00", "reference_price": 233.99,
+        "registered_at": "2026-10-08T20:05:00+00:00",
         "reference_price_timestamp": "2026-10-08T20:00:00+00:00",
         "signal_provenance": ["price:1", "decision:1"], "candidate_digest": "candidate-1",
         "publication_digest": "publication-1", "evaluation_snapshot_id": "snapshot-1",
@@ -86,11 +87,27 @@ def test_home_and_navigation_report_card_boundaries_are_fail_closed():
 
 
 def test_home_uses_compact_top_three_and_preserves_complete_inventory_access():
-    source = Path("ui/home_guidance_vnext.py").read_text(encoding="utf-8")
-    assert "enumerate(actionable[:3])" in source
-    assert "View all {len(all_actionable)} BUY NOW opportunities" in source
-    assert "remaining = all_actionable[3:]" in source
-    assert 'st.selectbox("Open complete Research"' in source
+    from streamlit.testing.v1 import AppTest
+    app = AppTest.from_string('''
+from ui.home_guidance_vnext import render_home_guidance_vnext
+cards=[{'ticker':'TEST'+chr(65+i),'company':'Generated test company','guidance':'BUY_NOW',
+'production_rank':i+1,'display_price':101+i,'atlas_fair_value':121+i,
+'decision_as_of':'2026-10-04T16:21:00Z','decision_confidence':85} for i in range(5)]
+render_home_guidance_vnext({'cards':cards,'home_featured_cards':cards,
+'scan_timestamp':'2026-10-04T16:21:00Z','home_runtime_contract':{'runtime_ready':True,
+'inventory_authority':{'publishable_buy_now_count':5}}},emit_interactive=lambda:None)
+''', default_timeout=30).run()
+    assert not app.exception
+    html = '\n'.join(str(item.value) for item in app.markdown)
+    assert html.count('data-atlas-qa="home-actionable-card"') == 3
+    assert any(item.label == 'View all 5 BUY NOW opportunities' for item in app.expander)
+    table = next(item.value for item in app.dataframe if 'Ticker' in item.value.columns)
+    assert list(table['Ticker']) == ['TESTA','TESTB','TESTC','TESTD','TESTE']
+    assert 'Fair-value gap' in table and 'Evidence confidence' in table
+    app.selectbox(key='home_remaining_buy_now_ticker').select('TESTE').run()
+    app.button(key='home_all_certified_TESTE').click().run()
+    assert not app.exception
+    assert app.session_state['active_research_ticker'] == 'TESTE'
 
 
 def test_internal_ui_never_formats_missing_performance_as_zero():

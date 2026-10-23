@@ -143,6 +143,13 @@ def _market_identity(payload: Any, *, captured: datetime, checked: datetime) -> 
     governed_sessions = set(capture_calendar["trading_sessions"])
     if any(session not in governed_sessions for session in sessions):
         return None
+    # The reader is an authority boundary too: retained/legacy bundles need not
+    # have passed through today's producer. Matching hashes and a current last
+    # candle do not establish continuity across the supplied history interval.
+    expected_sessions = [session for session in capture_calendar["trading_sessions"]
+                         if sessions[0] <= session <= sessions[-1]]
+    if sessions != expected_sessions:
+        return None
     latest_session = sessions[-1]
     current = latest_session == current_calendar["finalized_session"]
     return {

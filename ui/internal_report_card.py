@@ -349,9 +349,18 @@ def _render_signal_detail(detail: Mapping[str, Any]) -> None:
     st.markdown("\n".join(f'- {item}' for item in detail["move_attribution"]["uncertain_or_not_attributable"]))
 
 
-def render_internal_report_card(ledger_path: Path, *, authorized: bool) -> Mapping[str, Any]:
+def render_internal_report_card(ledger_path: Path, *, authorized: bool,
+                                snapshot_sha256: str | None = None,
+                                snapshot_tip: str | None = None) -> Mapping[str, Any]:
     authority_root = Path(os.getenv("ATLAS_REPORT_CARD_CHART_EVIDENCE_ROOT", "."))
-    report = build_internal_report_card(ledger_path, authorized=authorized, authority_root=authority_root)
+    if snapshot_sha256 is not None or snapshot_tip is not None:
+        from services.report_card_dashboard import build_immutable_internal_report_card
+        report = build_immutable_internal_report_card(
+            ledger_path, expected_sha256=snapshot_sha256 or '', expected_tip=snapshot_tip or '',
+            authorized=authorized, authority_root=authority_root,
+        )
+    else:
+        report = build_internal_report_card(ledger_path, authorized=authorized, authority_root=authority_root)
     st.markdown('<span data-atlas-qa="internal-report-card" data-atlas-customer-visible="false" '
                 'aria-hidden="true" style="display:none">internal-report-card</span>', unsafe_allow_html=True)
     st.markdown(

@@ -38,7 +38,7 @@ def test_persistence_and_cross_account_forged_ids(workspace):
     for attack in attacks:
         before = state['calls']
         with pytest.raises(KeyError): attack()
-        assert state['calls'] == before + 1
+        assert state['calls'] == before + 2  # Before I/O and after acquiring its lock.
     for stale in (key, None, '', alice.user_id):
         with pytest.raises(PersonalWatchlistAccessError): controller.create_watchlist('Stale form', view_key=stale)
     assert service.repository.list_watchlists(bob.user_id) == ()
@@ -134,3 +134,49 @@ def test_research_callback_admits_only_existing_certified_catalog_member(workspa
     other=next(w for w in c.snapshot().watchlists if w.name=='Other')
     c.set_default_watchlist(other.watchlist_id,view_key=key)
     assert next(w for w in c.snapshot().watchlists if w.is_default).watchlist_id==other.watchlist_id
+
+
+@pytest.mark.parametrize('change', ['revoked', 'expired', 'account_switch'])
+@pytest.mark.parametrize('operation', ['read', 'write'])
+def test_waiting_for_sqlite_lock_cannot_outlive_verified_session(tmp_path, change, operation):
+    """Actual SQLite contention: revoke/switch/expire after auth, before admission."""
+    from concurrent.futures import ThreadPoolExecutor
+    import sqlite3
+    from threading import Event
+    root = tmp_path/'private'
+    service = CustomerService(PrivateSQLiteCustomerRepository(root), clock=lambda:NOW)
+    alice = service.register('verified:alice', plan=PlanTier.PREMIUM)[0]
+    bob = service.register('verified:bob', plan=PlanTier.PREMIUM)[0]
+    private = service.create_watchlist(alice.user_id, 'Alice private')
+    state = {'identity': VerifiedWatchlistSubject(alice.auth_subject, NOW+timedelta(hours=1)), 'now': NOW}
+    entered = Event()
+    def verify():
+        captured = state['identity']
+        entered.set()
+        return captured
+    controller = PersonalWatchlistController(service, resolve_verified_subject=verify,
+        catalog=CATALOG, clock=lambda:state['now'])
+    key = controller.snapshot().view_key
+    entered.clear()
+    blocker = sqlite3.connect(service.repository.path)
+    blocker.execute('BEGIN IMMEDIATE')
+    try:
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            future = pool.submit(
+                (lambda:controller.read_watchlist(private.watchlist_id, view_key=key))
+                if operation=='read' else
+                (lambda:controller.create_watchlist('Must not be created', view_key=key)))
+            assert entered.wait(5), 'request did not reach its first identity check'
+            if change=='revoked':
+                state['identity'] = replace(state['identity'], revoked=True)
+            elif change=='expired':
+                state['now'] = NOW+timedelta(hours=2)
+            else:
+                state['identity'] = VerifiedWatchlistSubject(bob.auth_subject, NOW+timedelta(hours=1))
+            blocker.rollback()
+            with pytest.raises(PersonalWatchlistAccessError):
+                future.result(timeout=5)
+    finally:
+        blocker.close()
+    assert [w.name for w in service.repository.list_watchlists(alice.user_id)] == ['Alice private']
+    assert service.repository.list_watchlists(bob.user_id) == ()
