@@ -40,7 +40,7 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - run: python3 -m pip install PyYAML==6.0.3 pytest==9.1.1
+      - run: python3 -m pip install PyYAML==6.0.3 pytest==9.1.1 playwright==1.52.0
       - name: Validate smoke and routing workflow expressions with pinned actionlint
         shell: bash
         run: |

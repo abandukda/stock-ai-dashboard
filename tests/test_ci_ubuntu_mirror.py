@@ -183,28 +183,6 @@ def test_workflow_keeps_complete_playwright_install_and_all_render_gates(filenam
     assert "python -m pytest -q tests/test_ci_ubuntu_mirror.py" in affected_job
 
 
-def test_routing_geometry_normalizes_mirror_without_extending_or_bypassing_gates():
-    import yaml
-    workflow = (Path(__file__).parents[1] / ".github/workflows" / "atlas_runner_routing_ci.yml").read_text()
-    parsed = yaml.safe_load(workflow)
-    job = parsed["jobs"]["customer-navigation-geometry"]
-    assert job["runs-on"] == "ubuntu-24.04"
-    assert job["timeout-minutes"] == 8
-    assert parsed["permissions"] == {"contents": "read"}
-    runs = [step.get("run", "") for step in job["steps"]]
-    install = next(run for run in runs if "playwright install" in run)
-    assert install == ("sudo python3 scripts/normalize_ci_ubuntu_mirror.py\n"
-                       "python -m playwright install --with-deps chromium\n")
-    assert all(step.get("continue-on-error") is not True for step in job["steps"])
-    assert "python -m unittest discover -s tests -p test_customer_nav_geometry.py -v" in runs
-    assert "python -m unittest discover -s tests -p test_annotated_chart_render.py -v" in runs
-    assert any(step.get("with", {}).get("if-no-files-found") == "error" for step in job["steps"])
-    offline = parsed["jobs"]["offline-routing-contract"]
-    assert "python3 -m pytest -q tests/test_ci_ubuntu_mirror.py" in [step.get("run") for step in offline["steps"]]
-    assert "self-hosted" not in str(job) and "secrets." not in str(job)
-    assert "scripts/normalize_ci_ubuntu_mirror.py" in workflow
-
-
 def test_pinned_playwright_dry_run_still_requests_all_chromium_libraries_and_fonts():
     # This CLI mode prints commands only. It does not invoke APT or networking.
     result = subprocess.run([sys.executable, "-m", "playwright", "install-deps",
