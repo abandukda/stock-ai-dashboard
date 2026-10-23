@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from services.finnhub_enterprise_display_contract import display_authority
+from services.research_analyst_context import analyst_context_rejection
 from services.report_card_exchange_calendar import build_xnys_calendar
 
 
@@ -228,7 +229,7 @@ def load_research_market_context(
         "backup_configured": backup_root not in (None, ""),
         "source_pin_configured": bool(expected_source_sha),
         "bundle_pin_configured": bool(expected_bundle_id),
-        "attempts": [], "accepted_family_count": 0, "rejected_family_count": 0,
+        "attempts": [], "family_rejections": [], "accepted_family_count": 0, "rejected_family_count": 0,
         "history_status": "NOT_EVALUATED", "history_reason": "HISTORY_NOT_EVALUATED",
     })
     symbol = _safe_ticker(ticker)
@@ -297,6 +298,14 @@ def load_research_market_context(
     for key, envelope in (document.get("families") or {}).items():
         if not isinstance(envelope, Mapping) or envelope.get("capability") != key:
             receipt["rejected_family_count"] += 1
+            continue
+        provenance = envelope.get("provenance") if isinstance(envelope.get("provenance"), Mapping) else {}
+        captured = _instant(provenance.get("capture_timestamp"))
+        semantic_reason = analyst_context_rejection(str(key), envelope.get("payload"), ticker=symbol,
+            now=min(checked, captured) if captured is not None else checked)
+        if semantic_reason is not None:
+            receipt["rejected_family_count"] += 1
+            receipt["family_rejections"].append({"capability": key, "reason": semantic_reason})
             continue
         verified = _family(envelope, ticker=symbol, now=checked)
         if verified:

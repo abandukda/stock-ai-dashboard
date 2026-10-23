@@ -488,7 +488,7 @@ def test_wall_street_is_disabled_by_default_and_contextual(monkeypatch):
     module = build_customer_research_v2(report())["wall_street"]
     assert module == {
         "status": "DISABLED", "classification": "CONTEXTUAL_NON_SCORING",
-        "reason": "COMMERCIAL_DISPLAY_RIGHTS_UNCONFIRMED",
+        "reason": "CONTEXT_DISPLAY_NOT_ENABLED",
     }
 
 
@@ -1080,7 +1080,7 @@ def test_customer_trust_content_contracts_are_not_presence_only():
     assert "Company-specific measured risks" in source
     assert "not certified invalidation triggers" in source
     assert 'if summary["risks"] or conditions_present:' in source
-    assert "_friendly_time(wall.get(\"as_of\"))" in source
+    assert "_analyst_context_date(wall.get(\"as_of\"))" in source
     assert 'Signal date: {_friendly_time(signal.get("signal_date"))}' in source
     assert 'Signal date: {signal.get("signal_date")' not in source
     assert 'st.markdown("### Price history")' in source
