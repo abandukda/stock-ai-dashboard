@@ -4,7 +4,7 @@ on:
     paths:
       - 'app.py'
       - 'ui/customer_runtime.py'
-      - 'services/customer/request_authority.py'
+      - 'services/personal_request_authority.py'
       - 'services/customer/watchlist_controller.py'
       - 'services/watchlist_access.py'
       - 'tests/test_premium_customer_composition_render.py'

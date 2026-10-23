@@ -120,7 +120,7 @@ from services.customer.models import PlanTier
 from services.customer.service import CustomerService
 from services.customer.sqlite_repository import PrivateSQLiteCustomerRepository
 from services.customer.streamlit_identity import bind_personal_watchlists,oidc_account_subject
-from services.customer.request_authority import personal_viewer_active
+from services.personal_request_authority import personal_viewer_active
 from services.watchlist_access import workspace_watchlist_allowed
 from services.transcript_cache_reader import ReadOnlyTranscriptCache
 from services.transcript_provider import ConfiguredTranscriptProvider
@@ -206,7 +206,7 @@ def composition_server(monkeypatch):
 
 def test_actual_app_dispatch_composes_native_account_watchlists_research_and_readonly_earnings(tmp_path, monkeypatch):
     from tests.test_premium_earnings_cache_render import _seed_generated_cache
-    from services.customer.request_authority import personal_viewer_active
+    from services.personal_request_authority import personal_viewer_active
     _seed_generated_cache(tmp_path/'cache')
     server = composition_server(monkeypatch)
     app = AppTest.from_string(composition_script(tmp_path/'private', tmp_path/'cache'), default_timeout=15).run()

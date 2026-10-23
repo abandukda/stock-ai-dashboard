@@ -14,7 +14,7 @@ import streamlit as st
 
 from services.customer.models import Capability
 from services.customer_authority import customer_authority
-from services.customer.request_authority import personal_viewer_scope
+from services.personal_request_authority import personal_viewer_scope
 from services.customer.watchlist_controller import PersonalWatchlistAccessError
 from services.customer_navigation_contract import migrate_navigation_state
 from services.session_stability import emit_page_interactive

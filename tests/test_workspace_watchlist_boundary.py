@@ -153,7 +153,7 @@ def test_legacy_research_merge_cannot_bypass_private_scan_guard(tmp_path, monkey
 
 
 def test_personal_request_restricts_forged_shared_admin_aliases_and_resets():
-    from services.customer.request_authority import personal_viewer_active,personal_viewer_scope
+    from services.personal_request_authority import personal_viewer_active,personal_viewer_scope
     from services.watchlist_access import workspace_watchlist_allowed
     state={'authenticated':True,'role':'admin','user_role':'admin','authentication_credential_role':'admin'}
     assert workspace_watchlist_allowed(state)
@@ -169,7 +169,7 @@ def test_personal_request_restricts_forged_shared_admin_aliases_and_resets():
 
 def test_viewer_restriction_is_thread_local_and_nested_scopes_reset():
     from concurrent.futures import ThreadPoolExecutor
-    from services.customer.request_authority import personal_viewer_active,personal_viewer_scope
+    from services.personal_request_authority import personal_viewer_active,personal_viewer_scope
     assert personal_viewer_active() is False
     with personal_viewer_scope():
         with personal_viewer_scope():
@@ -182,7 +182,7 @@ def test_viewer_restriction_is_thread_local_and_nested_scopes_reset():
 
 def test_actual_role_helpers_restrict_only_personal_request_without_mutating_password_aliases():
     from types import SimpleNamespace
-    from services.customer.request_authority import personal_viewer_scope
+    from services.personal_request_authority import personal_viewer_scope
     tree=ast.parse(APP.read_text())
     nodes=[node for node in tree.body if isinstance(node,ast.FunctionDef) and node.name in {'get_user_role','is_viewer'}]
     state={'authenticated':True,'role':'admin','user_role':'admin','authentication_credential_role':'admin'}
@@ -204,3 +204,20 @@ def test_final_main_without_bindings_retains_password_gate_before_any_bootstrap(
     assert ns['main']() is None
     assert ns['main'](customer_bindings=None) is None
     assert calls==['password-gate','password-gate']
+
+
+def test_request_authority_helper_is_presentation_only_without_customer_or_provider_dependencies():
+    """Role narrowing belongs to the app boundary, outside customer domain I/O."""
+    tree=ast.parse((APP.parent/'services/personal_request_authority.py').read_text())
+    imports=set()
+    for node in ast.walk(tree):
+        if isinstance(node,ast.Import):
+            imports.update(alias.name for alias in node.names)
+        elif isinstance(node,ast.ImportFrom):
+            imports.add(node.module or '')
+    assert {'contextlib','contextvars'} <= imports
+    assert imports <= {'__future__','contextlib','contextvars','typing'}
+    assert not any(isinstance(node,ast.Call) and (
+        isinstance(node.func,ast.Name) and node.func.id=='__import__'
+        or isinstance(node.func,ast.Attribute) and node.func.attr=='import_module'
+    ) for node in ast.walk(tree))

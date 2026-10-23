@@ -13,6 +13,7 @@ Bindings contain an existing `PersonalAccountBindings`, an optional existing `Re
 ## Authority and privacy boundaries
 
 - Native identities receive only Account, Watchlist, Research and Earnings routes. No identity-provider role claim or stale password alias grants an internal/admin route.
+- The presentation-only authority primitive lives in `services/personal_request_authority.py`, outside the provider-independent customer domain. Its standard-library-only dependency assertion excludes Streamlit, customer services, providers and dynamic imports; the original foundational app/domain isolation assertion remains unchanged.
 - A request-local ContextVar restricts legacy role helpers to viewer and independently denies shared workspace watchlist storage. It can only narrow authority, resets in `finally`, and does not alter password aliases or another request/thread.
 - FULL_RESEARCH and FULL_EARNINGS_INTELLIGENCE are checked against the registered service account. Watchlist ownership is not module entitlement. The source's Research availability remains separate from account entitlement; a FREE user sees the admitted-source status plus the precise disabled-account-feature explanation.
 - An owner marker discards presentation only; it never grants access. Logout, unavailable/revoked/expired identity and account changes clear individual watchlist widgets and the bounded set of Research/Ask/Earnings selections, handoffs and report/cache keys. Password credentials/role aliases and unrelated session state are preserved.

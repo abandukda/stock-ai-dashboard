@@ -192,7 +192,7 @@ ATLAS_REQUIRE_AUTH = (os.getenv("ATLAS_REQUIRE_AUTH") or "").strip().lower() in 
 
 
 def get_user_role():
-    from services.customer.request_authority import personal_viewer_active
+    from services.personal_request_authority import personal_viewer_active
     if personal_viewer_active():
         return "viewer"
     if "user_role" not in st.session_state or st.session_state.get("user_role") is None:
