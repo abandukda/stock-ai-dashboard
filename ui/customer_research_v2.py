@@ -378,6 +378,63 @@ def _render_business_reader(page: Mapping[str, Any]) -> None:
         )
 
 
+def _render_news_reader(page: Mapping[str, Any]) -> None:
+    builder = getattr(_research_learning, "build_news_reader", None)
+    if not callable(builder):
+        st.info("The dated news reader is unavailable in this application session.")
+        return
+    reader = builder(page)
+    if page.get("status") != "AVAILABLE":
+        return
+    with st.expander("What changed: read news against the evidence dates", expanded=False):
+        st.write(
+            "Start with when the report was published. A headline published after the retained close may describe "
+            "information that arrived later than that price observation. Publication time is not the date an event "
+            "happened, and does not tell us when investors learned about it."
+        )
+        reference = reader["reference"]
+        if reference:
+            _literal_retained_context(
+                f'Price evidence reference: {reference["as_of"]} · Source: {reference["source"]} · '
+                f'Evidence IDs: {", ".join(reference["evidence_ids"])}', caption=True)
+        else:
+            st.info("A uniquely source-dated certified close is unavailable for this comparison. Headline ordering relative to the price is unavailable.")
+        labels = {
+            "AFTER": "Published after the retained close",
+            "BEFORE": "Published before the retained close",
+            "OVERLAPPING": "Same time or overlapping date: ordering is uncertain",
+            "UNAVAILABLE": "Ordering relative to the retained close: unavailable",
+        }
+        for item in reader["items"]:
+            _literal_retained_context(item["headline"], strong=True)
+            _literal_retained_context(
+                f'Source: {item["publisher"]} · Published: {item["published_at"] or "Unavailable"}', caption=True)
+            st.caption(labels[item["relation"]])
+        if not reader["items"]:
+            st.info("Verified company headlines are unavailable in this snapshot.")
+        st.markdown("**Before calling this a change in the business**")
+        st.write(
+            "Find the underlying announcement or filing. What actually changed: customer demand, costs, cash, "
+            "debt, or the number of shares? Compare the new figure with the earlier figure for the same period "
+            "and definition. Then check whether it supports a bull watchpoint or raises a retained risk. "
+            "A headline alone cannot answer those questions; a measured business impact is unavailable here."
+        )
+        with st.expander("Go deeper: distinguish news timing from investment impact", expanded=False):
+            st.write(
+                "Separate publication time, event date, fiscal period, and the date the evidence was captured. "
+                "An older report can discuss a future event; a newer report can repeat old information. "
+                "Before treating news as a lasting change, check whether it changes recurring cash generation "
+                "or a specific valuation assumption, and whether it is a one-time event. Reports from different "
+                "publishers may cover the same announcement; they are not necessarily independent confirmation."
+            )
+        st.caption(
+            "This is a retained news selection, not a complete news feed. Date-only evidence cannot establish "
+            "ordering within that day. Publication before a close does not prove that the price reflects the news. "
+            "The close date is not the evaluation date. A comparison with an earlier certified investment assessment "
+            "is unavailable here; no Action, Fair Value, or risk change is inferred."
+        )
+
+
 def _render_learning_guide(page: Mapping[str, Any], *, ticker: str) -> None:
     guide = build_learning_guide(page)
     if guide["status"] != "AVAILABLE":
@@ -439,17 +496,7 @@ def _render_learning_guide(page: Mapping[str, Any], *, ticker: str) -> None:
             "These are conditional prompts, not forecasts, probabilities, or new buy/sell triggers. "
             "Item-level source dates are unavailable for these prompts; consult Risk & Evidence below for retained measured risks."
         )
-    with st.expander("What changed: a headline or a change in the business?", expanded=False):
-        st.write(
-            "A news headline tells you what was reported. It does not by itself show that earnings, valuation, or the certified Action changed. "
-            "Compare the underlying evidence with the earlier period before changing your thesis."
-        )
-        for item in guide["headlines"]:
-            _literal_retained_context(item["headline"])
-            _literal_retained_context(f'{item["article_publisher"]} · {_financial_period(item["article_timestamp"])}', caption=True)
-        if not guide["headlines"]:
-            st.info("Verified recent company headlines are unavailable in this snapshot.")
-        st.caption("A comparison with an earlier certified investment assessment is unavailable in this guide; no rating change is inferred from news.")
+    _render_news_reader(page)
 
 
 def _dates(values: pd.Series) -> pd.Series:

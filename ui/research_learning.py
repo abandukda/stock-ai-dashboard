@@ -135,6 +135,81 @@ def build_learning_guide(page: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def build_news_reader(page: Mapping[str, Any]) -> dict[str, Any]:
+    """Order admitted headlines against price evidence, never assessment time.
+
+    Calendar dates span a whole UTC day; ambiguous ordering stays explicit.
+    No clock, provider access, topic inference, or investment authority is used.
+    """
+    from datetime import date, datetime, time, timedelta, timezone
+
+    def text(value: Any) -> str | None:
+        return value.strip() if isinstance(value, str) and value.strip() else None
+
+    def interval(value: Any):
+        value = text(value)
+        if not value:
+            return None
+        try:
+            if len(value) == 10:
+                start = datetime.combine(date.fromisoformat(value), time(), timezone.utc)
+                return start, start + timedelta(days=1) - timedelta(microseconds=1)
+            instant = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            if instant.tzinfo is None:
+                return None
+            instant = instant.astimezone(timezone.utc)
+            return instant, instant
+        except (ValueError, OverflowError):
+            return None
+
+    unavailable = dict(status="UNAVAILABLE", reference=None, items=())
+    page = _mapping(page)
+    if page.get("status") != "AVAILABLE":
+        return unavailable
+    fundamentals = page.get("fundamentals")
+    candidates = [item for item in fundamentals if isinstance(item, Mapping)
+                  and item.get("fact_name") == "Last Certified Close"] if isinstance(fundamentals, (list, tuple)) else []
+    reference = None
+    if len(candidates) == 1:
+        fact = candidates[0]
+        ids = fact.get("evidence_ids")
+        if (fact.get("classification") == "CERTIFIED_ATLAS" and text(fact.get("source"))
+                and isinstance(ids, (list, tuple)) and ids
+                and all(text(value) for value in ids) and interval(fact.get("source_timestamp"))):
+            reference = dict(source=fact["source"], as_of=fact["source_timestamp"],
+                             evidence_ids=tuple(ids))
+    baseline = interval(reference["as_of"]) if reference else None
+    changes = _mapping(page.get("recent_changes"))
+    raw_items = changes.get("items")
+    if changes.get("status") != "AVAILABLE" or not isinstance(raw_items, (list, tuple)):
+        raw_items = ()
+    rows = []
+    seen = set()
+    for raw in raw_items:
+        item = _mapping(raw)
+        headline, publisher = text(item.get("headline")), text(item.get("article_publisher"))
+        if not headline or not publisher:
+            continue
+        published = interval(item.get("article_timestamp"))
+        timestamp = item["article_timestamp"] if published else None
+        identity = (headline, publisher, published)
+        if identity in seen:
+            continue
+        seen.add(identity)
+        relation = "UNAVAILABLE"
+        if baseline and published:
+            relation = ("AFTER" if published[0] > baseline[1] else
+                        "BEFORE" if published[1] < baseline[0] else "OVERLAPPING")
+        rows.append(dict(headline=headline, publisher=publisher, published_at=timestamp,
+                         relation=relation, _order=published[0] if published else None))
+    # Undated reports follow dated reports; input order breaks timestamp ties.
+    rows.sort(key=lambda row: (row["_order"] is not None,
+                              row["_order"] or datetime.min.replace(tzinfo=timezone.utc)), reverse=True)
+    for row in rows:
+        del row["_order"]
+    return dict(status="AVAILABLE" if rows else "UNAVAILABLE", reference=reference, items=tuple(rows))
+
+
 # Deliberately limited to reported annual series already admitted by the page.
 ANNUAL_QUESTIONS = {
     "Revenue": ("USD", "Sales", "Did customer demand grow, or did prices or acquisitions lift sales? The figures alone cannot explain the cause."),
