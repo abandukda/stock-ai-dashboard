@@ -289,6 +289,57 @@ def _render_annual_earnings_comparison(page: Mapping[str, Any]) -> None:
     )
 
 
+def _render_sales_dollar_guide(page: Mapping[str, Any]) -> None:
+    st.markdown("**What did each $100 of sales produce?**")
+    builder = getattr(_research_learning, "build_sales_dollar_guide", None)
+    if not callable(builder):
+        st.info("The sales-dollar guide is unavailable in this application session.")
+        return
+    guide = builder(page)
+    if guide["status"] != "AVAILABLE":
+        st.info("A sales-dollar comparison is unavailable. It needs positive sales and matching profit or cash figures for two consecutive source-bound full years.")
+        return
+    st.write(
+        "Sales show the size of the business. Amounts per $100 of sales help you compare how much became profit or cash as that size changed. "
+        "These are separate views of the same business: do not add them together or read them as a breakdown of spending."
+    )
+    _literal_retained_context(
+        f'Full years ending {guide["prior_period"]} → {guide["current_period"]} · '
+        f'Source: {guide["source"]} · Evidence as of: {_financial_period(guide.get("as_of"))} · '
+        f'Evidence IDs: {", ".join(guide["evidence_ids"])}', caption=True,
+    )
+    def display_ratio(value: float, *, signed: bool = False) -> str:
+        rendered = f'{value:+,.2f}' if signed else f'{value:,.2f}'
+        return "0.00" if rendered in {"-0.00", "+0.00"} else rendered
+
+    st.table([{
+        "Per $100 of sales": item["label"],
+        guide["prior_period"]: display_ratio(item["prior"]),
+        guide["current_period"]: display_ratio(item["current"]),
+        "Change (percentage points)": display_ratio(item["change"], signed=True),
+    } for item in guide["rows"]])
+    for item in guide["rows"]:
+        _literal_retained_context(item["reading"])
+    missing = [label for label in ("Profit", "Cash from operations", "Cash after investment")
+               if label not in {item["label"] for item in guide["rows"]}]
+    if missing:
+        st.caption("Sales-dollar comparison unavailable for: " + ", ".join(missing) + ".")
+    st.caption(
+        "A higher cash amount per sales dollar does not establish why it changed or whether it will last. "
+        "Cash ratios can exceed $100 because cash and sales are recorded at different times. "
+        "These calculations describe retained annual evidence, not current results, an earnings surprise, or a forecast."
+    )
+    with st.expander("Go deeper: inspect the sales-dollar calculations", expanded=False):
+        st.write("Formula: reported profit or cash ÷ sales for the same year × 100. A change of 2 means two percentage points, not 2% growth. Figures are rounded to two decimals; small amounts can display as zero.")
+        for item in guide["rows"]:
+            st.text(
+                f'{item["label"]}: {guide["prior_period"]}: {item["prior_amount"]} / {guide["prior_sales"]} × 100; '
+                f'{guide["current_period"]}: {item["current_amount"]} / {guide["current_sales"]} × 100'
+            )
+            st.write(item["check"])
+        st.caption("All inputs are retained USD figures. Matching year ends do not establish matching accounting definitions; check filing notes and restatements. No cause or sustainable margin is inferred.")
+
+
 def _render_earnings_walkthrough(page: Mapping[str, Any]) -> None:
     # A warm Streamlit process may still hold the preceding learning module.
     # Do not reload financial modules or infer availability from disk contents.
@@ -409,6 +460,7 @@ def _render_learning_guide(page: Mapping[str, Any], *, ticker: str) -> None:
             "A single snapshot cannot establish an improving trend."
         )
         _render_annual_earnings_comparison(page)
+        _render_sales_dollar_guide(page)
         _render_earnings_walkthrough(page)
         st.markdown("**Go deeper: compare earnings fairly**")
         st.write(

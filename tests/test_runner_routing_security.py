@@ -37,6 +37,27 @@ def routing_errors(definitions):
 
 
 class RoutingSecurity(unittest.TestCase):
+    def test_routing_geometry_normalizes_mirror_without_extending_or_bypassing_gates(self):
+        workflow = (Path(__file__).parents[1] / ".github/workflows" / "atlas_runner_routing_ci.yml").read_text()
+        parsed = yaml.safe_load(workflow)
+        job = parsed["jobs"]["customer-navigation-geometry"]
+        assert job["runs-on"] == "ubuntu-24.04"
+        assert job["timeout-minutes"] == 8
+        assert parsed["permissions"] == {"contents": "read"}
+        runs = [step.get("run", "") for step in job["steps"]]
+        install = next(run for run in runs if "playwright install" in run)
+        assert install == ("sudo python3 scripts/normalize_ci_ubuntu_mirror.py\n"
+                           "python -m playwright install --with-deps chromium\n")
+        assert all(step.get("continue-on-error") is not True for step in job["steps"])
+        assert "python -m unittest discover -s tests -p test_customer_nav_geometry.py -v" in runs
+        assert "python -m unittest discover -s tests -p test_annotated_chart_render.py -v" in runs
+        assert any(step.get("with", {}).get("if-no-files-found") == "error" for step in job["steps"])
+        offline = parsed["jobs"]["offline-routing-contract"]
+        assert "python3 -m pytest -q tests/test_ci_ubuntu_mirror.py" in [step.get("run") for step in offline["steps"]]
+        assert "self-hosted" not in str(job) and "secrets." not in str(job)
+        assert "scripts/normalize_ci_ubuntu_mirror.py" in workflow
+        assert any("playwright==1.52.0" in step.get("run", "") for step in offline["steps"])
+
     def test_all_self_hosted_jobs_have_explicit_preallocation_routes(self):
         self.assertEqual(routing_errors(workflows()), [])
 

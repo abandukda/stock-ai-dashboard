@@ -25,6 +25,8 @@ on:
       - 'tests/test_customer_nav_geometry.py'
       - 'tests/test_full_qa_split_handoff.py'
       - 'tests/test_full_qa_pipeline.py'
+      - 'scripts/normalize_ci_ubuntu_mirror.py'
+      - 'tests/test_ci_ubuntu_mirror.py'
       - 'docs/ATLAS_CONTABO_SMOKE_RUNBOOK.md'
   workflow_dispatch:
 permissions:
@@ -38,7 +40,7 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - run: python3 -m pip install PyYAML==6.0.3 pytest==9.1.1
+      - run: python3 -m pip install PyYAML==6.0.3 pytest==9.1.1 playwright==1.52.0
       - name: Validate smoke and routing workflow expressions with pinned actionlint
         shell: bash
         run: |
@@ -59,6 +61,8 @@ jobs:
             .github/workflows/atlas_transcript_offline_ci.yml
       - name: Verify production propagation and credential boundaries
         run: python3 -m pytest -q tests/test_post_merge_production_verify.py
+      - name: Verify bounded hosted Ubuntu mirror normalization
+        run: python3 -m pytest -q tests/test_ci_ubuntu_mirror.py
       - name: Enforce routing and negative-case startup guard contracts
         run: python3 -m unittest discover -s tests -p test_runner_routing_security.py -v
       - name: Preserve full QA split and finalization contracts
@@ -85,7 +89,10 @@ jobs:
         with:
           python-version: '3.11'
       - run: python -m pip install playwright==1.52.0 plotly==6.7.0
-      - run: python -m playwright install --with-deps chromium
+      - name: Prepare recognized Ubuntu mirror and install complete browser dependencies
+        run: |
+          sudo python3 scripts/normalize_ci_ubuntu_mirror.py
+          python -m playwright install --with-deps chromium
       - name: Require all four customer labels inside viewport
         run: python -m unittest discover -s tests -p test_customer_nav_geometry.py -v
       - name: Render educational chart at desktop tablet and mobile

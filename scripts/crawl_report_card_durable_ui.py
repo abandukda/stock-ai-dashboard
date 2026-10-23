@@ -241,6 +241,25 @@ async def wait_for_original_cohort_panels(panels: Any, mode: str) -> None:
     await _wait_for_stable_condition(settled, f"REPORT_CARD_ORIGINAL_COHORT_UI_COUNT:{mode}")
 
 
+async def original_cohort_signal_panels(page: Page, mode: str) -> Any:
+    """Open the compact detail group and count only its signal children.
+
+    Filtering every expander by descendant signal text also matches the group
+    itself. Reacquire/open the group after each detail-to-overview rerender;
+    its browser disclosure state is not evidence that all signals are visible.
+    """
+    group = page.locator('[data-testid="stExpander"]').filter(
+        has=page.get_by_text("Recommendation details", exact=True))
+    if await group.count() != 1:
+        raise AssertionError(f"REPORT_CARD_RECOMMENDATION_GROUP_COUNT:{mode}")
+    if await group.locator("details").first.get_attribute("open") is None:
+        await group.locator("summary").first.click()
+    panels = group.locator('[data-testid="stExpander"]').filter(
+        has_text=re.compile(r" · [A-Z_]+ · \d+ observations"))
+    await wait_for_original_cohort_panels(panels, mode)
+    return panels
+
+
 async def certify_original_cohort_charts(page: Page, output: Path, mode: str,
                                          manifest: list[dict[str, Any]]) -> None:
     """Open every original signal and verify its exact retained snapshot chart."""
@@ -248,13 +267,9 @@ async def certify_original_cohort_charts(page: Page, output: Path, mode: str,
     expected = {row["ticker"]: row for row in authority["signals"]}
     if len(expected) != 20 or authority["signal_count"] != 20:
         raise AssertionError("REPORT_CARD_ORIGINAL_COHORT_MUST_HAVE_20_SIGNALS")
-    # Role lookup excludes buttons hidden inside collapsed panels. Count the
-    # rendered signal panels, then open each panel before locating its action.
-    panels = page.locator('[data-testid="stExpander"]').filter(
-        has_text=re.compile(r" · [A-Z_]+ · \d+ observations"))
     verified = []
     for index in range(20):
-        await wait_for_original_cohort_panels(panels, mode)
+        panels = await original_cohort_signal_panels(page, mode)
         expander = panels.nth(index)
         details = expander.locator("details")
         if await details.get_attribute("open") is None:
