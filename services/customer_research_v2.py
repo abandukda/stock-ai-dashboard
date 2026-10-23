@@ -14,6 +14,7 @@ from services.customer_authority import customer_authority, customer_authority_i
 from services.annual_financial_statements import annual_financial_statements
 from services.customer_statement_history_bundle import customer_statement_history
 from services.research_market_read_model import ADMISSION_RECEIPT_SCHEMA, load_research_market_context
+from services.research_analyst_context import analyst_context_rejection
 from services.institutional_research_report import build_institutional_research_report
 from services.research_financial_availability import (
     build_financial_availability, financial_context_sentence,
@@ -80,6 +81,18 @@ def _module(record: Any) -> Mapping[str, Any]:
 def _module_status(*records: Mapping[str, Any]) -> str:
     present = [bool(record and _map(record.get("payload"))) for record in records]
     return "AVAILABLE" if present and all(present) else "PARTIAL" if any(present) else "UNAVAILABLE"
+
+
+def _analyst_module(record: Any, capability: str, ticker: str) -> Mapping[str, Any]:
+    """Defend the projection too, including explicit QA/injected enrichment."""
+    module = _module(record)
+    if not module:
+        return {}
+    checked = datetime.now(timezone.utc)
+    captured = _instant(_map(module.get("provenance")).get("capture_timestamp"))
+    reason = analyst_context_rejection(capability, module.get("payload"), ticker=ticker,
+                                      now=min(checked, captured) if captured is not None else checked)
+    return module if reason is None else {}
 
 
 def _instant(value: Any) -> datetime | None:
@@ -990,8 +1003,8 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
     conditions = _map(guidance.get("thesis_change_conditions"))
     signal = _signal_projection(report)
     wall_street_enabled = os.getenv("ATLAS_WALL_STREET_CONTEXT_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"}
-    recommendations = _module(enrichment.get("recommendations"))
-    targets = _module(enrichment.get("price_targets"))
+    recommendations = _analyst_module(enrichment.get("recommendations"), "recommendations", ticker)
+    targets = _analyst_module(enrichment.get("price_targets"), "price_targets", ticker)
     profile = _module(enrichment.get("company_profile"))
     financials = _module(enrichment.get("basic_financials"))
     news = _module(enrichment.get("company_news"))
@@ -1007,16 +1020,16 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
     target_payload = _map(targets.get("payload"))
     rec_periods = _seq(_map(recommendations.get("payload")).get("periods"))
     latest_rec = _map(rec_periods[0]) if rec_periods else {}
-    buy_count = sum(int(latest_rec.get(key) or 0) for key in ("strong_buy", "buy"))
-    sell_count = sum(int(latest_rec.get(key) or 0) for key in ("sell", "strong_sell"))
-    analyst_count = sum(int(latest_rec.get(key) or 0) for key in ("strong_buy", "buy", "hold", "sell", "strong_sell")) if latest_rec else None
+    buy_count = sum(latest_rec[key] for key in ("strong_buy", "buy")) if latest_rec else None
+    sell_count = sum(latest_rec[key] for key in ("sell", "strong_sell")) if latest_rec else None
+    analyst_count = sum(latest_rec[key] for key in ("strong_buy", "buy", "hold", "sell", "strong_sell")) if latest_rec else None
     consensus = None
-    if latest_rec:
+    if latest_rec and analyst_count:
         consensus = max(
-            ((key, int(latest_rec.get(key) or 0)) for key in ("strong_buy", "buy", "hold", "sell", "strong_sell")),
+            ((key, latest_rec[key]) for key in ("strong_buy", "buy", "hold", "sell", "strong_sell")),
             key=lambda item: item[1],
         )[0].replace("_", " ").title()
-    wall_status = _module_status(recommendations, targets) if wall_street_enabled else "DISABLED"
+    wall_status = _module_status(recommendations if analyst_count else {}, targets) if wall_street_enabled else "DISABLED"
     news_items = _customer_news(news, ticker=ticker, company=company)
     certified_at = _instant(price_env.get("as_of"))
     future_events = _future_events(events, after=certified_at)
@@ -1049,10 +1062,10 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
         "analyst_count": analyst_count, "target_average": target_payload.get("target_mean"),
         "target_high": target_payload.get("target_high"), "target_low": target_payload.get("target_low"),
         "as_of": target_payload.get("last_updated") or _map(targets.get("provenance")).get("capture_timestamp"),
-        "reason": None,
+        "reason": "NO_ANALYST_COVERAGE" if latest_rec and analyst_count == 0 else None,
     } if wall_street_enabled else {
         "status": "DISABLED", "classification": CONTEXTUAL,
-        "reason": "COMMERCIAL_DISPLAY_RIGHTS_UNCONFIRMED",
+        "reason": "CONTEXT_DISPLAY_NOT_ENABLED",
     })
     valuation_values = {
         "Last Certified Close": price,

@@ -488,7 +488,7 @@ def test_wall_street_is_disabled_by_default_and_contextual(monkeypatch):
     module = build_customer_research_v2(report())["wall_street"]
     assert module == {
         "status": "DISABLED", "classification": "CONTEXTUAL_NON_SCORING",
-        "reason": "COMMERCIAL_DISPLAY_RIGHTS_UNCONFIRMED",
+        "reason": "CONTEXT_DISPLAY_NOT_ENABLED",
     }
 
 

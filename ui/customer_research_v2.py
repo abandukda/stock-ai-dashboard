@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from html import escape
 from typing import Any, Callable, Mapping
-from datetime import datetime
+from datetime import datetime, timezone
 import hashlib
 import json
 import math
@@ -64,6 +64,18 @@ def _pct(value: Any, *, signed: bool = False) -> str:
 def _escape_markdown_currency(value: Any) -> str:
     """Preserve governed text while preventing Markdown dollar-math parsing."""
     return str(value).replace("$", "\\$")
+
+
+def _literal_retained_context(value: Any, *, strong: bool = False, caption: bool = False) -> None:
+    """Display source prose literally, without activating Markdown links/images."""
+    text = escape(str(value))
+    if strong:
+        text = f"<strong>{text}</strong>"
+    size = "font-size:.85rem;opacity:.75;" if caption else ""
+    st.markdown(
+        '<p class="atlas-retained-context-literal" style="white-space:normal;'
+        f'overflow-wrap:anywhere;{size}">{text}</p>', unsafe_allow_html=True,
+    )
 
 
 def _marker(name: str, ticker: str, **attrs: Any) -> None:
@@ -309,8 +321,8 @@ def _render_learning_guide(page: Mapping[str, Any], *, ticker: str) -> None:
             "Compare the underlying evidence with the earlier period before changing your thesis."
         )
         for item in guide["headlines"]:
-            st.write(item["headline"])
-            st.caption(f'{item["article_publisher"]} · {_financial_period(item["article_timestamp"])}')
+            _literal_retained_context(item["headline"])
+            _literal_retained_context(f'{item["article_publisher"]} · {_financial_period(item["article_timestamp"])}', caption=True)
         if not guide["headlines"]:
             st.info("Verified recent company headlines are unavailable in this snapshot.")
         st.caption("A comparison with an earlier certified investment assessment is unavailable in this guide; no rating change is inferred from news.")
@@ -350,6 +362,20 @@ def _friendly_time(value: Any) -> str:
     try:
         return datetime.fromisoformat(str(value).replace("Z", "+00:00")).strftime("%b %-d, %Y · %-I:%M %p UTC")
     except (TypeError, ValueError):
+        return "Date unavailable"
+
+
+def _analyst_context_date(value: Any) -> str:
+    """Do not assign a UTC instant to a provider calendar date/naive clock."""
+    if not isinstance(value, str):
+        return "Date unavailable"
+    try:
+        instant = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if instant.tzinfo is None:
+            suffix = " · timezone unspecified" if len(value) > 10 else ""
+            return instant.strftime("%b %-d, %Y") + " · provider calendar date" + suffix
+        return instant.astimezone(timezone.utc).strftime("%b %-d, %Y · %-I:%M %p UTC")
+    except (TypeError, ValueError, OverflowError):
         return "Date unavailable"
 
 
@@ -1436,8 +1462,13 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
     st.markdown("### ATLAS vs Wall Street")
     _marker("analyst-module", ticker, status=page["wall_street"]["status"])
     wall = page["wall_street"]
+    analyst_count = wall.get("analyst_count")
+    count_label = analyst_count if analyst_count is not None else "Unavailable"
+    recommendation_date = _analyst_context_date(wall.get("recommendation_period"))
     if wall["status"] == "UNAVAILABLE" or wall["status"] == "DISABLED":
         st.info("Wall Street context is unavailable for this evidence bundle.")
+        if wall["status"] != "DISABLED" and analyst_count == 0:
+            st.caption(f"0 analysts · recommendation period {recommendation_date} · no consensus inferred")
     else:
         a = st.columns(4)
         a[0].metric("Consensus", wall.get("consensus") or "Unavailable")
@@ -1450,7 +1481,9 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
         b[2].metric("Wall St. Average", _money(wall.get("target_average")))
         b[3].metric("Wall St. High", _money(wall.get("target_high")))
         b[4].metric("ATLAS Fair Value", _money(header["fair_value"]))
-        st.caption(f'{wall.get("analyst_count") or "Unavailable"} analysts · as of {_friendly_time(wall.get("as_of"))} · contextual and non-scoring')
+        st.caption(f'{count_label} analysts · recommendation period {recommendation_date} · target as of {_analyst_context_date(wall.get("as_of"))} · contextual and non-scoring')
+        if analyst_count == 0:
+            st.info("No recommendations are recorded for this period; ATLAS does not infer a consensus.")
 
     valuation = page.get("valuation_chart") or {}
     _marker("valuation-comparison-chart", ticker, status=valuation.get("status") or "UNAVAILABLE", unit=valuation.get("unit") or "")
@@ -1461,7 +1494,7 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
             "encoding": {"x": {"field": "Reference", "type": "nominal", "axis": {"labelAngle": 0, "labelColor": "#cbd5e1", "title": None}}, "y": {"field": "USD/share", "type": "quantitative", "axis": {"title": "USD per share", "format": "$,.0f", "labelColor": "#94a3b8", "titleColor": "#cbd5e1", "gridColor": "#1e293b"}}, "color": {"field": "Reference", "type": "nominal", "scale": {"range": ["#60a5fa", "#2dd4bf", "#f59e0b"]}, "legend": None}, "tooltip": [{"field": "Reference"}, {"field": "USD/share", "format": "$,.2f"}]},
             "config": {"background": "#08111f", "view": {"stroke": "#243244"}},
         })
-        st.caption(f'Valuation comparison as of {_friendly_time(valuation.get("as_of"))}. Wall Street context is non-scoring.')
+        st.caption(f'Valuation comparison as of {_analyst_context_date(valuation.get("as_of"))}. Wall Street context is non-scoring.')
     else:
         st.info(valuation.get("message") or "Comparable certified valuation points are unavailable.")
 
@@ -1493,8 +1526,8 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
     if page["recent_changes"]["items"]:
         st.markdown("## What Changed Recently")
         for item in page["recent_changes"]["items"]:
-            st.markdown(f'**{item.get("headline") or "Company update"}**  ')
-            st.caption(f'{item.get("article_publisher") or "Source unavailable"} · {_friendly_time(item.get("article_timestamp"))}')
+            _literal_retained_context(item.get("headline") or "Company update", strong=True)
+            _literal_retained_context(f'{item.get("article_publisher") or "Source unavailable"} · {_friendly_time(item.get("article_timestamp"))}', caption=True)
     else:
         st.markdown("## Company news")
         st.info("Verified recent company headlines are unavailable in this snapshot.")
