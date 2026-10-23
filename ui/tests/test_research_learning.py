@@ -5,9 +5,14 @@ from contextlib import nullcontext
 from pathlib import Path
 from typing import Mapping, Any
 import unittest
+import os
+import subprocess
+import sys
+import pytest
+from types import SimpleNamespace
 from unittest.mock import Mock
 
-from ui.research_learning import build_learning_guide, build_valuation_guide, build_annual_earnings_comparison
+from ui.research_learning import build_learning_guide, build_valuation_guide, build_annual_earnings_comparison, build_earnings_walkthrough
 
 
 def fact(field="net_income", value=0, **extra):
@@ -211,6 +216,157 @@ class AnnualEarningsComparisonTests(unittest.TestCase):
         render({"status": "RATING_NOT_PUBLISHED"})
         streamlit.info.assert_called_once()
         streamlit.caption.assert_not_called()
+
+
+class EarningsWalkthroughTests(unittest.TestCase):
+    def fixture(self, **series):
+        source = AnnualEarningsComparisonTests().fixture()
+        source["financial_trend"]["series"] = series
+        source["financial_trend"]["units"] = {
+            label: "PERCENT" if label == "Operating Margin" else "USD" for label in series
+        }
+        return source
+
+    def test_profit_transitions_never_call_a_smaller_loss_profit_growth(self):
+        cases = (
+            ((5, -2), "turned_positive", "One positive year"),
+            ((-2, 5), "turned_negative", "later year showed a loss"),
+            ((-2, -5), "negative_both_years", "smaller"),
+            ((-5, -2), "negative_both_years", "larger"),
+            ((-2, -2), "negative_both_years", "unchanged"),
+            ((0, -2), "at_zero", "retained precision"),
+            ((0, 0), "at_zero", "neither profit nor a loss"),
+            ((2, 0), "from_zero", "undefined"),
+            ((-2, 0), "from_zero", "a loss"),
+            ((3, 2), "positive_both_years", "higher"),
+            ((2, 3), "positive_both_years", "lower"),
+            ((2, 2), "positive_both_years", "unchanged"),
+        )
+        for values, code, phrase in cases:
+            with self.subTest(values=values):
+                result = build_earnings_walkthrough(self.fixture(**{"Net Income": list(values)}))
+                observation, = result["observations"]
+                self.assertEqual(observation["code"], "Profit:" + code)
+                self.assertIn(phrase, observation["reading"])
+                self.assertEqual(observation["inputs"], ("Profit",))
+                self.assertNotIn("profit growth", observation["reading"])
+
+    def test_profit_cash_divergence_and_loss_with_cash_are_distinct(self):
+        for profit, cash, phrase in (
+            ([10, 5], [-2, 3], "operating cash was zero or negative"),
+            ([10, 5], [0, 3], "operating cash was zero or negative"),
+            ([10, 5], [2, 3], "cash from operations moved lower"),
+            ([-2, -3], [2, 3], "loss while operations generated positive cash"),
+            ([10, 5], [3, 2], "do not establish earnings quality"),
+        ):
+            with self.subTest(profit=profit, cash=cash):
+                result = build_earnings_walkthrough(self.fixture(**{
+                    "Net Income": profit, "Operating Cash Flow": cash}))
+                observation = next(item for item in result["observations"] if item["code"] == "profit_and_cash")
+                self.assertIn(phrase, observation["reading"])
+                self.assertIn("cause is unavailable", observation["check"])
+
+    def test_sales_margin_uses_direction_not_inferred_cost_or_demand_causes(self):
+        result = build_earnings_walkthrough(self.fixture(**{
+            "Revenue": [120, 100], "Operating Margin": [-2, 5]}))
+        observation, = result["observations"]
+        self.assertIn("Sales rose", observation["reading"])
+        self.assertIn("less operating profit per sales dollar", observation["reading"])
+        self.assertIn("negative margin means an operating loss", observation["reading"])
+        self.assertIn("do not identify", observation["check"])
+        # A revenue base at or below zero is not interpreted as a normal sales business.
+        for prior in (0, -10):
+            result = build_earnings_walkthrough(self.fixture(**{
+                "Revenue": [120, prior], "Operating Margin": [2, 5]}))
+            self.assertEqual(result["status"], "UNAVAILABLE")
+
+    def test_cash_shortfalls_and_source_identity_are_preserved_without_mutation(self):
+        source = self.fixture(**{"Free Cash Flow": [-2, -5]})
+        before = deepcopy(source)
+        result = build_earnings_walkthrough(source)
+        self.assertEqual(source, before)
+        self.assertIn("shortfall was smaller", result["observations"][0]["reading"])
+        self.assertIn("source definition", result["observations"][0]["check"])
+        self.assertEqual(result["prior_period"], "2024-12-31")
+        self.assertEqual(result["current_period"], "2025-12-31")
+        self.assertEqual(result["source"], "Retained filing")
+        self.assertEqual(result["evidence_ids"], ("filing:1",))
+        self.assertIsNone(result["as_of"])
+
+    def test_missing_invalid_or_withheld_evidence_never_generates_an_observation(self):
+        for changes in (
+            {"periodicity": "QUARTERLY"}, {"provenance": {}},
+            {"periods": ["2025-12-31", "2023-12-31"]},
+            {"series": {"Net Income": [True, 2]}},
+            {"series": {"Net Income": [float("nan"), 2]}},
+            {"units": {"Net Income": "EUR"}},
+            {"series": {"Revenue": [120, 100]}},
+        ):
+            source = self.fixture(**{"Net Income": [2, 1]})
+            source["financial_trend"].update(changes)
+            result = build_earnings_walkthrough(source)
+            self.assertEqual(result["status"], "UNAVAILABLE")
+            self.assertEqual(result["observations"], ())
+        source = self.fixture(**{"Net Income": [2, 1]})
+        source["status"] = "RATING_NOT_PUBLISHED"
+        self.assertEqual(build_earnings_walkthrough(source), {"status": "UNAVAILABLE", "observations": ()})
+
+    def test_renderer_cites_periods_sources_missing_dates_and_separates_advanced_detail(self):
+        tree = ast.parse((Path(__file__).parents[1] / "customer_research_v2.py").read_text())
+        function = next(node for node in tree.body if isinstance(node, ast.FunctionDef)
+                        and node.name == "_render_earnings_walkthrough")
+        streamlit = Mock()
+        streamlit.expander.return_value = nullcontext()
+        namespace = dict(st=streamlit, Mapping=Mapping, Any=Any,
+                         _research_learning=SimpleNamespace(build_earnings_walkthrough=build_earnings_walkthrough),
+                         _financial_period=lambda value: value or "Unavailable")
+        exec(compile(ast.Module(body=[function], type_ignores=[]), "walkthrough_renderer", "exec"), namespace)
+        render = namespace["_render_earnings_walkthrough"]
+        streamlit.checkbox.return_value = True
+        render(self.fixture(**{"Net Income": [-2, -5]}))
+        captions = " ".join(str(call.args[0]) for call in streamlit.caption.call_args_list)
+        for phrase in ("2024-12-31", "2025-12-31", "Retained filing", "filing:1", "Evidence as of: Unavailable"):
+            self.assertIn(phrase, captions)
+        streamlit.checkbox.assert_called_once_with(
+            "Go deeper: show what to check in the filing",
+            key="research-earnings-filing-checks-unavailable")
+        self.assertTrue(any("Check taxes" in str(call.args[0]) for call in streamlit.write.call_args_list))
+        streamlit.reset_mock()
+        streamlit.checkbox.return_value = False
+        render(self.fixture(**{"Net Income": [-2, -5]}))
+        self.assertFalse(any("Check taxes" in str(call.args[0]) for call in streamlit.write.call_args_list))
+        self.assertTrue(any("shortfall was smaller" in str(call.args[0]) for call in streamlit.write.call_args_list))
+        streamlit.reset_mock()
+        render({"status": "RATING_NOT_PUBLISHED"})
+        streamlit.info.assert_called_once()
+        streamlit.caption.assert_not_called()
+        streamlit.checkbox.assert_not_called()
+
+
+@pytest.mark.parametrize("warm", [True, False])
+def test_real_renderer_import_and_render_with_warm_or_cold_learning_module(warm):
+    script = r'''
+import importlib
+from unittest.mock import Mock
+from ui import research_learning
+if WARM:
+    # Preserve existing module identity, as a warm worker does across source deployment.
+    del research_learning.build_earnings_walkthrough
+identity = id(research_learning)
+renderer = importlib.import_module("ui.customer_research_v2")
+renderer.st = Mock()
+renderer._render_earnings_walkthrough({"status": "RATING_NOT_PUBLISHED"})
+assert id(renderer._research_learning) == identity
+renderer.st.info.assert_called_once()
+message = renderer.st.info.call_args.args[0]
+assert ("application session" in message) is WARM
+renderer.st.checkbox.assert_not_called()
+renderer.st.caption.assert_not_called()
+'''.replace("WARM", repr(warm))
+    result = subprocess.run([sys.executable, "-c", script], cwd=Path(__file__).parents[2],
+                            env=os.environ.copy(), capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0, result.stderr
+
 
 
 if __name__ == "__main__":

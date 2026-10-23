@@ -153,3 +153,81 @@ def build_annual_earnings_comparison(page: Mapping[str, Any]) -> dict[str, Any]:
     return dict(status="AVAILABLE", rows=tuple(rows), prior_period=periods[earlier],
                 current_period=periods[latest], source=source, evidence_ids=evidence_ids,
                 as_of=provenance.get("capture_timestamp") or provenance.get("as_of"))
+
+
+def build_earnings_walkthrough(page: Mapping[str, Any]) -> dict[str, Any]:
+    """Explain numerical relationships, never infer business causes or a rating.
+
+    Reuse the annual comparison's admission rules and exact period pair. Each
+    observation identifies its inputs so the UI can cite the evidence once and
+    a reader can trace the explanation back to the displayed figures.
+    """
+    comparison = build_annual_earnings_comparison(page)
+    if comparison["status"] != "AVAILABLE":
+        return {"status": "UNAVAILABLE", "observations": ()}
+    rows = {row["label"]: row for row in comparison["rows"]}
+    observations = []
+
+    def add(code: str, title: str, inputs: tuple[str, ...], reading: str, check: str) -> None:
+        observations.append(dict(code=code, title=title, inputs=inputs, reading=reading, check=check))
+
+    # Describe signs explicitly: a smaller loss must never be called profit
+    # growth, and a positive change from zero has no meaningful growth rate.
+    for label, positive, negative in (
+        ("Profit", "profit", "a loss"),
+        ("Cash after investment", "cash left after investment", "a cash shortfall after investment"),
+    ):
+        row = rows.get(label)
+        if not row:
+            continue
+        prior, current = row["prior"], row["current"]
+        if prior < 0 < current:
+            reading = f"The earlier year showed {negative}; the later year showed {positive}. One positive year does not establish a lasting recovery."
+            code = "turned_positive"
+        elif current < 0 < prior:
+            reading = f"The earlier year showed {positive}; the later year showed {negative}."
+            code = "turned_negative"
+        elif current < 0 and prior < 0:
+            direction = "smaller" if current > prior else "larger" if current < prior else "unchanged"
+            reading = f"Both years showed {negative}. The shortfall was {direction}; the later year was still below zero."
+            code = "negative_both_years"
+        elif current == 0:
+            reading = f"The later reported value was zero. It showed neither {positive} nor {negative} at the retained precision."
+            code = "at_zero"
+        elif prior == 0:
+            reading = f"The earlier reported value was zero; the later year showed {positive if current > 0 else negative}. A percentage growth rate from zero is undefined."
+            code = "from_zero"
+        else:
+            direction = "higher" if current > prior else "lower" if current < prior else "unchanged"
+            reading = f"Both years showed {positive}. The later value was {direction}."
+            code = "positive_both_years"
+        check = (
+            "Check taxes, one-time gains or charges, and accounting changes before treating this as recurring earning power."
+            if label == "Profit" else
+            "Check the source definition and capital spending. Lower investment can leave more cash today while reducing capacity for the future."
+        )
+        add(f"{label}:{code}", f"What does {label.lower()} mean here?", (label,), reading, check)
+
+    sales, margin = rows.get("Sales"), rows.get("Operating margin")
+    if sales and margin and sales["prior"] > 0 and sales["current"] > 0:
+        sales_direction = "rose" if sales["change"] > 0 else "fell" if sales["change"] < 0 else "were unchanged"
+        margin_direction = "more" if margin["change"] > 0 else "less" if margin["change"] < 0 else "the same amount of"
+        add("sales_and_margin", "Did sales translate into operating profit?", ("Sales", "Operating margin"),
+            f"Sales {sales_direction}. The company reported {margin_direction} operating profit per sales dollar in the later year. A negative margin means an operating loss on each sales dollar.",
+            "Check pricing, input costs, acquisitions, and the mix of products sold. These figures do not identify which factor caused the change.")
+
+    profit, cash = rows.get("Profit"), rows.get("Cash from operations")
+    if profit and cash:
+        if profit["current"] > 0 and cash["current"] <= 0:
+            reading = "The later year reported a profit, but operating cash was zero or negative. Reported profit did not come with positive cash from running the business that year."
+        elif profit["current"] < 0 and cash["current"] > 0:
+            reading = "The later year reported a loss while operations generated positive cash. Accounting profit and cash measure different things."
+        elif profit["change"] > 0 and cash["change"] < 0:
+            reading = "Reported profit moved higher while cash from operations moved lower. An improvement in the profit figure did not come with an improvement in operating cash."
+        else:
+            reading = "Profit and operating cash measure different things. Their levels and changes alone do not establish earnings quality."
+        add("profit_and_cash", "Did reported profit come with cash?", ("Profit", "Cash from operations"), reading,
+            "Reconcile profit to operating cash in the cash-flow statement. Check non-cash charges and changes in customer payments, inventory, and bills; the cause is unavailable here.")
+
+    return {**comparison, "status": "AVAILABLE" if observations else "UNAVAILABLE",
+            "observations": tuple(observations)}
