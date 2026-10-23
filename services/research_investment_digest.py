@@ -2,6 +2,7 @@
 from collections.abc import Mapping
 from typing import Any
 import math
+from services.research_analyst_readiness import analyst_display_fact
 
 
 def _positive_number(value):
@@ -113,17 +114,17 @@ def build_investment_digest(page: Mapping[str, Any]) -> dict[str, Any]:
     recent = ' '.join(f"{n['text']} — {n['source']}, {n['as_of']}" for n in changes) or (
         'No dated, display-permitted company update is available in this bundle. A changed share price alone does not establish a business development.')
     valuation = answer(4, 'A certified valuation comparison is unavailable.')
-    wall = page.get('wall_street') or {}
-    if wall.get('status') == 'AVAILABLE':
-        # Quote existing admitted values; never recompute a consensus or target.
-        value = wall.get('target_average')
-        if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value):
-            valuation += f" The retained Wall Street average target is ${float(value):,.2f}"
-            valuation += f" as of {wall.get('as_of') or 'an unavailable date'}. It is a separate analyst estimate."
-        if wall.get('consensus'):
-            valuation += f" Retained analyst consensus: {wall['consensus']}; period {wall.get('recommendation_period') or 'unavailable'}."
+    average_target = analyst_display_fact(page.get('analyst_context_readiness'), 'average_target')
+    recommendations = analyst_display_fact(page.get('analyst_context_readiness'), 'recommendation_coverage')
+    if average_target['status'] == 'AVAILABLE':
+        valuation += f" The retained Wall Street average target is ${float(average_target['value']):,.2f}"
+        valuation += f" as of {average_target['as_of']}. It is a separate analyst estimate."
     else:
-        valuation += ' Display-permitted analyst consensus and target evidence is unavailable; no analyst agreement is inferred.'
+        valuation += ' Display-permitted average-target evidence is unavailable; no target is substituted.'
+    if recommendations['status'] == 'AVAILABLE':
+        valuation += f" Retained analyst consensus: {recommendations['consensus']}; period {recommendations.get('as_of') or 'unavailable'}."
+    else:
+        valuation += ' Analyst recommendation coverage is unavailable or zero; no analyst agreement is inferred.'
     answers = (
         ('business', 'What does the company do?', answer(0, 'A verified business description is unavailable.')),
         ('changes', 'What changed recently?', recent),

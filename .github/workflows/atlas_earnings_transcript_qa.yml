@@ -26,9 +26,14 @@ on:
       - services/research_history_ingestion.py
       - services/research_context_ingestion.py
       - services/research_analyst_context.py
+      - services/research_analyst_readiness.py
+      - services/retained_earnings_context.py
       - services/research_market_read_model.py
       - tests/test_research_context_ingestion.py
       - tests/test_research_analyst_context.py
+      - tests/test_research_independent_targets.py
+      - tests/test_retained_earnings_context.py
+      - tests/test_retained_earnings_context_render.py
       - tests/test_transcript*.py
       - tests/test_earnings_transcript_workflow.py
       - tests/test_research_history_ingestion.py
@@ -68,7 +73,7 @@ jobs:
           tests/test_research_history_ingestion.py
           tests/test_research_context_ingestion.py
           tests/test_research_analyst_context.py
-          tests/test_research_context_dates.py
+          tests/test_research_context_dates.py tests/test_research_independent_targets.py tests/test_retained_earnings_context.py tests/test_retained_earnings_context_render.py
           tests/test_research_market_read_model.py
           tests/test_research_refresh_execution.py
           tests/test_daily_buy_now_post_close.py

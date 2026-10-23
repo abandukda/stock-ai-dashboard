@@ -15,7 +15,9 @@ from services.annual_financial_statements import annual_financial_statements
 from services.customer_statement_history_bundle import customer_statement_history
 from services.research_market_read_model import ADMISSION_RECEIPT_SCHEMA, load_research_market_context
 from services.research_analyst_context import analyst_context_rejection
+from services.research_analyst_readiness import build_analyst_display_readiness, analyst_display_fact
 from services.institutional_research_report import build_institutional_research_report
+from services.retained_earnings_context import build_retained_earnings_context
 from services.research_financial_availability import (
     build_financial_availability, financial_context_sentence,
 )
@@ -107,7 +109,7 @@ def _instant(value: Any) -> datetime | None:
         if instant.tzinfo is None:
             instant = instant.replace(tzinfo=timezone.utc)
         return instant.astimezone(timezone.utc)
-    except (TypeError, ValueError, OSError):
+    except (TypeError, ValueError, OSError, OverflowError):
         return None
 
 
@@ -1067,17 +1069,20 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
         "status": "DISABLED", "classification": CONTEXTUAL,
         "reason": "CONTEXT_DISPLAY_NOT_ENABLED",
     })
+    analyst_readiness = build_analyst_display_readiness(display_enabled=wall_street_enabled, targets=targets,
+        analyst_count=analyst_count, consensus=consensus, recommendation_period=latest_rec.get("period"))
+    average_target = analyst_display_fact(analyst_readiness, "average_target")
     valuation_values = {
         "Last Certified Close": price,
         "ATLAS Fair Value": fair_value,
-        "Wall St. Average": wall_street.get("target_average") if wall_street.get("status") == "AVAILABLE" else None,
+        "Wall St. Average": average_target.get("value"),
     }
     valuation_values = {label: value for label, value in valuation_values.items() if value is not None}
     valuation_chart = {
         "status": "AVAILABLE" if len(valuation_values) >= 2 else "UNAVAILABLE",
         "values": valuation_values,
         "unit": "USD_PER_SHARE",
-        "as_of": wall_street.get("as_of") or price_env.get("as_of"),
+        "as_of": average_target.get("as_of") or price_env.get("as_of"),
         "message": None if len(valuation_values) >= 2 else "Comparable certified valuation points are unavailable.",
     }
     market_context = {
@@ -1128,6 +1133,8 @@ def build_customer_research_v2(report: Mapping[str, Any]) -> dict[str, Any]:
         "reading_views": reading_views,
         "six_pillars": pillar_projection,
         "wall_street": wall_street,
+        "analyst_context_readiness": analyst_readiness,
+        "retained_reported_earnings": build_retained_earnings_context(enrichment, ticker=ticker),
         "valuation_chart": valuation_chart,
         "financial_trend": financial_trend,
         "financial_snapshot": financial_snapshot,
