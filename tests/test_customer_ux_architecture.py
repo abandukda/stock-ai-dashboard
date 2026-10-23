@@ -1,3 +1,4 @@
+import ast
 from pathlib import Path
 
 from services.vnext_presentation_contract import (
@@ -13,6 +14,21 @@ from ui.home_guidance_vnext import _customer_evidence_state
 
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def _active_home_shell(source):
+    """Inspect the public entry and its explicit request-scoped delegate."""
+    functions = {node.name: node for node in ast.parse(source).body
+                 if isinstance(node, ast.FunctionDef)}
+    entry = functions["render_home_guidance_vnext"]
+    sections = [entry]
+    if "_render_home_guidance_vnext" in functions:
+        delegates = [node for node in ast.walk(entry)
+                     if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                     and node.func.id == "_render_home_guidance_vnext"]
+        assert len(delegates) == 1, "Public Home entry must reach its reviewed shell exactly once"
+        sections.append(functions["_render_home_guidance_vnext"])
+    return "\n".join(ast.get_source_segment(source, node) for node in sections)
 
 
 def test_home_action_first_hierarchy_is_enforced():
@@ -44,7 +60,7 @@ def test_customer_evidence_states_are_fail_closed():
 
 def test_home_active_shell_has_no_deep_module_calls():
     source = (ROOT / "ui" / "home_guidance_vnext.py").read_text(encoding="utf-8")
-    active = source[source.index("def render_home_guidance_vnext"):]
+    active = _active_home_shell(source)
     for forbidden in ("_wall_street_view(", "_mini_chart(", "Professional Detail", "_full_evidence("):
         assert forbidden not in active
     assert active.index("_action_counts(story)") < active.index("_render_groups(story")
@@ -73,7 +89,7 @@ def test_mobile_keeps_actionable_cards_before_watching():
 
 def test_home_restores_concise_market_read_without_legacy_market_bulk():
     source = (ROOT / "ui" / "home_guidance_vnext.py").read_text(encoding="utf-8")
-    active = source[source.index("def render_home_guidance_vnext"):]
+    active = _active_home_shell(source)
     assert active.index("ATLAS Action Summary") < active.index("_render_groups(story")
     # The owner's consolidated command-center target promotes dated market
     # context above inventory; deep market detail remains after opportunities.
