@@ -324,7 +324,7 @@ def _render_earnings_walkthrough(page: Mapping[str, Any]) -> None:
 
 def _render_business_reader(page: Mapping[str, Any]) -> None:
     builder = getattr(_research_learning, "build_business_reader", None)
-    if builder is None:
+    if not callable(builder):
         st.info("The business-model reader is unavailable in this application session.")
         return
     reader = builder(page)

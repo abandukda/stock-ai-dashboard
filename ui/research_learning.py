@@ -35,13 +35,17 @@ def build_business_reader(page: Mapping[str, Any]) -> dict[str, Any]:
     independent provenance; a capture date is not a fiscal reporting period.
     """
     unavailable = {"status": "UNAVAILABLE", "description": None, "stages": ()}
+    page = _mapping(page)
     if page.get("status") != "AVAILABLE":
         return unavailable
     about = _mapping(page.get("about"))
     profile = _mapping(about.get("profile"))
     provenance = _mapping(about.get("provenance"))
-    source = provenance.get("source") or provenance.get("provider")
-    evidence_id = provenance.get("raw_evidence_id")
+    def identity(value: Any) -> str | None:
+        return value.strip() if isinstance(value, str) and value.strip() else None
+
+    source = identity(provenance.get("source")) or identity(provenance.get("provider"))
+    evidence_id = identity(provenance.get("raw_evidence_id"))
     description = next((profile[key].strip() for key in
                         ("description", "business_summary", "company_description")
                         if isinstance(profile.get(key), str) and profile[key].strip()), None)
@@ -50,21 +54,24 @@ def build_business_reader(page: Mapping[str, Any]) -> dict[str, Any]:
         business = dict(text=description, source=source, evidence_id=evidence_id,
                         as_of=provenance.get("capture_timestamp") or provenance.get("as_of"))
     snapshot = _mapping(page.get("financial_snapshot"))
+    items = snapshot.get("items")
+    if not isinstance(items, (tuple, list)):
+        items = ()
     stages = []
     for field, title, question in (
         ("latest_revenue", "1. Money from customers", "What products or services do customers pay for?"),
         ("net_income", "2. Money kept as profit", "After expenses and taxes, did the company keep a profit or report a loss?"),
         ("operating_cash_flow", "3. Cash from running the business", "Did running the business bring in cash or use cash?"),
     ):
-        candidates = [item for item in snapshot.get("items") or ()
+        candidates = [item for item in items
                       if isinstance(item, Mapping) and item.get("field") == field]
         # Conflicting duplicates must not be resolved by input ordering.
         item = candidates[0] if len(candidates) == 1 else {}
         fact = None
         if (snapshot.get("status") == "AVAILABLE" and _finite(item.get("value"))
-                and item.get("unit") == "USD" and item.get("provider")
+                and item.get("unit") == "USD" and identity(item.get("provider"))
                 and item.get("currency") in (None, "USD")
-                and item.get("evidence_id")):
+                and identity(item.get("evidence_id"))):
             fact = dict(item)
         stages.append(dict(field=field, title=title, question=question, fact=fact))
     return dict(status="AVAILABLE", description=business, stages=tuple(stages))

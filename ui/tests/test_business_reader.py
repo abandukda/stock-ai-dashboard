@@ -83,6 +83,32 @@ class BusinessReaderTests(unittest.TestCase):
         page["financial_snapshot"]["status"] = "UNAVAILABLE"
         self.assertTrue(all(stage["fact"] is None for stage in build_business_reader(page)["stages"]))
 
+    def test_malformed_payloads_fail_closed_without_crashing(self):
+        for value in (None, True, 42, "invalid", [], ()):
+            with self.subTest(page=value):
+                self.assertEqual(build_business_reader(value)["status"], "UNAVAILABLE")
+        for value in (None, True, 42, "invalid", {}, [None, True, 42]):
+            with self.subTest(items=value):
+                page = fixture()
+                page["financial_snapshot"]["items"] = value
+                self.assertTrue(all(stage["fact"] is None for stage in
+                                    build_business_reader(page)["stages"]))
+
+    def test_non_text_provenance_cannot_admit_facts_or_description(self):
+        for value in (True, 42, {}, [], "  "):
+            for key in ("provider", "raw_evidence_id"):
+                with self.subTest(value=value, key=key):
+                    page = fixture()
+                    page["about"]["provenance"][key] = value
+                    self.assertIsNone(build_business_reader(page)["description"])
+            for key in ("provider", "evidence_id"):
+                with self.subTest(value=value, key=key):
+                    page = fixture()
+                    page["financial_snapshot"]["items"][0][key] = value
+                    reader = build_business_reader(page)
+                    self.assertIsNone(reader["stages"][0]["fact"])
+                    self.assertEqual(reader["stages"][1]["fact"]["value"], -2)
+
     def test_empty_available_page_has_explicit_gaps(self):
         reader = build_business_reader({"status": "AVAILABLE"})
         self.assertIsNone(reader["description"])
@@ -129,7 +155,7 @@ class BusinessReaderTests(unittest.TestCase):
                         and node.name == "_render_business_reader")
         streamlit = Mock()
         namespace = dict(st=streamlit, Mapping=Mapping, Any=Any,
-                         _research_learning=SimpleNamespace())
+                         _research_learning=SimpleNamespace(build_business_reader=False))
         exec(compile(ast.Module(body=[function], type_ignores=[]), "business_renderer", "exec"), namespace)
         namespace["_render_business_reader"](fixture())
         streamlit.info.assert_called_once_with("The business-model reader is unavailable in this application session.")
