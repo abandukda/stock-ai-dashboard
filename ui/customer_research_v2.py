@@ -10,7 +10,10 @@ import math
 
 import pandas as pd
 import streamlit as st
-from ui.research_learning import build_learning_guide, build_valuation_guide, build_annual_earnings_comparison
+from ui.research_learning import (
+    build_learning_guide, build_valuation_guide, build_annual_earnings_comparison,
+    build_earnings_walkthrough,
+)
 
 from services.customer_research_view import Availability, build_customer_research_view
 from services.customer_metric_format import (
@@ -244,6 +247,33 @@ def _render_annual_earnings_comparison(page: Mapping[str, Any]) -> None:
     )
 
 
+def _render_earnings_walkthrough(page: Mapping[str, Any]) -> None:
+    walkthrough = build_earnings_walkthrough(page)
+    st.markdown("**Put the annual figures together**")
+    if walkthrough["status"] != "AVAILABLE":
+        st.info("An earnings walkthrough is unavailable: matching source-bound annual profit, cash, or sales-and-margin evidence is missing.")
+        return
+    st.caption(
+        f'Full years ending {walkthrough["prior_period"]} and {walkthrough["current_period"]} · '
+        f'Source: {walkthrough["source"]} · Evidence as of: {_financial_period(walkthrough.get("as_of"))} · '
+        f'Evidence IDs: {", ".join(walkthrough["evidence_ids"])}'
+    )
+    for item in walkthrough["observations"]:
+        st.markdown(f'**{item["title"]}**')
+        st.write(item["reading"])
+        st.caption("Read together: " + ", ".join(item["inputs"]) + " · Figures in the annual comparison above.")
+    if st.checkbox("Go deeper: show what to check in the filing",
+                   key=f'research-earnings-filing-checks-{page.get("ticker") or "unavailable"}'):
+        for item in walkthrough["observations"]:
+            st.markdown(f'**{item["title"]}**')
+            st.write(item["check"])
+    st.caption(
+        "These readings describe retained annual numbers, not the latest quarter, management's explanation, "
+        "an earnings beat or miss, or a change to the certified ATLAS view. "
+        "Comparable accounting definitions and restatements still need checking in the filings."
+    )
+
+
 def _render_learning_guide(page: Mapping[str, Any], *, ticker: str) -> None:
     guide = build_learning_guide(page)
     if guide["status"] != "AVAILABLE":
@@ -274,6 +304,7 @@ def _render_learning_guide(page: Mapping[str, Any], *, ticker: str) -> None:
             "A single snapshot cannot establish an improving trend."
         )
         _render_annual_earnings_comparison(page)
+        _render_earnings_walkthrough(page)
         st.markdown("**Go deeper: compare earnings fairly**")
         st.write(
             "Use the financial statements below to compare the same fiscal quarter with the prior year's quarter, "
