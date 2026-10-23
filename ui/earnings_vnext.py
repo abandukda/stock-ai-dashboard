@@ -230,6 +230,19 @@ def _decision_label(story: Mapping[str, Any]) -> str:
     return str(decision["recommendation"])
 
 
+def _decision_state(story: Mapping[str, Any], *, target=None, label: str = "ATLAS state") -> None:
+    """Keep the complete textual financial state readable in narrow columns."""
+    surface = st if target is None else target
+    surface.markdown(
+        '<div class="atlas-earnings-decision-state" style="padding:.65rem;border:1px solid rgba(148,163,184,.24);'
+        'border-radius:.6rem;min-width:0;overflow-wrap:anywhere;">'
+        '<small style="opacity:.75;">' + escape(label) + '</small>'
+        '<p style="white-space:normal;overflow-wrap:anywhere;word-break:break-word;'
+        'font-size:1rem;line-height:1.45;margin:.35rem 0 0;">' + escape(_decision_label(story)) + '</p></div>',
+        unsafe_allow_html=True,
+    )
+
+
 def _open_button(story: Mapping[str, Any], open_research: Callable[[str], Any], suffix: str) -> None:
     ticker = story["ticker"]
     interaction_id = f"earnings-vnext-research-{ticker.lower()}-{suffix}"
@@ -395,7 +408,7 @@ def _reported_card(story: Mapping[str, Any], open_research: Callable[[str], Any]
     cols[0].metric("Revenue actual", _metric(latest.get("revenue_actual"), money=True))
     cols[1].metric("Revenue estimate", _metric(latest.get("revenue_estimate"), money=True))
     cols[2].metric("Revenue surprise", _metric(latest.get("revenue_surprise_pct"), pct=True))
-    cols[3].metric("ATLAS state", _decision_label(story))
+    _decision_state(story, target=cols[3])
     st.markdown("#### What Happened")
     _literal(_display(story.get("what_happened"), "Reported-quarter evidence is incomplete."))
     st.markdown("#### Why It Matters")
@@ -422,7 +435,7 @@ def _reported_card(story: Mapping[str, Any], open_research: Callable[[str], Any]
         decision = story.get("production_decision") or {}
         availability = story.get("decision_availability") or {}
         cols = st.columns(3)
-        cols[0].metric("Recommendation", _decision_label(story))
+        _decision_state(story, target=cols[0], label="Recommendation")
         cols[1].metric("Opportunity", _display(decision.get("opportunity")))
         cols[2].metric(_display(availability.get("confidence_label"), "Confidence"), _display(decision.get("confidence")))
         cols = st.columns(3)
@@ -509,7 +522,7 @@ def _upcoming_card(story: Mapping[str, Any], open_research: Callable[[str], Any]
     st.markdown('<span class="atlas-earnings-card-anchor" aria-hidden="true"></span>', unsafe_allow_html=True)
     _literal(f"{story['ticker']} · {_display(story.get('company'))}", kind="heading")
     _literal(f"Upcoming · {_display(story['event_identity'].get('next_event_date'))}", kind="caption")
-    st.metric("ATLAS state", _decision_label(story))
+    _decision_state(story)
     st.info("Actual EPS, actual revenue, quarter classification, and post-event thesis impact are not available before the report.")
     st.markdown("**What ATLAS is watching:**")
     _literal(" · ".join(story.get("watch_next") or ["The reported EPS and revenue result."]))

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 from pathlib import Path
 
 import pandas as pd
@@ -188,7 +189,7 @@ def test_deep_evidence_is_progressive_and_never_invented():
 
 def test_active_final_route_invokes_vnext_and_leaves_legacy_unreachable():
     source = (ROOT / "app.py").read_text(encoding="utf-8")
-    final_main = source[source.rfind("def main():"):]
+    final_main = ast.get_source_segment(source, [n for n in ast.parse(source).body if isinstance(n, ast.FunctionDef) and n.name == "main"][-1])
     assert 'render_earnings_vnext(full_df, open_research=v784_open_research)' in final_main
     assert 'render_v73_earnings_page(full_df,source_df)' not in final_main
     assert source.count("def render_v73_earnings_page") >= 2

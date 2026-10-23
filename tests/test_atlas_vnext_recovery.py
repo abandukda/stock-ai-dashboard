@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 from pathlib import Path
 
 import pandas as pd
@@ -109,7 +110,7 @@ def test_etf_corporate_evidence_is_not_applicable():
 
 def test_final_active_app_route_uses_recovery_vnext_only():
     source = (ROOT / "app.py").read_text(encoding="utf-8")
-    final_main = source[source.rfind("def main():"):]
+    final_main = ast.get_source_segment(source, [n for n in ast.parse(source).body if isinstance(n, ast.FunctionDef) and n.name == "main"][-1])
     recovery_branch = final_main.split('elif selected_page=="Recovery":', 1)[1].split(
         'elif selected_page=="ETFs":', 1
     )[0]

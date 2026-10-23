@@ -16,6 +16,7 @@ from typing import Any, Mapping
 
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 DIGEST_RE = re.compile(r"^[0-9a-f]{64}$")
+CAPTURE_TIME_CONTRACT = "ATLAS_GATEWAY_CAPTURE_TIME_V1"
 RESEARCH_ENDPOINTS = frozenset(
     {
         "/stock/financials-reported",

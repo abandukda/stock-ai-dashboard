@@ -1,4 +1,5 @@
 import hashlib
+from datetime import datetime, timedelta, timezone
 import json
 from pathlib import Path
 from unittest.mock import Mock, patch
@@ -8,6 +9,7 @@ import requests
 
 from scripts.run_licensed_research_gateway import MAX_RESPONSE_BYTES, RESPONSE_CHUNK_BYTES, run
 from services.operations_gateway import canonical_bytes, sha256
+from services.operations_gateway import CAPTURE_TIME_CONTRACT
 
 
 class StreamResponse:
@@ -209,3 +211,81 @@ def test_session_close_failure_is_terminal_failure_not_success(session,tmp_path)
     assert terminal(tmp_path)['status']=='FAIL'
     assert response.closed
     assert 'PRIVATE_MOCK_KEY_NEVER_LOG' not in (tmp_path/'out/run_summary.json').read_text()
+
+
+NOW = datetime(2026, 10, 22, 22, 10, tzinfo=timezone.utc)
+
+
+@pytest.mark.parametrize('bad', [None, '2026-10-22T22:10:00Z', datetime(2026, 10, 22, 22, 10)])
+def test_invalid_internal_start_clock_stops_before_transport(session, tmp_path, bad):
+    approval, scope = package(tmp_path)
+    with pytest.raises(RuntimeError, match='CAPTURE_CLOCK_STOP'):
+        run(approval_path=approval, scope_path=scope, output=tmp_path/'out', run_id='MOCK', clock=lambda: bad)
+    summary = terminal(tmp_path)
+    assert summary['provider_calls'] == 0 and summary['telemetry'] == []
+    assert summary['capture_time_status'] == 'UNATTESTED'
+    assert summary['capture_completed_at'] is None
+    session.get.assert_not_called()
+    session.close.assert_called_once()
+
+
+@pytest.mark.parametrize('ending,error', [
+    (None, 'CAPTURE_CLOCK_STOP'), (NOW-timedelta(seconds=1), 'CAPTURE_CLOCK_REVERSED'),
+])
+def test_bad_end_clock_preserves_actual_attempt_raw_hash_and_no_retry(session, tmp_path, ending, error):
+    rows = [{'ordinal': i, 'method': 'GET', 'endpoint': '/stock/earnings', 'ticker': ticker,
+             'parameters': {'symbol': ticker}} for i, ticker in enumerate(('NVDA', 'MSFT'), 1)]
+    approval, scope = package(tmp_path, requests_rows=rows)
+    response = StreamResponse(chunks=(b'[]',))
+    session.get.return_value = response
+    clock = iter([NOW, ending])
+    with pytest.raises(RuntimeError, match=error):
+        run(approval_path=approval, scope_path=scope, output=tmp_path/'out', run_id='MOCK', clock=lambda: next(clock))
+    summary = terminal(tmp_path)
+    meta = summary['telemetry'][0]
+    assert summary['provider_calls'] == summary['responses_received'] == session.get.call_count == 1
+    assert meta['raw_complete'] is True and meta['raw_sha256'] == hashlib.sha256(b'[]').hexdigest()
+    assert (tmp_path/'out/raw/00001.json').read_bytes() == b'[]'
+    assert meta['response_completed_at'] is None and meta['capture_time_status'] == 'UNATTESTED'
+    assert summary['capture_completed_at'] is None and summary['retry_count'] == 0
+    assert response.closed
+
+
+def test_backward_clock_between_requests_stops_before_next_transport(session, tmp_path, monkeypatch):
+    rows = [{'ordinal': i, 'method': 'GET', 'endpoint': '/stock/earnings', 'ticker': ticker,
+             'parameters': {'symbol': ticker}} for i, ticker in enumerate(('NVDA', 'MSFT'), 1)]
+    approval, scope = package(tmp_path, requests_rows=rows)
+    session.get.return_value = StreamResponse(chunks=(b'[]',))
+    monkeypatch.setattr('scripts.run_licensed_research_gateway.time.sleep', lambda _: None)
+    clock = iter([NOW, NOW+timedelta(seconds=1), NOW])
+    with pytest.raises(RuntimeError, match='CAPTURE_CLOCK_REVERSED'):
+        run(approval_path=approval, scope_path=scope, output=tmp_path/'out', run_id='MOCK', clock=lambda: next(clock))
+    summary = terminal(tmp_path)
+    assert summary['provider_calls'] == session.get.call_count == len(summary['telemetry']) == 1
+    assert not (tmp_path/'out/raw/00002.metadata.json').exists()
+
+
+def test_trusted_clock_exception_is_sanitized_and_never_serialized(session, tmp_path):
+    approval, scope = package(tmp_path)
+    def bad_clock():
+        raise RuntimeError('PRIVATE_MOCK_KEY_NEVER_LOG')
+    with pytest.raises(RuntimeError, match='CAPTURE_CLOCK_STOP') as error:
+        run(approval_path=approval, scope_path=scope, output=tmp_path/'out', run_id='MOCK', clock=bad_clock)
+    assert 'PRIVATE_MOCK_KEY_NEVER_LOG' not in str(error.value)
+    assert 'PRIVATE_MOCK_KEY_NEVER_LOG' not in (tmp_path/'out/run_summary.json').read_text()
+    session.get.assert_not_called()
+
+
+def test_timestamp_metadata_is_utc_but_latency_remains_monotonic(session, tmp_path):
+    approval, scope = package(tmp_path)
+    session.get.return_value = StreamResponse(chunks=(b'[]',))
+    local = NOW.astimezone(timezone(timedelta(hours=2)))
+    clock = iter([local, local+timedelta(seconds=100)])
+    summary = run(approval_path=approval, scope_path=scope, output=tmp_path/'out', run_id='MOCK', clock=lambda: next(clock))
+    meta = summary['telemetry'][0]
+    assert meta['capture_time_contract'] == summary['capture_time_contract'] == CAPTURE_TIME_CONTRACT
+    assert meta['attempt_started_at'] == NOW.isoformat()
+    assert meta['response_completed_at'] == (NOW+timedelta(seconds=100)).isoformat()
+    assert summary['capture_started_at'] == meta['attempt_started_at']
+    assert summary['capture_completed_at'] == meta['response_completed_at']
+    assert 0 <= meta['latency_ms'] < 1000  # UTC elapsed time cannot replace transport latency.

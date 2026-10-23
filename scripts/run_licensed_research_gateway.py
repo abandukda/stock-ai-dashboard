@@ -9,15 +9,17 @@ credentials. A local terminal receipt records attempted calls even on failure.
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timezone
 import hashlib
 import json
 import os
 from pathlib import Path
 import time
+from typing import Callable
 
 import requests
 
-from services.operations_gateway import GatewayApproval, resolve_bounded_path, verify_scope
+from services.operations_gateway import CAPTURE_TIME_CONTRACT, GatewayApproval, resolve_bounded_path, verify_scope
 
 MAX_RESPONSE_BYTES = 8 * 1024 * 1024
 RESPONSE_CHUNK_BYTES = 64 * 1024
@@ -49,7 +51,19 @@ def _write_json(path: Path, value: dict) -> None:
     path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
-def run(*, approval_path: Path, scope_path: Path, output: Path, run_id: str) -> dict:
+def _utc_time(clock: Callable[[], datetime]) -> datetime:
+    """Observe only the internal trusted clock; never serialize its errors."""
+    try:
+        value = clock()
+        if type(value) is not datetime or value.tzinfo is None or value.utcoffset() is None:
+            raise ValueError("UNATTESTED_CLOCK")
+        return value.astimezone(timezone.utc)
+    except Exception:
+        raise _GatewayStop("RESEARCH_GATEWAY_CAPTURE_CLOCK_STOP") from None
+
+
+def run(*, approval_path: Path, scope_path: Path, output: Path, run_id: str,
+        clock: Callable[[], datetime] | None = None) -> dict:
     approval = GatewayApproval.parse(json.loads(approval_path.read_text(encoding="utf-8")))
     if approval.operation != "acquire":
         raise PermissionError("RESEARCH_GATEWAY_ACQUIRE_TOKEN_REQUIRED")
@@ -70,6 +84,8 @@ def run(*, approval_path: Path, scope_path: Path, output: Path, run_id: str) -> 
     session = None
     failure_code = None
     last = 0.0
+    observe = clock if clock is not None else lambda: datetime.now(timezone.utc)
+    prior_completion = None
     try:
         session = requests.Session()
         session.mount("https://", requests.adapters.HTTPAdapter(max_retries=0, pool_connections=1, pool_maxsize=1))
@@ -80,6 +96,9 @@ def run(*, approval_path: Path, scope_path: Path, output: Path, run_id: str) -> 
             delay = 60.0 / rpm - (time.monotonic() - last)
             if delay > 0:
                 time.sleep(delay)
+            attempt_started = _utc_time(observe)
+            if prior_completion is not None and attempt_started < prior_completion:
+                raise _GatewayStop("RESEARCH_GATEWAY_CAPTURE_CLOCK_REVERSED")
             started = time.monotonic()
             last = started
             # Scope labels are never used as filesystem components.
@@ -88,6 +107,9 @@ def run(*, approval_path: Path, scope_path: Path, output: Path, run_id: str) -> 
                       "endpoint": row["endpoint"], "parameters": parameters,
                       "status_code": None, "attempt_count": 1, "retry_count": 0,
                       "raw_complete": False, "raw_sha256": None, "raw_bytes": 0,
+                      "capture_time_contract": CAPTURE_TIME_CONTRACT,
+                      "attempt_started_at": attempt_started.isoformat(),
+                      "response_completed_at": None, "capture_time_status": "UNATTESTED",
                       "status": "ATTEMPTING", "raw_capture": "NO_RESPONSE"}
             telemetry.append(record)
             response = None
@@ -99,6 +121,17 @@ def run(*, approval_path: Path, scope_path: Path, output: Path, run_id: str) -> 
                                        allow_redirects=False, stream=True)
                 record["status_code"] = int(response.status_code)
                 body, complete, capture_stop = _capture(response)
+                # Capture the UTC observation immediately after the stream ends.
+                # Persist safe raw bytes even if the clock fails or rolls back;
+                # no fabricated completion time may acquire authority.
+                completed = None
+                clock_stop = None
+                try:
+                    completed = _utc_time(observe)
+                    if completed < attempt_started:
+                        clock_stop = "RESEARCH_GATEWAY_CAPTURE_CLOCK_REVERSED"
+                except _GatewayStop as exc:
+                    clock_stop = str(exc)
                 # Never persist an echoed API credential, even in an error body.
                 if api_key.encode("utf-8") in body:
                     record["raw_capture"] = "REJECTED_CREDENTIAL_ECHO"
@@ -110,9 +143,15 @@ def run(*, approval_path: Path, scope_path: Path, output: Path, run_id: str) -> 
                                "raw_bytes": len(body), "raw_capture": "COMPLETE" if complete else ("INCOMPLETE_SIZE_LIMIT" if capture_stop == "RESEARCH_GATEWAY_RESPONSE_SIZE_STOP" else "INCOMPLETE_STREAM_FAILURE")})
                 if complete:
                     record["raw_sha256"] = hashlib.sha256(body).hexdigest()
+                    if clock_stop is None:
+                        record["response_completed_at"] = completed.isoformat()
+                        record["capture_time_status"] = "BOUND"
+                        prior_completion = completed
                 else:
                     record["raw_prefix_sha256"] = hashlib.sha256(body).hexdigest()
                     raise _GatewayStop(capture_stop or "RESEARCH_GATEWAY_EXECUTION_STOP")
+                if clock_stop:
+                    raise _GatewayStop(clock_stop)
                 if response.status_code == 429:
                     raise _GatewayStop("RESEARCH_GATEWAY_RATE_LIMIT_STOP")
                 if response.status_code in {401, 403}:
@@ -156,6 +195,7 @@ def run(*, approval_path: Path, scope_path: Path, output: Path, run_id: str) -> 
                 session.close()
             except Exception:
                 failure_code = failure_code or "RESEARCH_GATEWAY_SESSION_CLOSE_STOP"
+    all_times_bound = bool(telemetry) and all(row["capture_time_status"] == "BOUND" for row in telemetry)
     summary = {"contract": "ATLAS_LICENSED_RESEARCH_GATEWAY_RUN_V1", "source_sha": approval.source_sha,
                "scope_sha256": approval.scope_sha256, "run_id": str(run_id),
                "status": "FAIL" if failure_code else "PASS", "failure_code": failure_code,
@@ -164,6 +204,10 @@ def run(*, approval_path: Path, scope_path: Path, output: Path, run_id: str) -> 
                "call_count_semantics": "CLIENT_GET_ATTEMPTS_NOT_SERVER_ACKNOWLEDGEMENTS",
                "responses_received": sum(row["status_code"] is not None for row in telemetry),
                "automatic_redirects": False, "retry_count": 0,
+               "capture_time_contract": CAPTURE_TIME_CONTRACT,
+               "capture_time_status": "BOUND" if all_times_bound else "UNATTESTED",
+               "capture_started_at": telemetry[0]["attempt_started_at"] if telemetry else None,
+               "capture_completed_at": telemetry[-1]["response_completed_at"] if all_times_bound else None,
                "max_response_bytes": MAX_RESPONSE_BYTES, "telemetry": telemetry}
     try:
         _write_json(output / "run_summary.json", summary)

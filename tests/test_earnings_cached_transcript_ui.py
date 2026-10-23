@@ -159,3 +159,20 @@ def test_grounded_claims_and_source_metadata_are_literal_not_markdown(surface):
     assert text in unescape(output)
     assert 'white-space:pre-wrap' in output and 'overflow-wrap:anywhere' in output
     assert story == before
+
+
+
+def test_textual_decision_state_preserves_full_unavailable_reason_and_escapes_content(surface):
+    from copy import deepcopy
+    from html import unescape
+    story={'production_decision':{'semantic_status':'DATA_UNAVAILABLE'}}
+    before=deepcopy(story)
+    ui._decision_state(story)
+    assert 'Unavailable — no actionable recommendation published' in surface.output[-1]
+    assert 'white-space:normal' in surface.output[-1] and 'overflow-wrap:anywhere' in surface.output[-1]
+    assert 'text-overflow:ellipsis' not in surface.output[-1]
+    assert story==before
+    story={'production_decision':{'semantic_status':'AVAILABLE','recommendation':'<img src=x> ![image](https://example.invalid/x)'}}
+    ui._decision_state(story,label='Recommendation')
+    assert '<img src=x>' not in surface.output[-1]
+    assert story['production_decision']['recommendation'] in unescape(surface.output[-1])

@@ -105,7 +105,7 @@ def test_catalog_search_no_identity_arguments_or_invented_research(workspace):
     with pytest.raises(TypeError): controller.snapshot(user_id='forged')
 
 @pytest.mark.parametrize('operation', [
-    lambda c:c.snapshot(), lambda c:c.read_watchlist('id',view_key='key'),
+    lambda c:c.snapshot(), lambda c:c.account_access(), lambda c:c.read_watchlist('id',view_key='key'),
     lambda c:c.create_watchlist('name',view_key='key'), lambda c:c.rename_watchlist('id','name',view_key='key'),
     lambda c:c.delete_watchlist('id',view_key='key'), lambda c:c.set_default_watchlist('id',view_key='key'),
     lambda c:c.add_ticker('id','NVDA',view_key='key'), lambda c:c.remove_ticker('id','NVDA',view_key='key'),
@@ -180,3 +180,21 @@ def test_waiting_for_sqlite_lock_cannot_outlive_verified_session(tmp_path, chang
         blocker.close()
     assert [w.name for w in service.repository.list_watchlists(alice.user_id)] == ['Alice private']
     assert service.repository.list_watchlists(bob.user_id) == ()
+
+
+def test_free_account_watchlists_do_not_grant_full_research(tmp_path):
+    from services.customer.models import Capability
+    from services.customer.service import EntitlementError
+    service=CustomerService(PrivateSQLiteCustomerRepository(tmp_path/'private'),clock=lambda:NOW)
+    user,_=service.register('verified:free',plan=PlanTier.FREE)
+    row={'ticker':'NVDA','certified_customer_evaluation':{'ticker':'NVDA','customer_publication_allowed':True,
+         'decision':{'action':'HOLD','opportunity':0,'decision_confidence':80},
+         'fields':{'atlas_fair_value':{'value':100,'certification_status':'CERTIFIED'}}}}
+    c=PersonalWatchlistController(service,resolve_verified_subject=lambda:VerifiedWatchlistSubject(user.auth_subject,NOW+timedelta(hours=1)),catalog=[row],clock=lambda:NOW)
+    key=c.snapshot().view_key;c.create_watchlist('Saved',view_key=key)
+    wid=c.snapshot().watchlists[0].watchlist_id;c.add_ticker(wid,'NVDA',view_key=key)
+    assert Capability.FULL_RESEARCH not in c.account_access(view_key=key).capabilities
+    item=c.read_watchlist(wid,view_key=key).symbols[0]
+    assert item.research_available is True and item.research_entitled is False
+    with pytest.raises(EntitlementError,match='FULL_RESEARCH_REQUIRED'):
+        c.research_ticker(wid,'NVDA',view_key=key)
