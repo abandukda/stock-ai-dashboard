@@ -47,7 +47,12 @@ def certified_freshness(value: Any, *, now: datetime | None = None, max_age_days
     if instant is None:
         return Availability.MISSING_RETAINED_EVIDENCE
     current = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
-    return Availability.CERTIFIED_CURRENT if (current - instant).total_seconds() <= max_age_days * 86400 else Availability.CERTIFIED_DATED
+    age_seconds = (current - instant).total_seconds()
+    # A future close cannot establish current certified evidence. Preserve the
+    # persisted financial authority, but fail closed on its freshness label.
+    if age_seconds < 0:
+        return Availability.MISSING_RETAINED_EVIDENCE
+    return Availability.CERTIFIED_CURRENT if age_seconds <= max_age_days * 86400 else Availability.CERTIFIED_DATED
 
 
 @dataclass(frozen=True)
