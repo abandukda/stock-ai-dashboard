@@ -988,9 +988,11 @@ def _annotated_customer_price_chart(price_frame, *, rows, date_key, close_key, t
 
 def render_customer_research_first_screen(report: Mapping[str, Any]) -> dict[str, Any]:
     """Render the settled ticker's customer-safe summary before search controls."""
-    customer_view = build_customer_research_view(report)
+    view_builder = build_customer_research_view
+    customer_view = view_builder(report)
     page = customer_view.as_mapping()
     ticker = str(page.get("ticker") or "UNKNOWN")
+    _render_runtime_code_marker(view_builder, ticker)
     if page.get("status") != "AVAILABLE":
         _marker("terminal", ticker, state="RATING_NOT_PUBLISHED")
         company = str(page.get("company") or ticker)
@@ -1191,10 +1193,21 @@ def _render_research_price_evidence(page: Mapping[str, Any], report: Mapping[str
     return True
 
 
+def _render_runtime_code_marker(view_builder, ticker: str) -> None:
+    # Observe actual retained bindings; do not refresh or invoke financial code.
+    from services.research_runtime_identity import research_function_body_identity
+    identity = research_function_body_identity(view_builder)
+    _marker("runtime-code", ticker, scope=identity['scope'],
+            **{f'{name}_{key}': value for name in ('view', 'projection', 'reader')
+               for key, value in identity[name].items()})
+
+
 def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[[Mapping[str, Any]], None]) -> bool:
-    customer_view = build_customer_research_view(report)
+    view_builder = build_customer_research_view
+    customer_view = view_builder(report)
     page = customer_view.as_mapping()
     ticker = str(page.get("ticker") or "UNKNOWN")
+    _render_runtime_code_marker(view_builder, ticker)
     first_screen_rendered = st.session_state.pop("_atlas_research_first_screen_rendered", "") == ticker
     if page.get("status") != "AVAILABLE":
         if not first_screen_rendered:
