@@ -78,13 +78,13 @@ def render_benchmark_panel(report: Mapping[str, Any]) -> None:
 
 def overview_html(report: Mapping[str, Any]) -> str:
     observations = int(report['observation_count'])
+    comparison = benchmark_evidence(report)
     metrics = (
         ('Signals', report['signal_count'], 'Original registered cohort'),
         ('Observations', observations, 'Prospective evidence in the ledger'),
         ('Open signals', report['open_signal_count'], 'Tracking remains in progress'),
         ('SPY comparisons', report['spy_comparison_count'], 'Same-session benchmark evidence'),
-        ('Performance', 'Pending' if observations == 0 else
-         ('Withheld' if report.get('performance_policy') not in (None, '') else 'Per signal'),
+        ('Performance', 'Per signal' if comparison['status'] == 'AVAILABLE' else comparison['status'].title(),
          'No portfolio return inferred'),
     )
     cards = ''.join(
@@ -101,6 +101,10 @@ def overview_html(report: Mapping[str, Any]) -> str:
         description = ('Recorded observations remain visible as evidence counts. Returns, SPY excess returns '
                        'and win rates are withheld pending separately approved, aligned-entry methodology. '
                        'A valid snapshot hash does not establish performance authority.')
+    elif comparison['status'] != 'AVAILABLE':
+        title = 'Performance comparison ' + comparison['status'].lower()
+        description = ('Recorded observation counts do not establish usable paired returns. '
+                       + comparison['reason'])
     else:
         title = 'Recorded evidence is available'
         description = ('Review each signal and horizon below for its recorded price, return and '
@@ -135,7 +139,7 @@ OVERVIEW_CSS = '''<style>
 .atlas-rc-status-line{margin:.75rem 0;padding:.8rem 1rem;border-left:3px solid #3998e8;background:#101e30;border-radius:4px 12px 12px 4px}.atlas-rc-status-line p{font-size:.8rem;margin:.25rem 0}.atlas-rc-status-line b{font-size:.95rem;color:#d8eaff}
 .atlas-rc-benchmark{padding:1rem;border:1px solid #2c4560;border-radius:14px;background:linear-gradient(145deg,#0e2339,#091522);color:#dcecff;min-height:240px}.atlas-rc-benchmark--available{min-height:0}.atlas-rc-benchmark h2{font-size:1.15rem!important;margin:0 0 .5rem!important}.atlas-rc-benchmark p{color:#a9bfd5;font-size:.85rem;line-height:1.55}.atlas-rc-legend{display:flex;gap:1rem;font-size:.75rem;color:#afc6df}.atlas-rc-legend b{color:#52b6ff}.atlas-rc-empty{display:grid;place-content:center;min-height:140px;text-align:center;border:1px dashed #36536f;border-radius:10px;margin:.8rem 0;padding:.7rem}.atlas-rc-empty strong{font-size:1rem;color:#e3d5b2}.atlas-rc-empty span{font-size:.8rem;color:#aac0d6;margin-top:.5rem}
 @media(max-width:1000px){.atlas-rc-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.atlas-rc-evidence-grid{grid-template-columns:1fr 1fr}}
-@media(max-width:600px){.atlas-rc-evidence-grid{grid-template-columns:1fr}.atlas-rc-summary article{padding:.85rem}.atlas-rc-metrics{gap:.5rem}.atlas-rc-metrics strong{font-size:1.8rem}.atlas-rc-summary h2{font-size:1.1rem!important}}
+@media(max-width:600px){.atlas-rc-evidence-grid{grid-template-columns:1fr}.atlas-rc-summary article{padding:.85rem}.atlas-rc-metrics{gap:.5rem}.atlas-rc-metrics article:last-child{grid-column:1/-1}.atlas-rc-metrics strong{font-size:1.8rem}.atlas-rc-summary h2{font-size:1.1rem!important}}
 </style>'''
 
 
