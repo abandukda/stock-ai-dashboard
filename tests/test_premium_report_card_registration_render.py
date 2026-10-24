@@ -2,10 +2,39 @@
 from pathlib import Path
 import unittest
 from playwright.sync_api import sync_playwright
-from ui.report_card_overview import DIRECTORY_CSS, signal_directory_html
+from ui.report_card_overview import DIRECTORY_CSS, OVERVIEW_CSS, overview_html, signal_directory_html
 
 
 class RegistrationRenderTest(unittest.TestCase):
+    def test_missing_observations_do_not_render_available_performance(self):
+        root = Path('audit_results/premium_home/report_card_registration')
+        root.mkdir(parents=True, exist_ok=True)
+        report = dict(signal_count=20, observation_count=3, open_signal_count=20,
+                      spy_comparison_count=0, rows=[dict(status='MISSING_PRICE')])
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            try:
+                for width in (360, 768, 1440):
+                    page = browser.new_page(viewport={'width': width, 'height': 1000})
+                    page.route('**/*', lambda route: route.abort())
+                    page.set_content('<body style="background:#0a1423;font-family:Arial;padding:12px">'
+                        '<p style="color:white">GENERATED COMPONENT — NOT PRODUCTION</p>'
+                        + OVERVIEW_CSS + overview_html(report) + '</body>')
+                    self.assertEqual(page.locator('.atlas-rc-metrics article').count(), 5)
+                    self.assertEqual(page.locator('.atlas-rc-metrics article').last.locator('strong').inner_text(), 'Unavailable')
+                    self.assertTrue(page.get_by_text('Performance comparison unavailable', exact=True).is_visible())
+                    self.assertNotIn('Recorded evidence is available', page.locator('body').inner_text())
+                    self.assertNotIn('0%', page.locator('body').inner_text())
+                    self.assertTrue(page.locator('.atlas-rc-metrics article').last.evaluate('''card => {
+                        const value = card.querySelector('strong');
+                        return value.scrollWidth <= value.clientWidth;
+                    }'''))
+                    self.assertTrue(page.evaluate('document.documentElement.scrollWidth <= innerWidth'))
+                    page.screenshot(path=str(root / f'GENERATED_NOT_PRODUCTION_unavailable_{width}.png'), full_page=True)
+                    page.close()
+            finally:
+                browser.close()
+
     def test_registration_and_reference_remain_distinct_at_all_viewports(self):
         root = Path('audit_results/premium_home/report_card_registration')
         root.mkdir(parents=True, exist_ok=True)

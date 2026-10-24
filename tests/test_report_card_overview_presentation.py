@@ -16,11 +16,33 @@ def test_zero_observations_cannot_be_presented_as_zero_return_or_win_rate():
 
 
 def test_recorded_observations_do_not_imply_aggregate_performance():
-    view = overview_html(report(3))
+    value = dict(report(3), rows=[dict(signal_id='synthetic', ticker='AAA', horizon_sessions=5,
+        status='AVAILABLE', observed_at='2026-10-16T20:00:00Z', stock_return=.1, spy_return=-.02)])
+    view = overview_html(value)
     assert 'Recorded evidence is available' in view
     assert 'no cohort-wide performance is inferred' in view
     assert 'Performance is pending' not in view
     assert '<strong>3</strong>' in view
+
+
+def test_recorded_missing_or_unpaired_observations_do_not_claim_performance_available():
+    for rows in ([], [dict(status='MISSING_PRICE')], [dict(signal_id='synthetic', ticker='AAA',
+            horizon_sessions=5, status='AVAILABLE', observed_at='2026-10-16T20:00:00Z',
+            stock_return=.1, spy_return=None)]):
+        view = overview_html(dict(report(3), rows=rows))
+        assert '<strong>Unavailable</strong>' in view
+        assert 'Recorded observation counts do not establish usable paired returns' in view
+        assert 'Recorded evidence is available' not in view
+        assert '<strong>Per signal</strong>' not in view
+        assert '<strong>3</strong>' in view
+
+
+def test_pending_horizons_with_missing_prices_remain_pending_not_zero():
+    view = overview_html(dict(report(3), rows=[dict(status='MISSING_PRICE'),
+        dict(status='NOT_MATURED_OR_NOT_OBSERVED')]))
+    assert '<strong>Pending</strong>' in view
+    assert 'Performance comparison pending' in view
+    assert '0%' not in view
 
 
 def test_signal_directory_preserves_original_dates_and_never_calls_reference_an_entry():
