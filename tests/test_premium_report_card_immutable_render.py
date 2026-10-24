@@ -155,6 +155,45 @@ st.markdown('<span data-fixture-complete="true"></span>', unsafe_allow_html=True
                                 marker = page.locator('[data-atlas-qa="report-card-overview"]')
                                 assert await marker.get_attribute('data-atlas-signal-count') == '20'
                                 assert await marker.get_attribute('data-atlas-observation-count') == '0'
+                                async def choose(label, option):
+                                    await page.locator('[data-testid="stSelectbox"]').filter(
+                                        has=page.get_by_text(label, exact=True)).get_by_role('combobox').click()
+                                    await page.get_by_role('option', name=option, exact=True).click()
+                                for horizon in (252, 5, 1):
+                                    await choose('Comparison horizon', f'{horizon} trading sessions')
+                                    await page.wait_for_function("""h => {
+                                        const d = document.querySelector('[data-atlas-qa="report-card-benchmark-evidence"]')?.dataset;
+                                        return d?.atlasBenchmarkStatus === 'PENDING' && d?.atlasBenchmarkHorizon === String(h);
+                                    }""", arg=horizon)
+                                    assert await page.locator('[data-testid="stPlotlyChart"]').count() == 0
+                                await choose('History order', 'Ticker Z–A')
+                                directory = page.locator('[data-atlas-qa="report-card-signal-directory"]')
+                                await page.wait_for_function("""() => document.querySelector(
+                                    '[data-atlas-qa="report-card-signal-directory"] tbody tr')?.dataset.atlasSignalId === 'GENERATED-17'""")
+                                search = page.locator('[data-testid="stTextInput"]').filter(
+                                    has=page.get_by_text('Search original signals', exact=True)).get_by_role('textbox')
+                                await search.fill('not-a-signal')
+                                await search.press('Enter')
+                                await page.wait_for_function("""() => document.querySelector(
+                                    '[data-atlas-qa="report-card-signal-directory"]')?.dataset.atlasSignalCount === '0'""")
+                                await page.get_by_role('button', name='Open selected signal →', exact=True).wait_for(state='detached')
+                                assert await page.get_by_role('button', name='Open selected signal →', exact=True).count() == 0
+                                await search.fill('GENERATED-17')
+                                await search.press('Enter')
+                                await page.wait_for_function("""() => document.querySelector(
+                                    '[data-atlas-qa="report-card-signal-directory"]')?.dataset.atlasSignalCount === '1'""")
+                                assert await directory.locator('tbody tr').get_attribute('data-atlas-signal-id') == 'GENERATED-17'
+                                await page.get_by_role('button', name='Open selected signal →', exact=True).click()
+                                await wait_for_report_card_detail_state(page, str(width), 'GENERATED-17')
+                                await page.get_by_role('button', name='← Back to Report Card', exact=True).click()
+                                await wait_for_report_card_overview_settled(page, str(width))
+                                await choose('Observation filter', 'Recorded')
+                                await page.wait_for_function("""() => document.querySelector(
+                                    '[data-atlas-qa="report-card-signal-directory"]')?.dataset.atlasSignalCount === '0'""")
+                                await choose('Observation filter', 'All')
+                                await choose('History order', 'Ledger order')
+                                await page.wait_for_function("""() => document.querySelector(
+                                    '[data-atlas-qa="report-card-signal-directory"]')?.dataset.atlasSignalCount === '20'""")
                                 # Reproduce the actual defect: ancestor text also matches the old selector.
                                 old = page.locator('[data-testid="stExpander"]').filter(
                                     has_text=re.compile(r' · [A-Z_]+ · \d+ observations'))

@@ -1,9 +1,10 @@
 """Read-only Report Card executive presentation; never derives investment returns."""
 from html import escape
 from typing import Any, Mapping
+from services.report_card import HORIZONS
 
 
-def benchmark_evidence(report: Mapping[str, Any]) -> dict[str, Any]:
+def benchmark_evidence(report: Mapping[str, Any], horizon: int | None = None) -> dict[str, Any]:
     """Select paired recorded returns only; never create a portfolio series."""
     import math
     if not report.get('observation_count'):
@@ -16,6 +17,9 @@ def benchmark_evidence(report: Mapping[str, Any]) -> dict[str, Any]:
                 'reason': 'Recorded prices do not authorize performance. Approved aligned-entry methodology is required.'}
     rows = report.get('rows')
     rows = rows if isinstance(rows, (tuple, list)) else ()
+    if horizon is not None:
+        rows = [item for item in rows if isinstance(item, Mapping)
+                and item.get('horizon_sessions') == horizon]
     pairs = []
     identities = [(item.get('signal_id'), item.get('horizon_sessions'))
                   for item in rows if isinstance(item, Mapping)]
@@ -27,7 +31,7 @@ def benchmark_evidence(report: Mapping[str, Any]) -> dict[str, Any]:
             continue
         if (not all(isinstance(item.get(key), str) and item[key].strip()
                     for key in ('signal_id', 'ticker', 'observed_at'))
-                or type(item.get('horizon_sessions')) is not int or item['horizon_sessions'] <= 0
+                or type(item.get('horizon_sessions')) is not int or item['horizon_sessions'] not in HORIZONS
                 or not all(type(item.get(key)) in (int, float) and math.isfinite(item[key])
                            for key in ('stock_return', 'spy_return'))):
             continue
@@ -42,10 +46,13 @@ def benchmark_evidence(report: Mapping[str, Any]) -> dict[str, Any]:
 
 def render_benchmark_panel(report: Mapping[str, Any]) -> None:
     import streamlit as st
-    evidence = benchmark_evidence(report)
+    selected = st.selectbox('Comparison horizon', HORIZONS,
+                            format_func=lambda value: f'{value} trading sessions',
+                            key='report_card_benchmark_horizon')
+    evidence = benchmark_evidence(report, selected)
     st.markdown(
         f'<section class="atlas-rc-benchmark atlas-rc-benchmark--{evidence["status"].lower()}" data-atlas-qa="report-card-benchmark-evidence" '
-        f'data-atlas-benchmark-status="{evidence["status"]}">'
+        f'data-atlas-benchmark-status="{evidence["status"]}" data-atlas-benchmark-horizon="{selected}">'
         '<h2>ATLAS signals vs SPY</h2><div class="atlas-rc-legend"><b>● ATLAS signal</b><span>● SPY benchmark</span></div>'
         + (f'<div class="atlas-rc-empty"><strong>Comparison {evidence["status"].lower()}</strong>'
            '<span>No performance curve is drawn without approved evidence.</span></div>' if not evidence['rows'] else '')
@@ -54,9 +61,6 @@ def render_benchmark_panel(report: Mapping[str, Any]) -> None:
     if not evidence['rows']:
         return
     import plotly.graph_objects as go
-    horizons = sorted({item['horizon_sessions'] for item in evidence['rows']})
-    selected = st.selectbox('Comparison horizon', horizons, format_func=lambda value: f'{value} trading sessions',
-                            key='report_card_benchmark_horizon')
     pairs = [item for item in evidence['rows'] if item['horizon_sessions'] == selected]
     figure = go.Figure()
     for name, field, color in (('ATLAS signal', 'stock_return', '#39aaff'), ('SPY benchmark', 'spy_return', '#dbe8f5')):
@@ -230,16 +234,52 @@ DIRECTORY_CSS = '''<style>
 </style>'''
 
 
+def select_history(signals, *, query='', observations='All', order='Ledger order'):
+    """Presentation-only selection; original records and ledger ordering stay intact."""
+    from datetime import datetime, timezone
+    query = query.strip().casefold()
+    result = [item for item in signals if
+              (not query or query in ' '.join(str(item.get(field) or '') for field in
+               ('ticker', 'signal_id', 'original_action', 'signal_timestamp', 'registered_at')).casefold())
+              and (observations == 'All'
+                   or observations == 'Pending' and not item.get('observation_count')
+                   or observations == 'Recorded' and bool(item.get('observation_count')))]
+    if order in ('Ticker A–Z', 'Ticker Z–A'):
+        return sorted(result, key=lambda item: str(item['ticker']).casefold(), reverse=order == 'Ticker Z–A')
+    if order in ('Registered newest', 'Registered oldest'):
+        def timestamp(item):
+            try:
+                value = datetime.fromisoformat(str(item.get('registered_at')).replace('Z', '+00:00'))
+                return value.astimezone(timezone.utc).timestamp() if value.tzinfo else None
+            except (ValueError, TypeError, OverflowError):
+                return None
+        known = [item for item in result if timestamp(item) is not None]
+        unknown = [item for item in result if timestamp(item) is None]
+        return sorted(known, key=timestamp, reverse=order == 'Registered newest') + unknown
+    return result
+
+
 def render_signal_directory(signals, *, on_open) -> None:
     import streamlit as st
-    st.markdown(DIRECTORY_CSS + signal_directory_html(signals), unsafe_allow_html=True)
-    by_id = {str(item['signal_id']): item for item in signals}
+    query = st.text_input('Search original signals', key='report_card_history_query',
+                          placeholder='Ticker, signal ID, action or date')
+    observations = st.selectbox('Observation filter', ('All', 'Pending', 'Recorded'),
+                                key='report_card_history_observations')
+    order = st.selectbox('History order', ('Ledger order', 'Ticker A–Z', 'Ticker Z–A',
+                                         'Registered newest', 'Registered oldest'),
+                         key='report_card_history_order')
+    visible = select_history(signals, query=query, observations=observations, order=order)
+    st.caption(f'Showing {len(visible)} of {len(signals)} original signals. Recorded counts are not performance approval.')
+    st.markdown(DIRECTORY_CSS + signal_directory_html(visible), unsafe_allow_html=True)
+    by_id = {str(item['signal_id']): item for item in visible}
+    if st.session_state.get('report_card_directory_selection') not in by_id:
+        st.session_state['report_card_directory_selection'] = next(iter(by_id), None)
     if not by_id:
-        st.caption('No registered signals are available.')
+        st.info('No original signals match these controls. Clear the search or choose All observations.')
         return
     selected = st.selectbox(
         'Open an original signal', tuple(by_id),
-        format_func=lambda signal_id: f'{by_id[signal_id]["ticker"]} · {_date(by_id[signal_id].get("signal_timestamp"))}',
+        format_func=lambda signal_id: f'{by_id[signal_id]["ticker"]} · {_date(by_id[signal_id].get("signal_timestamp"))} · {signal_id}',
         key='report_card_directory_selection',
     )
     st.button('Open selected signal →', key='report_card_directory_open',

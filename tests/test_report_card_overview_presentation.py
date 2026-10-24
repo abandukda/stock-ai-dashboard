@@ -74,7 +74,7 @@ render_signal_directory([
  {'signal_id':'original-b','ticker':'BBB','observation_count':0}], on_open=open_report_card_detail)
 ''').run()
     assert not app.exception
-    app.selectbox[0].select('original-b').run()
+    app.selectbox(key='report_card_directory_selection').select('original-b').run()
     app.button[0].click().run()
     assert not app.exception
     assert app.session_state['report_card_selected_signal_id'] == 'original-b'
@@ -152,6 +152,9 @@ def test_actual_pending_benchmark_has_no_curve_or_invented_zero():
     from streamlit.testing.v1 import AppTest
     app = AppTest.from_function(_render_benchmark_case, kwargs={'case':dict(observation_count=0,rows=[])}).run()
     assert not app.exception
+    assert app.selectbox(key='report_card_benchmark_horizon').options == [
+        f'{h} trading sessions' for h in (1, 5, 21, 63, 126, 252)]
+    app.selectbox(key='report_card_benchmark_horizon').select(252).run()
     rendered = '\n'.join(str(item.value) for item in app.markdown)
     assert 'data-atlas-benchmark-status="PENDING"' in rendered
     assert 'No performance curve is drawn' in rendered
@@ -166,6 +169,7 @@ def test_actual_benchmark_chart_uses_exact_paired_values():
                 status='AVAILABLE', observed_at='2026-10-16T20:00:00Z', stock_return=.1, spy_return=-.02)])
     app = AppTest.from_function(_render_benchmark_case,kwargs={'case':case}).run()
     assert not app.exception
+    app.selectbox(key='report_card_benchmark_horizon').select(5).run()
     charts = app.get('plotly_chart')
     assert len(charts) == 1
     data = json.loads(charts[0].proto.spec)['data']
@@ -200,9 +204,75 @@ def test_mobile_chart_shortens_labels_without_changing_full_signal_identity():
                 status="AVAILABLE", observed_at="2026-10-16T20:00:00Z", stock_return=.1, spy_return=-.02)])
     app = AppTest.from_function(_render_benchmark_case, kwargs={"case": case}).run()
     assert not app.exception
+    app.selectbox(key="report_card_benchmark_horizon").select(5).run()
     spec = json.loads(app.get("plotly_chart")[0].proto.spec)
     assert spec["data"][0]["x"] == ["AAA · " + identity]
     assert spec["layout"]["xaxis"]["tickvals"] == ["AAA · " + identity]
     assert spec["layout"]["xaxis"]["ticktext"] == ["AAA · aaaaaaaa…"]
     assert spec["data"][0]["y"] == [.1]
     assert "%{x}" in spec["data"][0]["hovertemplate"]
+
+
+def test_all_registered_horizons_work_when_pending_and_evidence_is_scoped():
+    from streamlit.testing.v1 import AppTest
+    from services.report_card import HORIZONS
+    base = dict(signal_id='synthetic', ticker='AAA', observed_at='2026-10-16T20:00:00Z')
+    rows = [dict(base, horizon_sessions=h, status='NOT_MATURED_OR_NOT_OBSERVED') for h in HORIZONS]
+    rows[1].update(status='AVAILABLE', stock_return=.1, spy_return=-.02)
+    rows[2].update(status='MISSING_PRICE')
+    app = AppTest.from_function(_render_benchmark_case,kwargs={'case':dict(observation_count=2,rows=rows)}).run()
+    assert app.selectbox[0].options == [f'{h} trading sessions' for h in HORIZONS]
+    for horizon, status in [(1,'PENDING'), (5,'AVAILABLE'), (21,'UNAVAILABLE'), (252,'PENDING'), (5,'AVAILABLE')]:
+        app.selectbox(key='report_card_benchmark_horizon').select(horizon).run()
+        assert not app.exception
+        assert f'data-atlas-benchmark-status="{status}"' in '\n'.join(str(x.value) for x in app.markdown)
+        assert len(app.get('plotly_chart')) == int(status == 'AVAILABLE')
+    withheld = dict(observation_count=2,rows=rows,performance_policy='VISIBILITY_ONLY_NO_RETURN_AUTHORITY')
+    app = AppTest.from_function(_render_benchmark_case,kwargs={'case':withheld}).run()
+    for horizon in HORIZONS:
+        app.selectbox[0].select(horizon).run()
+        assert not app.get('plotly_chart')
+        assert 'WITHHELD' in '\n'.join(str(x.value) for x in app.markdown)
+
+
+def test_history_selection_is_stable_and_does_not_modify_original_records():
+    from copy import deepcopy
+    from ui.report_card_overview import select_history
+    signals = [dict(signal_id='b',ticker='BBB',observation_count=0,registered_at='2026-10-08T10:00:00Z'),
+               dict(signal_id='a2',ticker='AAA',observation_count=2,registered_at=None),
+               dict(signal_id='a1',ticker='AAA',observation_count=0,registered_at='2026-10-08T09:00:00Z')]
+    before = deepcopy(signals)
+    def ids(**kwargs): return [x['signal_id'] for x in select_history(signals,**kwargs)]
+    assert ids() == ['b','a2','a1']
+    assert ids(order='Ticker A–Z') == ['a2','a1','b']
+    assert ids(order='Registered newest') == ['b','a1','a2']
+    assert ids(order='Registered oldest') == ['a1','b','a2']
+    assert ids(query=' aaa ',observations='Pending') == ['a1']
+    assert ids(observations='Recorded') == ['a2']
+    assert ids(query='absent') == []
+    assert signals == before
+
+
+def test_history_controls_clear_stale_selection_and_open_exact_filtered_identity():
+    from streamlit.testing.v1 import AppTest
+    app = AppTest.from_string('''
+from ui.report_card_overview import render_signal_directory
+from ui.internal_report_card import open_report_card_detail
+render_signal_directory([
+ {'signal_id':'same-old','ticker':'AAA','observation_count':0},
+ {'signal_id':'same-new','ticker':'AAA','observation_count':1},
+ {'signal_id':'other','ticker':'BBB','observation_count':0}], on_open=open_report_card_detail)
+''').run()
+    app.selectbox(key='report_card_directory_selection').select('same-new').run()
+    app.selectbox(key='report_card_history_observations').select('Pending').run()
+    assert app.selectbox(key='report_card_directory_selection').value == 'same-old'
+    app.text_input[0].input('absent').run()
+    assert not app.button and not app.exception
+    app.text_input[0].input('bbb').run()
+    assert app.selectbox(key='report_card_directory_selection').value == 'other'
+    app.button[0].click().run()
+    assert app.session_state['report_card_selected_signal_id'] == 'other'
+    app.text_input[0].input('').run()
+    app.selectbox(key='report_card_history_order').select('Ticker Z–A').run()
+    assert app.selectbox(key='report_card_directory_selection').value == 'other'
+    assert not app.exception
