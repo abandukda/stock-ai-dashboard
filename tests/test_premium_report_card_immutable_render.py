@@ -12,15 +12,24 @@ import time
 from urllib.parse import urlsplit
 
 from playwright.sync_api import sync_playwright
+import pytest
 
 
-def test_immutable_zero_observation_report_card_at_three_sizes():
+@pytest.mark.parametrize('binding_route', [False, True])
+def test_immutable_zero_observation_report_card_at_three_sizes(binding_route):
     from tests.test_report_card_immutable_visibility import snapshot
     target = Path('audit_results/premium_home/report_card_immutable')
     target.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='atlas-synthetic-report-card-') as temporary:
         root = Path(temporary)
         path, digest, tip = snapshot(root)
+        route_environment = {}
+        if binding_route:
+            from tests.test_report_card_snapshot_binding import synthetic_binding, environment
+            source_root = root / 'route-source'
+            source_root.mkdir()
+            value = synthetic_binding(source_root)
+            route_environment = environment(value)
         fixture = root / 'fixture.py'
         fixture.write_text('''from pathlib import Path
 import streamlit as st
@@ -30,11 +39,18 @@ st.caption('SYNTHETIC IMMUTABLE SNAPSHOT — NOT PRODUCTION OR GENUINE SIGNALS')
 render_internal_report_card(Path(%r), authorized=True, snapshot_sha256=%r, snapshot_tip=%r)
 st.markdown('<span data-fixture-complete="true"></span>', unsafe_allow_html=True)
 ''' % (str(path), digest, tip))
+        if binding_route:
+            fixture.write_text(fixture.read_text().replace(
+                'from ui.internal_report_card import render_internal_report_card',
+                'from ui.internal_report_card import render_internal_report_card_route').replace(
+                'render_internal_report_card(Path(%r), authorized=True, snapshot_sha256=%r, snapshot_tip=%r)' % (str(path), digest, tip),
+                'render_internal_report_card_route(None, authorized=True)'))
         with socket.socket() as sock:
             sock.bind(('127.0.0.1', 0)); port = sock.getsockname()[1]
         env = dict(os.environ, PYTHONPATH=os.pathsep.join(filter(None, (str(Path.cwd()), os.environ.get('PYTHONPATH','')))),
                    STREAMLIT_GLOBAL_DEVELOPMENT_MODE='false', ATLAS_QA_PROVIDER_CALLS_ALLOWED='0',
                    ATLAS_ALLOW_EXTERNAL_AI='false', ATLAS_CUSTOMER_REPORT_CARD_ENABLED='false')
+        env.update(route_environment)
         with (target/'fixture_server.log').open('w') as log:
             process = subprocess.Popen([sys.executable, '-m', 'streamlit', 'run', str(fixture),
                 '--server.address=127.0.0.1', f'--server.port={port}', '--server.headless=true',
@@ -65,7 +81,7 @@ st.markdown('<span data-fixture-complete="true"></span>', unsafe_allow_html=True
                             assert page.locator('[data-atlas-qa="report-card-overview"]').get_attribute('data-atlas-observation-count')=='0'
                             assert page.locator('[data-testid="stException"]').count()==0
                             assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
-                            page.screenshot(path=str(target/f'GENERATED_NOT_PRODUCTION_immutable_{width}.png'),full_page=True)
+                            page.screenshot(path=str(target/f'GENERATED_NOT_PRODUCTION_immutable_route_{binding_route}_{width}.png'),full_page=True)
                             assert not external
                             context.close()
                     finally: browser.close()
