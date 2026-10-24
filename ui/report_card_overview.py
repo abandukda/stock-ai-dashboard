@@ -117,7 +117,7 @@ def overview_html(report: Mapping[str, Any]) -> str:
     return (
         '<section class="atlas-rc-summary" aria-label="Report Card evidence summary" '
         'data-atlas-qa="report-card-executive-summary">'
-        f'<div class="atlas-rc-metrics">{cards}</div>'
+        f'<div class="atlas-rc-metrics" tabindex="0" role="region" aria-label="Report Card KPI strip">{cards}</div>'
         '<div class="atlas-rc-status-line">'
         f'<b>{escape(title)}</b><p>{escape(description)}</p>'
         '<p>Open a signal below to inspect its original dated price chart and evidence. '
@@ -129,11 +129,12 @@ def overview_html(report: Mapping[str, Any]) -> str:
 
 OVERVIEW_CSS = '''<style>
 .atlas-report-card-hero{padding:1rem;border:1px solid #293b51;border-radius:14px;background:#0d1b2c;color:#e8eff8;margin-bottom:.75rem}.atlas-report-card-hero .atlas-kicker{font-size:.68rem;letter-spacing:.08em;color:#70b9ed}.atlas-report-card-hero h1{font-size:1.55rem!important;line-height:1.2!important;margin:.4rem 0!important;padding:0!important;color:#edf6ff}.atlas-report-card-hero p{font-size:.82rem;line-height:1.5;color:#adc4dc;margin:.3rem 0}
-.atlas-rc-summary{margin:.5rem 0 1.5rem;color:#e8eff8}
-.atlas-rc-metrics{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:.5rem}
+.atlas-rc-summary{margin:.25rem 0 .5rem;color:#e8eff8}
+.atlas-rc-metrics{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:.5rem;overflow-x:auto}
+.atlas-rc-metrics:focus-visible{outline:2px solid #8bc1ff;outline-offset:2px}
 .atlas-rc-summary article{min-width:0;border:1px solid #293b51;border-radius:16px;padding:1.15rem;background:linear-gradient(145deg,#122236,#0d1727)}
 .atlas-rc-summary small{display:block;font-size:.73rem;letter-spacing:.065em;color:#a8bed5;line-height:1.4}
-.atlas-rc-metrics article{padding:.75rem}.atlas-rc-metrics strong{display:block;font-size:1.5rem;line-height:1.2;font-variant-numeric:tabular-nums;margin:.25rem 0;color:#f5f9ff}
+.atlas-rc-metrics article{padding:.75rem}.atlas-rc-metrics strong{display:block;font-size:clamp(1rem,1.6vw,1.5rem);line-height:1.2;font-variant-numeric:tabular-nums;margin:.25rem 0;color:#f5f9ff}
 .atlas-rc-metrics span{display:block;font-size:.77rem;line-height:1.45;color:#a8b9cc}
 .atlas-rc-evidence-grid{display:grid;grid-template-columns:1.25fr 1fr;gap:.75rem;margin-top:.75rem}
 .atlas-rc-summary .atlas-rc-pending{border-color:#665637;background:linear-gradient(135deg,#27251e,#131f2e)}
@@ -142,8 +143,11 @@ OVERVIEW_CSS = '''<style>
 .atlas-rc-private{display:inline-block;margin-top:.4rem;font-size:.72rem;padding:.35rem .6rem;border:1px solid #3a536e;border-radius:999px;color:#b9d7f5}
 .atlas-rc-status-line{margin:.75rem 0;padding:.8rem 1rem;border-left:3px solid #3998e8;background:#101e30;border-radius:4px 12px 12px 4px}.atlas-rc-status-line p{font-size:.8rem;margin:.25rem 0}.atlas-rc-status-line b{font-size:.95rem;color:#d8eaff}
 .atlas-rc-benchmark{padding:1rem;border:1px solid #2c4560;border-radius:14px;background:linear-gradient(145deg,#0e2339,#091522);color:#dcecff;min-height:240px}.atlas-rc-benchmark--available{min-height:0}.atlas-rc-benchmark h2{font-size:1.15rem!important;margin:0 0 .5rem!important}.atlas-rc-benchmark p{color:#a9bfd5;font-size:.85rem;line-height:1.55}.atlas-rc-legend{display:flex;gap:1rem;font-size:.75rem;color:#afc6df}.atlas-rc-legend b{color:#52b6ff}.atlas-rc-empty{display:grid;place-content:center;min-height:140px;text-align:center;border:1px dashed #36536f;border-radius:10px;margin:.8rem 0;padding:.7rem}.atlas-rc-empty strong{font-size:1rem;color:#e3d5b2}.atlas-rc-empty span{font-size:.8rem;color:#aac0d6;margin-top:.5rem}
-@media(max-width:1000px){.atlas-rc-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.atlas-rc-evidence-grid{grid-template-columns:1fr 1fr}}
-@media(max-width:600px){.atlas-rc-evidence-grid{grid-template-columns:1fr}.atlas-rc-summary article{padding:.85rem}.atlas-rc-metrics{gap:.5rem}.atlas-rc-metrics article:last-child{grid-column:1/-1}.atlas-rc-metrics strong{font-size:1.8rem}.atlas-rc-summary h2{font-size:1.1rem!important}}
+.atlas-rc-support{padding:.75rem;border:1px solid #293b51;border-radius:14px;background:#0d1b2c;color:#c4d2e1;overflow-wrap:anywhere}
+.atlas-rc-support h2{font-size:1rem!important;margin:0!important;padding:0!important;color:#e8eff8}.atlas-rc-support p{font-size:.8rem;line-height:1.4;margin:.55rem 0}.atlas-rc-support small{font-size:.72rem;color:#a8bed5}
+.atlas-rc-status-line{margin:.5rem 0;padding:.55rem .75rem}.atlas-rc-status-line p{font-size:.78rem;line-height:1.4}
+.atlas-rc-benchmark--pending,.atlas-rc-benchmark--unavailable,.atlas-rc-benchmark--withheld{min-height:200px}.atlas-rc-empty{min-height:90px}
+@media(max-width:600px){.atlas-rc-metrics{grid-template-columns:repeat(5,minmax(125px,1fr));gap:.4rem;padding-bottom:.4rem}.atlas-rc-summary article{padding:.6rem}.atlas-rc-metrics strong{font-size:1.1rem}.atlas-rc-summary h2{font-size:1.1rem!important}}
 </style>'''
 
 
@@ -261,11 +265,15 @@ def select_history(signals, *, query='', observations='All', order='Ledger order
 
 def render_signal_directory(signals, *, on_open) -> None:
     import streamlit as st
-    query = st.text_input('Search original signals', key='report_card_history_query',
+    search_column, filter_column, sort_column = st.columns([2, 1, 1])
+    with search_column:
+        query = st.text_input('Search original signals', key='report_card_history_query',
                           placeholder='Ticker, signal ID, action or date')
-    observations = st.selectbox('Observation filter', ('All', 'Pending', 'Recorded'),
+    with filter_column:
+        observations = st.selectbox('Observation filter', ('All', 'Pending', 'Recorded'),
                                 key='report_card_history_observations')
-    order = st.selectbox('History order', ('Ledger order', 'Ticker A–Z', 'Ticker Z–A',
+    with sort_column:
+        order = st.selectbox('History order', ('Ledger order', 'Ticker A–Z', 'Ticker Z–A',
                                          'Registered newest', 'Registered oldest'),
                          key='report_card_history_order')
     visible = select_history(signals, query=query, observations=observations, order=order)

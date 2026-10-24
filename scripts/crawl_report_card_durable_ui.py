@@ -56,6 +56,13 @@ async def wait_for_report_card_overview_settled(page: Page, mode: str) -> None:
     )
 
     async def settled() -> bool:
+        # Inline details retain the overview. Its presence alone no longer
+        # proves that the close/back interaction has completed.
+        state = page.locator('[data-atlas-qa="report-card-state"]')
+        if (not await state.count()
+                or await state.get_attribute('data-atlas-view') != 'OVERVIEW'
+                or await page.locator('[data-atlas-qa="report-card-signal-detail"]').count()):
+            return False
         directory = page.locator('[data-atlas-qa="report-card-signal-directory"]')
         overview = page.locator('[data-atlas-qa="report-card-overview"]')
         if not await directory.count() or not await overview.count():
