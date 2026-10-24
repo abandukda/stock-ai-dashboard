@@ -357,6 +357,17 @@ def render_internal_report_card_route(durable_root: str | None, *, authorized: b
     from services.report_card_governance import public_report_allowed
     if public_report_allowed():
         raise PermissionError("PUBLIC_REPORT_CARD_MUST_REMAIN_OFF")
+    from services.report_card_snapshot_binding import (
+        SnapshotBindingError, build_bound_snapshot_report, snapshot_binding_from_environment,
+    )
+    try:
+        binding = snapshot_binding_from_environment(os.environ)
+        if binding is not None:
+            return _render_report_card(build_bound_snapshot_report(binding, authorized=True))
+    except SnapshotBindingError:
+        st.error("The private Report Card snapshot binding could not be verified. "
+                 "No signal or chart evidence is displayed. Public activation OFF.")
+        return {"status": "UNAVAILABLE", "customer_visible": False, "reason": "SNAPSHOT_BINDING_REJECTED"}
     root = durable_root.strip() if isinstance(durable_root, str) else ""
     if root:
         try:
@@ -390,6 +401,11 @@ def render_internal_report_card(ledger_path: Path, *, authorized: bool,
         )
     else:
         report = build_internal_report_card(ledger_path, authorized=authorized, authority_root=authority_root)
+    return _render_report_card(report)
+
+
+def _render_report_card(report: Mapping[str, Any]) -> Mapping[str, Any]:
+    """Render only after the selected read path has completed its evidence checks."""
     st.markdown('<span data-atlas-qa="internal-report-card" data-atlas-customer-visible="false" '
                 'aria-hidden="true" style="display:none">internal-report-card</span>', unsafe_allow_html=True)
     st.markdown(

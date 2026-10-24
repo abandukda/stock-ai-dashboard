@@ -17,7 +17,8 @@ from services.report_card_signal_detail import build_signal_detail, load_certifi
 
 def build_internal_report_card(path: Path, *, authorized: bool, authority_root: Path | None = None,
                                immutable_snapshot: bool = False,
-                               performance_authorized: bool = True) -> dict[str, Any]:
+                               performance_authorized: bool = True,
+                               authority_rows: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     if not authorized:
         raise PermissionError("INTERNAL_REPORT_CARD_ACCESS_REQUIRED")
     if public_report_allowed():
@@ -47,7 +48,7 @@ def build_internal_report_card(path: Path, *, authorized: bool, authority_root: 
     table = []
     signal_details = []
     enriched_signal_details = []
-    authority_rows = load_certified_authority(authority_root)
+    authority_rows = load_certified_authority(authority_root) if authority_rows is None else authority_rows
     for signal in signals:
         payload = signal["payload"]
         observation_count = sum(row["parent_id"] == signal["record_id"] for row in observations)
@@ -171,7 +172,8 @@ def build_internal_report_card(path: Path, *, authorized: bool, authority_root: 
 
 def build_immutable_internal_report_card(path: Path, *, expected_sha256: str,
                                          expected_tip: str, authorized: bool,
-                                         authority_root: Path | None = None) -> dict[str, Any]:
+                                         authority_root: Path | None = None,
+                                         authority_rows: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     """Read an owner-approved consolidated snapshot, never a live WAL database.
 
     This does not copy a ledger or establish independent backup authority. The
@@ -192,7 +194,8 @@ def build_immutable_internal_report_card(path: Path, *, expected_sha256: str,
     if hashlib.sha256(source.read_bytes()).hexdigest() != expected_sha256:
         raise ValueError("REPORT_CARD_SNAPSHOT_DIGEST_MISMATCH")
     report = build_internal_report_card(source, authorized=authorized, authority_root=authority_root,
-                                        immutable_snapshot=True, performance_authorized=False)
+                                        immutable_snapshot=True, performance_authorized=False,
+                                        authority_rows=authority_rows)
     if report['ledger_tip_digest'] != expected_tip:
         raise ValueError("REPORT_CARD_SNAPSHOT_TIP_MISMATCH")
     if hashlib.sha256(source.read_bytes()).hexdigest() != expected_sha256:
