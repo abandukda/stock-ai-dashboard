@@ -182,17 +182,39 @@ def _render_presentation_truth(page: Mapping[str, Any], *, ticker: str) -> None:
         module = raw if isinstance(raw, Mapping) else {}
         disclosure = research_field_disclosure(module)
         rows.append({"Evidence area": label, "Availability": disclosure["label"],
-                     "Source": disclosure["source"], "As of": disclosure["as_of"]})
+                     "Source": disclosure["source"], "Evidence date(s)": disclosure["as_of"]})
     snapshot = page.get("financial_snapshot") if isinstance(page.get("financial_snapshot"), Mapping) else {}
     items = [item for item in snapshot.get("items") or () if isinstance(item, Mapping)]
+    raw_dates = tuple(dict.fromkeys(str(item.get("as_of")) for item in items if item.get("as_of")))
+    parsed_dates = []
+    for raw in raw_dates:
+        try:
+            instant = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if instant.tzinfo is not None:
+            instant = instant.astimezone(timezone.utc).replace(tzinfo=None)
+        parsed_dates.append((instant, raw))
+    if not raw_dates:
+        date_summary = None
+    elif len(raw_dates) == 1:
+        date_summary = raw_dates[0]
+    elif len(parsed_dates) == len(raw_dates):
+        earliest, latest = min(parsed_dates)[0], max(parsed_dates)[0]
+        date_summary = (
+            earliest.date().isoformat() if earliest == latest else
+            f'Mixed field dates: {earliest.date().isoformat()} to {latest.date().isoformat()}'
+        )
+    else:
+        date_summary = "Mixed field dates: " + ", ".join(raw_dates)
     snapshot_envelope = {
         "status": snapshot.get("status"),
         "source": ", ".join(dict.fromkeys(str(item.get("provider")) for item in items if item.get("provider"))),
-        "as_of": max((str(item.get("as_of")) for item in items if item.get("as_of")), default=None),
+        "as_of": date_summary,
     }
     disclosure = research_field_disclosure(snapshot_envelope)
     rows.append({"Evidence area": "Financial snapshot", "Availability": disclosure["label"],
-                 "Source": disclosure["source"], "As of": disclosure["as_of"]})
+                     "Source": disclosure["source"], "Evidence date(s)": disclosure["as_of"]})
     with st.expander("Evidence availability, sources, and dates", expanded=False):
         st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
 

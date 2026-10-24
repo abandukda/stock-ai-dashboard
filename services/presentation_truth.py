@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from typing import Any, Mapping
 
 
-_STALE = {"STALE", "STALE_FALLBACK", "LAST_KNOWN", "EXPIRED"}
+_STALE = {"STALE", "STALE_RETAINED", "STALE_FALLBACK", "LAST_KNOWN", "EXPIRED"}
 _AVAILABLE = {"AVAILABLE", "PARTIAL", "PUBLISHED", "CERTIFIED", "LIVE", "CURRENT"}
 
 
@@ -89,7 +89,9 @@ def research_field_disclosure(section: Mapping[str, Any] | None) -> dict[str, st
     provenance = dict(item.get("provenance") or {})
     semantic_status = _status(item.get("semantic_status"))
     status = _status(item.get("status"))
-    freshness = _status(item.get("freshness") or provenance.get("freshness") or provenance.get("status"))
+    freshness = _status(item.get("freshness_status") or item.get("freshness")
+                        or provenance.get("freshness_status") or provenance.get("freshness")
+                        or provenance.get("status"))
     source = str(provenance.get("source") or provenance.get("provider") or item.get("source") or "Unavailable")
     as_of = str(provenance.get("as_of") or provenance.get("capture_timestamp") or item.get("as_of") or "Timestamp unavailable")
     if freshness in _STALE or status in _STALE or semantic_status in _STALE:

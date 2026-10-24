@@ -45,6 +45,12 @@ def test_research_field_preserves_provenance_and_staleness():
     assert partial["availability"] == "PARTIAL"
     mixed = research_field_disclosure({"semantic_status": "AVAILABLE", "status": "partial"})
     assert mixed["availability"] == "PARTIAL"
+    retained_chart = research_field_disclosure({
+        "status": "AVAILABLE", "freshness_status": "STALE_RETAINED",
+        "provenance": {"source": "SYNTHETIC_NOT_PRODUCTION", "capture_timestamp": "2025-01-01T00:00:00Z"},
+    })
+    assert retained_chart["availability"] == "STALE"
+    assert retained_chart["label"] == "Stale evidence"
 
 
 def test_contracts_are_pure_across_repeated_no_network_calls():

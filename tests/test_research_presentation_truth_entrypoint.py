@@ -49,10 +49,16 @@ def test_active_truth_renderer_uses_projected_schema(monkeypatch):
     renderer._render_presentation_truth({
         "reading_views": {"status": "AVAILABLE", "mode": "DETERMINISTIC_GROUNDED_FALLBACK", "external_model_active": False},
         "about": {"status": "AVAILABLE", "provenance": {"source": "SYNTHETIC_NOT_PRODUCTION", "as_of": "2026-01-01"}},
-        "chart": {"status": "UNAVAILABLE"}, "financial_trend": {"status": "UNAVAILABLE"},
-        "financial_snapshot": {"status": "PARTIAL", "items": [{"provider": "SYNTHETIC_NOT_PRODUCTION", "as_of": "2025-12-31"}]},
+        "chart": {"status": "AVAILABLE", "freshness_status": "STALE_RETAINED", "provenance": {"source": "SYNTHETIC_NOT_PRODUCTION"}},
+        "financial_trend": {"status": "UNAVAILABLE"},
+        "financial_snapshot": {"status": "PARTIAL", "items": [
+            {"provider": "SYNTHETIC_NOT_PRODUCTION", "as_of": "2025-12-31"},
+            {"provider": "SYNTHETIC_NOT_PRODUCTION", "as_of": "2026-01-02T01:00:00+00:00"},
+        ]},
     }, ticker="TEST")
     assert "Deterministic explanation" in captions[0]
     rows = frames[0].to_dict("records")
     assert rows[0]["Source"] == "SYNTHETIC_NOT_PRODUCTION"
+    assert rows[1]["Availability"] == "Stale evidence"
     assert rows[-1]["Availability"] == "Partial evidence"
+    assert rows[-1]["Evidence date(s)"] == "Mixed field dates: 2025-12-31 to 2026-01-02"
