@@ -1759,7 +1759,7 @@ def _render_market_read(story: Mapping[str, Any]) -> None:
     )
     st.caption(
         f'{_display(briefing.get("market_session"))} · {_timestamp(briefing.get("as_of"))} · '
-        f'Source: {disclosure["source"]} · '
+        f'Source: {disclosure["source"]} · Source freshness: {_display(disclosure["freshness"])} · '
         'Educational context only; it does not change certified recommendations.'
     )
     with st.expander("Explore market drivers, events and evidence", expanded=False):

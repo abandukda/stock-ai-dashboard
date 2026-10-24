@@ -74,13 +74,15 @@ def market_view_disclosure(market: Mapping[str, Any] | None) -> dict[str, str]:
         state, label = "STALE", "Last-known market context"
     elif has_evidence and (status == "PARTIAL" or not timestamp_valid):
         state, label = "PARTIAL", "Partial market context"
-    elif has_evidence and status in _AVAILABLE and any(value in {"CURRENT", "CAPTURED", "LIVE"} for value in declared_freshness):
-        state, label = "AVAILABLE", "Verified market context"
+    elif has_evidence and status in _AVAILABLE and any(value in {"CURRENT", "CAPTURED", "LIVE", "CURRENT_SESSION"} for value in declared_freshness):
+        state, label = "AVAILABLE", "Available market context"
     elif has_evidence:
         state, label = "PARTIAL", "Dated market context"
     else:
         state, label = "UNAVAILABLE", "Market context unavailable"
-    return {"state": state, "label": label, "source": source, "as_of": as_of}
+    freshness_label = next((value for value in declared_freshness if value != "UNAVAILABLE"), "UNAVAILABLE")
+    return {"state": state, "label": label, "source": source, "as_of": as_of,
+            "freshness": freshness_label}
 
 
 def research_field_disclosure(section: Mapping[str, Any] | None) -> dict[str, str]:

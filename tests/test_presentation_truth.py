@@ -25,7 +25,7 @@ def test_market_view_never_upgrades_empty_stale_or_partial_evidence():
     valid = market_view_disclosure({"status": "AVAILABLE", "as_of": "2026-01-01T00:00:00Z", "freshness_status": "CURRENT", "instruments": [{"symbol": "TEST", "price": 1, "source": "SYNTHETIC_NOT_PRODUCTION", "evidence_id": "synthetic:1"}], "source": "SYNTHETIC_NOT_PRODUCTION"})
     assert stale["state"] == "STALE"
     assert partial["state"] == "UNAVAILABLE"
-    assert valid == {"state": "AVAILABLE", "label": "Verified market context", "source": "SYNTHETIC_NOT_PRODUCTION", "as_of": "2026-01-01T00:00:00Z"}
+    assert valid == {"state": "AVAILABLE", "label": "Available market context", "source": "SYNTHETIC_NOT_PRODUCTION", "as_of": "2026-01-01T00:00:00Z", "freshness": "CURRENT"}
     explicit_partial = {"status": "PARTIAL", "as_of": "2026-01-01T00:00:00Z", "instruments": [{"symbol": "TEST", "price": 1, "source": "SYNTHETIC_NOT_PRODUCTION", "evidence_id": "synthetic:1"}]}
     assert market_view_disclosure(explicit_partial)["state"] == "PARTIAL"
     nested_stale = {"status": "AVAILABLE", "instruments": [{"symbol": "TEST", "price": 1, "source": "SYNTHETIC_NOT_PRODUCTION", "evidence_id": "synthetic:1", "freshness_status": "STALE"}]}
@@ -34,6 +34,13 @@ def test_market_view_never_upgrades_empty_stale_or_partial_evidence():
     assert market_view_disclosure(malformed)["state"] == "PARTIAL"
     old_unclassified = {"status": "AVAILABLE", "as_of": "2020-01-01T00:00:00Z", "instruments": [{"symbol": "TEST", "price": 1, "source": "SYNTHETIC_NOT_PRODUCTION", "evidence_id": "synthetic:1"}]}
     assert market_view_disclosure(old_unclassified)["state"] == "PARTIAL"
+    old_asserted_current = {**old_unclassified, "freshness_status": "CURRENT"}
+    old_result = market_view_disclosure(old_asserted_current)
+    assert old_result["label"] == "Available market context"
+    assert "Verified" not in old_result["label"]
+    assert old_result["freshness"] == "CURRENT"
+    canonical_close = {**old_unclassified, "freshness_status": "LATEST_COMPLETED_REGULAR_SESSION"}
+    assert market_view_disclosure(canonical_close)["label"] == "Dated market context"
 
 
 def test_research_field_preserves_provenance_and_staleness():
