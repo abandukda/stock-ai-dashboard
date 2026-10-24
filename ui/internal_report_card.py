@@ -430,16 +430,6 @@ def _render_report_card(report: Mapping[str, Any]) -> Mapping[str, Any]:
         unsafe_allow_html=True,
     )
     selected = next((item for item in report["signal_details"] if item["signal_id"] == selected_id), None)
-    if view_mode == REPORT_CARD_VIEW_DETAIL and selected is not None:
-        st.button(
-            "← Back to Report Card",
-            key="report_card_back_to_overview",
-            on_click=back_to_report_card_overview,
-            args=(st.session_state,),
-        )
-        _render_signal_detail(selected)
-        return report
-
     st.markdown(OVERVIEW_CSS + overview_html(report), unsafe_allow_html=True)
     st.markdown(
         f'<span data-atlas-qa="report-card-overview" '
@@ -455,18 +445,34 @@ def _render_report_card(report: Mapping[str, Any]) -> Mapping[str, Any]:
         'aria-hidden="true" style="display:none">report-card-overview</span>',
         unsafe_allow_html=True,
     )
-    benchmark_column, history_column = st.columns([1.15, 1], gap="medium")
+    benchmark_column, support_column = st.columns([3, 1], gap="medium")
     with benchmark_column:
         benchmark_renderer = getattr(_report_card_overview, "render_benchmark_panel", None)
         if callable(benchmark_renderer):
             benchmark_renderer(report)
         else:
             st.info("The ATLAS vs SPY comparison is unavailable in this application session. No performance is inferred.")
-    with history_column:
-        render_signal_directory(report["signals"], on_open=open_report_card_detail)
-    st.caption(f'Next eligible observation: {report["next_eligible_observation"]}')
-    st.markdown(f'**Ledger integrity:** {report["integrity"]} · **Admission integrity:** '
-                f'{report["admission_integrity"]} · **Backup status:** {report["last_backup_status"]}')
+    with support_column:
+        st.markdown(
+            '<aside class="atlas-rc-support" data-atlas-qa="report-card-support">'
+            '<h2>Evidence status</h2>'
+            f'<p><b>Next eligible observation</b><br>{html.escape(str(report["next_eligible_observation"]))}</p>'
+            f'<p><b>Ledger integrity</b><br>{html.escape(str(report["integrity"]))}</p>'
+            f'<p><b>Admission integrity</b><br>{html.escape(str(report["admission_integrity"]))}</p>'
+            f'<p><b>Backup status</b><br>{html.escape(str(report["last_backup_status"]))}</p>'
+            '<small>Reported metadata. Independent backup verification remains required. Public activation OFF.</small>'
+            '</aside>', unsafe_allow_html=True,
+        )
+    render_signal_directory(report["signals"], on_open=open_report_card_detail)
+    if view_mode == REPORT_CARD_VIEW_DETAIL and selected is not None:
+        with st.expander(f'Selected signal detail · {selected["ticker"]}', expanded=True):
+            st.button(
+                "← Back to Report Card",
+                key="report_card_back_to_overview",
+                on_click=back_to_report_card_overview,
+                args=(st.session_state,),
+            )
+            _render_signal_detail(selected)
     if report["admission_defects"]:
         st.error("Signal-admission QA failed: " + ", ".join(report["admission_defects"]))
     st.subheader("Signal admission and observation detail")

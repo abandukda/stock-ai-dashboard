@@ -14,7 +14,7 @@ class RegistrationRenderTest(unittest.TestCase):
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
             try:
-                for width in (360, 768, 1440):
+                for width in (360, 768, 1024, 1440):
                     page = browser.new_page(viewport={'width': width, 'height': 1000})
                     page.route('**/*', lambda route: route.abort())
                     page.set_content('<body style="background:#0a1423;font-family:Arial;padding:12px">'
@@ -46,7 +46,7 @@ class RegistrationRenderTest(unittest.TestCase):
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
             try:
-                for width in (360, 768, 1440):
+                for width in (360, 768, 1024, 1440):
                     page = browser.new_page(viewport={'width': width, 'height': 1000})
                     page.route('**/*', lambda route: route.abort())
                     page.set_content('<body style="background:#0a1423;font-family:Arial;padding:12px">'

@@ -102,3 +102,25 @@ def test_hash_valid_existing_observation_does_not_authorize_performance_visibili
     assert 'performance withheld' in overview_html(report)
     assert '10.00%' not in str(report['signal_details'])
     assert path.read_bytes()==before
+
+
+def test_exact_signal_detail_is_inline_and_preserves_overview_and_controls(tmp_path):
+    path, digest, tip = snapshot(tmp_path)
+    before = {p.name:p.read_bytes() for p in path.parent.iterdir()}
+    app = AppTest.from_function(render_snapshot, kwargs={'path':str(path),'digest':digest,'tip':tip}, default_timeout=30).run()
+    app.text_input(key='report_card_history_query').input('BBB').run()
+    app.selectbox(key='report_card_benchmark_horizon').select(63).run()
+    app.button(key='report_card_directory_open').click().run()
+    assert not app.exception
+    assert app.session_state['report_card_selected_signal_id'] == 'BBB'
+    html = '\n'.join(str(x.value) for x in app.markdown)
+    assert 'data-atlas-qa="report-card-overview"' in html
+    assert 'data-atlas-qa="report-card-signal-detail"' in html
+    assert app.text_input(key='report_card_history_query').value == 'BBB'
+    assert app.selectbox(key='report_card_benchmark_horizon').value == 63
+    app.button(key='report_card_back_to_overview').click().run()
+    assert not app.exception
+    html = '\n'.join(str(x.value) for x in app.markdown)
+    assert 'data-atlas-qa="report-card-signal-detail"' not in html
+    assert 'data-atlas-qa="report-card-overview"' in html
+    assert before == {p.name:p.read_bytes() for p in path.parent.iterdir()}
