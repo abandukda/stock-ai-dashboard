@@ -566,13 +566,10 @@ def _render_decision(report: Mapping[str, Any], view: Mapping[str, Any]) -> None
             f"{'Live' if market.get('fresh_current_price') is True else 'Last known'}"
         )
     customer_view = safe_mapping(report.get("customer_plain_english_summary"))
-    from services.presentation_truth import summary_disclosure
-    summary_truth = summary_disclosure(customer_view)
     st.write(_scalar_text(
         customer_view.get("text"),
         "ATLAS cannot produce a plain-English view until the required certified evidence is available.",
     ))
-    st.caption(f'{summary_truth["label"]} · {summary_truth["detail"]}')
     if current_guidance:
         st.markdown(
             f"**ATLAS Rating:** {customer_action['stars']} {customer_action['label']}"
@@ -1265,15 +1262,8 @@ def _render_risk_evidence(report: Mapping[str, Any], view: Mapping[str, Any], le
         legacy["interpretation"](_scalar_text(risk.get("interpretation"), ""))
 
     sections = safe_mapping(report.get("sections"))
-    from services.presentation_truth import research_field_disclosure
     readiness = [
-        {
-            "Area": name.title(),
-            "Availability": research_field_disclosure(safe_mapping(section))["label"],
-            "Source": research_field_disclosure(safe_mapping(section))["source"],
-            "As of": research_field_disclosure(safe_mapping(section))["as_of"],
-            "Completeness": safe_mapping(section).get("completeness_pct"),
-        }
+        {"Area": name.title(), "Status": safe_mapping(section).get("status"), "Completeness": safe_mapping(section).get("completeness_pct")}
         for name, section in sections.items()
     ]
     with st.expander("Research readiness, freshness, and limitations", expanded=False):

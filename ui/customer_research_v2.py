@@ -163,6 +163,40 @@ def _list(items: list[str]) -> None:
     st.markdown("\n".join(f"- {_escape_markdown_currency(item)}" for item in items))
 
 
+def _render_presentation_truth(page: Mapping[str, Any], *, ticker: str) -> None:
+    """Disclose modes and provenance from the active customer projection."""
+    from services.presentation_truth import research_field_disclosure, summary_disclosure
+
+    reading = page.get("reading_views") if isinstance(page.get("reading_views"), Mapping) else {}
+    summary = summary_disclosure(reading)
+    _marker("summary-disclosure", ticker, state=summary["state"])
+    st.caption(f'{summary["label"]} · {summary["detail"]}')
+
+    modules = (
+        ("Company profile", page.get("about")),
+        ("Price history", page.get("chart")),
+        ("Financial trend", page.get("financial_trend")),
+    )
+    rows = []
+    for label, raw in modules:
+        module = raw if isinstance(raw, Mapping) else {}
+        disclosure = research_field_disclosure(module)
+        rows.append({"Evidence area": label, "Availability": disclosure["label"],
+                     "Source": disclosure["source"], "As of": disclosure["as_of"]})
+    snapshot = page.get("financial_snapshot") if isinstance(page.get("financial_snapshot"), Mapping) else {}
+    items = [item for item in snapshot.get("items") or () if isinstance(item, Mapping)]
+    snapshot_envelope = {
+        "status": snapshot.get("status"),
+        "source": ", ".join(dict.fromkeys(str(item.get("provider")) for item in items if item.get("provider"))),
+        "as_of": max((str(item.get("as_of")) for item in items if item.get("as_of")), default=None),
+    }
+    disclosure = research_field_disclosure(snapshot_envelope)
+    rows.append({"Evidence area": "Financial snapshot", "Availability": disclosure["label"],
+                 "Source": disclosure["source"], "As of": disclosure["as_of"]})
+    with st.expander("Evidence availability, sources, and dates", expanded=False):
+        st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+
+
 def _render_institutional_overview(report: Mapping[str, Any], *, ticker: str) -> None:
     """Render the evidence-only five-minute dossier without new authority."""
     if report.get("status") != "AVAILABLE":
@@ -1473,6 +1507,7 @@ def render_customer_research_v2(report: Mapping[str, Any], *, ask_cta: Callable[
                    "Source facts and the certified ATLAS Action remain separate from this explanation.")
     st.markdown("## Understand the investment case")
     reading_views = page.get("reading_views") if isinstance(page.get("reading_views"), Mapping) else {}
+    _render_presentation_truth(page, ticker=ticker)
     simple_view = reading_views.get("simple_view") if isinstance(reading_views.get("simple_view"), Mapping) else {}
     detailed_view = reading_views.get("detailed_view") if isinstance(reading_views.get("detailed_view"), Mapping) else {}
     simple_tab, detailed_tab = st.tabs(["Simple View · 2 min", "Detailed View"])
