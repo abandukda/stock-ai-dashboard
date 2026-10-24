@@ -1741,21 +1741,25 @@ def _render_market_strip(story: Mapping[str, Any]) -> None:
 
 def _render_market_read(story: Mapping[str, Any]) -> None:
     """Render the existing governed interpretation without restoring legacy bulk."""
+    from services.presentation_truth import market_view_disclosure
     briefing = build_home_market_intelligence(story)
     interpretation = str(briefing.get("interpretation") or "").strip()
     sentences = [part.strip() for part in re.split(r"(?<=[.!?])\s+", interpretation) if part.strip()]
     concise = " ".join(sentences[:4])
     market = story.get("market_today") or {}
+    disclosure = market_view_disclosure(market)
     if not concise and not market.get("instruments"):
         concise = "Source dates, market drivers and methodology are available below. The independent market clock does not refresh the certified investment decisions."
     st.markdown(
         '<section class="atlas-home-market-read" data-atlas-qa="atlas-market-read" '
+        f'data-atlas-market-availability="{html.escape(disclosure["state"])}" '
         'data-atlas-non-scoring="true"><h2>ATLAS Market Read</h2>'
-        f'<p>{html.escape(concise)}</p></section>',
+        f'<p><strong>{html.escape(disclosure["label"])}.</strong> {html.escape(concise)}</p></section>',
         unsafe_allow_html=True,
     )
     st.caption(
         f'{_display(briefing.get("market_session"))} · {_timestamp(briefing.get("as_of"))} · '
+        f'Source: {disclosure["source"]} · '
         'Educational context only; it does not change certified recommendations.'
     )
     with st.expander("Explore market drivers, events and evidence", expanded=False):
